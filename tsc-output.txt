@@ -1,0 +1,1 @@
+﻿src/app/panel/fastfood/orders/page.tsx(437,40): error TS2304: Cannot find name 'loadOrders'.

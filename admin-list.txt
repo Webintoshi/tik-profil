@@ -1,0 +1,19 @@
+ADMIN LİSTESİ
+============================================================
+
+Toplam 1 admin bulundu:
+
+[Admin 1]
+----------------------------------------
+ID:           V69Y4yy3gUZCIR7FVNqn
+Username:     onlu
+Display Name: Harun Altıntaş
+Email:        harun@tikprofil.com
+Role:         admin
+Permissions:  manage_businesses, manage_couriers, view_logs
+Is Active:    true
+Created By:   webintosh
+Created At:   2025-12-20T19:02:53.916Z
+Last Login:   N/A
+
+============================================================

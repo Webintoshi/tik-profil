@@ -1,0 +1,39 @@
+{
+    "name": "TikProfil İşletme Paneli",
+    "short_name": "Panel",
+    "description": "İşletme Yönetim Paneli",
+    "start_url": "/panel",
+    "scope": "/panel",
+    "display": "standalone",
+    "background_color": "#0a0a0a",
+    "theme_color": "#10B981",
+    "orientation": "any",
+    "icons": [
+        {
+            "src": "/icon-panel-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icon-panel-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Profil",
+            "url": "/panel/profile"
+        },
+        {
+            "name": "Menü",
+            "url": "/panel/food/menu"
+        },
+        {
+            "name": "QR Kod",
+            "url": "/panel/qr"
+        }
+    ]
+}

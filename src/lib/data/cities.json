@@ -1,0 +1,74 @@
+[
+  {
+    "id": "ordu",
+    "name": "Ordu",
+    "plate": 52,
+    "tagline": "Mavinin ve yeşilin buluştuğu oksijen diyarı.",
+    "description": "Karadeniz'in incisi Ordu, fındık bahçeleriyle kaplı yemyeşil dağların masmavi denizle kucaklaştığı eşsiz bir coğrafyadır. Tarihi M.Ö. 7. yüzyıla dayanan Kotyora (Cotyora) antik kenti üzerine kurulmuştur. Boztepe'den şehri kuşbakışı izlemek, Yason Burnu'nda gün batımına tanıklık etmek ve yaylalarında huzuru bulmak Ordu deneyiminin vazgeçilmezleridir.",
+    "coverImage": "https://images.unsplash.com/photo-1625903995874-9f20c4228964?q=80&w=2000&auto=format&fit=crop",
+    "places": [
+      {
+        "id": "p1",
+        "name": "Boztepe",
+        "image": "https://images.unsplash.com/photo-1688152787884-6997b7188706?q=80&w=800&auto=format&fit=crop",
+        "category": "Manzara"
+      },
+      {
+        "id": "p2",
+        "name": "Yason Burnu",
+        "image": "https://images.unsplash.com/photo-1629833596856-291771146744?q=80&w=800&auto=format&fit=crop",
+        "category": "Tarihi Yarımada"
+      },
+      {
+        "id": "p3",
+        "name": "Çambaşı Yaylası",
+        "image": "https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?q=80&w=800&auto=format&fit=crop",
+        "category": "Doğa"
+      },
+      {
+        "id": "p4",
+        "name": "Perşembe Yaylası",
+        "image": "https://images.unsplash.com/photo-1587595431973-160d0d94add1?q=80&w=800&auto=format&fit=crop",
+        "category": "Menderesler"
+      }
+    ]
+  },
+  {
+    "id": "istanbul",
+    "name": "İstanbul",
+    "plate": 34,
+    "tagline": "İki kıtayı birleştiren dünya başkenti.",
+    "description": "Tarih boyunca üç büyük imparatorluğa başkentlik yapmış, Asya ve Avrupa'yı birbirine bağlayan eşsiz şehir. Ayasofya'nın ihtişamı, Boğaz'ın büyüsü ve Kapalıçarşı'nın gizemiyle İstanbul, her köşesinde ayrı bir hikaye barındırır.",
+    "coverImage": "https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?q=80&w=2000&auto=format&fit=crop",
+    "places": [
+      {
+        "id": "ist1",
+        "name": "Ayasofya",
+        "image": "https://images.unsplash.com/photo-1568045936848-18e00d796792?q=80&w=800&auto=format&fit=crop",
+        "category": "Tarihi"
+      },
+      {
+        "id": "ist2",
+        "name": "Galata Kulesi",
+        "image": "https://images.unsplash.com/photo-1565538283430-804130006900?q=80&w=800&auto=format&fit=crop",
+        "category": "Simge"
+      }
+    ]
+  },
+  {
+    "id": "ankara",
+    "name": "Ankara",
+    "plate": 6,
+    "tagline": "Türkiye Cumhuriyeti'nin kalbi.",
+    "description": "Anadolu'nun ortasında yükselen modern başkent. Anıtkabir'in vakur duruşu, Anadolu Medeniyetleri Müzesi'nin derinliği ve Tunalı Hilmi'nin canlılığı ile Ankara, köklü tarihini modern yüzüyle birleştirir.",
+    "coverImage": "https://images.unsplash.com/photo-1594975713915-18860714972e?q=80&w=2000&auto=format&fit=crop",
+    "places": [
+      {
+        "id": "ank1",
+        "name": "Anıtkabir",
+        "image": "https://images.unsplash.com/photo-1590492804587-f823295c5240?q=80&w=800&auto=format&fit=crop",
+        "category": "Anıt"
+      }
+    ]
+  }
+]
