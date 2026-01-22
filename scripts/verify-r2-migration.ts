@@ -11,7 +11,7 @@ function buildLegacyStorageRegex(): RegExp | null {
   if (rawRegex) {
     try {
       return new RegExp(rawRegex, 'i');
-    } catch (error) {
+    } catch (error: any) {
       console.warn('Invalid LEGACY_STORAGE_REGEX:', error?.message || error);
     }
   }
