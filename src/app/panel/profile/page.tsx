@@ -279,22 +279,26 @@ export default function ProfilePage() {
 
         const loadProfile = async () => {
             try {
-                const { getDocumentREST } = await import("@/lib/documentStore");
-                const doc = await getDocumentREST("businesses", session.businessId);
+                const response = await fetch('/api/panel/profile', {
+                    method: 'GET',
+                    credentials: 'include',
+                });
+                const data = await response.json();
 
-                if (doc) {
+                if (data.success && data.profile) {
+                    const p = data.profile;
                     setProfile({
-                        name: (doc.name as string) || session.businessName || "",
-                        slogan: (doc.slogan as string) || "",
-                        about: (doc.about as string) || "",
-                        logo: (doc.logo as string) || undefined,
-                        cover: (doc.cover as string) || undefined,
-                        phone: (doc.phone as string) || "",
-                        address: (doc.address as string) || "",
-                        mapsUrl: (doc.mapsUrl as string) || "",
-                        socialLinks: (doc.socialLinks as SocialLinks) || DEFAULT_SOCIAL_LINKS,
-                        showHours: (doc.showHours as boolean) ?? true,
-                        workingHours: (doc.workingHours as WorkingDay[]) || DEFAULT_WORKING_HOURS,
+                        name: p.name || session.businessName || "",
+                        slogan: p.slogan || "",
+                        about: p.about || "",
+                        logo: p.logo || undefined,
+                        cover: p.cover || undefined,
+                        phone: p.phone || "",
+                        address: p.address || "",
+                        mapsUrl: p.mapsUrl || "",
+                        socialLinks: p.socialLinks || DEFAULT_SOCIAL_LINKS,
+                        showHours: p.showHours ?? true,
+                        workingHours: p.workingHours?.length ? p.workingHours : DEFAULT_WORKING_HOURS,
                     });
                 } else {
                     // Use session data as fallback
@@ -351,31 +355,43 @@ export default function ProfilePage() {
 
         setIsSaving(true);
         try {
-            const { updateDocumentREST } = await import("@/lib/documentStore");
-            await updateDocumentREST("businesses", businessId, {
-                name: profile.name,
-                slogan: profile.slogan,
-                about: profile.about,
-                phone: profile.phone,
-                address: profile.address,
-                mapsUrl: profile.mapsUrl,
-                socialLinks: profile.socialLinks,
-                showHours: profile.showHours,
-                workingHours: profile.workingHours,
-            });
-
-            // Log profile update
-            await logActivity({
-                actor_id: businessId,
-                actor_name: profile.name || "İşletme",
-                action_type: "PROFILE_UPDATE",
-                metadata: {
-                    updated_fields: ["name", "slogan", "phone", "address"],
+            const response = await fetch('/api/panel/profile', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
                 },
+                credentials: 'include',
+                body: JSON.stringify({
+                    name: profile.name,
+                    slogan: profile.slogan,
+                    about: profile.about,
+                    phone: profile.phone,
+                    address: profile.address,
+                    mapsUrl: profile.mapsUrl,
+                    socialLinks: profile.socialLinks,
+                    showHours: profile.showHours,
+                    workingHours: profile.workingHours,
+                }),
             });
 
-            toast.success("Değişiklikler kaydedildi");
-            setHasChanges(false);
+            const data = await response.json();
+
+            if (data.success) {
+                // Log profile update
+                await logActivity({
+                    actor_id: businessId,
+                    actor_name: profile.name || "İşletme",
+                    action_type: "PROFILE_UPDATE",
+                    metadata: {
+                        updated_fields: ["name", "slogan", "phone", "address"],
+                    },
+                });
+
+                toast.success("Değişiklikler kaydedildi");
+                setHasChanges(false);
+            } else {
+                toast.error(data.error || "Kaydetme hatası");
+            }
         } catch (error) {
             console.error("Save error:", error);
             toast.error("Kaydetme hatası");
