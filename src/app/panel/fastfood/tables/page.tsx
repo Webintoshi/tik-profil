@@ -23,6 +23,7 @@ import {
     FBTable,
     getBusinessById
 } from "@/lib/services/foodService";
+import { DeleteConfirmModal } from "@/components/panel/DeleteConfirmModal";
 
 // FastFood specific QR URL generator
 function getFastFoodTableQRUrl(businessSlug: string, tableId: string): string {
@@ -41,6 +42,11 @@ export default function FastFoodTablesPage() {
     const [editingName, setEditingName] = useState("");
     const [selectedTable, setSelectedTable] = useState<FBTable | null>(null);
     const [isAdding, setIsAdding] = useState(false);
+
+    // Delete Modal State
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [tableToDelete, setTableToDelete] = useState<FBTable | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Theme colors
     const cardBg = isDark ? "bg-[#111]" : "bg-white";
@@ -135,24 +141,38 @@ export default function FastFoodTablesPage() {
     };
 
     // Delete table
-    const handleDeleteTable = async (id: string) => {
-        if (!confirm("Bu masayı silmek istediğinize emin misiniz?")) return;
+    // Confirm Delete
+    const confirmDelete = (table: FBTable) => {
+        setTableToDelete(table);
+        setDeleteModalOpen(true);
+    };
 
+    // Execute Delete
+    const handleDeleteTable = async () => {
+        if (!tableToDelete) return;
+
+        setIsDeleting(true);
         try {
-            const res = await fetch(`/api/panel/fastfood/tables?id=${id}`, {
+            console.log("Deleting table:", tableToDelete.id);
+            const res = await fetch(`/api/panel/fastfood/tables?id=${tableToDelete.id}`, {
                 method: 'DELETE',
             });
             const data = await res.json();
+            console.log("Delete response:", data);
 
             if (data.success) {
                 toast.success("Masa silindi");
-                loadTables(); // Reload tables
+                loadTables();
+                setDeleteModalOpen(false);
+                setTableToDelete(null);
             } else {
                 toast.error(data.error || "Silme hatası");
             }
         } catch (error) {
             console.error("Error deleting table:", error);
-            toast.error("Silme hatası");
+            toast.error("Silme işleminde bağlantı hatası");
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -295,7 +315,7 @@ export default function FastFoodTablesPage() {
                                                     <Edit3 className="w-3 h-3 text-gray-500" />
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDeleteTable(table.id)}
+                                                    onClick={() => confirmDelete(table)}
                                                     className="p-1 hover:bg-red-500/10 rounded"
                                                 >
                                                     <Trash2 className="w-3 h-3 text-red-500" />
@@ -418,6 +438,16 @@ export default function FastFoodTablesPage() {
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div>
+
+            {/* Delete Confirmation Modal */}
+            <DeleteConfirmModal
+                isOpen={deleteModalOpen}
+                onClose={() => setDeleteModalOpen(false)}
+                onConfirm={handleDeleteTable}
+                title="Masayı Sil"
+                description={`"${tableToDelete?.name}" masasını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`}
+                isDeleting={isDeleting}
+            />
+        </div >
     );
 }

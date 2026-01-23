@@ -245,6 +245,9 @@ create table if not exists ff_orders (
 create index if not exists ff_orders_business_id_idx on ff_orders (business_id);
 create index if not exists ff_orders_status_idx on ff_orders (status);
 create index if not exists ff_orders_created_at_idx on ff_orders (created_at);
+create index if not exists ff_orders_table_id_idx on ff_orders (table_id);
+
+alter table ff_orders add column if not exists table_id text;
 
 create table if not exists fb_tables (
     id text primary key default gen_random_uuid()::text,

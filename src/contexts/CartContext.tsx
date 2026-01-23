@@ -42,6 +42,8 @@ interface CartContextType {
     setBusinessName: (name: string) => void;
     whatsappNumber: string;
     setWhatsappNumber: (number: string) => void;
+    tableId: string;
+    setTableId: (id: string) => void;
 }
 
 const CartContext = createContext<CartContextType | null>(null);
@@ -66,6 +68,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const [businessSlug, setBusinessSlug] = useState("");
     const [businessName, setBusinessName] = useState("");
     const [whatsappNumber, setWhatsappNumber] = useState("");
+    const [tableId, setTableId] = useState("");
     const [isHydrated, setIsHydrated] = useState(false);
 
     // Load cart from localStorage on mount
@@ -79,6 +82,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
                 setBusinessSlug(parsed.businessSlug || "");
                 setBusinessName(parsed.businessName || "");
                 setWhatsappNumber(parsed.whatsappNumber || "");
+                setTableId(parsed.tableId || "");
             }
         } catch (e) {
             console.error("Failed to load cart from localStorage:", e);
@@ -95,12 +99,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
                 orderNote,
                 businessSlug,
                 businessName,
-                whatsappNumber
+                whatsappNumber,
+                tableId
             }));
         } catch (e) {
             console.error("Failed to save cart to localStorage:", e);
         }
-    }, [items, orderNote, businessSlug, businessName, whatsappNumber, isHydrated]);
+    }, [items, orderNote, businessSlug, businessName, whatsappNumber, tableId, isHydrated]);
 
     const addItem = useCallback((item: Omit<CartItem, "id">) => {
         setItems(prev => [...prev, { ...item, id: generateId() }]);
@@ -152,7 +157,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
             businessName,
             setBusinessName,
             whatsappNumber,
-            setWhatsappNumber
+            setWhatsappNumber,
+            tableId,
+            setTableId
         }}>
             {children}
         </CartContext.Provider>
@@ -172,6 +179,9 @@ export function formatWhatsAppOrder(cart: CartContextType): string {
     const lines: string[] = [];
 
     lines.push(`🍔 *${cart.businessName} Siparişi*`);
+    if (cart.tableId) {
+        lines.push(`📌 *Masa No: ${cart.tableId}*`);
+    }
     lines.push("");
     lines.push("─────────────────");
 

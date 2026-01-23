@@ -141,6 +141,14 @@ export async function POST(request: Request) {
                 coupon_discount: couponDiscount,
                 status: 'pending',
                 status_history: [{ status: 'pending', timestamp: now }],
+                // Store extra delivery/table info in delivery jsonb
+                delivery: validatedData.deliveryType === 'table' ? {
+                    type: 'table',
+                    tableId: validatedData.tableId
+                } : {
+                    type: validatedData.deliveryType,
+                    address: validatedData.customerAddress
+                },
                 created_at: now,
                 updated_at: now,
             })

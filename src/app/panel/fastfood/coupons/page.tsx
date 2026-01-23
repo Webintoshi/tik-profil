@@ -8,6 +8,7 @@ import {
 import clsx from "clsx";
 import { toast } from "sonner";
 import { useTheme } from "@/components/panel/ThemeProvider";
+import { DeleteConfirmModal } from "@/components/panel/DeleteConfirmModal";
 
 interface Coupon {
     id: string;
@@ -63,6 +64,11 @@ export default function FastFoodCouponsPage() {
         isFirstOrderOnly: false,
         applicableTo: 'all' as 'all' | 'categories' | 'products',
     });
+
+    // Delete Modal State
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [couponToDelete, setCouponToDelete] = useState<Coupon | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Theme styles
     const cardBg = isDark ? "bg-[#1C1C1E]" : "bg-white";
@@ -184,19 +190,35 @@ export default function FastFoodCouponsPage() {
         setSaving(false);
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Bu kuponu silmek istediğinize emin misiniz?')) return;
+    // Confirm Delete
+    const confirmDelete = (coupon: Coupon) => {
+        setCouponToDelete(coupon);
+        setDeleteModalOpen(true);
+    };
+
+    const handleDelete = async () => {
+        if (!couponToDelete) return;
+
+        setIsDeleting(true);
         try {
-            const res = await fetch(`/api/fastfood/coupons?id=${id}`, { method: 'DELETE' });
+            console.log("Deleting coupon:", couponToDelete.id);
+            const res = await fetch(`/api/fastfood/coupons?id=${couponToDelete.id}`, { method: 'DELETE' });
             const data = await res.json();
+            console.log("Delete response:", data);
+
             if (data.success) {
                 toast.success('Kupon silindi');
+                setDeleteModalOpen(false);
+                setCouponToDelete(null);
                 loadCoupons();
             } else {
                 toast.error(data.error || 'Silinemedi');
             }
         } catch (error) {
-            toast.error('Bir hata oluştu');
+            console.error("Delete error:", error);
+            toast.error('Bağlantı hatası oluştu');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -336,18 +358,20 @@ export default function FastFoodCouponsPage() {
                             )}
 
                             {/* Actions */}
-                            <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-gray-100 dark:border-white/5">
                                 <button
                                     onClick={() => openModal(coupon)}
-                                    className="w-8 h-8 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 flex items-center justify-center text-blue-500 transition-colors"
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-500 text-sm font-medium hover:bg-blue-500/20 transition-colors"
                                 >
                                     <Edit3 className="w-4 h-4" />
+                                    Düzenle
                                 </button>
                                 <button
-                                    onClick={() => handleDelete(coupon.id)}
-                                    className="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 flex items-center justify-center text-red-500 transition-colors"
+                                    onClick={() => confirmDelete(coupon)}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 text-sm font-medium hover:bg-red-500/20 transition-colors"
                                 >
                                     <Trash2 className="w-4 h-4" />
+                                    Sil
                                 </button>
                             </div>
                         </div>
@@ -580,6 +604,15 @@ export default function FastFoodCouponsPage() {
                             {editingCoupon ? 'Değişiklikleri Kaydet' : 'Kupon Oluştur'}
                         </button>
                     </div>
+                    {/* Delete Modal */}
+                    <DeleteConfirmModal
+                        isOpen={deleteModalOpen}
+                        onClose={() => setDeleteModalOpen(false)}
+                        onConfirm={handleDelete}
+                        title="Kuponu Sil"
+                        description={`"${couponToDelete?.title}" kuponunu silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`}
+                        isDeleting={isDeleting}
+                    />
                 </div>
             )}
         </div>

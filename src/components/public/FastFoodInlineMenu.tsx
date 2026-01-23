@@ -91,6 +91,7 @@ interface FastFoodInlineMenuProps {
     businessId?: string;
     businessLogo?: string;
     businessPhone?: string;
+    tableId?: string;
     onClose: () => void;
 }
 
@@ -410,6 +411,7 @@ function CheckoutModal({
     cardOnDelivery = true,
     deliveryFeeAmount = 0,
     freeDeliveryAbove = 0,
+    tableId,
 }: {
     isOpen: boolean;
     onClose: () => void;
@@ -423,13 +425,16 @@ function CheckoutModal({
     cardOnDelivery?: boolean;
     deliveryFeeAmount?: number;
     freeDeliveryAbove?: number;
+    tableId?: string;
 }) {
     const [customerName, setCustomerName] = useState("");
     const [customerPhone, setCustomerPhone] = useState("");
     const [customerAddress, setCustomerAddress] = useState("");
     const [customerNote, setCustomerNote] = useState("");
-    // Set default based on what's enabled
-    const [deliveryType, setDeliveryType] = useState<"pickup" | "delivery">(pickupEnabled ? "pickup" : "delivery");
+    // Set default based on what's enabled, or table if tableId exists
+    const [deliveryType, setDeliveryType] = useState<"pickup" | "delivery" | "table">(
+        tableId ? "table" : (pickupEnabled ? "pickup" : "delivery")
+    );
     const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">(cashPayment ? "cash" : "card");
     const [isSubmitting, setIsSubmitting] = useState(false);
     // Coupon state
@@ -505,9 +510,10 @@ function CheckoutModal({
                 businessId,
                 customerName: customerName.trim(),
                 customerPhone: customerPhone.trim(),
-                customerAddress: customerAddress.trim(),
+                customerAddress: deliveryType === "delivery" ? customerAddress.trim() : undefined,
                 deliveryType,
                 paymentMethod,
+                tableId,
                 items: cart.map(item => ({
                     productId: item.product.id,
                     productName: item.product.name,
@@ -607,8 +613,8 @@ function CheckoutModal({
                                     </div>
                                 </div>
 
-                                {/* Delivery Type - Only show if at least one option available */}
-                                {(pickupEnabled || deliveryEnabled) && (
+                                {/* Delivery Type - Only show if not table order */}
+                                {!tableId && (pickupEnabled || deliveryEnabled) && (
                                     <div className="px-5 py-4 border-b border-gray-100">
                                         <div className="flex rounded-lg border border-gray-200 p-1">
                                             {pickupEnabled && (
@@ -639,6 +645,21 @@ function CheckoutModal({
                                                     Adrese Teslim
                                                 </button>
                                             )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Table Info */}
+                                {tableId && (
+                                    <div className="px-5 py-4 border-b border-gray-100 bg-[#9333ea]/5">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-[#9333ea]/10 flex items-center justify-center text-[#9333ea]">
+                                                <Utensils className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-gray-900">Masa Siparişi</p>
+                                                <p className="text-xs text-gray-500">Masa No: <span className="font-bold text-[#9333ea]">{tableId}</span></p>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -846,7 +867,7 @@ function SuccessModal({ isOpen, orderNumber, businessName, onClose }: { isOpen: 
 // ============================================
 // MAIN COMPONENT
 // ============================================
-export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, businessId, onClose }: FastFoodInlineMenuProps) {
+export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, businessId, businessLogo, businessPhone, tableId, onClose }: FastFoodInlineMenuProps) {
     const [categories, setCategories] = useState<Category[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -1334,6 +1355,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                                 cardOnDelivery={cardOnDelivery}
                                 deliveryFeeAmount={menuDeliveryFee}
                                 freeDeliveryAbove={freeDeliveryAbove}
+                                tableId={tableId}
                             />,
                             document.body
                         )

@@ -236,7 +236,9 @@ export const fastfoodOrderSchema = z.object({
         .optional()
         .transform(val => val ? fullSanitize(val) : undefined),
 
-    deliveryType: z.enum(['pickup', 'delivery']).default('pickup'),
+    deliveryType: z.enum(['pickup', 'delivery', 'table']).default('pickup'),
+
+    tableId: z.string().optional(),
 
     paymentMethod: z.enum(['cash', 'card', 'online']).default('cash'),
 

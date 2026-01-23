@@ -28,17 +28,10 @@ if (!supabaseUrl) {
 
 const url = new URL(supabaseUrl);
 const projectRef = url.hostname.split('.')[0];
-const dbHost = `db.${projectRef}.supabase.co`;
+const resolvedHost = `db.${projectRef}.supabase.co`;
 
-let resolvedHost = dbHost;
-try {
-    const ipv4 = await resolve4(dbHost);
-    if (ipv4?.length) {
-        resolvedHost = ipv4[0];
-    }
-} catch (error) {
-    console.warn('IPv4 lookup failed, falling back to hostname:', error?.message || error);
-}
+console.log('Using database host:', resolvedHost);
+
 
 const schemaPath = resolve(repoRoot, 'supabase', 'fastfood_schema.sql');
 const sql = await readFile(schemaPath, 'utf8');
