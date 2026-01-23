@@ -21,10 +21,6 @@ import clsx from "clsx";
 import { toast } from "sonner";
 import {
     FBTable,
-    subscribeToTables,
-    createTable,
-    updateTable,
-    deleteTable,
     getBusinessById
 } from "@/lib/services/foodService";
 
@@ -53,7 +49,22 @@ export default function FastFoodTablesPage() {
     const textSecondary = isDark ? "text-gray-400" : "text-gray-600";
     const inputBg = isDark ? "bg-[#0a0a0a] border-[#222]" : "bg-gray-50 border-gray-200";
 
-    // Load business info and subscribe to tables
+    // Load tables
+    const loadTables = async () => {
+        try {
+            const res = await fetch('/api/panel/fastfood/tables');
+            const data = await res.json();
+            if (data.success) {
+                setTables(data.tables);
+            }
+        } catch (error) {
+            console.error('Failed to load tables:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Load business info and tables
     useEffect(() => {
         if (!session?.businessId) return;
 
@@ -64,13 +75,7 @@ export default function FastFoodTablesPage() {
             }
         });
 
-        // Subscribe to real-time tables
-        const unsubscribe = subscribeToTables(session.businessId, (data) => {
-            setTables(data);
-            setIsLoading(false);
-        });
-
-        return () => unsubscribe();
+        loadTables();
     }, [session?.businessId]);
 
     // Add table
@@ -82,9 +87,20 @@ export default function FastFoodTablesPage() {
 
         setIsAdding(true);
         try {
-            await createTable(session.businessId, newTableName.trim());
-            setNewTableName("");
-            toast.success("Masa eklendi");
+            const res = await fetch('/api/panel/fastfood/tables', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newTableName.trim() }),
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                setNewTableName("");
+                toast.success("Masa eklendi");
+                loadTables(); // Reload tables
+            } else {
+                toast.error(data.error || "Masa eklenemedi");
+            }
         } catch (error) {
             console.error("Error adding table:", error);
             toast.error("Masa eklenirken hata oluştu");
@@ -98,9 +114,20 @@ export default function FastFoodTablesPage() {
         if (!editingName.trim() || !editingTable) return;
 
         try {
-            await updateTable(editingTable, editingName.trim());
-            setEditingTable(null);
-            toast.success("Masa güncellendi");
+            const res = await fetch('/api/panel/fastfood/tables', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: editingTable, name: editingName.trim() }),
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                setEditingTable(null);
+                toast.success("Masa güncellendi");
+                loadTables(); // Reload tables
+            } else {
+                toast.error(data.error || "Güncelleme hatası");
+            }
         } catch (error) {
             console.error("Error updating table:", error);
             toast.error("Güncelleme hatası");
@@ -112,8 +139,17 @@ export default function FastFoodTablesPage() {
         if (!confirm("Bu masayı silmek istediğinize emin misiniz?")) return;
 
         try {
-            await deleteTable(id);
-            toast.success("Masa silindi");
+            const res = await fetch(`/api/panel/fastfood/tables?id=${id}`, {
+                method: 'DELETE',
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                toast.success("Masa silindi");
+                loadTables(); // Reload tables
+            } else {
+                toast.error(data.error || "Silme hatası");
+            }
         } catch (error) {
             console.error("Error deleting table:", error);
             toast.error("Silme hatası");
