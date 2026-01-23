@@ -105,6 +105,12 @@ const STORE_NAV_ITEM = {
 // Fast Food module menu items (isolated module)
 const FASTFOOD_NAV_ITEMS = [
     {
+        id: "ff-tables",
+        label: "Masa Düzeni",
+        href: "/panel/fastfood/tables",
+        icon: LayoutGrid,
+    },
+    {
         id: "ff-categories",
         label: "Kategoriler",
         href: "/panel/fastfood/categories",
