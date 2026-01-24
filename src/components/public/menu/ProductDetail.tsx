@@ -61,7 +61,7 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
     if (!product) return null;
 
     const hasDiscount = product.originalPrice && product.originalPrice > product.price;
-    const discountPercent = hasDiscount ? Math.round((1 - product.price / product.originalPrice) * 100) : 0;
+    const discountPercent = hasDiscount && product.originalPrice ? Math.round((1 - product.price / product.originalPrice) * 100) : 0;
 
     return (
         <AnimatePresence>

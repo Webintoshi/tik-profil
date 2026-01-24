@@ -29,7 +29,7 @@ interface ProductCardProps {
 export function ProductCard({ product, onTap, theme = "modern", viewOnly = false }: ProductCardProps) {
     const isOutOfStock = product.inStock === false;
     const hasDiscount = product.originalPrice && product.originalPrice > product.price;
-    const discountPercent = hasDiscount ? Math.round((1 - product.price / product.originalPrice) * 100) : 0;
+    const discountPercent = hasDiscount && product.originalPrice ? Math.round((1 - product.price / product.originalPrice) * 100) : 0;
 
     return (
         <motion.div
