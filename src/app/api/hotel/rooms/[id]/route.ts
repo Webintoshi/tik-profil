@@ -1,15 +1,14 @@
-// Hotel Room Individual API (Update/Delete)
-import { updateDocumentREST, deleteDocumentREST, getDocumentREST } from '@/lib/documentStore';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { requireAuth } from '@/lib/apiAuth';
 import { AppError } from '@/lib/errors';
 
-// PUT - Update room (requires auth + ownership)
+const TABLE = 'hotel_rooms';
+
 export async function PUT(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        // Require authentication
         const authResult = await requireAuth();
         if (!authResult.authorized || !authResult.user) {
             return AppError.unauthorized().toResponse();
@@ -18,14 +17,23 @@ export async function PUT(
         const { id } = await params;
         const businessId = authResult.user.businessId;
 
-        // Verify ownership
-        const room = await getDocumentREST('hotel_rooms', id);
-        if (!room || (room.businessId !== businessId && room.business_id !== businessId)) {
+        const supabase = getSupabaseAdmin();
+        const { data: existing, error: existingError } = await supabase
+            .from(TABLE)
+            .select('id, business_id')
+            .eq('id', id)
+            .eq('business_id', businessId)
+            .maybeSingle();
+
+        if (existingError) {
+            throw existingError;
+        }
+
+        if (!existing) {
             return AppError.notFound('Oda').toResponse();
         }
 
         const body = await request.json();
-
         const {
             roomNumber,
             roomTypeId,
@@ -34,21 +42,41 @@ export async function PUT(
             currentGuestName,
             checkInDate,
             checkOutDate,
+            expectedCheckOut,
+            isCleaned,
+            housekeepingNote,
+            notes,
+            qrCode,
+            images,
+            amenities,
         } = body;
 
-        const updateData: Record<string, unknown> = {
-            updated_at: new Date().toISOString(),
-        };
+        const updateData: Record<string, unknown> = {};
 
-        if (roomNumber !== undefined) updateData.roomNumber = roomNumber.trim();
-        if (roomTypeId !== undefined) updateData.roomTypeId = roomTypeId;
+        if (roomNumber !== undefined) updateData.room_number = roomNumber.trim();
+        if (roomTypeId !== undefined) updateData.room_type_id = roomTypeId;
         if (floor !== undefined) updateData.floor = floor;
         if (status !== undefined) updateData.status = status;
-        if (currentGuestName !== undefined) updateData.currentGuestName = currentGuestName;
-        if (checkInDate !== undefined) updateData.checkInDate = checkInDate;
-        if (checkOutDate !== undefined) updateData.checkOutDate = checkOutDate;
+        if (currentGuestName !== undefined) updateData.current_guest_name = currentGuestName;
+        if (checkInDate !== undefined) updateData.check_in_date = checkInDate;
+        if (checkOutDate !== undefined) updateData.check_out_date = checkOutDate;
+        if (expectedCheckOut !== undefined) updateData.expected_check_out = expectedCheckOut;
+        if (isCleaned !== undefined) updateData.is_cleaned = isCleaned;
+        if (housekeepingNote !== undefined) updateData.housekeeping_note = housekeepingNote;
+        if (notes !== undefined) updateData.notes = notes;
+        if (qrCode !== undefined) updateData.qr_code = qrCode;
+        if (images !== undefined) updateData.images = images;
+        if (amenities !== undefined) updateData.amenities = amenities;
 
-        await updateDocumentREST('hotel_rooms', id, updateData);
+        const { error: updateError } = await supabase
+            .from(TABLE)
+            .update(updateData)
+            .eq('id', id)
+            .eq('business_id', businessId);
+
+        if (updateError) {
+            throw updateError;
+        }
 
         return Response.json({
             success: true,
@@ -59,13 +87,11 @@ export async function PUT(
     }
 }
 
-// DELETE - Delete room (requires auth + ownership)
 export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        // Require authentication
         const authResult = await requireAuth();
         if (!authResult.authorized || !authResult.user) {
             return AppError.unauthorized().toResponse();
@@ -74,13 +100,31 @@ export async function DELETE(
         const { id } = await params;
         const businessId = authResult.user.businessId;
 
-        // Verify ownership
-        const room = await getDocumentREST('hotel_rooms', id);
-        if (!room || (room.businessId !== businessId && room.business_id !== businessId)) {
+        const supabase = getSupabaseAdmin();
+        const { data: existing, error: existingError } = await supabase
+            .from(TABLE)
+            .select('id')
+            .eq('id', id)
+            .eq('business_id', businessId)
+            .maybeSingle();
+
+        if (existingError) {
+            throw existingError;
+        }
+
+        if (!existing) {
             return AppError.notFound('Oda').toResponse();
         }
 
-        await deleteDocumentREST('hotel_rooms', id);
+        const { error: deleteError } = await supabase
+            .from(TABLE)
+            .delete()
+            .eq('id', id)
+            .eq('business_id', businessId);
+
+        if (deleteError) {
+            throw deleteError;
+        }
 
         return Response.json({
             success: true,

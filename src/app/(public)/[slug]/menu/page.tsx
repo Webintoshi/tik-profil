@@ -1,16 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { CartProvider, useCart } from "@/contexts/CartContext";
 import { MenuHeader } from "@/components/public/menu/MenuHeader";
 import { CategoryPills } from "@/components/public/menu/CategoryPills";
 import { ProductCard } from "@/components/public/menu/ProductCard";
-import { CartBar } from "@/components/public/menu/CartBar";
 import { ProductDetail } from "@/components/public/menu/ProductDetail";
-import { CartSheet } from "@/components/public/menu/CartSheet";
-import CheckoutSheet from "@/components/public/menu/CheckoutSheet";
 import { useFastfoodMenuSubscription } from "@/hooks/useMenuRealtime";
 
 // Types
@@ -43,22 +39,36 @@ interface Product {
 interface Business {
     id: string;
     name: string;
+    logoUrl?: string;
     whatsapp?: string;
 }
 
 // Main menu content component (uses context)
 function MenuContent() {
     const params = useParams();
+    const searchParams = useSearchParams();
     const slug = params.slug as string;
-    const cart = useCart();
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [business, setBusiness] = useState<Business | null>(null);
     const [categories, setCategories] = useState<Category[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
-    const [extras, setExtras] = useState<Extra[]>([]);
     const [businessId, setBusinessId] = useState<string | null>(null);
+    const [menuTheme, setMenuTheme] = useState<"modern" | "classic">("modern");
+
+    // Table Management Settings
+    const [wifiPassword, setWifiPassword] = useState("");
+    const [tableId, setTableId] = useState<string | null>(null);
+    const [tableName, setTableName] = useState<string>("");
+
+    // Capture table ID from URL
+    useEffect(() => {
+        const tid = searchParams.get('table');
+        if (tid) {
+            setTableId(tid);
+        }
+    }, [searchParams]);
 
     const [activeCategory, setActiveCategory] = useState<string>("");
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -73,7 +83,8 @@ function MenuContent() {
         try {
             if (showLoading) setLoading(true);
 
-            const res = await fetch(`/api/fastfood/public-menu?businessSlug=${slug}`);
+            // Fetch menu data
+            const res = await fetch(`/api/fastfood/public-menu?businessSlug=${slug}${tableId ? `&tableId=${tableId}` : ''}`);
             const data = await res.json();
 
             if (!data.success) {
@@ -84,26 +95,29 @@ function MenuContent() {
             setBusiness({
                 id: data.data.businessId,
                 name: data.data.businessName || "İşletme",
+                logoUrl: data.data.businessLogoUrl,
                 whatsapp: data.data.whatsapp
             });
             setBusinessId(data.data.businessId || null);
             setCategories(data.data.categories || []);
             setProducts(data.data.products || []);
-            cart.setBusinessSlug(slug);
-            cart.setBusinessName(data.data.businessName || "İşletme");
-            cart.setWhatsappNumber(data.data.whatsapp || "");
+            setTableName(data.data.tableName || "");
 
             if (data.data.categories && data.data.categories.length > 0) {
                 setActiveCategory(data.data.categories[0].id);
             }
 
+            // Fetch settings for theme and table features
             try {
-                const extrasRes = await fetch(`/api/fastfood/extras?businessSlug=${slug}`);
-                const extrasData = await extrasRes.json();
-                if (extrasData.success && extrasData.extras) {
-                    setExtras(extrasData.extras);
+                const settingsRes = await fetch(`/api/fastfood/public-settings?businessSlug=${slug}`);
+                const settingsData = await settingsRes.json();
+                console.log('[Menu] Settings Response:', settingsData);
+                if (settingsData.success && settingsData.settings) {
+                    setMenuTheme(settingsData.settings.menuTheme || "modern");
+                    setWifiPassword(settingsData.settings.wifiPassword || "");
                 }
-            } catch {
+            } catch (err) {
+                console.error("Failed to load settings", err);
             }
 
             setError(null);
@@ -113,7 +127,7 @@ function MenuContent() {
         } finally {
             if (showLoading) setLoading(false);
         }
-    }, [slug, cart]);
+    }, [slug]);
 
     useEffect(() => {
         refreshMenu(true);
@@ -173,39 +187,8 @@ function MenuContent() {
 
     // Open product detail
     const openProductDetail = (product: Product) => {
-        // Attach extras to product
-        const productWithExtras = {
-            ...product,
-            extras: extras.filter(e => true) // For now, show all extras. Can filter by product later.
-        };
-        setSelectedProduct(productWithExtras);
+        setSelectedProduct(product);
         setIsProductDetailOpen(true);
-    };
-
-    // Quick add to cart (no extras)
-    const quickAddToCart = (product: Product) => {
-        cart.addItem({
-            productId: product.id,
-            name: product.name,
-            basePrice: product.price,
-            quantity: 1,
-            selectedExtras: [],
-            image: product.imageUrl
-        });
-    };
-
-    // Add to cart from detail
-    const addToCartFromDetail = (item: {
-        productId: string;
-        name: string;
-        basePrice: number;
-        quantity: number;
-        selectedExtras: { id: string; name: string; price: number }[];
-        selectedSize?: { id: string; name: string; priceModifier: number };
-        note: string;
-        image?: string;
-    }) => {
-        cart.addItem(item);
     };
 
     // Group products by category
@@ -218,10 +201,10 @@ function MenuContent() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
                 <div className="text-center">
-                    <Loader2 className="w-10 h-10 animate-spin text-violet-500 mx-auto mb-4" />
-                    <p className="text-gray-500">Menü yükleniyor...</p>
+                    <Loader2 className="w-10 h-10 animate-spin mx-auto mb-4 text-orange-500" />
+                    <p className="text-gray-600">Menü yükleniyor...</p>
                 </div>
             </div>
         );
@@ -229,13 +212,13 @@ function MenuContent() {
 
     if (error) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+            <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
                 <div className="text-center">
-                    <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                    <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
                         <span className="text-3xl">😕</span>
                     </div>
-                    <h2 className="text-lg font-semibold text-gray-900 mb-2">Menü Yüklenemedi</h2>
-                    <p className="text-gray-500">{error}</p>
+                    <h2 className="text-lg font-semibold mb-2 text-gray-900">Menü Yüklenemedi</h2>
+                    <p className="text-gray-600">{error}</p>
                 </div>
             </div>
         );
@@ -244,7 +227,13 @@ function MenuContent() {
     return (
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
-            <MenuHeader businessSlug={slug} title={business?.name || "Menü"} />
+            <MenuHeader
+                businessSlug={slug}
+                title={business?.name || "Menü"}
+                logoUrl={business?.logoUrl}
+                tableName={tableName || tableId || undefined}
+                wifiPassword={wifiPassword}
+            />
 
             {/* Category Pills */}
             {productsByCategory.length > 0 && (
@@ -252,18 +241,19 @@ function MenuContent() {
                     categories={productsByCategory.map(c => ({ id: c.id, name: c.name, icon: c.icon }))}
                     activeId={activeCategory}
                     onSelect={scrollToCategory}
+                    theme={menuTheme}
                 />
             )}
 
             {/* Product List */}
-            <div className="px-4 pb-32 pt-4">
+            <div className="px-4 pt-4 pb-8">
                 {productsByCategory.length === 0 ? (
                     <div className="text-center py-12">
-                        <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                        <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 bg-gray-200">
                             <span className="text-4xl">🍽️</span>
                         </div>
-                        <h2 className="text-lg font-semibold text-gray-900 mb-2">Menü Hazırlanıyor</h2>
-                        <p className="text-gray-500">Yakında ürünler eklenecek</p>
+                        <h2 className="text-lg font-semibold mb-2 text-gray-900">Menü Hazırlanıyor</h2>
+                        <p className="text-gray-600">Yakında ürünler eklenecek</p>
                     </div>
                 ) : (
                     <div className="space-y-6 max-w-2xl mx-auto">
@@ -276,23 +266,25 @@ function MenuContent() {
                                 data-category-id={category.id}
                             >
                                 {/* Category Header */}
-                                <div className="sticky top-[105px] z-30 bg-gray-50/95 backdrop-blur-sm py-3 -mx-4 px-4">
-                                    <h2 className="text-xl font-bold text-gray-900">
-                                        {category.icon} {category.name}
+                                <div className="sticky top-[105px] z-30 py-3 -mx-4 px-4 backdrop-blur-md border-b bg-white/95 border-gray-100">
+                                    <h2 className="text-xl font-bold flex items-center gap-2 text-gray-900">
+                                        <span>{category.icon}</span>
+                                        <span>{category.name}</span>
                                     </h2>
-                                    <p className="text-sm text-gray-500 mt-0.5">
+                                    <p className="text-sm mt-0.5 ml-8 text-gray-500">
                                         {category.products.length} ürün
                                     </p>
                                 </div>
 
                                 {/* Products */}
-                                <div className="space-y-3 mt-2">
+                                <div className="flex flex-col gap-4 mt-4">
                                     {category.products.map((product) => (
                                         <ProductCard
                                             key={product.id}
                                             product={product}
                                             onTap={() => openProductDetail(product)}
-                                            onQuickAdd={() => quickAddToCart(product)}
+                                            theme={menuTheme}
+                                            viewOnly={true}
                                         />
                                     ))}
                                 </div>
@@ -302,13 +294,6 @@ function MenuContent() {
                 )}
             </div>
 
-            {/* Cart Bar */}
-            <CartBar
-                itemCount={cart.itemCount}
-                total={cart.total}
-                onOpen={() => setIsCartOpen(true)}
-            />
-
             {/* Product Detail */}
             <ProductDetail
                 product={selectedProduct}
@@ -317,30 +302,11 @@ function MenuContent() {
                     setIsProductDetailOpen(false);
                     setSelectedProduct(null);
                 }}
-                onAddToCart={addToCartFromDetail}
-            />
-
-            {/* Cart Sheet */}
-            <CartSheet
-                isOpen={isCartOpen}
-                onClose={() => setIsCartOpen(false)}
-                onCheckout={() => setIsCheckoutOpen(true)}
-            />
-
-            {/* Checkout Sheet */}
-            <CheckoutSheet
-                isOpen={isCheckoutOpen}
-                onClose={() => setIsCheckoutOpen(false)}
             />
         </div>
     );
 }
 
-// Page wrapper with CartProvider
 export default function FastFoodMenuPage() {
-    return (
-        <CartProvider>
-            <MenuContent />
-        </CartProvider>
-    );
+    return <MenuContent />;
 }

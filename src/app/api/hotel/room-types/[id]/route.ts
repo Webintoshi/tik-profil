@@ -1,8 +1,8 @@
-// Hotel Room Type Individual API (Update/Delete)
-import { NextResponse } from 'next/server';
-import { updateDocumentREST, deleteDocumentREST } from '@/lib/documentStore';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { AppError } from '@/lib/errors';
 
-// PUT - Update room type
+const TABLE = 'hotel_room_types';
+
 export async function PUT(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -10,69 +10,141 @@ export async function PUT(
     try {
         const { id } = await params;
         const body = await request.json();
-
         const {
+            businessId,
             name,
+            nameEn,
             description,
-            price,
+            descriptionEn,
             capacity,
+            bedCount,
             bedType,
-            size,
-            photos,
+            price,
+            pricePerNight,
+            discountPrice,
+            discountUntil,
             amenities,
+            images,
+            maxGuests,
+            maxAdults,
+            maxChildren,
+            size,
+            sizeSqm,
+            viewType,
+            floorPreference,
+            isSmokingAllowed,
+            isPetFriendly,
             isActive,
-            order,
+            sortOrder,
         } = body;
 
-        const updateData: Record<string, unknown> = {
-            updated_at: new Date().toISOString(),
-        };
+        const finalPricePerNight = price ?? pricePerNight;
+        const finalSizeSqm = size ?? sizeSqm;
+
+        const supabase = getSupabaseAdmin();
+
+        if (businessId) {
+            const { data: existing, error: existingError } = await supabase
+                .from(TABLE)
+                .select('id')
+                .eq('id', id)
+                .eq('business_id', businessId)
+                .maybeSingle();
+
+            if (existingError) {
+                throw existingError;
+            }
+
+            if (!existing) {
+                return AppError.notFound('Oda türü').toResponse();
+            }
+        }
+
+        const updateData: Record<string, unknown> = {};
 
         if (name !== undefined) updateData.name = name.trim();
+        if (nameEn !== undefined) updateData.name_en = nameEn;
         if (description !== undefined) updateData.description = description;
-        if (price !== undefined) updateData.price = price;
+        if (descriptionEn !== undefined) updateData.description_en = descriptionEn;
         if (capacity !== undefined) updateData.capacity = capacity;
-        if (bedType !== undefined) updateData.bedType = bedType;
-        if (size !== undefined) updateData.size = size;
-        if (photos !== undefined) updateData.photos = photos;
+        if (bedCount !== undefined) updateData.bed_count = bedCount;
+        if (bedType !== undefined) updateData.bed_type = bedType;
+        if (finalPricePerNight !== undefined) updateData.price_per_night = Number(finalPricePerNight);
+        if (discountPrice !== undefined) updateData.discount_price = discountPrice ? Number(discountPrice) : null;
+        if (discountUntil !== undefined) updateData.discount_until = discountUntil;
         if (amenities !== undefined) updateData.amenities = amenities;
-        if (isActive !== undefined) updateData.isActive = isActive;
-        if (order !== undefined) updateData.order = order;
+        if (images !== undefined) updateData.images = images;
+        if (maxGuests !== undefined) updateData.max_guests = maxGuests;
+        if (maxAdults !== undefined) updateData.max_adults = maxAdults;
+        if (maxChildren !== undefined) updateData.max_children = maxChildren;
+        if (finalSizeSqm !== undefined) updateData.size_sqm = finalSizeSqm;
+        if (viewType !== undefined) updateData.view_type = viewType;
+        if (floorPreference !== undefined) updateData.floor_preference = floorPreference;
+        if (isSmokingAllowed !== undefined) updateData.is_smoking_allowed = isSmokingAllowed;
+        if (isPetFriendly !== undefined) updateData.is_pet_friendly = isPetFriendly;
+        if (isActive !== undefined) updateData.is_active = isActive;
+        if (sortOrder !== undefined) updateData.sort_order = sortOrder;
 
-        await updateDocumentREST('room_types', id, updateData);
+        const { error: updateError } = await supabase
+            .from(TABLE)
+            .update(updateData)
+            .eq('id', id);
 
-        return NextResponse.json({
+        if (updateError) {
+            throw updateError;
+        }
+
+        return Response.json({
             success: true,
             message: 'Oda türü güncellendi',
         });
     } catch (error) {
-        console.error('[RoomTypes] PUT error:', error);
-        return NextResponse.json(
-            { error: 'Sunucu hatası' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, 'RoomTypes PUT');
     }
 }
 
-// DELETE - Delete room type
 export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id } = await params;
+        const { searchParams } = new URL(request.url);
+        const businessId = searchParams.get('businessId');
 
-        await deleteDocumentREST('room_types', id);
+        const supabase = getSupabaseAdmin();
 
-        return NextResponse.json({
+        if (businessId) {
+            const { data: existing, error: existingError } = await supabase
+                .from(TABLE)
+                .select('id')
+                .eq('id', id)
+                .eq('business_id', businessId)
+                .maybeSingle();
+
+            if (existingError) {
+                throw existingError;
+            }
+
+            if (!existing) {
+                return AppError.notFound('Oda türü').toResponse();
+            }
+        }
+
+        const { error: deleteError } = await supabase
+            .from(TABLE)
+            .delete()
+            .eq('id', id);
+
+        if (deleteError) {
+            throw deleteError;
+        }
+
+        return Response.json({
             success: true,
             message: 'Oda türü silindi',
         });
     } catch (error) {
-        console.error('[RoomTypes] DELETE error:', error);
-        return NextResponse.json(
-            { error: 'Sunucu hatası' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, 'RoomTypes DELETE');
     }
 }

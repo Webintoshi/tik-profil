@@ -58,8 +58,8 @@ export default function ClientFastFoodPage() {
                             </div>
                             
                             <h1 className="text-5xl md:text-7xl font-extrabold mb-8 text-slate-900 tracking-tight leading-none">
-                                Kendi Müşterine <br />
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#fd0355] to-rose-500">Komisyon Ödeme!</span>
+                                Komisyonsuz Fast Food <br />
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#fd0355] to-rose-500">Sipariş Sistemi</span>
                             </h1>
                             
                             <p className="text-xl md:text-2xl text-slate-600 max-w-3xl mx-auto mb-10 leading-relaxed font-medium">

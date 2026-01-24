@@ -355,7 +355,7 @@ export function BusinessSidebar({
     const router = useRouter();
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
-    const [expandedGroups, setExpandedGroups] = useState<string[]>(["restaurant"]);
+    const [expandedGroups, setExpandedGroups] = useState<string[]>(["hotel", "restaurant"]);
     const { isDark } = useTheme();
 
     // Check if restaurant module is enabled
@@ -364,7 +364,9 @@ export function BusinessSidebar({
         enabledModules.includes("bar");
 
     // Check if fastfood module is enabled (isolated)
-    const hasFastfoodModule = enabledModules.includes("fastfood");
+    const hasFastfoodModule = enabledModules.includes("fastfood") ||
+        enabledModules.includes("restaurant") ||
+        enabledModules.includes("cafe");
 
     // Check if hotel module is enabled
     const hasHotelModule = enabledModules.includes("hotel") ||

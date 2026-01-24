@@ -56,8 +56,8 @@ export default function ClientGuzellikPage() {
                             </div>
                             
                             <h1 className="text-5xl md:text-7xl font-extrabold mb-8 text-slate-900 tracking-tight leading-none">
-                                Randevularınız <br />
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-rose-500">Otomatik Dolsun</span>
+                                Kuaför Randevu Sistemi ve <br />
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-rose-500">Güzellik Merkezi Yazılımı</span>
                             </h1>
                             
                             <p className="text-xl md:text-2xl text-slate-600 max-w-3xl mx-auto mb-10 leading-relaxed font-medium">

@@ -33,6 +33,12 @@ const DEFAULT_SETTINGS = {
         onWay: true,
         delivered: true,
     },
+    menuTheme: 'modern',
+    waiterCallEnabled: true,
+    requestBillEnabled: true,
+    cartEnabled: true,
+    wifiPassword: "",
+    businessLogoUrl: "",
 };
 
 // GET - Get settings
@@ -80,6 +86,12 @@ export async function GET() {
                 useBusinessHours: settings.use_business_hours ?? DEFAULT_SETTINGS.useBusinessHours,
                 whatsappNumber: settings.whatsapp_number ?? DEFAULT_SETTINGS.whatsappNumber,
                 notifications: settings.notifications ?? DEFAULT_SETTINGS.notifications,
+                menuTheme: settings.menu_theme ?? DEFAULT_SETTINGS.menuTheme,
+                waiterCallEnabled: settings.waiter_call_enabled ?? DEFAULT_SETTINGS.waiterCallEnabled,
+                requestBillEnabled: settings.request_bill_enabled ?? DEFAULT_SETTINGS.requestBillEnabled,
+                cartEnabled: settings.cart_enabled ?? DEFAULT_SETTINGS.cartEnabled,
+                wifiPassword: settings.wifi_password ?? DEFAULT_SETTINGS.wifiPassword,
+                businessLogoUrl: settings.business_logo_url ?? DEFAULT_SETTINGS.businessLogoUrl,
                 isActive: settings.is_active !== false,
             }
         });
@@ -124,6 +136,12 @@ export async function POST(request: Request) {
             use_business_hours: body.useBusinessHours ?? existingSettings?.use_business_hours ?? DEFAULT_SETTINGS.useBusinessHours,
             whatsapp_number: body.whatsappNumber ?? existingSettings?.whatsapp_number ?? DEFAULT_SETTINGS.whatsappNumber,
             notifications: body.notifications ?? existingSettings?.notifications ?? DEFAULT_SETTINGS.notifications,
+            menu_theme: body.menuTheme ?? existingSettings?.menu_theme ?? DEFAULT_SETTINGS.menuTheme,
+            waiter_call_enabled: body.waiterCallEnabled ?? existingSettings?.waiter_call_enabled ?? DEFAULT_SETTINGS.waiterCallEnabled,
+            request_bill_enabled: body.requestBillEnabled ?? existingSettings?.request_bill_enabled ?? DEFAULT_SETTINGS.requestBillEnabled,
+            cart_enabled: body.cartEnabled ?? existingSettings?.cart_enabled ?? DEFAULT_SETTINGS.cartEnabled,
+            wifi_password: body.wifiPassword ?? existingSettings?.wifi_password ?? DEFAULT_SETTINGS.wifiPassword,
+            business_logo_url: body.businessLogoUrl ?? existingSettings?.business_logo_url ?? DEFAULT_SETTINGS.businessLogoUrl,
             updated_at: new Date().toISOString(),
         };
 
@@ -152,6 +170,12 @@ export async function POST(request: Request) {
                 useBusinessHours: settingsData.use_business_hours,
                 whatsappNumber: settingsData.whatsapp_number,
                 notifications: settingsData.notifications,
+                menuTheme: settingsData.menu_theme,
+                waiterCallEnabled: settingsData.waiter_call_enabled,
+                requestBillEnabled: settingsData.request_bill_enabled,
+                cartEnabled: settingsData.cart_enabled,
+                wifiPassword: settingsData.wifi_password,
+                businessLogoUrl: settingsData.business_logo_url,
             }
         });
     } catch (error) {

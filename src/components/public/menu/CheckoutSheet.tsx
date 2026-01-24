@@ -9,12 +9,14 @@ import { calculateItemTotal } from "@/contexts/CartContext";
 interface CheckoutSheetProps {
     isOpen: boolean;
     onClose: () => void;
+    theme?: "modern" | "classic";
 }
 
-export default function CheckoutSheet({ isOpen, onClose }: CheckoutSheetProps) {
+export default function CheckoutSheet({ isOpen, onClose, theme = "modern" }: CheckoutSheetProps) {
     const cart = useCart();
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState<"delivery" | "payment" | "confirm">("delivery");
+    const isDark = theme === "modern";
 
     const [customerName, setCustomerName] = useState("");
     const [customerPhone, setCustomerPhone] = useState("");
@@ -63,10 +65,13 @@ export default function CheckoutSheet({ isOpen, onClose }: CheckoutSheetProps) {
     }, [cart.businessSlug, deliveryType]);
 
     useEffect(() => {
-        if (deliveryType === "pickup") {
+        if (cart.tableId) {
+            setDeliveryType("table");
+            setTableNumber(cart.tableId);
+        } else if (deliveryType === "pickup") {
             setDeliveryFee(0);
         }
-    }, [deliveryType]);
+    }, [deliveryType, cart.tableId]);
 
     const subtotal = cart.total;
     const discount = couponDiscount;
@@ -187,47 +192,60 @@ export default function CheckoutSheet({ isOpen, onClose }: CheckoutSheetProps) {
 
     return (
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
-            <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-            <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+            <div className={`relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl border ${isDark
+                ? "bg-[#1c1c1e] border-white/5"
+                : "bg-white border-gray-100"
+                }`}>
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    className={`absolute top-4 right-4 p-2 rounded-full transition-colors ${isDark ? "hover:bg-white/10 text-white" : "hover:bg-gray-100 text-gray-800"
+                        }`}
                 >
                     <X className="w-5 h-5" />
                 </button>
 
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Siparişi Tamamla</h2>
+                <h2 className={`text-2xl font-bold mb-6 ${isDark ? "text-white" : "text-gray-900"}`}>Siparişi Tamamla</h2>
 
                 <div className="space-y-6">
                     <div>
-                        <h3 className="font-semibold text-gray-900 mb-3">Müşteri Bilgileri</h3>
+                        <h3 className={`font-semibold mb-3 ${isDark ? "text-white" : "text-gray-900"}`}>Müşteri Bilgileri</h3>
                         <div className="space-y-3">
                             <input
                                 type="text"
                                 placeholder="İsim Soyisim"
                                 value={customerName}
                                 onChange={e => setCustomerName(e.target.value)}
-                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                className={`w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
+                                    ? "bg-[#0d0d0d] border border-white/10 text-white placeholder-gray-500"
+                                    : "bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400"
+                                    }`}
                             />
                             <input
                                 type="tel"
                                 placeholder="Telefon"
                                 value={customerPhone}
                                 onChange={e => setCustomerPhone(e.target.value)}
-                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                className={`w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
+                                    ? "bg-[#0d0d0d] border border-white/10 text-white placeholder-gray-500"
+                                    : "bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400"
+                                    }`}
                             />
                             <input
                                 type="email"
                                 placeholder="E-posta (opsiyonel)"
                                 value={customerEmail}
                                 onChange={e => setCustomerEmail(e.target.value)}
-                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                className={`w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
+                                    ? "bg-[#0d0d0d] border border-white/10 text-white placeholder-gray-500"
+                                    : "bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400"
+                                    }`}
                             />
                         </div>
                     </div>
 
                     <div>
-                        <h3 className="font-semibold text-gray-900 mb-3">Teslimat</h3>
+                        <h3 className={`font-semibold mb-3 ${isDark ? "text-white" : "text-gray-900"}`}>Teslimat</h3>
                         <div className="grid grid-cols-3 gap-2 mb-3">
                             {[
                                 { value: "pickup" as const, label: "Gel Al", icon: ShoppingCart },
@@ -237,14 +255,13 @@ export default function CheckoutSheet({ isOpen, onClose }: CheckoutSheetProps) {
                                 <button
                                     key={type.value}
                                     onClick={() => setDeliveryType(type.value)}
-                                    className={`p-3 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
-                                        deliveryType === type.value
-                                            ? "border-orange-500 bg-orange-50"
-                                            : "border-gray-200 hover:border-gray-300"
-                                    }`}
+                                    className={`p-3 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${deliveryType === type.value
+                                        ? (isDark ? "border-blue-500 bg-blue-500/10" : "border-orange-500 bg-orange-500/10")
+                                        : (isDark ? "border-white/5 hover:border-white/10 bg-white/5" : "border-gray-200 hover:border-gray-300 bg-white")
+                                        }`}
                                 >
-                                    <type.icon className={`w-5 h-5 ${deliveryType === type.value ? "text-orange-500" : "text-gray-500"}`} />
-                                    <span className={`text-xs font-medium ${deliveryType === type.value ? "text-orange-500" : "text-gray-600"}`}>
+                                    <type.icon className={`w-5 h-5 ${deliveryType === type.value ? (isDark ? "text-blue-500" : "text-orange-500") : "text-gray-400"}`} />
+                                    <span className={`text-xs font-medium ${deliveryType === type.value ? (isDark ? "text-blue-500" : "text-orange-500") : "text-gray-400"}`}>
                                         {type.label}
                                     </span>
                                 </button>
@@ -256,22 +273,38 @@ export default function CheckoutSheet({ isOpen, onClose }: CheckoutSheetProps) {
                                 placeholder="Teslimat adresi"
                                 value={deliveryAddress}
                                 onChange={e => setDeliveryAddress(e.target.value)}
-                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                className={`w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
+                                    ? "bg-[#0d0d0d] border border-white/10 text-white placeholder-gray-500"
+                                    : "bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400"
+                                    }`}
                             />
                         )}
                         {deliveryType === "table" && (
-                            <input
-                                type="text"
-                                placeholder="Masa numarası"
-                                value={tableNumber}
-                                onChange={e => setTableNumber(e.target.value)}
-                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-                            />
+                            cart.tableId ? (
+                                <div className={`w-full px-4 py-3 rounded-xl border flex items-center gap-3 ${isDark ? "bg-[#0d0d0d] border-white/10 text-white" : "bg-gray-50 border-gray-200 text-gray-900"
+                                    }`}>
+                                    <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                                        <Check className="w-4 h-4" />
+                                    </div>
+                                    <span className="font-medium text-sm">QR ile masa seçili</span>
+                                </div>
+                            ) : (
+                                <input
+                                    type="text"
+                                    placeholder="Masa numarası"
+                                    value={tableNumber}
+                                    onChange={e => setTableNumber(e.target.value)}
+                                    className={`w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
+                                        ? "bg-[#0d0d0d] border border-white/10 text-white placeholder-gray-500"
+                                        : "bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400"
+                                        }`}
+                                />
+                            )
                         )}
                     </div>
 
                     <div>
-                        <h3 className="font-semibold text-gray-900 mb-3">Ödeme</h3>
+                        <h3 className={`font-semibold mb-3 ${isDark ? "text-white" : "text-gray-900"}`}>Ödeme</h3>
                         <div className="grid grid-cols-3 gap-2">
                             {[
                                 { value: "cash" as const, label: "Nakit" },
@@ -281,14 +314,13 @@ export default function CheckoutSheet({ isOpen, onClose }: CheckoutSheetProps) {
                                 <button
                                     key={method.value}
                                     onClick={() => setPaymentMethod(method.value)}
-                                    className={`p-3 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
-                                        paymentMethod === method.value
-                                            ? "border-orange-500 bg-orange-50"
-                                            : "border-gray-200 hover:border-gray-300"
-                                    }`}
+                                    className={`p-3 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === method.value
+                                        ? (isDark ? "border-blue-500 bg-blue-500/10" : "border-orange-500 bg-orange-500/10")
+                                        : (isDark ? "border-white/5 hover:border-white/10 bg-white/5" : "border-gray-200 hover:border-gray-300 bg-white")
+                                        }`}
                                 >
-                                    <CreditCard className={`w-5 h-5 ${paymentMethod === method.value ? "text-orange-500" : "text-gray-500"}`} />
-                                    <span className={`text-xs font-medium ${paymentMethod === method.value ? "text-orange-500" : "text-gray-600"}`}>
+                                    <CreditCard className={`w-5 h-5 ${paymentMethod === method.value ? (isDark ? "text-blue-500" : "text-orange-500") : "text-gray-400"}`} />
+                                    <span className={`text-xs font-medium ${paymentMethod === method.value ? (isDark ? "text-blue-500" : "text-orange-500") : "text-gray-400"}`}>
                                         {method.label}
                                     </span>
                                 </button>
@@ -297,44 +329,47 @@ export default function CheckoutSheet({ isOpen, onClose }: CheckoutSheetProps) {
                     </div>
 
                     <div>
-                        <h3 className="font-semibold text-gray-900 mb-3">Kupon Kodu</h3>
+                        <h3 className={`font-semibold mb-3 ${isDark ? "text-white" : "text-gray-900"}`}>Kupon Kodu</h3>
                         <div className="relative">
                             <input
                                 type="text"
                                 placeholder="Kupon kodu"
                                 value={couponCode}
                                 onChange={e => setCouponCode(e.target.value.toUpperCase())}
-                                className="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 uppercase"
+                                className={`w-full px-4 py-3 pr-12 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase ${isDark
+                                    ? "bg-[#0d0d0d] border border-white/10 text-white placeholder-gray-500"
+                                    : "bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400"
+                                    }`}
                             />
                             {validatingCoupon && (
-                                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 animate-spin text-orange-500" />
+                                <Loader2 className={`absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 animate-spin ${isDark ? "text-blue-500" : "text-orange-500"}`} />
                             )}
                         </div>
                         {discount > 0 && (
-                            <p className="mt-2 text-sm text-green-600 font-medium">
+                            <p className="mt-2 text-sm text-green-500 font-medium">
                                 ✓ {discount} TL indirim uygulandı
                             </p>
                         )}
                     </div>
 
-                    <div className="border-t border-gray-200 pt-4 space-y-2">
-                        <div className="flex justify-between text-gray-600">
+                    <div className="border-t border-white/10 pt-4 space-y-2">
+                        <div className="flex justify-between text-gray-400">
                             <span>Ara Toplam</span>
                             <span>₺{subtotal.toFixed(2)}</span>
                         </div>
                         {deliveryFee > 0 && (
-                            <div className="flex justify-between text-gray-600">
+                            <div className="flex justify-between text-gray-400">
                                 <span>Teslimat Ücreti</span>
                                 <span>₺{deliveryFee.toFixed(2)}</span>
                             </div>
                         )}
                         {discount > 0 && (
-                            <div className="flex justify-between text-green-600">
+                            <div className="flex justify-between text-green-500">
                                 <span>İndirim</span>
                                 <span>-₺{discount.toFixed(2)}</span>
                             </div>
                         )}
-                        <div className="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t border-gray-100">
+                        <div className="flex justify-between text-lg font-bold text-white pt-2 border-t border-white/10">
                             <span>Toplam</span>
                             <span>₺{total.toFixed(2)}</span>
                         </div>
@@ -343,7 +378,7 @@ export default function CheckoutSheet({ isOpen, onClose }: CheckoutSheetProps) {
                     <button
                         onClick={handleSubmit}
                         disabled={loading || cart.items.length === 0}
-                        className="w-full py-4 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2"
+                        className="w-full py-4 bg-gradient-to-r from-[#0A84FF] to-[#BF5AF2] hover:shadow-lg hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2"
                     >
                         {loading ? (
                             <>

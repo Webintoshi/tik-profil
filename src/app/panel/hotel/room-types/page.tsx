@@ -19,24 +19,27 @@ import {
     Trash2,
     Image as ImageIcon,
     Check,
+    Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useBusinessContext } from "@/components/panel/BusinessSessionContext";
 
-// Room type interface
 interface RoomType {
     id: string;
     name: string;
     description: string;
     price: number;
-    currency: string;
+    pricePerNight?: number;
+    currency?: string;
     capacity: number;
     bedType: string;
     size: number;
+    sizeSqm?: number;
     photos: string[];
     amenities: string[];
-    isActive: boolean;
-    order: number;
+    images?: unknown;
+    isActive?: boolean;
+    order?: number;
 }
 
 // Available amenities
@@ -65,6 +68,7 @@ export default function RoomTypesPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingType, setEditingType] = useState<RoomType | null>(null);
     const [saving, setSaving] = useState(false);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -75,6 +79,7 @@ export default function RoomTypesPage() {
         bedType: "Çift Kişilik",
         size: 25,
         amenities: ["wifi", "ac", "tv", "bathroom"],
+        photos: [] as string[],
     });
 
     // Load room types
@@ -108,6 +113,7 @@ export default function RoomTypesPage() {
             bedType: "Çift Kişilik",
             size: 25,
             amenities: ["wifi", "ac", "tv", "bathroom"],
+            photos: [],
         });
         setIsModalOpen(true);
     };
@@ -122,8 +128,51 @@ export default function RoomTypesPage() {
             bedType: roomType.bedType,
             size: roomType.size,
             amenities: roomType.amenities,
+            photos: roomType.photos || [],
         });
         setIsModalOpen(true);
+    };
+
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploadingPhoto(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const res = await fetch('/api/hotel/upload', {
+                method: 'POST',
+                body: formData,
+            });
+
+            const data = await res.json();
+            console.log('Upload response:', data);
+
+            if (data.success && (data.imageUrl || data.url)) {
+                const imageUrl = data.imageUrl || data.url;
+                setFormData(prev => ({
+                    ...prev,
+                    photos: [...prev.photos, imageUrl],
+                }));
+                toast.success('Fotoğraf yüklendi');
+            } else {
+                toast.error(data.error || 'Yükleme hatası');
+            }
+        } catch (error) {
+            console.error('Photo upload error:', error);
+            toast.error('Yükleme hatası');
+        } finally {
+            setUploadingPhoto(false);
+        }
+    };
+
+    const removePhoto = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            photos: prev.photos.filter((_, i) => i !== index),
+        }));
     };
 
     const toggleAmenity = (amenityId: string) => {
@@ -155,6 +204,7 @@ export default function RoomTypesPage() {
                 body: JSON.stringify({
                     ...formData,
                     businessId: session?.businessId,
+                    images: formData.photos,
                 }),
             });
 
@@ -496,6 +546,56 @@ export default function RoomTypesPage() {
                                                 </button>
                                             );
                                         })}
+                                    </div>
+                                </div>
+
+                                {/* Photos */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                        Fotoğraflar
+                                    </label>
+                                    <div className="space-y-3">
+                                        <label className="flex items-center gap-2 px-4 py-3 bg-gray-50 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl cursor-pointer hover:border-blue-500 transition-colors">
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handlePhotoUpload}
+                                                disabled={uploadingPhoto}
+                                                className="hidden"
+                                            />
+                                            {uploadingPhoto ? (
+                                                <>
+                                                    <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                                                    <span className="text-sm text-gray-600 dark:text-gray-400">Yükleniyor...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Upload className="w-5 h-5 text-gray-500" />
+                                                    <span className="text-sm text-gray-600 dark:text-gray-400">Fotoğraf seç</span>
+                                                </>
+                                            )}
+                                        </label>
+
+                                        {formData.photos.length > 0 && (
+                                            <div className="grid grid-cols-4 gap-3">
+                                                {formData.photos.map((photo, index) => (
+                                                    <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                                                        <img
+                                                            src={photo}
+                                                            alt={`Fotoğraf ${index + 1}`}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removePhoto(index)}
+                                                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                                                        >
+                                                            <X className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>

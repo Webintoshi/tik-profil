@@ -10,6 +10,7 @@ import { registerSchema, checkHoneypot } from "@/lib/validators";
 import { getSessionSecret } from "@/lib/env";
 import { checkRateLimit, recordSuccess } from "@/lib/rateLimit";
 import { SignJWT } from "jose";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 // Owner session cookie
 const OWNER_COOKIE = "tikprofil_owner_session";
@@ -104,12 +105,13 @@ export async function POST(request: Request) {
         let industryModules: string[] = [];
         if (industryId) {
             try {
-                // Try to get the industry definition from document store
-                const industryDefinitions = await getCollectionREST("industry_definitions");
-                const industryDef = industryDefinitions.find(
-                    (def) => def.slug === industryId || def.id === industryId
-                );
-                if (industryDef && Array.isArray(industryDef.modules) && industryDef.modules.length > 0) {
+                const supabase = getSupabaseAdmin();
+                const { data: industryDef, error } = await supabase
+                    .from('industry_definitions')
+                    .select('modules')
+                    .eq('slug', industryId)
+                    .maybeSingle();
+                if (!error && industryDef && Array.isArray(industryDef.modules) && industryDef.modules.length > 0) {
                     industryModules = industryDef.modules as string[];
                 }
             } catch (error) {

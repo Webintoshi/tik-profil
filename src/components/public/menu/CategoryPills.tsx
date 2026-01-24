@@ -14,9 +14,10 @@ interface CategoryPillsProps {
     categories: Category[];
     activeId: string;
     onSelect: (id: string) => void;
+    theme?: "modern" | "classic";
 }
 
-export function CategoryPills({ categories, activeId, onSelect }: CategoryPillsProps) {
+export function CategoryPills({ categories, activeId, onSelect, theme = "modern" }: CategoryPillsProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const pillRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
@@ -43,7 +44,7 @@ export function CategoryPills({ categories, activeId, onSelect }: CategoryPillsP
     }, [activeId]);
 
     return (
-        <div className="sticky top-[52px] z-40 bg-white/95 backdrop-blur-sm border-b border-gray-100/50">
+        <div className="sticky top-[52px] z-40 backdrop-blur-md border-b bg-white/95 border-gray-100">
             <div
                 ref={scrollRef}
                 className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide"
@@ -60,10 +61,10 @@ export function CategoryPills({ categories, activeId, onSelect }: CategoryPillsP
                             onClick={() => onSelect(category.id)}
                             whileTap={{ scale: 0.95 }}
                             className={clsx(
-                                "flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300",
+                                "flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 border",
                                 isActive
-                                    ? "bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-lg shadow-violet-500/25"
-                                    : "bg-gray-100 text-gray-700 hover:bg-gray-150 active:bg-gray-200"
+                                    ? "bg-[#fe1e50] text-white shadow-lg shadow-[#fe1e50]/25 border-transparent"
+                                    : "bg-white border-gray-200 text-gray-600 hover:border-[#fe1e50]/50 hover:bg-[#fe1e50]/5 active:bg-[#fe1e50]/10"
                             )}
                         >
                             <span className="text-base">{category.icon}</span>

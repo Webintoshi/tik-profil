@@ -1,8 +1,8 @@
-// Hotel Room Status Update API
-import { NextResponse } from 'next/server';
-import { updateDocumentREST } from '@/lib/documentStore';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { AppError } from '@/lib/errors';
 
-// PATCH - Update room status only
+const TABLE = 'hotel_rooms';
+
 export async function PATCH(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -15,35 +15,32 @@ export async function PATCH(
 
         const validStatuses = ['available', 'occupied', 'cleaning', 'maintenance'];
         if (!validStatuses.includes(status)) {
-            return NextResponse.json(
-                { error: 'Geçersiz durum' },
-                { status: 400 }
-            );
+            return AppError.badRequest('Geçersiz durum').toResponse();
         }
 
-        const updateData: Record<string, unknown> = {
-            status,
-            updated_at: new Date().toISOString(),
-        };
+        const supabase = getSupabaseAdmin();
+        const updateData: Record<string, unknown> = { status };
 
-        // If room becomes available, clear guest info
         if (status === 'available') {
-            updateData.currentGuestName = null;
-            updateData.checkInDate = null;
-            updateData.checkOutDate = null;
+            updateData.current_guest_name = null;
+            updateData.check_in_date = null;
+            updateData.check_out_date = null;
         }
 
-        await updateDocumentREST('hotel_rooms', id, updateData);
+        const { error } = await supabase
+            .from(TABLE)
+            .update(updateData)
+            .eq('id', id);
 
-        return NextResponse.json({
+        if (error) {
+            throw error;
+        }
+
+        return Response.json({
             success: true,
             message: 'Oda durumu güncellendi',
         });
     } catch (error) {
-        console.error('[Rooms] PATCH status error:', error);
-        return NextResponse.json(
-            { error: 'Sunucu hatası' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, 'Rooms PATCH status');
     }
 }

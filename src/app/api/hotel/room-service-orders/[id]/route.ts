@@ -1,8 +1,8 @@
-// Room Service Order Status Update API
-import { NextResponse } from 'next/server';
-import { updateDocumentREST } from '@/lib/documentStore';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { AppError } from '@/lib/errors';
 
-// PATCH - Update order status
+const TABLE = 'hotel_room_service_orders';
+
 export async function PATCH(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -14,33 +14,30 @@ export async function PATCH(
 
         const validStatuses = ['pending', 'preparing', 'delivered', 'cancelled'];
         if (!validStatuses.includes(status)) {
-            return NextResponse.json(
-                { error: 'Geçersiz durum' },
-                { status: 400 }
-            );
+            return AppError.badRequest('Geçersiz durum').toResponse();
         }
 
-        const updateData: Record<string, unknown> = {
-            status,
-            updated_at: new Date().toISOString(),
-        };
+        const supabase = getSupabaseAdmin();
+        const updateData: Record<string, unknown> = { status };
 
-        // Add delivered timestamp if status is delivered
         if (status === 'delivered') {
-            updateData.deliveredAt = new Date().toISOString();
+            updateData.completed_at = new Date().toISOString();
         }
 
-        await updateDocumentREST('room_service_orders', id, updateData);
+        const { error } = await supabase
+            .from(TABLE)
+            .update(updateData)
+            .eq('id', id);
 
-        return NextResponse.json({
+        if (error) {
+            throw error;
+        }
+
+        return Response.json({
             success: true,
             message: 'Sipariş durumu güncellendi',
         });
     } catch (error) {
-        console.error('[RoomServiceOrders] PATCH error:', error);
-        return NextResponse.json(
-            { error: 'Sunucu hatası' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, 'RoomServiceOrders PATCH');
     }
 }

@@ -38,6 +38,11 @@ interface SettingsData {
         onWay: boolean;
         delivered: boolean;
     };
+    menuTheme: string;
+    waiterCallEnabled: boolean;
+    requestBillEnabled: boolean;
+    cartEnabled: boolean;
+    wifiPassword: string;
 }
 
 export default function FastFoodSettingsPage() {
@@ -240,6 +245,54 @@ export default function FastFoodSettingsPage() {
                     )}
                 </div>
 
+                {/* Table Management */}
+                <div className={clsx("rounded-[2rem] p-8", cardBg)}>
+                    <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                        <Bell className="w-7 h-7 text-orange-500" />
+                        Masa Yönetimi
+                    </h2>
+
+                    <div className="space-y-2 divide-y border-b mb-6" style={{ borderColor: isDark ? '#2C2C2E' : '#F2F2F7', borderBottomWidth: '1px' }}>
+                        <Toggle
+                            checked={settings.cartEnabled}
+                            onChange={(val) => setSettings({ ...settings, cartEnabled: val })}
+                            label="Sepete Ekle / Sipariş Ver"
+                            icon={Store}
+                            description="Müşteriler masadan sipariş verebilsin (Kapalıysa sadece menü görüntülenir)"
+                        />
+                        <div style={{ borderColor: isDark ? '#2C2C2E' : '#F2F2F7' }}></div>
+                        <Toggle
+                            checked={settings.waiterCallEnabled}
+                            onChange={(val) => setSettings({ ...settings, waiterCallEnabled: val })}
+                            label="Garson Çağır"
+                            icon={Bell}
+                            description="Müşteriler WhatsApp üzerinden garson çağırabilsin"
+                        />
+                        <div style={{ borderColor: isDark ? '#2C2C2E' : '#F2F2F7' }}></div>
+                        <Toggle
+                            checked={settings.requestBillEnabled}
+                            onChange={(val) => setSettings({ ...settings, requestBillEnabled: val })}
+                            label="Hesap İste"
+                            icon={CreditCard}
+                            description="Müşteriler WhatsApp üzerinden hesap isteyebilsin"
+                        />
+                    </div>
+
+                    <div>
+                        <label className={clsx("block text-sm font-bold ml-1 mb-2", textSecondary)}>WIFI ŞİFRESİ</label>
+                        <input
+                            type="text"
+                            value={settings.wifiPassword}
+                            onChange={(e) => setSettings({ ...settings, wifiPassword: e.target.value })}
+                            placeholder="Müşteriler için WiFi şifresi..."
+                            className={clsx(
+                                "w-full px-5 py-4 rounded-2xl text-lg font-semibold outline-none transition-all",
+                                inputBg, isDark ? "focus:bg-[#3A3A3C]" : "focus:bg-gray-50 focus:shadow-inner"
+                            )}
+                        />
+                    </div>
+                </div>
+
                 {/* Payment Methods */}
                 <div className={clsx("rounded-[2rem] p-8", cardBg)}>
                     <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
@@ -261,6 +314,77 @@ export default function FastFoodSettingsPage() {
                             label="Kapıda Kredi Kartı"
                             icon={CreditCard}
                         />
+                    </div>
+                </div>
+
+                {/* Theme Selection */}
+                <div className={clsx("rounded-[2rem] p-8", cardBg)}>
+                    <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                        <Smartphone className="w-7 h-7 text-pink-500" />
+                        Menu Görünümü
+                    </h2>
+
+                    <div className="space-y-4">
+                        <div>
+                            <label className={clsx("block text-sm font-bold ml-1 mb-2", textSecondary)}>TEMA SEÇİMİ</label>
+                            <div className="grid grid-cols-2 gap-4">
+                                <button
+                                    onClick={() => setSettings({ ...settings, menuTheme: 'modern' })}
+                                    className={clsx(
+                                        "relative p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3",
+                                        settings.menuTheme === 'modern'
+                                            ? "border-blue-500 bg-blue-500/10"
+                                            : "border-transparent hover:bg-gray-100/50"
+                                    )}
+                                >
+                                    <div className="w-full aspect-[9/16] bg-[#0d0d0d] rounded-lg shadow-lg border border-white/10 flex flex-col p-2 overflow-hidden">
+                                        <div className="w-full h-8 bg-white/5 rounded mb-2" />
+                                        <div className="space-y-2">
+                                            {[1, 2, 3].map(i => (
+                                                <div key={i} className="flex gap-2">
+                                                    <div className="w-12 h-12 bg-white/5 rounded" />
+                                                    <div className="flex-1 space-y-1">
+                                                        <div className="w-2/3 h-3 bg-white/5 rounded" />
+                                                        <div className="w-1/2 h-2 bg-white/5 rounded" />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <span className={clsx("font-semibold", settings.menuTheme === 'modern' ? "text-blue-500" : textPrimary)}>
+                                        Modern (Karanlık)
+                                    </span>
+                                </button>
+
+                                <button
+                                    onClick={() => setSettings({ ...settings, menuTheme: 'classic' })}
+                                    className={clsx(
+                                        "relative p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3",
+                                        settings.menuTheme === 'classic'
+                                            ? "border-blue-500 bg-blue-500/10"
+                                            : "border-transparent hover:bg-gray-100/50"
+                                    )}
+                                >
+                                    <div className="w-full aspect-[9/16] bg-gray-50 rounded-lg shadow-lg border border-gray-200 flex flex-col p-2 overflow-hidden">
+                                        <div className="w-full h-8 bg-white rounded mb-2 shadow-sm" />
+                                        <div className="space-y-2">
+                                            {[1, 2, 3].map(i => (
+                                                <div key={i} className="flex gap-2">
+                                                    <div className="w-12 h-12 bg-white rounded shadow-sm" />
+                                                    <div className="flex-1 space-y-1">
+                                                        <div className="w-2/3 h-3 bg-gray-200 rounded" />
+                                                        <div className="w-1/2 h-2 bg-gray-200 rounded" />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <span className={clsx("font-semibold", settings.menuTheme === 'classic' ? "text-blue-500" : textPrimary)}>
+                                        Klasik (Aydınlık)
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

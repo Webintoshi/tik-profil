@@ -1,56 +1,92 @@
-// Room Service Orders API
-import { NextResponse } from 'next/server';
-import { getCollectionREST, createDocumentREST } from '@/lib/documentStore';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { AppError } from '@/lib/errors';
 
-// GET - List room service orders for a business
+const TABLE = 'hotel_room_service_orders';
+
+interface OrderRow {
+    id: string;
+    business_id: string;
+    room_id: string | null;
+    room_number: string | null;
+    guest_name: string | null;
+    items: unknown;
+    subtotal: number | string;
+    service_charge: number | string;
+    tax: number | string;
+    total: number | string;
+    status: string | null;
+    priority: string | null;
+    special_instructions: string | null;
+    assigned_to: string | null;
+    completed_at: string | null;
+    completed_by: string | null;
+    notes: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+function mapOrder(row: OrderRow) {
+    return {
+        id: row.id,
+        businessId: row.business_id,
+        roomId: row.room_id,
+        roomNumber: row.room_number,
+        guestName: row.guest_name,
+        items: row.items || [],
+        subtotal: Number(row.subtotal || 0),
+        serviceCharge: Number(row.service_charge || 0),
+        tax: Number(row.tax || 0),
+        total: Number(row.total || 0),
+        status: row.status || 'pending',
+        priority: row.priority || 'normal',
+        specialInstructions: row.special_instructions,
+        assignedTo: row.assigned_to,
+        completedAt: row.completed_at,
+        completedBy: row.completed_by,
+        notes: row.notes,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    };
+}
+
 export async function GET(request: Request) {
     try {
-        const url = new URL(request.url);
-        const businessId = url.searchParams.get('businessId');
-        const status = url.searchParams.get('status');
+        const { searchParams } = new URL(request.url);
+        const businessId = searchParams.get('businessId');
+        const status = searchParams.get('status');
 
         if (!businessId) {
-            return NextResponse.json(
-                { error: 'businessId gerekli' },
-                { status: 400 }
-            );
+            return AppError.badRequest('businessId gerekli').toResponse();
         }
 
-        const allOrders = await getCollectionREST('room_service_orders');
-        let orders = allOrders.filter(
-            (o) => (o.businessId as string) === businessId || (o.business_id as string) === businessId
-        );
+        const supabase = getSupabaseAdmin();
+        let query = supabase
+            .from(TABLE)
+            .select('*')
+            .eq('business_id', businessId)
+            .order('created_at', { ascending: false });
 
-        // Filter by status if provided
         if (status) {
-            orders = orders.filter(o => o.status === status);
+            query = query.eq('status', status);
         }
 
-        // Sort by createdAt (newest first)
-        orders.sort((a, b) => {
-            const dateA = a.createdAt ? new Date(a.createdAt as string).getTime() : 0;
-            const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
-            return dateB - dateA;
-        });
+        const { data, error } = await query;
 
-        return NextResponse.json({
-            success: true,
-            orders,
-        });
+        if (error) {
+            throw error;
+        }
+
+        const orders = (data || []).map(mapOrder);
+
+        return Response.json({ success: true, orders });
     } catch (error) {
-        console.error('[RoomServiceOrders] GET error:', error);
-        return NextResponse.json(
-            { error: 'Sunucu hatası' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, 'RoomServiceOrders GET');
     }
 }
 
-// POST - Create new room service order (from guest)
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-
         const {
             businessId,
             roomNumber,
@@ -61,39 +97,48 @@ export async function POST(request: Request) {
         } = body;
 
         if (!businessId || !roomNumber || !items || items.length === 0) {
-            return NextResponse.json(
-                { error: 'businessId, roomNumber ve items gerekli' },
-                { status: 400 }
-            );
+            return AppError.badRequest('businessId, roomNumber ve items gerekli').toResponse();
         }
 
+        const supabase = getSupabaseAdmin();
         const orderData = {
-            businessId,
-            roomNumber,
-            items, // [{id, name, price, quantity}]
+            business_id: businessId,
+            room_id: null,
+            room_number: roomNumber,
+            guest_name: null,
+            items,
+            subtotal: 0,
+            service_charge: 0,
+            tax: 0,
             total: total || 0,
-            note: note || null,
-            language: language || 'tr',
-            status: 'pending', // pending, preparing, delivered, cancelled
-            createdAt: new Date().toISOString(),
-            deliveredAt: null,
+            status: 'pending',
+            priority: 'normal',
+            special_instructions: note || null,
+            assigned_to: null,
+            completed_at: null,
+            completed_by: null,
+            notes: language === 'tr' ? 'Sipariş alındı' : 'Order received',
         };
 
-        const docId = await createDocumentREST('room_service_orders', orderData);
+        const { data, error } = await supabase
+            .from(TABLE)
+            .insert(orderData)
+            .select('id')
+            .single();
 
-        return NextResponse.json({
+        if (error) {
+            throw error;
+        }
+
+        return Response.json({
             success: true,
             message: 'Sipariş alındı',
             order: {
-                id: docId,
+                id: data?.id,
                 ...orderData,
             },
         });
     } catch (error) {
-        console.error('[RoomServiceOrders] POST error:', error);
-        return NextResponse.json(
-            { error: 'Sunucu hatası' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, 'RoomServiceOrders POST');
     }
 }

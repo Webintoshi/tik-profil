@@ -82,11 +82,11 @@ function HeroSection() {
                                 </span>
                                 <br />
                                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-500 inline-block animate-gradient-x">
-                                    Dijital Kimlik
+                                    Dijital Kartvizit
                                 </span>
                                 <br />
                                 <span className="text-slate-800/95 inline-block text-3xl sm:text-4xl lg:text-6xl mt-2">
-                                    ve QR Kod Çözümü
+                                    ve QR Menü Sistemi
                                 </span>
                             </h1>
                         </motion.div>
@@ -377,7 +377,8 @@ function ProductSection() {
                         transition={{ delay: 0.1 }}
                         className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6"
                     >
-                        <span className="text-slate-800/95">İşletmenizi Büyüten </span>
+                        <span className="text-slate-800/95">QR Menü, Randevu ve</span>
+                        <br />
                         <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-500 to-blue-600">
                             Dijital Araçlar
                         </span>
@@ -554,14 +555,13 @@ function SolutionsSection() {
     );
 }
 
+import { faqData } from "@/lib/schema/faqSchema";
+
 function FAQSection() {
-    const faqs = [
-        { q: "Ücretsiz plan gerçekten ücretsiz mi?", a: "Evet! Temel profil özellikleri sonsuza kadar ücretsiz. İşletme adı, logo, iletişim bilgileri, sosyal linkler ve temel galeri tamamen ücretsiz olarak kullanılabilir." },
-        { q: "Profil linkimi özelleştirebilir miyim?", a: "Evet, tikprofil.com/isletme-adi formatında kısa, özel ve akılda kalıcı bir link alırsınız. PRO planda özel domain de bağlayabilirsiniz." },
-        { q: "Kredi kartı gerekli mi?", a: "Hayır! Ücretsiz plan için hiçbir ödeme bilgisi gerektirmez. Sadece PRO özelliklere geçmek isterseniz ödeme alınır." },
-        { q: "Modülleri sonradan ekleyebilir miyim?", a: "Kesinlikle! İhtiyaç duyduğunuz her an modül mağazasından tek tıkla ekleme yapabilirsiniz. Modüller aylık veya yıllık abonelik ile aktive edilir." },
-        { q: "Teknik destek var mı?", a: "Evet, tüm kullanıcılara e-posta desteği sunuyoruz. PRO kullanıcılar 7/24 canlı destek ve öncelikli yanıt hakkına sahiptir." },
-    ];
+    const faqs = faqData.map(faq => ({
+        q: faq.name,
+        a: faq.acceptedAnswer.text
+    }));
 
     return (
         <section id="sss" className="relative py-12 md:py-20 bg-transparent">
@@ -573,7 +573,7 @@ function FAQSection() {
                     className="text-center mb-16"
                 >
                     <h2 className="text-4xl md:text-5xl font-bold text-slate-800/95 mb-4">
-                        Sıkça Sorulan Sorular
+                        Sıkça Sorulan Sorular | Tık Profil
                     </h2>
                     <p className="text-slate-700/80 text-lg">
                         Aklınızdaki soruların cevaplarını burada bulabilirsiniz.
@@ -716,11 +716,18 @@ export function Footer() {
                     <div>
                         <h4 className="font-bold mb-5 text-slate-800/95">Platform</h4>
                         <ul className="space-y-3 text-slate-700/80">
-                            {['Özellikler', 'Modüller', 'Fiyatlandırma', 'Entegrasyonlar'].map((link) => (
-                                <li key={link}>
-                                    <a href="#" className="hover:text-blue-600 transition-colors">{link}</a>
-                                </li>
-                            ))}
+                            <li>
+                                <Link href="#urun" className="hover:text-blue-600 transition-colors">Özellikler</Link>
+                            </li>
+                            <li>
+                                <Link href="#cozumler" className="hover:text-blue-600 transition-colors">Modüller</Link>
+                            </li>
+                            <li>
+                                <Link href="/restoran" className="hover:text-blue-600 transition-colors">QR Menü</Link>
+                            </li>
+                            <li>
+                                <Link href="/otel" className="hover:text-blue-600 transition-colors">Otel Yönetimi</Link>
+                            </li>
                         </ul>
                     </div>
 

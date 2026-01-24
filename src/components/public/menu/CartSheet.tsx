@@ -11,11 +11,13 @@ interface CartSheetProps {
     isOpen: boolean;
     onClose: () => void;
     onCheckout?: () => void;
+    theme?: "modern" | "classic";
 }
 
-export function CartSheet({ isOpen, onClose, onCheckout }: CartSheetProps) {
+export function CartSheet({ isOpen, onClose, onCheckout, theme = "modern" }: CartSheetProps) {
     const cart = useCart();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const isDark = theme === "modern";
 
     const handleCheckout = () => {
         if (cart.items.length === 0) return;
@@ -51,7 +53,7 @@ export function CartSheet({ isOpen, onClose, onCheckout }: CartSheetProps) {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+                        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
                     />
 
                     {/* Sheet */}
@@ -60,43 +62,50 @@ export function CartSheet({ isOpen, onClose, onCheckout }: CartSheetProps) {
                         animate={{ y: 0 }}
                         exit={{ y: "100%" }}
                         transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                        className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col"
+                        className={`fixed inset-x-0 bottom-0 z-50 rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col ${isDark
+                                ? "bg-[#1c1c1e] border-t border-white/5"
+                                : "bg-white"
+                            }`}
                     >
                         {/* Handle */}
                         <div className="flex justify-center pt-3 pb-2">
-                            <div className="w-12 h-1.5 rounded-full bg-gray-300" />
+                            <div className={`w-12 h-1.5 rounded-full ${isDark ? "bg-white/10" : "bg-gray-300"}`} />
                         </div>
 
                         {/* Header */}
-                        <div className="flex items-center justify-between px-4 pb-3 border-b border-gray-100">
+                        <div className={`flex items-center justify-between px-4 pb-3 border-b ${isDark ? "border-white/5" : "border-gray-100"
+                            }`}>
                             <div className="flex items-center gap-3">
                                 <button
                                     onClick={onClose}
-                                    className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors"
+                                    className={`p-2 -ml-2 rounded-full transition-colors ${isDark ? "hover:bg-white/10" : "hover:bg-gray-100"
+                                        }`}
                                 >
-                                    <ChevronLeft className="w-6 h-6 text-gray-700" />
+                                    <ChevronLeft className={`w-6 h-6 ${isDark ? "text-white" : "text-gray-700"}`} />
                                 </button>
-                                <h2 className="text-lg font-semibold text-gray-900">Sepetim</h2>
+                                <h2 className={`text-lg font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>Sepetim</h2>
                             </div>
-                            <span className="text-sm text-gray-500">{cart.itemCount} ürün</span>
+                            <span className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>{cart.itemCount} ürün</span>
                         </div>
 
                         {/* Content */}
                         <div className="flex-1 overflow-y-auto p-4 space-y-3">
                             {cart.items.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-12 text-center">
-                                    <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                                    <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${isDark ? "bg-[#0d0d0d]" : "bg-gray-100"
+                                        }`}>
                                         <span className="text-4xl">🛒</span>
                                     </div>
-                                    <h3 className="font-semibold text-gray-900 mb-1">Sepetiniz boş</h3>
-                                    <p className="text-gray-500 text-sm">Menüden ürün ekleyerek başlayın</p>
+                                    <h3 className={`font-semibold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>Sepetiniz boş</h3>
+                                    <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>Menüden ürün ekleyerek başlayın</p>
                                 </div>
                             ) : (
                                 <>
                                     {cart.items.map((item) => (
                                         <div
                                             key={item.id}
-                                            className="flex gap-3 p-3 bg-gray-50 rounded-2xl"
+                                            className={`flex gap-3 p-3 rounded-2xl ${isDark ? "bg-[#0d0d0d] border border-white/5" : "bg-gray-50"
+                                                }`}
                                         >
                                             {/* Image */}
                                             <div className="relative w-16 h-16 flex-shrink-0">
@@ -109,7 +118,8 @@ export function CartSheet({ isOpen, onClose, onCheckout }: CartSheetProps) {
 
                                                     />
                                                 ) : (
-                                                    <div className="w-full h-full rounded-xl bg-gray-200 flex items-center justify-center">
+                                                    <div className={`w-full h-full rounded-xl flex items-center justify-center ${isDark ? "bg-white/5" : "bg-gray-200"
+                                                        }`}>
                                                         <span className="text-2xl">🍔</span>
                                                     </div>
                                                 )}
@@ -117,10 +127,12 @@ export function CartSheet({ isOpen, onClose, onCheckout }: CartSheetProps) {
 
                                             {/* Info */}
                                             <div className="flex-1 min-w-0">
-                                                <h4 className="font-semibold text-gray-900 truncate">{item.name}</h4>
+                                                <h4 className={`font-semibold truncate ${isDark ? "text-white" : "text-gray-900"
+                                                    }`}>{item.name}</h4>
 
                                                 {/* Details */}
-                                                <div className="text-xs text-gray-500 mt-0.5">
+                                                <div className={`text-xs mt-0.5 ${isDark ? "text-gray-400" : "text-gray-500"
+                                                    }`}>
                                                     {item.selectedSize && (
                                                         <span>{item.selectedSize.name}</span>
                                                     )}
@@ -131,27 +143,38 @@ export function CartSheet({ isOpen, onClose, onCheckout }: CartSheetProps) {
 
                                                 {/* Price & Quantity */}
                                                 <div className="flex items-center justify-between mt-2">
-                                                    <span className="font-bold text-violet-600">
+                                                    <span className={`font-bold ${isDark ? "text-blue-400" : "text-violet-600"
+                                                        }`}>
                                                         ₺{calculateItemTotal(item).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                                                     </span>
 
                                                     <div className="flex items-center gap-2">
                                                         <button
                                                             onClick={() => cart.updateQuantity(item.id, item.quantity - 1)}
-                                                            className="w-7 h-7 flex items-center justify-center bg-white border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+                                                            className={`w-7 h-7 flex items-center justify-center border rounded-lg transition-colors ${isDark
+                                                                    ? "bg-white/5 border-white/10 hover:bg-white/10"
+                                                                    : "bg-white border-gray-200 hover:bg-gray-100"
+                                                                }`}
                                                         >
-                                                            <Minus className="w-4 h-4 text-gray-600" />
+                                                            <Minus className={`w-4 h-4 ${isDark ? "text-gray-300" : "text-gray-600"}`} />
                                                         </button>
-                                                        <span className="w-6 text-center font-medium text-gray-900">{item.quantity}</span>
+                                                        <span className={`w-6 text-center font-medium ${isDark ? "text-white" : "text-gray-900"
+                                                            }`}>{item.quantity}</span>
                                                         <button
                                                             onClick={() => cart.updateQuantity(item.id, item.quantity + 1)}
-                                                            className="w-7 h-7 flex items-center justify-center bg-white border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+                                                            className={`w-7 h-7 flex items-center justify-center border rounded-lg transition-colors ${isDark
+                                                                    ? "bg-white/5 border-white/10 hover:bg-white/10"
+                                                                    : "bg-white border-gray-200 hover:bg-gray-100"
+                                                                }`}
                                                         >
-                                                            <Plus className="w-4 h-4 text-gray-600" />
+                                                            <Plus className={`w-4 h-4 ${isDark ? "text-gray-300" : "text-gray-600"}`} />
                                                         </button>
                                                         <button
                                                             onClick={() => cart.removeItem(item.id)}
-                                                            className="w-7 h-7 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-lg transition-colors ml-1"
+                                                            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ml-1 ${isDark
+                                                                    ? "text-red-400 hover:bg-red-500/10"
+                                                                    : "text-red-500 hover:bg-red-50"
+                                                                }`}
                                                         >
                                                             <Trash2 className="w-4 h-4" />
                                                         </button>
@@ -162,16 +185,19 @@ export function CartSheet({ isOpen, onClose, onCheckout }: CartSheetProps) {
                                     ))}
 
                                     {/* Order Note */}
-                                    <div className="pt-4 border-t border-gray-100">
+                                    <div className={`pt-4 border-t ${isDark ? "border-white/5" : "border-gray-100"}`}>
                                         <div className="flex items-center gap-2 mb-2">
-                                            <MessageSquare className="w-4 h-4 text-gray-400" />
-                                            <span className="text-sm font-medium text-gray-700">Sipariş Notu</span>
+                                            <MessageSquare className={`w-4 h-4 ${isDark ? "text-gray-400" : "text-gray-400"}`} />
+                                            <span className={`text-sm font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}>Sipariş Notu</span>
                                         </div>
                                         <textarea
                                             value={cart.orderNote}
                                             onChange={(e) => cart.setOrderNote(e.target.value)}
                                             placeholder="Kapıda zil çalın, adres tarifi..."
-                                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 resize-none focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-sm"
+                                            className={`w-full p-3 border rounded-xl placeholder-gray-400 resize-none focus:outline-none focus:ring-1 text-sm ${isDark
+                                                    ? "bg-[#0d0d0d] border-white/10 text-white focus:border-blue-500 focus:ring-blue-500"
+                                                    : "bg-gray-50 border-gray-200 text-gray-900 focus:border-violet-500 focus:ring-violet-500"
+                                                }`}
                                             rows={2}
                                         />
                                     </div>
@@ -181,14 +207,15 @@ export function CartSheet({ isOpen, onClose, onCheckout }: CartSheetProps) {
 
                         {/* Footer */}
                         {cart.items.length > 0 && (
-                            <div className="border-t border-gray-100 p-4 bg-white space-y-4">
+                            <div className={`border-t p-4 space-y-4 ${isDark ? "border-white/5 bg-[#1c1c1e]" : "border-gray-100 bg-white"
+                                }`}>
                                 {/* Summary */}
                                 <div className="space-y-2">
-                                    <div className="flex justify-between text-gray-600">
+                                    <div className={`flex justify-between ${isDark ? "text-gray-400" : "text-gray-600"}`}>
                                         <span>Ara Toplam</span>
                                         <span>₺{cart.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
                                     </div>
-                                    <div className="flex justify-between text-lg font-bold text-gray-900">
+                                    <div className={`flex justify-between text-lg font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
                                         <span>Toplam</span>
                                         <span>₺{cart.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
                                     </div>
@@ -200,7 +227,10 @@ export function CartSheet({ isOpen, onClose, onCheckout }: CartSheetProps) {
                                         whileTap={{ scale: 0.98 }}
                                         onClick={handleCheckout}
                                         disabled={isSubmitting || cart.items.length === 0}
-                                        className="w-full flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-violet-500 to-pink-500 text-white font-bold rounded-2xl shadow-lg shadow-violet-500/25 disabled:opacity-50"
+                                        className={`w-full flex items-center justify-center gap-2 py-4 font-bold rounded-2xl shadow-lg disabled:opacity-50 ${isDark
+                                                ? "bg-gradient-to-r from-[#0A84FF] to-[#BF5AF2] text-white shadow-blue-500/25"
+                                                : "bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-violet-500/25"
+                                            }`}
                                     >
                                         <span>Siparişi Tamamla</span>
                                         <ChevronRight className="w-5 h-5" />

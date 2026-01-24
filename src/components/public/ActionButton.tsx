@@ -7,6 +7,7 @@ import { InlineMenu } from "./InlineMenu";
 import { EmlakListingsSheet } from "./EmlakListingsSheet";
 import BeautyServicesSheet from "./BeautyServicesSheet";
 import EcommerceSheet from "./EcommerceSheet";
+import { HotelInlineMenu } from "./HotelInlineMenu";
 import { prefetchMenuData } from "@/lib/menuCache";
 import { prefetchBeautyData } from "@/lib/beautyCache";
 import Link from "next/link";
@@ -23,7 +24,7 @@ interface ActionButtonProps {
 }
 
 // Industry action configurations
-const INDUSTRY_ACTIONS: Record<string, { label: string; icon: string; type: "reservation" | "call" | "link" | "inline-menu" | "emlak-menu" | "beauty-menu" | "fastfood-menu" | "restaurant-menu" | "ecommerce-menu"; linkPath?: string }> = {
+const INDUSTRY_ACTIONS: Record<string, { label: string; icon: string; type: "reservation" | "call" | "link" | "inline-menu" | "emlak-menu" | "beauty-menu" | "fastfood-menu" | "restaurant-menu" | "ecommerce-menu" | "hotel-menu"; linkPath?: string }> = {
     "e-commerce": { label: "Sipariş Ver", icon: "cart", type: "ecommerce-menu" },
     "ecommerce": { label: "Sipariş Ver", icon: "cart", type: "ecommerce-menu" },
     "online-magaza": { label: "Sipariş Ver", icon: "cart", type: "ecommerce-menu" },
@@ -34,12 +35,12 @@ const INDUSTRY_ACTIONS: Record<string, { label: string; icon: string; type: "res
     "kafe": { label: "Menü", icon: "book", type: "restaurant-menu" },
     "fastfood": { label: "Sipariş Ver", icon: "utensils", type: "fastfood-menu" },
     "fast-food": { label: "Sipariş Ver", icon: "utensils", type: "fastfood-menu" },
-    // Hotel types - link to room types page
-    "hotel": { label: "Odaları Gör", icon: "bed", type: "link", linkPath: "/odalar" },
-    "otel": { label: "Odaları Gör", icon: "bed", type: "link", linkPath: "/odalar" },
-    "hostel": { label: "Odaları Gör", icon: "bed", type: "link", linkPath: "/odalar" },
-    "boutique": { label: "Odaları Gör", icon: "bed", type: "link", linkPath: "/odalar" },
-    "aparthotel": { label: "Odaları Gör", icon: "bed", type: "link", linkPath: "/odalar" },
+    // Hotel types - inline menu for room types
+    "hotel": { label: "Odaları Gör", icon: "bed", type: "hotel-menu" },
+    "otel": { label: "Odaları Gör", icon: "bed", type: "hotel-menu" },
+    "hostel": { label: "Odaları Gör", icon: "bed", type: "hotel-menu" },
+    "boutique": { label: "Odaları Gör", icon: "bed", type: "hotel-menu" },
+    "aparthotel": { label: "Odaları Gör", icon: "bed", type: "hotel-menu" },
     // Emlak types - inline menu for listings
     "emlak": { label: "İlanlar", icon: "home", type: "emlak-menu" },
     "realestate": { label: "İlanlar", icon: "home", type: "emlak-menu" },
@@ -66,6 +67,7 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
     const [showFastFoodMenu, setShowFastFoodMenu] = useState(false);
     const [showRestaurantMenu, setShowRestaurantMenu] = useState(false);
     const [showEcommerceSheet, setShowEcommerceSheet] = useState(false);
+    const [showHotelMenu, setShowHotelMenu] = useState(false);
     const [menuDataLoaded, setMenuDataLoaded] = useState(false);
     const [beautyDataLoaded, setBeautyDataLoaded] = useState(false);
 
@@ -136,6 +138,8 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
             setShowRestaurantMenu(!showRestaurantMenu);
         } else if (action.type === "ecommerce-menu") {
             setShowEcommerceSheet(!showEcommerceSheet);
+        } else if (action.type === "hotel-menu") {
+            setShowHotelMenu(!showHotelMenu);
         } else if (action.type === "call" && whatsappNumber) {
             const cleanNumber = whatsappNumber.replace(/[\s\-\(\)]/g, "");
             window.open(`tel:${cleanNumber}`, "_self");
@@ -296,6 +300,39 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
         );
     }
 
+
+    // For hotel-menu type, render button + inline menu
+    if (action.type === "hotel-menu") {
+        return (
+            <>
+                {/* Button - same styling as others */}
+                <button
+                    onClick={handleClick}
+                    className="
+                        h-14 rounded-2xl flex items-center justify-center gap-2 font-bold text-white text-sm md:text-base
+                        bg-purple-600 shadow-lg shadow-purple-500/25
+                        transition-transform active:scale-95 hover:bg-purple-700
+                    "
+                >
+                    {renderIcon()}
+                    {action.label}
+                    <ChevronDown className={clsx(
+                        "w-4 h-4 transition-transform",
+                        showHotelMenu && "rotate-180"
+                    )} />
+                </button>
+
+                {/* Hotel Inline Menu */}
+                {businessSlug && (
+                    <HotelInlineMenu
+                        isOpen={showHotelMenu}
+                        businessSlug={businessSlug}
+                        onClose={() => setShowHotelMenu(false)}
+                    />
+                )}
+            </>
+        );
+    }
 
     // For fastfood-menu type, render button + inline menu (ALWAYS mounted for prefetch)
     if (action.type === "fastfood-menu") {

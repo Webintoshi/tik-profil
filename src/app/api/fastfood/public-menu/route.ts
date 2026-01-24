@@ -13,6 +13,7 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const businessSlug = searchParams.get('businessSlug');
+        const tableId = searchParams.get('tableId');
 
         if (!businessSlug) {
             return NextResponse.json({ success: false, error: 'businessSlug required' }, { status: 400 });
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
         const supabase = getSupabaseAdmin();
         const { data: businesses, error: businessError } = await supabase
             .from('businesses')
-            .select('id, name, slug, phone, whatsapp')
+            .select('id, name, slug, phone, whatsapp, logo')
             .ilike('slug', businessSlug)
             .order('created_at', { ascending: true });
 
@@ -38,6 +39,17 @@ export async function GET(request: Request) {
         }
 
         const businessId = business.id as string;
+
+        // Get table info if tableId is provided
+        let tableName = null;
+        if (tableId) {
+            const { data: tableData } = await supabase
+                .from('fb_tables')
+                .select('name')
+                .eq('id', tableId)
+                .maybeSingle();
+            tableName = tableData?.name || null;
+        }
 
         // ============================================
         // PERFORMANCE OPTIMIZATION: Parallel fetching
@@ -171,6 +183,7 @@ export async function GET(request: Request) {
         const cashPayment = settings?.cash_payment !== false;
         const cardOnDelivery = settings?.card_on_delivery !== false;
         const estimatedDeliveryTime = settings?.estimated_delivery_time || '30-45 dk';
+        const businessLogoUrl = settings?.business_logo_url || business.logo || '';
 
         return NextResponse.json({
             success: true,
@@ -181,8 +194,10 @@ export async function GET(request: Request) {
                 extraGroups,
                 campaigns,
                 businessName: business.name,
+                businessLogoUrl,
                 whatsapp: business.whatsapp || business.phone,
                 whatsappNumber: business.whatsapp || business.phone,
+                tableName,
                 minOrderAmount,
                 deliveryFee,
                 freeDeliveryAbove,

@@ -1,50 +1,87 @@
-// Hotel Room Requests API
-import { NextResponse } from 'next/server';
-import { getCollectionREST, createDocumentREST } from '@/lib/documentStore';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { AppError } from '@/lib/errors';
 
-// GET - List requests for a business
+const TABLE = 'hotel_requests';
+
+interface RequestRow {
+    id: string;
+    business_id: string;
+    room_id: string | null;
+    room_number: string | null;
+    request_type: string;
+    request_details: string | null;
+    priority: string | null;
+    status: string | null;
+    assigned_to: string | null;
+    completed_at: string | null;
+    completed_by: string | null;
+    notes: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+function mapRequest(row: RequestRow) {
+    const REQUEST_LABELS: Record<string, string> = {
+        towels: 'Temiz Havlu',
+        cleaning: 'Oda Temizliği',
+        toiletries: 'Banyo Malzemesi',
+        pillows: 'Ekstra Yastık',
+        maintenance: 'Teknik Destek',
+        roomservice: 'Oda Servisi',
+        other: 'Diğer',
+    };
+
+    return {
+        id: row.id,
+        businessId: row.business_id,
+        roomId: row.room_id,
+        roomNumber: row.room_number,
+        requestType: row.request_type,
+        requestLabel: row.notes || REQUEST_LABELS[row.request_type] || 'Diğer',
+        requestDetails: row.request_details,
+        message: row.request_details,
+        priority: row.priority || 'normal',
+        status: row.status || 'pending',
+        assignedTo: row.assigned_to,
+        completedAt: row.completed_at,
+        completedBy: row.completed_by,
+        notes: row.notes,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    };
+}
+
 export async function GET(request: Request) {
     try {
-        const url = new URL(request.url);
-        const businessId = url.searchParams.get('businessId');
+        const { searchParams } = new URL(request.url);
+        const businessId = searchParams.get('businessId');
 
         if (!businessId) {
-            return NextResponse.json(
-                { error: 'businessId gerekli' },
-                { status: 400 }
-            );
+            return AppError.badRequest('businessId gerekli').toResponse();
         }
 
-        const allRequests = await getCollectionREST('room_requests');
-        const requests = allRequests.filter(
-            (r) => (r.businessId as string) === businessId || (r.business_id as string) === businessId
-        );
+        const supabase = getSupabaseAdmin();
+        const { data, error } = await supabase
+            .from(TABLE)
+            .select('*')
+            .eq('business_id', businessId)
+            .order('created_at', { ascending: false });
 
-        // Sort by createdAt (newest first)
-        requests.sort((a, b) => {
-            const dateA = a.createdAt ? new Date(a.createdAt as string).getTime() : 0;
-            const dateB = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
-            return dateB - dateA;
-        });
+        if (error) {
+            throw error;
+        }
 
-        return NextResponse.json({
-            success: true,
-            requests,
-        });
+        const requests = (data || []).map(mapRequest);
+
+        return Response.json({ success: true, requests });
     } catch (error) {
-        console.error('[RoomRequests] GET error:', error);
-        return NextResponse.json(
-            { error: 'Sunucu hatası' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, 'Requests GET');
     }
 }
 
-// POST - Create new request (from guest via QR)
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-
         const {
             businessId,
             roomNumber,
@@ -53,13 +90,9 @@ export async function POST(request: Request) {
         } = body;
 
         if (!businessId || !roomNumber || !requestType) {
-            return NextResponse.json(
-                { error: 'businessId, roomNumber ve requestType gerekli' },
-                { status: 400 }
-            );
+            return AppError.badRequest('businessId, roomNumber ve requestType gerekli').toResponse();
         }
 
-        // Request type labels
         const REQUEST_LABELS: Record<string, string> = {
             towels: 'Temiz Havlu',
             cleaning: 'Oda Temizliği',
@@ -70,32 +103,40 @@ export async function POST(request: Request) {
             other: 'Diğer',
         };
 
+        const supabase = getSupabaseAdmin();
         const requestData = {
-            businessId,
-            roomNumber,
-            requestType,
-            requestLabel: REQUEST_LABELS[requestType] || 'Diğer',
-            message: message || null,
+            business_id: businessId,
+            room_id: null,
+            room_number: roomNumber,
+            request_type: requestType,
+            request_details: message || null,
+            priority: 'normal',
             status: 'pending',
-            createdAt: new Date().toISOString(),
-            completedAt: null,
+            assigned_to: null,
+            completed_at: null,
+            completed_by: null,
+            notes: REQUEST_LABELS[requestType] || 'Diğer',
         };
 
-        const docId = await createDocumentREST('room_requests', requestData);
+        const { data, error } = await supabase
+            .from(TABLE)
+            .insert(requestData)
+            .select('id')
+            .single();
 
-        return NextResponse.json({
+        if (error) {
+            throw error;
+        }
+
+        return Response.json({
             success: true,
             message: 'Talebiniz iletildi',
             request: {
-                id: docId,
+                id: data?.id,
                 ...requestData,
             },
         });
     } catch (error) {
-        console.error('[RoomRequests] POST error:', error);
-        return NextResponse.json(
-            { error: 'Sunucu hatası' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, 'Requests POST');
     }
 }

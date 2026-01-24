@@ -140,6 +140,25 @@ export async function POST(request: Request) {
             }
         }
 
+        // If table order, try to resolve table name
+        if (data.delivery.type === 'table' && data.delivery.tableNumber) {
+            try {
+                const { data: tableData } = await supabase
+                    .from('ff_tables')
+                    .select('name')
+                    .eq('id', data.delivery.tableNumber)
+                    .single();
+
+                if (tableData) {
+                    data.delivery.tableNumber = tableData.name;
+                    // Also set as address for compatibility
+                    data.delivery.address = `Masa: ${tableData.name}`;
+                }
+            } catch (err) {
+                console.error("Table lookup failed:", err);
+            }
+        }
+
         let discount = 0;
         let appliedCoupon = null;
 

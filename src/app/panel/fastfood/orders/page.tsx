@@ -14,6 +14,7 @@ import {
     VolumeX,
     Bell,
     Printer,
+    Utensils,
 } from "lucide-react";
 import clsx from "clsx";
 import { toast } from "sonner";
@@ -47,7 +48,7 @@ interface Order {
     customerName: string;
     customerPhone: string;
     customerAddress: string;
-    deliveryType: 'pickup' | 'delivery';
+    deliveryType: 'pickup' | 'delivery' | 'table';
     paymentMethod: 'cash' | 'card_on_delivery' | 'online';
     status: 'pending' | 'preparing' | 'on_way' | 'delivered' | 'cancelled';
     items: OrderItem[];
@@ -504,7 +505,9 @@ export default function FastFoodOrdersPage() {
                                     </span>
                                 </div>
                                 <div className={clsx("p-2.5 rounded-full", isDark ? "bg-[#2C2C2E]" : "bg-gray-100")}>
-                                    {order.deliveryType === 'delivery' ? <Truck className="w-5 h-5 text-purple-500" /> : <MapPin className="w-5 h-5 text-blue-500" />}
+                                    {order.deliveryType === 'delivery' ? <Truck className="w-5 h-5 text-purple-500" /> :
+                                        order.deliveryType === 'table' ? <Utensils className="w-5 h-5 text-orange-500" /> :
+                                            <MapPin className="w-5 h-5 text-blue-500" />}
                                 </div>
                             </div>
 
@@ -581,9 +584,13 @@ export default function FastFoodOrdersPage() {
                                         <Printer className="w-5 h-5" />
                                     </button>
                                     <div className={clsx("px-4 py-2 rounded-xl text-sm font-bold",
-                                        selectedOrder.deliveryType === 'delivery' ? "bg-purple-500/10 text-purple-500" : "bg-blue-500/10 text-blue-500"
+                                        selectedOrder.deliveryType === 'delivery' ? "bg-purple-500/10 text-purple-500" :
+                                            selectedOrder.deliveryType === 'table' ? "bg-orange-500/10 text-orange-500" :
+                                                "bg-blue-500/10 text-blue-500"
                                     )}>
-                                        {selectedOrder.deliveryType === 'delivery' ? 'Paket Servis' : 'Gel Al'}
+                                        {selectedOrder.deliveryType === 'delivery' ? 'Paket Servis' :
+                                            selectedOrder.deliveryType === 'table' ? 'Masa Servis' :
+                                                'Gel Al'}
                                     </div>
                                 </div>
                             </div>

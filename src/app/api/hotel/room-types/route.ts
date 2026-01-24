@@ -1,100 +1,191 @@
-// Hotel Room Types API
-import { NextResponse } from 'next/server';
-import { getCollectionREST, createDocumentREST } from '@/lib/documentStore';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { AppError } from '@/lib/errors';
 
-// GET - List room types for a business
+const TABLE = 'hotel_room_types';
+
+interface RoomTypeRow {
+    id: string;
+    business_id: string;
+    name: string;
+    name_en: string | null;
+    description: string | null;
+    description_en: string | null;
+    capacity: number | null;
+    bed_count: number | null;
+    bed_type: string | null;
+    price_per_night: number | string;
+    discount_price: number | string | null;
+    discount_until: string | null;
+    amenities: unknown;
+    images: unknown;
+    max_guests: number | null;
+    max_adults: number | null;
+    max_children: number | null;
+    size_sqm: number | null;
+    view_type: string | null;
+    floor_preference: string | null;
+    is_smoking_allowed: boolean | null;
+    is_pet_friendly: boolean | null;
+    sort_order: number | null;
+    is_active: boolean | null;
+}
+
+function mapRoomType(row: RoomTypeRow) {
+    return {
+        id: row.id,
+        businessId: row.business_id,
+        name: row.name,
+        nameEn: row.name_en || null,
+        description: row.description || null,
+        descriptionEn: row.description_en || null,
+        capacity: row.capacity ?? 2,
+        bedCount: row.bed_count ?? 1,
+        bedType: row.bed_type || null,
+        price: Number(row.price_per_night || 0),
+        pricePerNight: Number(row.price_per_night || 0),
+        discountPrice: row.discount_price !== null && row.discount_price !== undefined ? Number(row.discount_price) : null,
+        discountUntil: row.discount_until || null,
+        amenities: row.amenities || [],
+        images: row.images || [],
+        maxGuests: row.max_guests ?? 2,
+        maxAdults: row.max_adults ?? 2,
+        maxChildren: row.max_children ?? 0,
+        size: row.size_sqm || 0,
+        sizeSqm: row.size_sqm || null,
+        viewType: row.view_type || null,
+        floorPreference: row.floor_preference || null,
+        isSmokingAllowed: row.is_smoking_allowed || false,
+        isPetFriendly: row.is_pet_friendly || false,
+        sortOrder: row.sort_order ?? 0,
+        isActive: row.is_active !== false,
+        order: row.sort_order ?? 0,
+        photos: row.images || [],
+    };
+}
+
 export async function GET(request: Request) {
     try {
-        const url = new URL(request.url);
-        const businessId = url.searchParams.get('businessId');
+        const { searchParams } = new URL(request.url);
+        const businessId = searchParams.get('businessId');
 
         if (!businessId) {
-            return NextResponse.json(
-                { error: 'businessId gerekli' },
-                { status: 400 }
-            );
+            return AppError.badRequest('businessId gerekli').toResponse();
         }
 
-        const allRoomTypes = await getCollectionREST('room_types');
-        const roomTypes = allRoomTypes.filter(
-            (rt) => (rt.businessId as string) === businessId || (rt.business_id as string) === businessId
-        );
+        const supabase = getSupabaseAdmin();
+        const { data, error } = await supabase
+            .from(TABLE)
+            .select('*')
+            .eq('business_id', businessId)
+            .eq('is_active', true)
+            .order('sort_order', { ascending: true });
 
-        // Sort by order
-        roomTypes.sort((a, b) => ((a.order as number) || 0) - ((b.order as number) || 0));
+        if (error) {
+            throw error;
+        }
 
-        return NextResponse.json({
-            success: true,
-            roomTypes,
-        });
+        const roomTypes = (data || []).map(mapRoomType);
+
+        return Response.json({ success: true, roomTypes });
     } catch (error) {
-        console.error('[RoomTypes] GET error:', error);
-        return NextResponse.json(
-            { error: 'Sunucu hatası' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, 'RoomTypes GET');
     }
 }
 
-// POST - Create new room type
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-
         const {
             businessId,
             name,
+            nameEn,
             description,
-            price,
+            descriptionEn,
             capacity,
+            bedCount,
             bedType,
-            size,
-            photos,
+            price,
+            pricePerNight,
+            discountPrice,
+            discountUntil,
             amenities,
+            images,
+            maxGuests,
+            maxAdults,
+            maxChildren,
+            size,
+            sizeSqm,
+            viewType,
+            floorPreference,
+            isSmokingAllowed,
+            isPetFriendly,
         } = body;
 
-        if (!businessId || !name) {
-            return NextResponse.json(
-                { error: 'businessId ve name gerekli' },
-                { status: 400 }
-            );
+        const finalPricePerNight = price ?? pricePerNight ?? 0;
+        const finalSizeSqm = size ?? sizeSqm;
+
+        if (!businessId || !name || finalPricePerNight === undefined) {
+            return AppError.badRequest('businessId, name ve price gerekli').toResponse();
         }
 
-        // Get current count for order
-        const existing = await getCollectionREST('room_types');
-        const businessRoomTypes = existing.filter(
-            (rt) => (rt.businessId as string) === businessId
-        );
+        const supabase = getSupabaseAdmin();
+        const { data: existing, error: checkError } = await supabase
+            .from(TABLE)
+            .select('sort_order')
+            .eq('business_id', businessId)
+            .order('sort_order', { ascending: false })
+            .limit(1);
+
+        if (checkError) {
+            throw checkError;
+        }
+
+        const nextSortOrder = (existing && existing[0]?.sort_order ?? 0) + 1;
 
         const roomTypeData = {
-            businessId,
+            business_id: businessId,
             name: name.trim(),
-            description: description || '',
-            price: price || 0,
-            currency: 'TRY',
+            name_en: nameEn || null,
+            description: description || null,
+            description_en: descriptionEn || null,
             capacity: capacity || 2,
-            bedType: bedType || 'Çift Kişilik',
-            size: size || 25,
-            photos: photos || [],
+            bed_count: bedCount || 1,
+            bed_type: bedType || null,
+            price_per_night: Number(finalPricePerNight),
+            discount_price: discountPrice ? Number(discountPrice) : null,
+            discount_until: discountUntil || null,
             amenities: amenities || [],
-            isActive: true,
-            order: businessRoomTypes.length,
+            images: images || [],
+            max_guests: maxGuests || 2,
+            max_adults: maxAdults || 2,
+            max_children: maxChildren || 0,
+            size_sqm: finalSizeSqm || null,
+            view_type: viewType || null,
+            floor_preference: floorPreference || null,
+            is_smoking_allowed: isSmokingAllowed || false,
+            is_pet_friendly: isPetFriendly || false,
+            sort_order: nextSortOrder,
+            is_active: true,
         };
 
-        const docId = await createDocumentREST('room_types', roomTypeData);
+        const { data, error } = await supabase
+            .from(TABLE)
+            .insert(roomTypeData)
+            .select('id')
+            .single();
 
-        return NextResponse.json({
+        if (error) {
+            throw error;
+        }
+
+        return Response.json({
             success: true,
             roomType: {
-                id: docId,
+                id: data?.id,
                 ...roomTypeData,
             },
         });
     } catch (error) {
-        console.error('[RoomTypes] POST error:', error);
-        return NextResponse.json(
-            { error: 'Sunucu hatası' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, 'RoomTypes POST');
     }
 }

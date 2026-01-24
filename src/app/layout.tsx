@@ -24,6 +24,20 @@ export const metadata: Metadata = {
         template: "%s | Tık Profil",
     },
     description: "Restoran, Otel, Kuaför ve E-ticaret işletmeleri için QR Menü, Randevu Sistemi ve Sipariş Yönetimi. Komisyonsuz, kurulum gerektirmeyen dijital çözümler.",
+    keywords: ["dijital kartvizit", "qr menü", "online randevu sistemi", "bio link", "işletme dijitalleşme", "restoran qr kod", "kuaför randevu sistemi", "emlak portföy sitesi", "e-ticaret linki"],
+    authors: [{ name: 'Tık Profil' }],
+    publisher: 'Tık Profil',
+    robots: {
+        index: true,
+        follow: true,
+        googleBot: {
+            index: true,
+            follow: true,
+            'max-video-preview': -1,
+            'max-image-preview': 'large',
+            'max-snippet': -1,
+        },
+    },
     alternates: {
         canonical: '/',
     },
@@ -34,6 +48,21 @@ export const metadata: Metadata = {
         siteName: 'Tık Profil',
         locale: 'tr_TR',
         type: 'website',
+        images: [
+            {
+                url: 'https://tikprofil.com/og-image.jpg',
+                width: 1200,
+                height: 630,
+                alt: 'Tık Profil - Dijital Kartvizit ve QR Menü Sistemi'
+            }
+        ]
+    },
+    twitter: {
+        card: "summary_large_image",
+        title: "Tık Profil | İşletmenizi Dijitale Taşıyan Tek Platform",
+        description: "Restoran, Otel, Kuaför ve E-ticaret işletmeleri için QR Menü, Randevu Sistemi ve Sipariş Yönetimi.",
+        images: ['https://tikprofil.com/og-image.jpg'],
+        creator: '@tikprofil',
     },
     manifest: "/manifest.json",
     appleWebApp: {

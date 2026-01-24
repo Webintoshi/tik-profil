@@ -99,11 +99,8 @@ export default function RequestsPage() {
             .channel(`hotel-requests-${session.businessId}`)
             .on(
                 "postgres_changes",
-                { event: "*", schema: "public", table: "app_documents", filter: "collection=eq.room_requests" },
-                (payload) => {
-                    const doc: any = (payload as any).new || (payload as any).old;
-                    const businessId = doc?.data?.businessId || doc?.data?.business_id;
-                    if (businessId && businessId !== session.businessId) return;
+                { event: "*", schema: "public", table: "hotel_requests", filter: `business_id=eq.${session.businessId}` },
+                () => {
                     scheduleRefresh();
                 }
             )
@@ -130,7 +127,7 @@ export default function RequestsPage() {
 
             if (data.success) {
                 toast.success(`Oda ${request.roomNumber} talebi tamamlandı`);
-                // Real-time listener will update automatically
+                setRequests(prev => prev.map(r => r.id === request.id ? { ...r, status: 'completed' as const, completedAt: new Date().toISOString() } : r));
             } else {
                 toast.error(data.error || "Hata oluştu");
             }
@@ -155,7 +152,7 @@ export default function RequestsPage() {
 
             if (data.success) {
                 toast.success("Talep iptal edildi");
-                // Real-time listener will update automatically
+                setRequests(prev => prev.map(r => r.id === request.id ? { ...r, status: 'cancelled' as const } : r));
             } else {
                 toast.error(data.error || "Hata oluştu");
             }

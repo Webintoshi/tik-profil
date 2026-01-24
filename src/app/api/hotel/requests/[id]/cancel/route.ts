@@ -1,8 +1,8 @@
-// Hotel Request Cancel API
-import { NextResponse } from 'next/server';
-import { updateDocumentREST } from '@/lib/documentStore';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { AppError } from '@/lib/errors';
 
-// PATCH - Mark request as cancelled
+const TABLE = 'hotel_requests';
+
 export async function PATCH(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -10,20 +10,23 @@ export async function PATCH(
     try {
         const { id } = await params;
 
-        await updateDocumentREST('room_requests', id, {
-            status: 'cancelled',
-            cancelledAt: new Date().toISOString(),
-        });
+        const supabase = getSupabaseAdmin();
+        const { error } = await supabase
+            .from(TABLE)
+            .update({
+                status: 'cancelled',
+            })
+            .eq('id', id);
 
-        return NextResponse.json({
+        if (error) {
+            throw error;
+        }
+
+        return Response.json({
             success: true,
             message: 'Talep iptal edildi',
         });
     } catch (error) {
-        console.error('[RoomRequests] Cancel error:', error);
-        return NextResponse.json(
-            { error: 'Sunucu hatası' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, 'Requests Cancel');
     }
 }

@@ -364,12 +364,6 @@ const BUSINESS_DATA_COLLECTIONS = [
     'ff_campaigns',
     'ff_settings',
 
-    // Hotel Module
-    'hotel_rooms',
-    'room_types',
-    'hotel_requests',
-    'room_service_orders',
-
     // Beauty Module
     'beauty_services',
     'beauty_categories',
