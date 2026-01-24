@@ -140,7 +140,7 @@ export async function POST(request: Request) {
             throw checkError;
         }
 
-        const nextSortOrder = (existing && existing[0]?.sort_order ?? 0) + 1;
+        const nextSortOrder = ((existing && existing[0]?.sort_order) ?? 0) + 1;
 
         const roomTypeData = {
             business_id: businessId,
