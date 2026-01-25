@@ -1,0 +1,11 @@
+- Stack: Next.js 15 App Router, TS, Tailwind, SWR, Zod, Supabase. API: src/app/api/**/route.ts
+- Naming: API src/app/api/[module]/[action]/route.ts; Services src/lib/services/<span class="hljs-emphasis">*Service.ts; Hooks src/hooks/use*.ts; Components src/components/[module]/*.tsx
+- Auth/RBAC: Treat routes public; enforce server-side only via src/lib/apiAuth.ts (requireAuth/requireRole/requireBusiness/requirePermission)
+- Cookies: use proper cookie (tikprofil_session/owner/staff/consultant); never localStorage for tokens
+- Validation: Zod validate params/query/body on every endpoint
+- Responses: {ok:true,data} / {ok:false,code,message,details?} + proper HTTP codes
+- Security: no hardcoded creds; SESSION_SECRET required; bcrypt only; protect debug/admin endpoints
+- Realtime: product/menu updates must use Supabase Realtime + hook (300ms debounce); tables in publication
+- Data: new module tables include business_id; DB snake_case, UI camelCase mapping
+- Storage: R2 only; no Firebase/Firestore deps/files
+- Sensitive actions: confirm UI + audit log (actor, role/perm, target, time); never log secrets

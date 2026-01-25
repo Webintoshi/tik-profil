@@ -1,0 +1,17 @@
+{
+  "skills": [
+    {
+      "name": "seo-audit",
+      "path": "skills/seo-audit",
+      "enabled": true
+    }
+  ],
+  "agents": [
+    {
+      "name": "seo-agent",
+      "path": "agents/seo-agent.md",
+      "enabled": true,
+      "skills": ["seo-audit"]
+    }
+  ]
+}
