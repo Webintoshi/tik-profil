@@ -42,13 +42,6 @@ export default function ClientOtelPage() {
         <div className="min-h-screen bg-gradient-to-br from-white via-sky-50 to-blue-50 text-slate-700 selection:bg-blue-500/20 selection:text-blue-900 overflow-x-hidden relative">
             <MouseFollowerBackground />
             
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <FloatingIcon icon={BedDouble} delay={0} className="w-32 h-32 top-20 right-10" />
-                <FloatingIcon icon={ConciergeBell} delay={2} className="w-24 h-24 top-1/3 left-10" />
-                <FloatingIcon icon={Coffee} delay={1} className="w-28 h-28 bottom-1/4 right-20" />
-                <FloatingIcon icon={Wifi} delay={3} className="w-40 h-40 top-40 left-1/4" />
-            </div>
-            
             <div className="relative z-10 flex flex-col min-h-screen">
                 <Navigation />
                 
@@ -213,6 +206,21 @@ export default function ClientOtelPage() {
 
                     {/* ROOMS SECTION WITH DROPDOWN */}
                     <div className="max-w-6xl mx-auto px-6 mb-32">
+                        <div className="flex items-center justify-between mb-8">
+                            <h2 className="text-3xl font-bold text-slate-800">Oda Türleri</h2>
+                            <button
+                                onClick={() => setIsRoomsOpen(!isRoomsOpen)}
+                                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
+                            >
+                                <span>Odaları Gör</span>
+                                {isRoomsOpen ? (
+                                    <ChevronUp className="w-5 h-5" />
+                                ) : (
+                                    <ChevronDown className="w-5 h-5" />
+                                )}
+                            </button>
+                        </div>
+
                         <HotelInlineMenu
                             isOpen={isRoomsOpen}
                             businessSlug={slug}
