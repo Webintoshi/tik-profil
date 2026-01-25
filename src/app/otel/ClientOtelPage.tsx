@@ -24,84 +24,19 @@ import {
     ChevronUp,
     Loader2,
 } from "lucide-react";
+import { HotelInlineMenu } from "@/components/public/HotelInlineMenu";
 import { Navigation } from "@/components/landing/Navigation";
 import { Footer } from "@/components/landing/Footer";
 import { MouseFollowerBackground } from "@/components/landing/MouseFollowerBackground";
 import Link from "next/link";
 
-interface RoomType {
-    id: string;
-    name: string;
-    description: string;
-    price: number;
-    capacity: number;
-    bedType: string;
-    size: number;
-    photos: string[];
-    amenities: string[];
-}
 
-const AMENITIES = [
-    { id: "wifi", label: "WiFi", icon: Wifi },
-    { id: "ac", label: "Klima", icon: Wind },
-    { id: "tv", label: "TV", icon: Tv },
-    { id: "minibar", label: "Mini Bar", icon: Coffee },
-    { id: "bathroom", label: "Banyo", icon: Bath },
-    { id: "roomservice", label: "Oda Servisi", icon: UtensilsCrossed },
-];
-
-function FloatingIcon({ icon: Icon, delay, className }: any) {
-    return (
-        <motion.div
-            animate={{ 
-                y: [0, -20, 0],
-                rotate: [0, 10, -10, 0]
-            }}
-            transition={{ 
-                duration: 5, 
-                repeat: Infinity, 
-                delay: delay,
-                ease: "easeInOut"
-            }}
-            className={`absolute opacity-20 pointer-events-none ${className}`}
-        >
-            <Icon className="w-full h-full text-slate-400" />
-        </motion.div>
-    );
-}
 
 export default function ClientOtelPage() {
     const params = useParams();
     const slug = params.slug as string;
     
     const [isRoomsOpen, setIsRoomsOpen] = useState(false);
-    const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
-    const [loadingRooms, setLoadingRooms] = useState(false);
-
-    const fetchRoomTypes = async () => {
-        if (!slug) return;
-        
-        try {
-            setLoadingRooms(true);
-            const res = await fetch(`/api/hotel/public-room-types?businessSlug=${slug}`);
-            const data = await res.json();
-
-            if (data.success) {
-                setRoomTypes(data.data.roomTypes || []);
-            }
-        } catch (err) {
-            console.error("Room types fetch error:", err);
-        } finally {
-            setLoadingRooms(false);
-        }
-    };
-
-    const handleRoomsToggle = () => {
-        setIsRoomsOpen(!isRoomsOpen);
-        if (!isRoomsOpen && roomTypes.length === 0) {
-            fetchRoomTypes();
-        }
-    };
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-white via-sky-50 to-blue-50 text-slate-700 selection:bg-blue-500/20 selection:text-blue-900 overflow-x-hidden relative">
@@ -278,121 +213,11 @@ export default function ClientOtelPage() {
 
                     {/* ROOMS SECTION WITH DROPDOWN */}
                     <div className="max-w-6xl mx-auto px-6 mb-32">
-                        <div className="flex items-center justify-between mb-8">
-                            <h2 className="text-3xl font-bold text-slate-800">Oda Türleri</h2>
-                            <button
-                                onClick={handleRoomsToggle}
-                                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
-                            >
-                                <span>Odaları Gör</span>
-                                {isRoomsOpen ? (
-                                    <ChevronUp className="w-5 h-5" />
-                                ) : (
-                                    <ChevronDown className="w-5 h-5" />
-                                )}
-                            </button>
-                        </div>
-
-                        <AnimatePresence>
-                            {isRoomsOpen && (
-                                <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: "auto" }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    transition={{ duration: 0.3 }}
-                                    className="overflow-hidden"
-                                >
-                                    <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200 p-6">
-                                        {loadingRooms ? (
-                                            <div className="flex items-center justify-center py-12">
-                                                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-                                            </div>
-                                        ) : roomTypes.length === 0 ? (
-                                            <div className="text-center py-12">
-                                                <BedDouble className="w-16 h-16 mx-auto text-slate-300 mb-4" />
-                                                <p className="text-slate-600">Henüz oda türü eklenmemiş</p>
-                                            </div>
-                                        ) : (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                                {roomTypes.map((roomType) => (
-                                                    <div
-                                                        key={roomType.id}
-                                                        className="bg-white rounded-2xl border border-slate-200 overflow-hidden"
-                                                    >
-                                                        <div className="aspect-[4/3] bg-slate-100 relative">
-                                                            {roomType.photos?.length > 0 ? (
-                                                                <img
-                                                                    src={roomType.photos[0]}
-                                                                    alt={roomType.name}
-                                                                    className="w-full h-full object-cover"
-                                                                />
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center">
-                                                                    <BedDouble className="w-16 h-16 text-slate-300" />
-                                                                </div>
-                                                            )}
-                                                        </div>
-
-                                                        <div className="p-5">
-                                                            <div className="flex items-start justify-between mb-3">
-                                                                <h3 className="text-lg font-semibold text-slate-800">
-                                                                    {roomType.name}
-                                                                </h3>
-                                                                <span className="text-lg font-bold text-blue-500">
-                                                                    ₺{roomType.price}
-                                                                    <span className="text-xs text-slate-400 font-normal">/gece</span>
-                                                                </span>
-                                                            </div>
-
-                                                            <p className="text-slate-600 text-sm mb-4 line-clamp-2">
-                                                                {roomType.description}
-                                                            </p>
-
-                                                            <div className="flex items-center gap-4 mb-4 text-sm text-slate-600">
-                                                                <span className="flex items-center gap-1">
-                                                                    <Users className="w-4 h-4" />
-                                                                    {roomType.capacity} Kişi
-                                                                </span>
-                                                                <span className="flex items-center gap-1">
-                                                                    <Maximize className="w-4 h-4" />
-                                                                    {roomType.size} m²
-                                                                </span>
-                                                                <span className="flex items-center gap-1">
-                                                                    <BedDouble className="w-4 h-4" />
-                                                                    {roomType.bedType}
-                                                                </span>
-                                                            </div>
-
-                                                            <div className="flex flex-wrap gap-2">
-                                                                {roomType.amenities?.slice(0, 4).map((amenityId) => {
-                                                                    const amenity = AMENITIES.find(a => a.id === amenityId);
-                                                                    if (!amenity) return null;
-                                                                    const Icon = amenity.icon;
-                                                                    return (
-                                                                        <span
-                                                                            key={amenityId}
-                                                                            className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 rounded-lg text-xs text-slate-600"
-                                                                        >
-                                                                            <Icon className="w-3 h-3" />
-                                                                            {amenity.label}
-                                                                        </span>
-                                                                    );
-                                                                })}
-                                                                {roomType.amenities?.length > 4 && (
-                                                                    <span className="px-2 py-1 bg-slate-100 rounded-lg text-xs text-slate-500">
-                                                                        +{roomType.amenities.length - 4}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                        <HotelInlineMenu
+                            isOpen={isRoomsOpen}
+                            businessSlug={slug}
+                            onClose={() => setIsRoomsOpen(false)}
+                        />
                     </div>
 
                     <div className="max-w-4xl mx-auto px-6 text-center">
