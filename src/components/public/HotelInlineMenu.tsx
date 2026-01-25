@@ -101,7 +101,7 @@ export function HotelInlineMenu({ isOpen, businessSlug, onClose }: HotelInlineMe
                                         h-32 bg-white border border-gray-100 rounded-[24px] 
                                         flex flex-col items-center justify-center gap-3 
                                         shadow-sm hover:shadow-md transition-all active:scale-95
-                                        col-span-1
+                                        col-span-2
                                     "
                                 >
                                     <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
