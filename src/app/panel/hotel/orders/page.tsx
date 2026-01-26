@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useBusinessContext } from "@/components/panel/BusinessSessionContext";
+import { useTheme } from "@/components/panel/ThemeProvider";
 import { getSupabaseClient } from "@/lib/supabase";
+import clsx from "clsx";
 
 // Order interface
 interface RoomServiceOrder {
@@ -37,12 +39,19 @@ const STATUS_CONFIG = {
 };
 
 export default function RoomServiceOrdersPage() {
+    const { isDark } = useTheme();
     const session = useBusinessContext();
     const [orders, setOrders] = useState<RoomServiceOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<"all" | "active" | "completed">("active");
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Theme colors
+    const cardBg = isDark ? "bg-[#111]" : "bg-white";
+    const borderColor = isDark ? "border-[#222]" : "border-gray-200";
+    const textPrimary = isDark ? "text-white" : "text-gray-900";
+    const textSecondary = isDark ? "text-gray-400" : "text-gray-600";
 
     useEffect(() => {
         if (!session?.businessId) {
@@ -165,36 +174,36 @@ export default function RoomServiceOrdersPage() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="min-h-screen p-4 md:p-6 space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <h1 className={clsx("text-2xl md:text-3xl font-bold mb-2", textPrimary)}>
                         Oda Servisi Siparişleri
                     </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">
+                    <p className={clsx("text-sm md:text-base", textSecondary)}>
                         Misafirlerden gelen yiyecek-içecek siparişleri
                     </p>
                 </div>
                 {activeCount > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-xl">
+                    <div className={clsx("flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold", isDark ? "bg-orange-900/30 text-orange-400" : "bg-orange-100 text-orange-700")}>
                         <UtensilsCrossed className="w-5 h-5" />
-                        <span className="font-semibold">{activeCount} aktif sipariş</span>
+                        <span>{activeCount} aktif sipariş</span>
                     </div>
                 )}
             </div>
 
             {/* Filters */}
             <div className="flex items-center gap-2">
-                <Filter className="w-5 h-5 text-gray-400" />
+                <Filter className={clsx("w-5 h-5", textSecondary)} />
                 {(["active", "completed", "all"] as const).map((f) => (
                     <button
                         key={f}
                         onClick={() => setFilter(f)}
-                        className={`px-4 py-2 rounded-xl font-medium transition-colors ${filter === f
+                        className={clsx("px-4 py-2.5 rounded-xl font-semibold transition-colors", filter === f
                             ? "bg-blue-500 text-white"
-                            : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-                            }`}
+                            : isDark ? "bg-white/5 text-gray-400 hover:bg-white/10" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        )}
                     >
                         {f === "active" ? "Aktif" : f === "completed" ? "Tamamlanan" : "Tümü"}
                     </button>
@@ -203,12 +212,12 @@ export default function RoomServiceOrdersPage() {
 
             {/* Orders List */}
             {filteredOrders.length === 0 ? (
-                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-12 text-center">
-                    <UtensilsCrossed className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                <div className={clsx("rounded-2xl border p-12 text-center", cardBg, borderColor)}>
+                    <UtensilsCrossed className={clsx("w-16 h-16 mx-auto mb-4", textSecondary)} />
+                    <h3 className={clsx("text-lg font-semibold mb-2", textPrimary)}>
                         {filter === "active" ? "Aktif sipariş yok" : "Sipariş bulunamadı"}
                     </h3>
-                    <p className="text-gray-500 dark:text-gray-400">
+                    <p className={clsx(textSecondary)}>
                         {filter === "active"
                             ? "Misafirler oda servisi menüsünden sipariş verebilir."
                             : "Seçilen filtreye uygun sipariş bulunmuyor."}
@@ -229,27 +238,25 @@ export default function RoomServiceOrdersPage() {
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, x: -100 }}
-                                    className={`bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden ${order.status === "pending" ? "border-l-4 border-l-yellow-500" :
-                                        order.status === "preparing" ? "border-l-4 border-l-blue-500" : ""
-                                        }`}
+                                    className={clsx("rounded-xl border overflow-hidden", cardBg, borderColor, order.status === "pending" && "border-l-4 border-l-yellow-500", order.status === "preparing" && "border-l-4 border-l-blue-500")}
                                 >
                                     {/* Header */}
-                                    <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                                    <div className={clsx("p-4 border-b flex items-center justify-between", borderColor)}>
                                         <div className="flex items-center gap-3">
-                                            <div className={`p-2 rounded-lg ${statusConfig.color}/20`}>
-                                                <StatusIcon className={`w-5 h-5 ${statusConfig.textColor}`} />
+                                            <div className={clsx("p-2.5 rounded-xl", `${statusConfig.color}/20`)}>
+                                                <StatusIcon className={clsx("w-5 h-5", statusConfig.textColor)} />
                                             </div>
                                             <div>
-                                                <span className="font-bold text-gray-900 dark:text-white text-lg">
+                                                <span className={clsx("font-bold text-lg", textPrimary)}>
                                                     Oda {order.roomNumber}
                                                 </span>
-                                                <div className="flex items-center gap-2 text-sm text-gray-500">
+                                                <div className={clsx("flex items-center gap-2 text-sm", textSecondary)}>
                                                     <Clock className="w-4 h-4" />
                                                     {formatTime(order.createdAt)}
                                                 </div>
                                             </div>
                                         </div>
-                                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusConfig.color}/20 ${statusConfig.textColor}`}>
+                                        <span className={clsx("px-3 py-1 rounded-full text-sm font-semibold", `${statusConfig.color}/20`, statusConfig.textColor)}>
                                             {statusConfig.label}
                                         </span>
                                     </div>
@@ -258,22 +265,22 @@ export default function RoomServiceOrdersPage() {
                                     <div className="p-4 space-y-2">
                                         {order.items.map((item, idx) => (
                                             <div key={idx} className="flex items-center justify-between text-sm">
-                                                <span className="text-gray-700 dark:text-gray-300">
+                                                <span className={clsx(isDark ? "text-gray-300" : "text-gray-700")}>
                                                     {item.quantity}x {item.name}
                                                 </span>
-                                                <span className="text-gray-500">
+                                                <span className={clsx(textSecondary)}>
                                                     ₺{(item.price * item.quantity).toFixed(2)}
                                                 </span>
                                             </div>
                                         ))}
                                         {order.note && (
-                                            <p className="text-sm text-gray-500 italic mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                                            <p className={clsx("text-sm italic mt-2 pt-2 border-t", textSecondary, borderColor)}>
                                                 Not: {order.note}
                                             </p>
                                         )}
-                                        <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
-                                            <span className="font-medium text-gray-600 dark:text-gray-400">Toplam</span>
-                                            <span className="font-bold text-lg text-gray-900 dark:text-white">
+                                        <div className={clsx("flex items-center justify-between pt-2 border-t", borderColor)}>
+                                            <span className={clsx("font-medium", textSecondary)}>Toplam</span>
+                                            <span className={clsx("font-bold text-lg", textPrimary)}>
                                                 ₺{order.total.toFixed(2)}
                                             </span>
                                         </div>
@@ -281,20 +288,20 @@ export default function RoomServiceOrdersPage() {
 
                                     {/* Actions */}
                                     {(order.status === "pending" || order.status === "preparing") && (
-                                        <div className="p-4 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-2">
+                                        <div className={clsx("p-4 flex items-center gap-2", isDark ? "bg-gray-800/50" : "bg-gray-50")}>
                                             {order.status === "pending" && (
                                                 <>
                                                     <button
                                                         onClick={() => handleStatusChange(order, "cancelled")}
                                                         disabled={isUpdating}
-                                                        className="flex-1 py-2 px-4 text-gray-600 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-medium disabled:opacity-50"
+                                                        className={clsx("flex-1 py-3.5 px-4 border rounded-xl transition-colors font-semibold disabled:opacity-50", isDark ? "text-gray-400 bg-gray-800 border-gray-700 hover:bg-gray-700" : "text-gray-600 bg-white border-gray-200 hover:bg-gray-100")}
                                                     >
                                                         İptal Et
                                                     </button>
                                                     <button
                                                         onClick={() => handleStatusChange(order, "preparing")}
                                                         disabled={isUpdating}
-                                                        className="flex-1 py-2 px-4 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                                                        className="flex-1 py-3.5 px-4 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
                                                     >
                                                         {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChefHat className="w-4 h-4" />}
                                                         Hazırlanıyor
@@ -305,7 +312,7 @@ export default function RoomServiceOrdersPage() {
                                                 <button
                                                     onClick={() => handleStatusChange(order, "delivered")}
                                                     disabled={isUpdating}
-                                                    className="w-full py-2 px-4 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                                                    className="w-full py-3.5 px-4 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
                                                 >
                                                     {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />}
                                                     Teslim Edildi

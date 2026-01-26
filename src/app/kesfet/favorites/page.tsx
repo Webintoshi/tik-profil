@@ -1,7 +1,6 @@
 "use client";
 
 import { useTheme } from "@/components/explore/ThemeProvider";
-import AuthRequired from "@/components/explore/AuthRequired";
 import Image from "next/image";
 import Link from "next/link";
 import { Heart, Star, MapPin, Clock, Trash2, ShoppingCart, Store, Package, Loader2 } from "lucide-react";
@@ -123,11 +122,6 @@ export default function FavoritesPage() {
                     <div className="flex items-center justify-center py-16">
                         <Loader2 className={`w-8 h-8 animate-spin ${isDark ? "text-white/50" : "text-gray-400"}`} />
                     </div>
-                ) : error === "Unauthorized" ? (
-                    <AuthRequired
-                        title="Giriş Yapmanız Gerekiyor"
-                        description="Favorilerinizi görmek için lütfen giriş yapın"
-                    />
                 ) : error ? (
                     <div className={`flex flex-col items-center justify-center py-16
                                     ${isDark ? "text-white/40" : "text-gray-400"}`}>

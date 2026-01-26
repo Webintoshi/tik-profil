@@ -40,13 +40,10 @@ interface WorkerMessage {
 let worldNodes: WorldNode[] = [];
 let particles: Particle[] = [];
 let qrModules: QRModule[] = [];
-// eslint-disable-next-line prefer-const
-let animationFrameId: number = 0;
-// eslint-disable-next-line prefer-const
-let lastTime: number = 0;
+const animationFrameId: number = 0;
+const lastTime: number = 0;
 let zoomLevel: number = 0;
-// eslint-disable-next-line prefer-const
-let targetZoomLevel: number = 0;
+const targetZoomLevel: number = 0;
 
 const initWorldNodes = (nodeCount: number): void => {
   worldNodes = [];

@@ -13,7 +13,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useBusinessContext } from "@/components/panel/BusinessSessionContext";
+import { useTheme } from "@/components/panel/ThemeProvider";
 import { getSupabaseClient } from "@/lib/supabase";
+import clsx from "clsx";
 
 // Request interface
 interface RoomRequest {
@@ -47,12 +49,19 @@ const STATUS_CONFIG = {
 };
 
 export default function RequestsPage() {
+    const { isDark } = useTheme();
     const session = useBusinessContext();
     const [requests, setRequests] = useState<RoomRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<"all" | "pending" | "completed">("pending");
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Theme colors
+    const cardBg = isDark ? "bg-[#111]" : "bg-white";
+    const borderColor = isDark ? "border-[#222]" : "border-gray-200";
+    const textPrimary = isDark ? "text-white" : "text-gray-900";
+    const textSecondary = isDark ? "text-gray-400" : "text-gray-600";
 
     useEffect(() => {
         if (!session?.businessId) {
@@ -203,36 +212,36 @@ export default function RequestsPage() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="min-h-screen p-4 md:p-6 space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <h1 className={clsx("text-2xl md:text-3xl font-bold mb-2", textPrimary)}>
                         Oda Talepleri
                     </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">
+                    <p className={clsx("text-sm md:text-base", textSecondary)}>
                         Misafirlerden gelen talepleri yönetin
                     </p>
                 </div>
                 {pendingCount > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-xl">
+                    <div className={clsx("flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold", isDark ? "bg-yellow-900/30 text-yellow-400" : "bg-yellow-100 text-yellow-700")}>
                         <Bell className="w-5 h-5" />
-                        <span className="font-semibold">{pendingCount} bekleyen talep</span>
+                        <span>{pendingCount} bekleyen talep</span>
                     </div>
                 )}
             </div>
 
             {/* Filters */}
             <div className="flex items-center gap-2">
-                <Filter className="w-5 h-5 text-gray-400" />
+                <Filter className={clsx("w-5 h-5", textSecondary)} />
                 {(["pending", "completed", "all"] as const).map((f) => (
                     <button
                         key={f}
                         onClick={() => setFilter(f)}
-                        className={`px-4 py-2 rounded-xl font-medium transition-colors ${filter === f
+                        className={clsx("px-4 py-2.5 rounded-xl font-semibold transition-colors", filter === f
                             ? "bg-blue-500 text-white"
-                            : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-                            }`}
+                            : isDark ? "bg-white/5 text-gray-400 hover:bg-white/10" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        )}
                     >
                         {f === "pending" ? "Bekleyenler" : f === "completed" ? "Tamamlananlar" : "Tümü"}
                     </button>
@@ -241,12 +250,12 @@ export default function RequestsPage() {
 
             {/* Requests List */}
             {sortedRequests.length === 0 ? (
-                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-12 text-center">
-                    <Bell className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                <div className={clsx("rounded-2xl border p-12 text-center", cardBg, borderColor)}>
+                    <Bell className={clsx("w-16 h-16 mx-auto mb-4", textSecondary)} />
+                    <h3 className={clsx("text-lg font-semibold mb-2", textPrimary)}>
                         {filter === "pending" ? "Bekleyen talep yok" : "Talep bulunamadı"}
                     </h3>
-                    <p className="text-gray-500 dark:text-gray-400">
+                    <p className={clsx(textSecondary)}>
                         {filter === "pending"
                             ? "Misafirler odadaki QR kodu okuyarak talep gönderebilir."
                             : "Seçilen filtreye uygun talep bulunmuyor."}
@@ -267,8 +276,7 @@ export default function RequestsPage() {
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, x: -100 }}
-                                    className={`bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 ${request.status === "pending" ? "border-l-4 border-l-yellow-500" : ""
-                                        }`}
+                                    className={clsx("rounded-xl border p-5", cardBg, borderColor, request.status === "pending" && "border-l-4 border-l-yellow-500")}
                                 >
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="flex items-start gap-4">
@@ -278,22 +286,22 @@ export default function RequestsPage() {
                                             {/* Info */}
                                             <div>
                                                 <div className="flex items-center gap-3 mb-1">
-                                                    <span className="font-bold text-gray-900 dark:text-white text-lg">
+                                                    <span className={clsx("font-bold text-lg", textPrimary)}>
                                                         Oda {request.roomNumber}
                                                     </span>
-                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig.color}/20 ${statusConfig.textColor}`}>
+                                                    <span className={clsx("px-2 py-0.5 rounded-full text-xs font-semibold", `${statusConfig.color}/20`, statusConfig.textColor)}>
                                                         {statusConfig.label}
                                                     </span>
                                                 </div>
-                                                <p className="text-gray-700 dark:text-gray-300 font-medium">
+                                                <p className={clsx("font-medium", isDark ? "text-gray-300" : "text-gray-700")}>
                                                     {typeConfig.label}
                                                 </p>
                                                 {request.message && (
-                                                    <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+                                                    <p className={clsx("text-sm mt-1", textSecondary)}>
                                                         "{request.message}"
                                                     </p>
                                                 )}
-                                                <div className="flex items-center gap-1 mt-2 text-gray-400 text-sm">
+                                                <div className={clsx("flex items-center gap-1 mt-2 text-sm", textSecondary)}>
                                                     <Clock className="w-4 h-4" />
                                                     {formatTime(request.createdAt)}
                                                 </div>
@@ -306,7 +314,7 @@ export default function RequestsPage() {
                                                 <button
                                                     onClick={() => handleCancel(request)}
                                                     disabled={isUpdating}
-                                                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors disabled:opacity-50"
+                                                    className={clsx("p-2.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl transition-colors disabled:opacity-50", isDark ? "text-gray-400 hover:text-red-400" : "text-gray-400 hover:text-red-500")}
                                                     title="İptal Et"
                                                 >
                                                     <X className="w-5 h-5" />
@@ -314,7 +322,7 @@ export default function RequestsPage() {
                                                 <button
                                                     onClick={() => handleComplete(request)}
                                                     disabled={isUpdating}
-                                                    className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-medium disabled:opacity-50"
+                                                    className="flex items-center gap-2 px-4 py-2.5 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-semibold disabled:opacity-50"
                                                 >
                                                     {isUpdating ? (
                                                         <Loader2 className="w-4 h-4 animate-spin" />

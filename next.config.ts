@@ -39,14 +39,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
     reactStrictMode: true,
-    compress: true,
     experimental: {
         optimizePackageImports: ['lucide-react'],
-        // Disable webpack cache to reduce file size
-        webpackBuildWorker: false,
     },
-    // Optimize output for smaller bundle size
-    output: 'standalone',
 
     // IMAGE OPTIMIZATION: Enable Vercel CDN for external images
     images: {
@@ -58,12 +53,17 @@ const nextConfig: NextConfig = {
             },
             {
                 protocol: 'https',
+                hostname: 'firebasestorage.googleapis.com',
+                pathname: '/**',
+            },
+            {
+                protocol: 'https',
                 hostname: '*.googleusercontent.com',
                 pathname: '/**',
             },
             {
                 protocol: 'https',
-                hostname: 'cdn.tikprofil.com',
+                hostname: 'storage.googleapis.com',
                 pathname: '/**',
             },
         ],

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getCollectionREST, getDocumentREST } from '@/lib/firestoreREST';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -72,18 +72,10 @@ export async function GET(request: Request) {
             }, { status: 400 });
         }
 
-        const supabase = getSupabaseAdmin();
-        const { data: businesses, error: businessError } = await supabase
-            .from('businesses')
-            .select('id, slug')
-            .ilike('slug', businessSlug)
-            .order('created_at', { ascending: true });
-
-        if (businessError) {
-            throw businessError;
-        }
-
-        const business = businesses?.[businesses.length - 1];
+        const businesses = await getCollectionREST<Record<string, unknown>>('businesses');
+        const business = businesses.find(b =>
+            (b.slug as string)?.toLowerCase() === businessSlug.toLowerCase()
+        );
 
         if (!business) {
             return NextResponse.json({
@@ -94,52 +86,11 @@ export async function GET(request: Request) {
 
         const businessId = business.id as string;
 
-        const { data: orders, error: ordersError } = await supabase
-            .from('ff_orders')
-            .select('*')
-            .eq('business_id', businessId)
-            .eq('customer_phone', customerPhone);
-
-        if (ordersError) {
-            throw ordersError;
-        }
-
-        const customerOrders = (orders || []).map(order => ({
-            id: order.id as string,
-            businessId: order.business_id as string,
-            businessName: order.business_name as string,
-            customer: order.customer || {
-                name: order.customer_name,
-                phone: order.customer_phone,
-                email: order.customer?.email
-            },
-            items: order.items || [],
-            delivery: order.delivery || {
-                type: order.delivery_type,
-                address: order.customer_address,
-                tableNumber: order.delivery?.tableNumber
-            },
-            payment: order.payment || {
-                method: order.payment_method
-            },
-            coupon: order.coupon || (order.coupon_id ? {
-                id: order.coupon_id,
-                code: order.coupon_code,
-                discountType: 'fixed',
-                discountValue: Number(order.coupon_discount || 0)
-            } : undefined),
-            orderNote: order.customer_note || order.order_note || '',
-            pricing: order.pricing || {
-                subtotal: Number(order.subtotal || 0),
-                discountAmount: Number(order.coupon_discount || 0),
-                deliveryFee: Number(order.delivery_fee || 0),
-                total: Number(order.total || 0)
-            },
-            status: order.status || 'pending',
-            qrCode: order.qr_code || '',
-            createdAt: order.created_at,
-            updatedAt: order.updated_at
-        })) as Order[];
+        const allOrders = await getCollectionREST<Record<string, unknown>>('ff_orders');
+        const customerOrders = allOrders.filter(o =>
+            (o.businessId as string) === businessId &&
+            (o.customer as { phone?: string })?.phone === customerPhone
+        ) as unknown as Order[];
 
         if (orderId) {
             const singleOrder = customerOrders.find(o => o.id === orderId);

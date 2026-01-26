@@ -12,7 +12,7 @@ interface RoomTypeRow {
     capacity: number;
     bed_type: string;
     size: number;
-    photos: string[];
+    images: string[];
     amenities: string[];
 }
 
@@ -59,8 +59,8 @@ export async function GET(request: Request) {
             bedType: row.bed_type,
             size: row.size,
             sizeSqm: row.size,
-            photos: row.photos,
-            amenities: row.amenities,
+            photos: Array.isArray(row.images) ? row.images : (typeof row.images === 'string' ? JSON.parse(row.images) : []),
+            amenities: Array.isArray(row.amenities) ? row.amenities : (typeof row.amenities === 'string' ? JSON.parse(row.amenities) : []),
         }));
 
         return NextResponse.json({

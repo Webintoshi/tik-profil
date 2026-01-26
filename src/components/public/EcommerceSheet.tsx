@@ -288,32 +288,45 @@ export default function EcommerceSheet({
                                 <>
                                     {/* Categories */}
                                     {categories.length > 0 && (
-                                        <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide">
-                                            <button
-                                                onClick={() => setActiveCategory("")}
-                                                className={clsx(
-                                                    "px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors",
-                                                    !activeCategory
-                                                        ? "bg-gray-900 text-white"
-                                                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                                                )}
-                                            >
-                                                Tümü
+                                        <div className="relative group mb-4">
+                                            {/* Sol Scroll Oku */}
+                                            <button className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 z-10 bg-white shadow-lg rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity md:hidden">
+                                                <ChevronLeft className="w-4 h-4" />
                                             </button>
-                                            {categories.map(cat => (
+
+                                            {/* Kategori Butonları */}
+                                            <div className="flex gap-2 overflow-x-auto scrollbar-hide px-2 snap-x snap-mandatory">
                                                 <button
-                                                    key={cat.id}
-                                                    onClick={() => setActiveCategory(cat.id)}
+                                                    onClick={() => setActiveCategory("")}
                                                     className={clsx(
-                                                        "px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors",
-                                                        activeCategory === cat.id
-                                                            ? "bg-gray-900 text-white"
-                                                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                                        "px-4 py-2.5 rounded-2xl text-sm font-semibold whitespace-nowrap transition-all snap-start",
+                                                        !activeCategory
+                                                            ? "bg-purple-600 text-white border-2 border-purple-600 shadow-lg shadow-purple-500/30"
+                                                            : "bg-gray-50 text-gray-700 border-2 border-transparent hover:bg-gray-100 hover:border-gray-300"
                                                     )}
                                                 >
-                                                    {cat.name}
+                                                    Tümü
                                                 </button>
-                                            ))}
+                                                {categories.map(cat => (
+                                                    <button
+                                                        key={cat.id}
+                                                        onClick={() => setActiveCategory(cat.id)}
+                                                        className={clsx(
+                                                            "px-4 py-2.5 rounded-2xl text-sm font-semibold whitespace-nowrap transition-all snap-start",
+                                                            activeCategory === cat.id
+                                                                ? "bg-purple-600 text-white border-2 border-purple-600 shadow-lg shadow-purple-500/30"
+                                                                : "bg-gray-50 text-gray-700 border-2 border-transparent hover:bg-gray-100 hover:border-gray-300"
+                                                        )}
+                                                    >
+                                                        {cat.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            {/* Sağ Scroll Oku */}
+                                            <button className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 z-10 bg-white shadow-lg rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity md:hidden">
+                                                <ChevronRight className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     )}
 
@@ -324,7 +337,7 @@ export default function EcommerceSheet({
                                             <p className="text-gray-500">Henüz ürün yok</p>
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                        <div className="grid grid-cols-2 sm:grid-cols-2 gap-3">
                                             {filteredProducts.map(product => {
                                                 const inCart = cart.find(c => c.productId === product.id);
                                                 return (

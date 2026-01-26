@@ -97,7 +97,25 @@ export async function POST(request: NextRequest) {
         const subtotal = items.reduce((sum: number, item: { price: number; quantity: number }) =>
             sum + (item.price * item.quantity), 0
         );
-        const discount = 0; // TODO: Calculate from coupon
+
+        // Validate coupon if provided
+        let discount = 0;
+        let validatedCoupon = null;
+        if (couponCode) {
+            try {
+                const couponRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/ecommerce/coupons?businessId=${businessId}&code=${encodeURIComponent(couponCode)}&orderAmount=${subtotal}`);
+                if (couponRes.ok) {
+                    const couponData = await couponRes.json();
+                    if (couponData.valid) {
+                        discount = couponData.discount || 0;
+                        validatedCoupon = couponData.coupon;
+                    }
+                }
+            } catch (e) {
+                console.error('Coupon validation error:', e);
+            }
+        }
+
         const total = subtotal + (shippingCost || 0) - discount;
 
         const newOrder: Omit<Order, 'id'> & { id?: string } = {
@@ -119,6 +137,29 @@ export async function POST(request: NextRequest) {
         };
 
         const id = await createDocumentREST(COLLECTION, newOrder);
+
+        // Increment coupon usage count if coupon was used
+        if (couponCode && validatedCoupon) {
+            try {
+                const supabase = getSupabaseClient();
+                const { data: couponRows, error: couponError } = await supabase
+                    .from('app_documents')
+                    .select('id,data')
+                    .eq('collection', 'ecommerce_coupons')
+                    .eq('data->>businessId', businessId)
+                    .ilike('data->>code', couponCode)
+                    .range(0, 0);
+                if (!couponError && couponRows && couponRows.length > 0) {
+                    const couponRow = couponRows[0] as { id: string; data: Record<string, unknown> };
+                    const currentUsage = (couponRow.data.usageCount as number) || 0;
+                    await updateDocumentREST('ecommerce_coupons', couponRow.id, {
+                        usageCount: currentUsage + 1,
+                    });
+                }
+            } catch (e) {
+                console.error('Error incrementing coupon usage:', e);
+            }
+        }
 
         return NextResponse.json({
             success: true,

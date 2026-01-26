@@ -149,8 +149,24 @@ export default function EcommerceDashboardPage() {
             if (!session?.businessId) return;
 
             try {
-                // For now, return placeholder stats
-                // TODO: Replace with actual API call using session.businessId
+                const res = await fetch(`/api/ecommerce/dashboard?businessId=${session.businessId}`);
+                const data = await res.json();
+
+                if (data.success) {
+                    setStats(data.stats);
+                } else {
+                    console.error("Stats fetch error:", data.error);
+                    setStats({
+                        totalProducts: 0,
+                        totalOrders: 0,
+                        totalCustomers: 0,
+                        todaySales: 0,
+                        pendingOrders: 0,
+                        lowStockProducts: 0,
+                    });
+                }
+            } catch (error) {
+                console.error("Stats fetch error:", error);
                 setStats({
                     totalProducts: 0,
                     totalOrders: 0,
@@ -159,8 +175,6 @@ export default function EcommerceDashboardPage() {
                     pendingOrders: 0,
                     lowStockProducts: 0,
                 });
-            } catch (error) {
-                console.error("Stats fetch error:", error);
             } finally {
                 setIsLoading(false);
             }

@@ -218,8 +218,22 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Category not found' }, { status: 404 });
         }
 
-        // TODO: Check if category has products before deleting
-        // For now, just delete
+        // Check if category has products
+        const supabase = getSupabaseClient();
+        const { data: productRows, error: productsError } = await supabase
+            .from('app_documents')
+            .select('id')
+            .eq('collection', 'ecommerce_products')
+            .eq('data->>businessId', businessId)
+            .eq('data->>categoryId', id)
+            .range(0, 0);
+        if (productsError) throw productsError;
+        if (productRows && productRows.length > 0) {
+            return NextResponse.json({
+                error: 'Bu kategoride ürün var, önce ürünleri taşıyın veya silin'
+            }, { status: 400 });
+        }
+
         await deleteDocumentREST(COLLECTION, id);
 
         return NextResponse.json({ success: true });

@@ -77,6 +77,28 @@ export async function getBusinesses(): Promise<Business[]> {
 
 // Get single business by ID
 export async function getBusiness(id: string): Promise<Business | null> {
+    const isClient = typeof window !== 'undefined';
+
+    if (isClient) {
+        try {
+            const response = await fetch(`/api/admin/businesses/${id}`, {
+                credentials: 'include'
+            });
+            if (!response.ok) {
+                console.error(`[getBusiness] API error:`, response.status);
+                return null;
+            }
+            const data = await response.json();
+            if (data.success && data.business) {
+                return docToBusiness(data.business);
+            }
+            return null;
+        } catch (error) {
+            console.error('[getBusiness] Fetch error:', error);
+            return null;
+        }
+    }
+
     const { getDocumentREST } = await import('./documentStore');
 
     try {

@@ -1,22 +1,184 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { useRef, useEffect, useState } from "react";
+import { motion, useScroll, useTransform, AnimatePresence, useMotionValue, useSpring, useMotionTemplate } from "framer-motion";
 import Link from "next/link";
 import {
-    ArrowRight, Sparkles, CheckCircle2,
-    Smartphone, Rocket, Globe, ChevronDown,
-    Users, TrendingUp, Play,
-    Globe as Globe2, Zap as Zap2, Check,
-    Star, Plus, Layers, UserCheck, ShoppingCart, Calendar, BarChart3
+    ArrowRight, Sparkles, Zap, CheckCircle2,
+    Smartphone, Shield, Rocket, Globe, ChevronDown,
+    Menu, X, Users, TrendingUp, Award, Play, Phone, MessageCircle,
+    MapPin, Clock, Calendar, ShoppingCart, BarChart3, FileText, Image,
+    Globe as Globe2, Zap as Zap2, Sparkles as Sparkles2, TrendingUp as TrendingUp2, Check,
+    Star, Plus, Layers, Waves, UserCheck
 } from "lucide-react";
 import { TikLogo } from "@/components/TikLogo";
 import { QRWorldAnimation } from "./QRWorldAnimation";
 import { TestimonialsSection } from "./TestimonialsSection";
 import { LiveDemoSection } from "./LiveDemoSection";
 
-import { Navigation } from "./Navigation";
-export { Navigation };
+export function Navigation() {
+    const [isOpen, setIsOpen] = useState(false);
+    const [isModulesOpen, setIsModulesOpen] = useState(false);
+    const { scrollY } = useScroll();
+    const bgOpacity = useTransform(scrollY, [0, 100], [0, 0.98]);
+
+    const navLinks = [
+        { name: "Özellikler", href: "#urun" },
+        { name: "Sektörel", href: "#cozumler" },
+        { name: "Blog", href: "/blog" },
+        { name: "Hakkımızda", href: "/hakkimizda" },
+        { name: "Kariyer", href: "/kariyer" },
+        { name: "İletişim", href: "/iletisim" },
+        { name: "SSS", href: "#sss" },
+    ];
+
+    return (
+        <motion.header
+            className="fixed top-0 left-0 right-0 z-50"
+            style={{
+                backdropFilter: "blur(20px)",
+                backgroundColor: useTransform(bgOpacity, (v) => `rgba(255, 255, 255, ${Math.min(v, 0.8) * 0.6})`),
+                borderBottom: useTransform(bgOpacity, (v) => `1px solid rgba(255, 255, 255, ${v * 0.3})`)
+            }}
+        >
+            <div className="max-w-7xl mx-auto px-6">
+                <div className="h-20 flex items-center justify-between">
+                    <Link href="/" className="group">
+                        <motion.div
+                            className="relative"
+                            whileHover={{ scale: 1.08 }}
+                            whileTap={{ scale: 0.95 }}
+                        >
+                            <TikLogo className="w-9 h-9" variant="light" />
+                            <div className="absolute inset-0 bg-blue-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                        </motion.div>
+                    </Link>
+
+                    <nav className="hidden md:flex items-center gap-10">
+                        {navLinks.map((link) => (
+                            <a
+                                key={link.name}
+                                href={link.href}
+                                className="relative text-sm font-medium text-slate-700/90 hover:text-blue-600 transition-colors duration-300 group py-2"
+                            >
+                                {link.name}
+                                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-500 to-blue-600 group-hover:w-full transition-all duration-500 rounded-full" />
+                            </a>
+                        ))}
+                        <div className="relative">
+                            <button
+                                onClick={() => setIsModulesOpen(!isModulesOpen)}
+                                className="relative flex items-center gap-1 text-sm font-medium transition-colors duration-300 py-2 outline-none text-slate-700/90 hover:text-blue-600"
+                            >
+                                Modüller
+                                <motion.div animate={{ rotate: isModulesOpen ? 180 : 0 }} transition={{ duration: 0.3 }}>
+                                    <ChevronDown className="w-4 h-4 transition-transform duration-300" />
+                                </motion.div>
+                            </button>
+                            <AnimatePresence>
+                                {isModulesOpen && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -10 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden"
+                                    >
+                                        <div className="p-2">
+                                            <a
+                                                href="/dashboard/modules"
+                                                className="block px-4 py-3 text-sm font-medium text-slate-700 hover:text-blue-600 hover:bg-slate-50 rounded-lg transition-colors"
+                                            >
+                                                Tüm Modüller
+                                            </a>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    </nav>
+
+                    <div className="flex items-center gap-4">
+                        <Link href="/giris-yap" className="hidden md:block">
+                            <motion.button
+                                whileHover={{ scale: 1.02 }}
+                                className="text-sm font-medium text-slate-700/90 hover:text-blue-600 transition-colors px-5 py-2.5 rounded-xl hover:bg-white/30 backdrop-blur-sm border border-white/20"
+                            >
+                                Giriş Yap
+                            </motion.button>
+                        </Link>
+
+                        <Link href="/kayit-ol">
+                            <motion.button
+                                whileHover={{ scale: 1.05, boxShadow: '0 10px 40px rgba(59,130,246,0.3)' }}
+                                whileTap={{ scale: 0.95 }}
+                                className="relative flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white text-sm overflow-hidden backdrop-blur-xl"
+                                style={{
+                                    background: 'linear-gradient(135deg, rgba(59,130,246,0.9) 0%, rgba(29,78,216,0.9) 100%)',
+                                    boxShadow: '0 4px 20px rgba(29,78,216,0.25)',
+                                    border: '1px solid rgba(255,255,255,0.2)'
+                                }}
+                            >
+                                Ücretsiz Başla
+                            </motion.button>
+                        </Link>
+
+                        <button
+                            onClick={() => setIsOpen(!isOpen)}
+                            className="md:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-white/30 backdrop-blur-xl border border-white/30 hover:bg-white/40 transition-colors"
+                        >
+                            {isOpen ? <X className="w-5 h-5 text-slate-700" /> : <Menu className="w-5 h-5 text-slate-700" />}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="md:hidden overflow-hidden backdrop-blur-2xl bg-white/70 border-t border-white/30"
+                    >
+                        <div className="px-6 py-8 space-y-6">
+                            {navLinks.map((link, i) => (
+                                <motion.a
+                                    key={link.name}
+                                    href={link.href}
+                                    onClick={() => setIsOpen(false)}
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: i * 0.1 }}
+                                    className="block text-2xl font-medium text-slate-800 py-2"
+                                >
+                                    {link.name}
+                                </motion.a>
+                            ))}
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: 0.5 }}
+                            >
+                                <Link href="/kayit-ol" className="block">
+                                    <button
+                                        className="w-full py-4 rounded-xl font-semibold text-white text-lg backdrop-blur-xl"
+                                        style={{
+                                            background: 'linear-gradient(135deg, rgba(96,165,250,0.9) 0%, rgba(37,99,235,0.9) 100%)',
+                                            border: '1px solid rgba(255,255,255,0.2)'
+                                        }}
+                                    >
+                                        Ücretsiz Başla
+                                    </button>
+                                </Link>
+                            </motion.div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </motion.header>
+    );
+}
 
 function FloatingOrb({ className, delay }: { className?: string, delay?: number }) {
     const style = {
@@ -82,11 +244,11 @@ function HeroSection() {
                                 </span>
                                 <br />
                                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-500 inline-block animate-gradient-x">
-                                    Dijital Kartvizit
+                                    Dijital Kimlik
                                 </span>
                                 <br />
                                 <span className="text-slate-800/95 inline-block text-3xl sm:text-4xl lg:text-6xl mt-2">
-                                    ve QR Menü Sistemi
+                                    ve QR Kod Çözümü
                                 </span>
                             </h1>
                         </motion.div>
@@ -377,8 +539,7 @@ function ProductSection() {
                         transition={{ delay: 0.1 }}
                         className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6"
                     >
-                        <span className="text-slate-800/95">QR Menü, Randevu ve</span>
-                        <br />
+                        <span className="text-slate-800/95">İşletmenizi Büyüten </span>
                         <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-500 to-blue-600">
                             Dijital Araçlar
                         </span>
@@ -555,13 +716,14 @@ function SolutionsSection() {
     );
 }
 
-import { faqData } from "@/lib/schema/faqSchema";
-
 function FAQSection() {
-    const faqs = faqData.map(faq => ({
-        q: faq.name,
-        a: faq.acceptedAnswer.text
-    }));
+    const faqs = [
+        { q: "Ücretsiz plan gerçekten ücretsiz mi?", a: "Evet! Temel profil özellikleri sonsuza kadar ücretsiz. İşletme adı, logo, iletişim bilgileri, sosyal linkler ve temel galeri tamamen ücretsiz olarak kullanılabilir." },
+        { q: "Profil linkimi özelleştirebilir miyim?", a: "Evet, tikprofil.com/isletme-adi formatında kısa, özel ve akılda kalıcı bir link alırsınız. PRO planda özel domain de bağlayabilirsiniz." },
+        { q: "Kredi kartı gerekli mi?", a: "Hayır! Ücretsiz plan için hiçbir ödeme bilgisi gerektirmez. Sadece PRO özelliklere geçmek isterseniz ödeme alınır." },
+        { q: "Modülleri sonradan ekleyebilir miyim?", a: "Kesinlikle! İhtiyaç duyduğunuz her an modül mağazasından tek tıkla ekleme yapabilirsiniz. Modüller aylık veya yıllık abonelik ile aktive edilir." },
+        { q: "Teknik destek var mı?", a: "Evet, tüm kullanıcılara e-posta desteği sunuyoruz. PRO kullanıcılar 7/24 canlı destek ve öncelikli yanıt hakkına sahiptir." },
+    ];
 
     return (
         <section id="sss" className="relative py-12 md:py-20 bg-transparent">
@@ -573,7 +735,7 @@ function FAQSection() {
                     className="text-center mb-16"
                 >
                     <h2 className="text-4xl md:text-5xl font-bold text-slate-800/95 mb-4">
-                        Sıkça Sorulan Sorular | Tık Profil
+                        Sıkça Sorulan Sorular
                     </h2>
                     <p className="text-slate-700/80 text-lg">
                         Aklınızdaki soruların cevaplarını burada bulabilirsiniz.
@@ -716,18 +878,11 @@ export function Footer() {
                     <div>
                         <h4 className="font-bold mb-5 text-slate-800/95">Platform</h4>
                         <ul className="space-y-3 text-slate-700/80">
-                            <li>
-                                <Link href="#urun" className="hover:text-blue-600 transition-colors">Özellikler</Link>
-                            </li>
-                            <li>
-                                <Link href="#cozumler" className="hover:text-blue-600 transition-colors">Modüller</Link>
-                            </li>
-                            <li>
-                                <Link href="/restoran" className="hover:text-blue-600 transition-colors">QR Menü</Link>
-                            </li>
-                            <li>
-                                <Link href="/otel" className="hover:text-blue-600 transition-colors">Otel Yönetimi</Link>
-                            </li>
+                            {['Özellikler', 'Modüller', 'Fiyatlandırma', 'Entegrasyonlar'].map((link) => (
+                                <li key={link}>
+                                    <a href="#" className="hover:text-blue-600 transition-colors">{link}</a>
+                                </li>
+                            ))}
                         </ul>
                     </div>
 
@@ -758,7 +913,7 @@ export function Footer() {
 function MouseFollowerBackground() {
     const containerRef = useRef<HTMLDivElement>(null);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-    const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+    const timeoutRef = useRef<NodeJS.Timeout>(null);
 
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         if (timeoutRef.current) {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { createDocumentREST, getCollectionREST, updateDocumentREST } from '@/lib/firestoreREST';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -93,17 +93,11 @@ export async function POST(request: Request) {
 
         const data = validation.data;
 
-        const supabase = getSupabaseAdmin();
-        const { data: businesses, error: businessError } = await supabase
-            .from('businesses')
-            .select('id, name, slug, phone, whatsapp')
-            .ilike('slug', data.businessSlug);
-
-        if (businessError) {
-            throw businessError;
-        }
-
-        const business = businesses?.[businesses.length - 1];
+        const businesses = await getCollectionREST<Record<string, unknown>>('businesses');
+        const business = businesses.find((b) => {
+            const slug = (b as { slug?: string }).slug;
+            return typeof slug === "string" && slug.toLowerCase() === data.businessSlug.toLowerCase();
+        });
 
         if (!business) {
             return NextResponse.json({
@@ -112,50 +106,34 @@ export async function POST(request: Request) {
             }, { status: 404 });
         }
 
-        const businessId = business.id as string;
-
-        const { data: businessSettings, error: settingsError } = await supabase
-            .from('ff_settings')
-            .select('*')
-            .eq('business_id', businessId)
-            .maybeSingle();
-
-        if (settingsError) {
-            throw settingsError;
+        const businessId = (business as { id?: string }).id;
+        if (!businessId) {
+            return NextResponse.json({
+                success: false,
+                error: "İşletme kimliği bulunamadı"
+            }, { status: 404 });
         }
 
-        if (businessSettings?.is_active === false) {
+        const settings = await getCollectionREST<Record<string, unknown>>('ff_settings');
+        const businessSettings = settings.find((s) => (s as { businessId?: string }).businessId === businessId) as {
+            deliveryFee?: number;
+            minOrderAmount?: number;
+            isActive?: boolean;
+        } | undefined;
+
+        if (businessSettings?.isActive === false) {
             return NextResponse.json({
                 success: false,
                 error: 'Sipariş alma şu anda kapalı'
             }, { status: 400 });
         }
 
-        if (data.delivery.type === 'delivery' && businessSettings?.min_order_amount) {
-            if (data.subtotal < Number(businessSettings.min_order_amount)) {
+        if (data.delivery.type === 'delivery' && businessSettings?.minOrderAmount) {
+            if (data.subtotal < businessSettings.minOrderAmount) {
                 return NextResponse.json({
                     success: false,
-                    error: `Minimum sipariş tutarı: ₺${businessSettings.min_order_amount}`
+                    error: `Minimum sipariş tutarı: ₺${businessSettings.minOrderAmount}`
                 }, { status: 400 });
-            }
-        }
-
-        // If table order, try to resolve table name
-        if (data.delivery.type === 'table' && data.delivery.tableNumber) {
-            try {
-                const { data: tableData } = await supabase
-                    .from('ff_tables')
-                    .select('name')
-                    .eq('id', data.delivery.tableNumber)
-                    .single();
-
-                if (tableData) {
-                    data.delivery.tableNumber = tableData.name;
-                    // Also set as address for compatibility
-                    data.delivery.address = `Masa: ${tableData.name}`;
-                }
-            } catch (err) {
-                console.error("Table lookup failed:", err);
             }
         }
 
@@ -163,18 +141,12 @@ export async function POST(request: Request) {
         let appliedCoupon = null;
 
         if (data.couponCode) {
-            const codeUpper = (data.couponCode || '').toUpperCase();
-            const { data: coupons, error: couponsError } = await supabase
-                .from('ff_coupons')
-                .select('*')
-                .eq('business_id', businessId)
-                .ilike('code', codeUpper);
-
-            if (couponsError) {
-                throw couponsError;
-            }
-
-            const coupon = coupons?.[0];
+            const coupons = await getCollectionREST<Record<string, unknown>>('ff_coupons');
+            const coupon = coupons.find((c) => {
+                const couponBusinessId = (c as { businessId?: string }).businessId;
+                const code = (c as { code?: string }).code;
+                return couponBusinessId === businessId && typeof code === "string" && code.toUpperCase() === data.couponCode?.toUpperCase();
+            });
 
             if (!coupon) {
                 return NextResponse.json({
@@ -183,18 +155,18 @@ export async function POST(request: Request) {
                 }, { status: 400 });
             }
 
-            const couponData = {
-                id: coupon.id as string,
-                code: coupon.code as string,
-                discountType: coupon.discount_type as string,
-                discountValue: Number(coupon.discount_value || 0),
-                maxDiscountAmount: coupon.max_discount_amount ? Number(coupon.max_discount_amount) : undefined,
-                minOrderAmount: coupon.min_order_amount ? Number(coupon.min_order_amount) : undefined,
-                maxUsageCount: coupon.max_usage_count ? Number(coupon.max_usage_count) : undefined,
-                currentUsageCount: coupon.current_usage_count ? Number(coupon.current_usage_count) : undefined,
-                validFrom: coupon.valid_from as string | undefined,
-                validUntil: coupon.valid_until as string | undefined,
-                isActive: coupon.is_active !== false,
+            const couponData = coupon as {
+                id: string;
+                code: string;
+                discountType: string;
+                discountValue: number;
+                maxDiscountAmount?: number;
+                minOrderAmount?: number;
+                maxUsageCount?: number;
+                currentUsageCount?: number;
+                validFrom?: string;
+                validUntil?: string;
+                isActive?: boolean;
             };
 
             if (!couponData.isActive) {
@@ -252,17 +224,19 @@ export async function POST(request: Request) {
             };
 
             const newUsageCount = (couponData.currentUsageCount || 0) + 1;
-            const { error: updateError } = await supabase
-                .from('ff_coupons')
-                .update({
-                    current_usage_count: newUsageCount,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', couponData.id);
+            await updateDocumentREST('ff_coupons', couponData.id, {
+                currentUsageCount: newUsageCount
+            });
 
-            if (updateError) {
-                throw updateError;
-            }
+            await createDocumentREST('ff_coupon_usages', {
+                businessId,
+                couponId: couponData.id,
+                code: couponData.code,
+                customerPhone: data.customer.phone,
+                orderId: '',
+                discountAmount: discount,
+                usedAt: new Date().toISOString()
+            });
         }
 
         const calculatedTotal = data.subtotal + data.deliveryFee - discount;
@@ -273,70 +247,34 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
 
-        const now = new Date().toISOString();
-        const { data: orderData, error: orderError } = await supabase
-            .from('ff_orders')
-            .insert({
-                business_id: businessId,
-                business_name: business.name as string,
-                customer: {
-                    name: data.customer.name,
-                    phone: data.customer.phone,
-                    email: data.customer.email
-                },
-                customer_name: data.customer.name,
-                customer_phone: data.customer.phone,
-                customer_address: data.delivery.address || null,
-                delivery_type: data.delivery.type,
-                payment_method: data.payment.method,
-                items: data.items,
-                delivery: data.delivery,
-                payment: data.payment,
-                coupon: appliedCoupon,
-                customer_note: data.orderNote || '',
-                pricing: {
-                    subtotal: data.subtotal,
-                    discountAmount: discount,
-                    deliveryFee: data.deliveryFee,
-                    total: calculatedTotal
-                },
+        const orderId = await createDocumentREST('ff_orders', {
+            businessId,
+            businessName: business.name as string,
+            customer: {
+                name: data.customer.name,
+                phone: data.customer.phone,
+                email: data.customer.email
+            },
+            items: data.items,
+            delivery: data.delivery,
+            payment: data.payment,
+            coupon: appliedCoupon,
+            orderNote: data.orderNote,
+            pricing: {
                 subtotal: data.subtotal,
-                delivery_fee: data.deliveryFee,
-                total: calculatedTotal,
-                coupon_id: appliedCoupon?.id || null,
-                coupon_code: appliedCoupon?.code || null,
-                coupon_discount: discount,
-                status: 'pending',
-                status_history: [{ status: 'pending', timestamp: now }],
-                qr_code: `${business.slug}-${Date.now()}`,
-                created_at: now,
-                updated_at: now,
-            })
-            .select('id')
-            .single();
-
-        if (orderError) {
-            throw orderError;
-        }
-
-        const orderId = orderData?.id;
+                discountAmount: discount,
+                deliveryFee: data.deliveryFee,
+                total: calculatedTotal
+            },
+            status: 'pending',
+            qrCode: `${business.slug}-${Date.now()}`,
+            createdAt: new Date().toISOString()
+        });
 
         if (appliedCoupon) {
-            const { error: usageError } = await supabase
-                .from('ff_coupon_usages')
-                .insert({
-                    business_id: businessId,
-                    coupon_id: appliedCoupon.id,
-                    code: appliedCoupon.code,
-                    customer_phone: data.customer.phone,
-                    order_id: orderId,
-                    discount_amount: discount,
-                    used_at: now
-                });
-
-            if (usageError) {
-                throw usageError;
-            }
+            await updateDocumentREST('ff_coupon_usages', '', {
+                orderId
+            });
         }
 
         const notifyUrl = `/api/fastfood/notify`;

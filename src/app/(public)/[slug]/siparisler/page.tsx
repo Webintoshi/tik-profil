@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, Loader2, Clock, CheckCircle, XCircle, Package, Phone, RefreshCw, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { toR2ProxyUrl } from "@/lib/publicImage";
 
 interface OrderItem {
     productId: string;
@@ -267,7 +266,7 @@ export default function CustomerOrdersPage() {
                         <div className="flex items-center gap-3">
                             {business?.logo ? (
                                 <img
-                                    src={toR2ProxyUrl(business.logo)}
+                                    src={business.logo}
                                     alt={business.name}
                                     className="w-10 h-10 rounded-full object-cover"
                                 />

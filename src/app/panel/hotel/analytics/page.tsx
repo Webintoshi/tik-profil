@@ -9,6 +9,8 @@ import {
     Loader2,
 } from "lucide-react";
 import { useBusinessContext } from "@/components/panel/BusinessSessionContext";
+import { useTheme } from "@/components/panel/ThemeProvider";
+import clsx from "clsx";
 
 interface Stats {
     totalRooms: number;
@@ -27,6 +29,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function HotelAnalyticsPage() {
+    const { isDark } = useTheme();
     const session = useBusinessContext();
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<Stats>({
@@ -37,6 +40,13 @@ export default function HotelAnalyticsPage() {
         roomsByStatus: {},
         requestsByType: {},
     });
+
+    // Theme colors
+    const cardBg = isDark ? "bg-[#111]" : "bg-white";
+    const borderColor = isDark ? "border-[#222]" : "border-gray-200";
+    const textPrimary = isDark ? "text-white" : "text-gray-900";
+    const textSecondary = isDark ? "text-gray-400" : "text-gray-600";
+    const progressBg = isDark ? "bg-gray-800" : "bg-gray-100";
 
     const loadStats = useCallback(async () => {
         if (!session?.businessId) return;
@@ -103,63 +113,63 @@ export default function HotelAnalyticsPage() {
         : 0;
 
     return (
-        <div className="space-y-6">
+        <div className="min-h-screen p-4 md:p-6 space-y-6">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                <h1 className={clsx("text-2xl md:text-3xl font-bold", textPrimary)}>
                     Otel Analizi
                 </h1>
-                <p className="text-gray-500 dark:text-gray-400 mt-1">
+                <p className={clsx("text-sm md:text-base", textSecondary)}>
                     Otelinizin performans özeti
                 </p>
             </div>
 
             {/* Main Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5">
+                <div className={clsx("rounded-2xl border p-4 md:p-5", cardBg, borderColor)}>
                     <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
+                        <div className={clsx("p-2.5 rounded-xl", isDark ? "bg-blue-900/30" : "bg-blue-100")}>
                             <BedDouble className="w-5 h-5 text-blue-500" />
                         </div>
                     </div>
-                    <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.totalRooms}</p>
-                    <p className="text-sm text-gray-500">Toplam Oda</p>
+                    <p className={clsx("text-3xl font-bold", textPrimary)}>{stats.totalRooms}</p>
+                    <p className={clsx("text-sm", textSecondary)}>Toplam Oda</p>
                 </div>
 
-                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5">
+                <div className={clsx("rounded-2xl border p-4 md:p-5", cardBg, borderColor)}>
                     <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-xl">
+                        <div className={clsx("p-2.5 rounded-xl", isDark ? "bg-green-900/30" : "bg-green-100")}>
                             <TrendingUp className="w-5 h-5 text-green-500" />
                         </div>
                     </div>
-                    <p className="text-3xl font-bold text-gray-900 dark:text-white">{occupancyRate}%</p>
-                    <p className="text-sm text-gray-500">Doluluk Oranı</p>
+                    <p className={clsx("text-3xl font-bold", textPrimary)}>{occupancyRate}%</p>
+                    <p className={clsx("text-sm", textSecondary)}>Doluluk Oranı</p>
                 </div>
 
-                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5">
+                <div className={clsx("rounded-2xl border p-4 md:p-5", cardBg, borderColor)}>
                     <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
+                        <div className={clsx("p-2.5 rounded-xl", isDark ? "bg-purple-900/30" : "bg-purple-100")}>
                             <BarChart3 className="w-5 h-5 text-purple-500" />
                         </div>
                     </div>
-                    <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.totalRequests}</p>
-                    <p className="text-sm text-gray-500">Toplam Talep</p>
+                    <p className={clsx("text-3xl font-bold", textPrimary)}>{stats.totalRequests}</p>
+                    <p className={clsx("text-sm", textSecondary)}>Toplam Talep</p>
                 </div>
 
-                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5">
+                <div className={clsx("rounded-2xl border p-4 md:p-5", cardBg, borderColor)}>
                     <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl">
+                        <div className={clsx("p-2.5 rounded-xl", isDark ? "bg-yellow-900/30" : "bg-yellow-100")}>
                             <Clock className="w-5 h-5 text-yellow-500" />
                         </div>
                     </div>
-                    <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.pendingRequests}</p>
-                    <p className="text-sm text-gray-500">Bekleyen Talep</p>
+                    <p className={clsx("text-3xl font-bold", textPrimary)}>{stats.pendingRequests}</p>
+                    <p className={clsx("text-sm", textSecondary)}>Bekleyen Talep</p>
                 </div>
             </div>
 
             {/* Room Status Breakdown */}
-            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <div className={clsx("rounded-2xl border p-6", cardBg, borderColor)}>
+                <h3 className={clsx("text-lg font-semibold mb-4", textPrimary)}>
                     Oda Durumları
                 </h3>
                 <div className="space-y-3">
@@ -168,20 +178,20 @@ export default function HotelAnalyticsPage() {
                         return (
                             <div key={status}>
                                 <div className="flex items-center justify-between mb-1">
-                                    <span className="text-gray-600 dark:text-gray-400">
+                                    <span className={clsx(textSecondary)}>
                                         {STATUS_LABELS[status] || status}
                                     </span>
-                                    <span className="font-semibold text-gray-900 dark:text-white">
+                                    <span className={clsx("font-semibold", textPrimary)}>
                                         {count} oda ({Math.round(percentage)}%)
                                     </span>
                                 </div>
-                                <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                                <div className={clsx("h-2 rounded-full overflow-hidden", progressBg)}>
                                     <div
-                                        className={`h-full rounded-full ${status === "available" ? "bg-green-500" :
+                                        className={clsx("h-full rounded-full", status === "available" ? "bg-green-500" :
                                             status === "occupied" ? "bg-red-500" :
                                                 status === "cleaning" ? "bg-yellow-500" :
                                                     "bg-gray-500"
-                                            }`}
+                                        )}
                                         style={{ width: `${percentage}%` }}
                                     />
                                 </div>
@@ -192,8 +202,8 @@ export default function HotelAnalyticsPage() {
             </div>
 
             {/* Info */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-center">
-                <p className="text-blue-700 dark:text-blue-400 text-sm">
+            <div className={clsx("rounded-xl p-4 text-center", isDark ? "bg-blue-900/20" : "bg-blue-50")}>
+                <p className={clsx("text-sm", isDark ? "text-blue-400" : "text-blue-700")}>
                     💡 Daha detaylı analizler ve raporlar yakında eklenecek
                 </p>
             </div>

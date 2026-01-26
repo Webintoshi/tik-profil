@@ -3,11 +3,9 @@
 import { useState, useEffect } from "react";
 import { useTheme } from "@/components/explore/ThemeProvider";
 import { useLocation } from "@/components/explore/LocationProvider";
-import KesfetHeader from "@/components/explore/KesfetHeader";
 import Image from "next/image";
 import Link from "next/link";
 import { Star, MapPin, Filter, Grid3X3, List, Loader2, Search, SlidersHorizontal } from "lucide-react";
-import { toR2ProxyUrl } from "@/lib/publicImage";
 
 interface Business {
     id: string;
@@ -74,8 +72,6 @@ export default function ExplorePage() {
 
     return (
         <div className={`min-h-screen ${isDark ? "bg-gray-950" : "bg-gray-50"}`}>
-            <KesfetHeader />
-
             {/* Page Header */}
             <div className="px-4 py-6">
                 <h1 className={`text-2xl font-bold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}>
@@ -166,7 +162,7 @@ export default function ExplorePage() {
                             >
                                 <div className="relative aspect-square">
                                     <Image
-                                        src={toR2ProxyUrl(business.coverImage || business.logoUrl || "https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1200&auto=format&fit=crop")}
+                                        src={business.coverImage || business.logoUrl || "https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1200&auto=format&fit=crop"}
                                         alt={business.name}
                                         fill
                                         className="object-cover"
@@ -205,7 +201,7 @@ export default function ExplorePage() {
                             >
                                 <div className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
                                     <Image
-                                        src={toR2ProxyUrl(business.coverImage || business.logoUrl || "https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1200&auto=format&fit=crop")}
+                                        src={business.coverImage || business.logoUrl || "https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1200&auto=format&fit=crop"}
                                         alt={business.name}
                                         fill
                                         className="object-cover"

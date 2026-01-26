@@ -96,6 +96,12 @@ export async function createDocumentREST(
     data: Record<string, unknown>,
     documentId?: string
 ): Promise<string> {
+    // Client-side guard: Throw error to prevent SUPABASE_SERVICE_ROLE_KEY errors
+    if (typeof window !== 'undefined') {
+        console.warn(`[createDocumentREST] Called on client-side for "${collection}". Throwing error.`);
+        throw new Error('createDocumentREST can only be called server-side');
+    }
+
     const supabase = getSupabaseAdmin();
     const now = new Date().toISOString();
     const dataWithTimestamp = {
@@ -138,6 +144,12 @@ export async function getDocumentREST(
     collection: string,
     documentId: string
 ): Promise<Record<string, unknown> | null> {
+    // Client-side guard: Return null to prevent SUPABASE_SERVICE_ROLE_KEY errors
+    if (typeof window !== 'undefined') {
+        console.warn(`[getDocumentREST] Called on client-side for "${collection}/${documentId}". Returning null.`);
+        return null;
+    }
+
     const supabase = getSupabaseAdmin();
 
     if (collection === BUSINESSES_TABLE) {
@@ -220,6 +232,12 @@ export async function updateDocumentREST(
     documentId: string,
     data: Record<string, unknown>
 ): Promise<void> {
+    // Client-side guard: Throw error to prevent SUPABASE_SERVICE_ROLE_KEY errors
+    if (typeof window !== 'undefined') {
+        console.warn(`[updateDocumentREST] Called on client-side for "${collection}". Throwing error.`);
+        throw new Error('updateDocumentREST can only be called server-side');
+    }
+
     const supabase = getSupabaseAdmin();
     const dataWithTimestamp = {
         ...data,
@@ -273,6 +291,12 @@ export async function deleteDocumentREST(
     collection: string,
     documentId: string
 ): Promise<void> {
+    // Client-side guard: Throw error to prevent SUPABASE_SERVICE_ROLE_KEY errors
+    if (typeof window !== 'undefined') {
+        console.warn(`[deleteDocumentREST] Called on client-side for "${collection}". Throwing error.`);
+        throw new Error('deleteDocumentREST can only be called server-side');
+    }
+
     const supabase = getSupabaseAdmin();
 
     if (collection === BUSINESSES_TABLE) {

@@ -205,7 +205,7 @@ export default function ClientOtelPage() {
                     </div>
 
                     {/* ROOMS SECTION WITH DROPDOWN */}
-                    <div className="max-w-6xl mx-auto px-6 mb-32">
+                    <div className="max-w-7xl mx-auto px-6 mb-32">
                         <div className="flex items-center justify-between mb-8">
                             <h2 className="text-3xl font-bold text-slate-800">Oda Türleri</h2>
                             <button

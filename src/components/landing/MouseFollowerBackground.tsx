@@ -6,7 +6,7 @@ import { FloatingOrb } from "./FloatingOrb";
 export function MouseFollowerBackground() {
     const containerRef = useRef<HTMLDivElement>(null);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-    const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+    const timeoutRef = useRef<NodeJS.Timeout>(null);
 
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         if (timeoutRef.current) {

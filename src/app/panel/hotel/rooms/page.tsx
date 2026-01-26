@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useBusinessContext } from "@/components/panel/BusinessSessionContext";
+import { useTheme } from "@/components/panel/ThemeProvider";
+import clsx from "clsx";
 
 // Room interface
 interface HotelRoom {
@@ -50,6 +52,7 @@ const STATUS_CONFIG = {
 };
 
 export default function RoomsPage() {
+    const { isDark } = useTheme();
     const session = useBusinessContext();
     const [rooms, setRooms] = useState<HotelRoom[]>([]);
     const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
@@ -66,6 +69,13 @@ export default function RoomsPage() {
         floor: 1,
         status: "available" as HotelRoom["status"],
     });
+
+    // Theme colors
+    const cardBg = isDark ? "bg-[#111]" : "bg-white";
+    const borderColor = isDark ? "border-[#222]" : "border-gray-200";
+    const textPrimary = isDark ? "text-white" : "text-gray-900";
+    const textSecondary = isDark ? "text-gray-400" : "text-gray-600";
+    const inputBg = isDark ? "bg-[#0a0a0a] border-[#222]" : "bg-gray-50 border-gray-200";
 
     // Load rooms and room types
     const loadData = useCallback(async () => {
@@ -235,20 +245,20 @@ export default function RoomsPage() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="min-h-screen p-4 md:p-6 space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <h1 className={clsx("text-2xl md:text-3xl font-bold mb-2", textPrimary)}>
                         Oda Yönetimi
                     </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">
+                    <p className={clsx("text-sm md:text-base", textSecondary)}>
                         Oteldeki odaları yönetin ve QR kodlarını oluşturun
                     </p>
                 </div>
                 <button
                     onClick={openAddModal}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium"
+                    className="flex items-center gap-2 px-5 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-semibold"
                 >
                     <Plus className="w-5 h-5" />
                     Oda Ekle
@@ -263,15 +273,15 @@ export default function RoomsPage() {
                     return (
                         <div
                             key={status}
-                            className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4"
+                            className={clsx("rounded-2xl border p-4 md:p-5", cardBg, borderColor)}
                         >
                             <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-lg ${config.color}/10`}>
-                                    <Icon className={`w-5 h-5 ${config.textColor}`} />
+                                <div className={clsx("p-2.5 rounded-xl", `${config.color}/10`)}>
+                                    <Icon className={clsx("w-5 h-5", config.textColor)} />
                                 </div>
                                 <div>
-                                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{count}</p>
-                                    <p className="text-sm text-gray-500">{config.label}</p>
+                                    <p className={clsx("text-2xl font-bold", textPrimary)}>{count}</p>
+                                    <p className={clsx("text-sm", textSecondary)}>{config.label}</p>
                                 </div>
                             </div>
                         </div>
@@ -281,17 +291,17 @@ export default function RoomsPage() {
 
             {/* Rooms by Floor */}
             {rooms.length === 0 ? (
-                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-12 text-center">
-                    <LayoutGrid className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                <div className={clsx("rounded-2xl border p-12 text-center", cardBg, borderColor)}>
+                    <LayoutGrid className={clsx("w-16 h-16 mx-auto mb-4", textSecondary)} />
+                    <h3 className={clsx("text-lg font-semibold mb-2", textPrimary)}>
                         Henüz oda eklenmemiş
                     </h3>
-                    <p className="text-gray-500 dark:text-gray-400 mb-6">
+                    <p className={clsx("mb-6", textSecondary)}>
                         Odalarınızı ekleyerek her birine özel QR kod oluşturun.
                     </p>
                     <button
                         onClick={openAddModal}
-                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium"
+                        className="inline-flex items-center gap-2 px-5 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-semibold"
                     >
                         <Plus className="w-5 h-5" />
                         İlk Odayı Ekle
@@ -300,9 +310,9 @@ export default function RoomsPage() {
             ) : (
                 <div className="space-y-6">
                     {floors.map(floor => (
-                        <div key={floor} className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-                            <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-800">
-                                <h3 className="font-semibold text-gray-900 dark:text-white">
+                        <div key={floor} className={clsx("rounded-2xl border overflow-hidden", cardBg, borderColor)}>
+                            <div className={clsx("px-5 py-4 border-b", borderColor)}>
+                                <h3 className={clsx("font-semibold", textPrimary)}>
                                     {floor}. Kat
                                 </h3>
                             </div>
@@ -319,24 +329,23 @@ export default function RoomsPage() {
                                                     layout
                                                     className="relative group"
                                                 >
-                                                    <div className={`
-                                                        p-4 rounded-xl border-2 transition-all cursor-pointer
-                                                        ${room.status === "available"
-                                                            ? "border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20"
+                                                    <div className={clsx(
+                                                        "p-4 rounded-xl border-2 transition-all cursor-pointer hover:shadow-md",
+                                                        room.status === "available"
+                                                            ? isDark ? "border-green-900 bg-green-900/20" : "border-green-200 bg-green-50"
                                                             : room.status === "occupied"
-                                                                ? "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/20"
+                                                                ? isDark ? "border-red-900 bg-red-900/20" : "border-red-200 bg-red-50"
                                                                 : room.status === "cleaning"
-                                                                    ? "border-yellow-200 dark:border-yellow-900 bg-yellow-50 dark:bg-yellow-900/20"
-                                                                    : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"}
-                                                        hover:shadow-md
-                                                    `}>
+                                                                    ? isDark ? "border-yellow-900 bg-yellow-900/20" : "border-yellow-200 bg-yellow-50"
+                                                                    : isDark ? "border-gray-700 bg-gray-800" : "border-gray-200 bg-gray-50"
+                                                    )}>
                                                         <div className="flex items-center justify-between mb-2">
-                                                            <span className="text-lg font-bold text-gray-900 dark:text-white">
+                                                            <span className={clsx("text-lg font-bold", textPrimary)}>
                                                                 {room.roomNumber}
                                                             </span>
-                                                            <Icon className={`w-4 h-4 ${statusConfig.textColor}`} />
+                                                            <Icon className={clsx("w-4 h-4", statusConfig.textColor)} />
                                                         </div>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                                        <p className={clsx("text-xs truncate", textSecondary)}>
                                                             {room.roomTypeName}
                                                         </p>
 
@@ -372,10 +381,7 @@ export default function RoomsPage() {
                                                             <button
                                                                 key={status}
                                                                 onClick={() => handleStatusChange(room, status)}
-                                                                className={`flex-1 h-2 rounded-full transition-all ${room.status === status
-                                                                    ? STATUS_CONFIG[status].color
-                                                                    : "bg-gray-200 dark:bg-gray-700 hover:opacity-70"
-                                                                    }`}
+                                                                className={clsx("flex-1 h-2 rounded-full transition-all", room.status === status ? STATUS_CONFIG[status].color : isDark ? "bg-gray-700 hover:opacity-70" : "bg-gray-200 hover:opacity-70")}
                                                                 title={STATUS_CONFIG[status].label}
                                                             />
                                                         ))}
@@ -397,24 +403,25 @@ export default function RoomsPage() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4"
                         onClick={() => setIsModalOpen(false)}
                     >
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
                         <motion.div
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-md"
+                            className={clsx("relative w-full max-w-md rounded-3xl shadow-2xl overflow-hidden", cardBg)}
                         >
                             {/* Header */}
-                            <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-800">
-                                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                            <div className={clsx("flex items-center justify-between p-5 border-b", borderColor)}>
+                                <h2 className={clsx("text-xl font-semibold", textPrimary)}>
                                     {editingRoom ? "Odayı Düzenle" : "Yeni Oda"}
                                 </h2>
                                 <button
                                     onClick={() => setIsModalOpen(false)}
-                                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                    className="p-2 hover:bg-gray-500/10 rounded-full transition-colors"
                                 >
                                     <X className="w-5 h-5 text-gray-500" />
                                 </button>
@@ -424,7 +431,7 @@ export default function RoomsPage() {
                             <div className="p-5 space-y-5">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                                        <label className={clsx("block text-sm font-medium mb-2", textSecondary)}>
                                             Oda Numarası *
                                         </label>
                                         <input
@@ -432,11 +439,11 @@ export default function RoomsPage() {
                                             value={formData.roomNumber}
                                             onChange={(e) => setFormData(p => ({ ...p, roomNumber: e.target.value }))}
                                             placeholder="101"
-                                            className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                            className={clsx("w-full px-4 py-3.5 rounded-xl border-2 text-base font-medium transition-colors focus:outline-none focus:border-blue-500", inputBg, textPrimary)}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                                        <label className={clsx("block text-sm font-medium mb-2", textSecondary)}>
                                             Kat
                                         </label>
                                         <input
@@ -445,19 +452,19 @@ export default function RoomsPage() {
                                             onChange={(e) => setFormData(p => ({ ...p, floor: Number(e.target.value) }))}
                                             min={-2}
                                             max={50}
-                                            className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                            className={clsx("w-full px-4 py-3.5 rounded-xl border-2 text-base font-medium transition-colors focus:outline-none focus:border-blue-500", inputBg, textPrimary)}
                                         />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                                    <label className={clsx("block text-sm font-medium mb-2", textSecondary)}>
                                         Oda Türü
                                     </label>
                                     <select
                                         value={formData.roomTypeId}
                                         onChange={(e) => setFormData(p => ({ ...p, roomTypeId: e.target.value }))}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                        className={clsx("w-full px-4 py-3.5 rounded-xl border-2 text-base font-medium transition-colors focus:outline-none focus:border-blue-500", inputBg, textPrimary)}
                                     >
                                         <option value="">Seçiniz</option>
                                         {roomTypes.map(type => (
@@ -467,7 +474,7 @@ export default function RoomsPage() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                                    <label className={clsx("block text-sm font-medium mb-2", textSecondary)}>
                                         Durum
                                     </label>
                                     <div className="grid grid-cols-2 gap-2">
@@ -478,10 +485,7 @@ export default function RoomsPage() {
                                                     key={status}
                                                     type="button"
                                                     onClick={() => setFormData(p => ({ ...p, status }))}
-                                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all ${formData.status === status
-                                                        ? `${config.color}/20 border-current ${config.textColor}`
-                                                        : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400"
-                                                        }`}
+                                                    className={clsx("flex items-center gap-2 px-3 py-2 rounded-xl border transition-all", formData.status === status ? `${config.color}/20 border-current ${config.textColor}` : isDark ? "border-[#222] text-gray-400" : "border-gray-200 text-gray-600")}
                                                 >
                                                     <Icon className="w-4 h-4" />
                                                     <span className="text-sm">{config.label}</span>
@@ -493,17 +497,17 @@ export default function RoomsPage() {
                             </div>
 
                             {/* Footer */}
-                            <div className="flex items-center justify-end gap-3 p-5 border-t border-gray-200 dark:border-gray-800">
+                            <div className={clsx("flex items-center justify-end gap-3 p-5 border-t", borderColor)}>
                                 <button
                                     onClick={() => setIsModalOpen(false)}
-                                    className="px-4 py-2.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors font-medium"
+                                    className={clsx("px-4 py-3.5 rounded-xl font-semibold text-sm transition-colors", isDark ? "bg-white/5 hover:bg-white/10 text-gray-300" : "bg-gray-100 hover:bg-gray-200 text-gray-700")}
                                 >
                                     İptal
                                 </button>
                                 <button
                                     onClick={handleSave}
                                     disabled={saving}
-                                    className="flex items-center gap-2 px-5 py-2.5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium disabled:opacity-50"
+                                    className="flex items-center gap-2 px-5 py-3.5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50"
                                 >
                                     {saving ? (
                                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -525,20 +529,21 @@ export default function RoomsPage() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4"
                         onClick={() => setQrModalRoom(null)}
                     >
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
                         <motion.div
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm p-6 text-center"
+                            className={clsx("relative w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden p-6 text-center", cardBg)}
                         >
-                            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                            <h3 className={clsx("text-xl font-semibold mb-2", textPrimary)}>
                                 Oda {qrModalRoom.roomNumber}
                             </h3>
-                            <p className="text-gray-500 mb-6">
+                            <p className={clsx("mb-6", textSecondary)}>
                                 Bu QR kodu odaya yerleştirin
                             </p>
 
@@ -558,14 +563,14 @@ export default function RoomsPage() {
                             <div className="flex gap-3">
                                 <button
                                     onClick={() => setQrModalRoom(null)}
-                                    className="flex-1 px-4 py-2.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors font-medium"
+                                    className={clsx("flex-1 px-4 py-3.5 rounded-xl font-semibold text-sm transition-colors", isDark ? "bg-white/5 hover:bg-white/10 text-gray-300" : "bg-gray-100 hover:bg-gray-200 text-gray-700")}
                                 >
                                     Kapat
                                 </button>
                                 <a
                                     href={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&format=png&data=${encodeURIComponent(generateQrUrl(qrModalRoom))}`}
                                     download={`oda-${qrModalRoom.roomNumber}-qr.png`}
-                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium"
+                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3.5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-semibold"
                                 >
                                     <Download className="w-4 h-4" />
                                     İndir
