@@ -1,6 +1,6 @@
 // Public Fast Food Menu API - No authentication required
 // PERFORMANCE OPTIMIZED: Parallel fetching with Promise.all
-// Original sequential version preserved as comments for rollback
+// SECURITY: Module verification to prevent Restaurant data in FastFood tables
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
@@ -19,11 +19,12 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: false, error: 'businessSlug required' }, { status: 400 });
         }
 
-        // STEP 1: First get business (required for businessId)
         const supabase = getSupabaseAdmin();
+
+        // STEP 1: First get business (required for businessId)
         const { data: businesses, error: businessError } = await supabase
             .from('businesses')
-            .select('id, name, slug, phone, whatsapp, logo')
+            .select('id, name, slug, phone, whatsapp, logo, active_module, industry_label')
             .ilike('slug', businessSlug)
             .order('created_at', { ascending: true });
 
@@ -39,6 +40,15 @@ export async function GET(request: Request) {
         }
 
         const businessId = business.id as string;
+
+        // SECURITY: Verify this is a FastFood business
+        if (business.active_module && business.active_module !== 'fastfood') {
+            console.error(`[FastFood Public Menu] Business ${businessId} has wrong module: ${business.active_module}`);
+            return NextResponse.json({ 
+                success: false, 
+                error: 'Bu işletme FastFood modülünü kullanmıyor' 
+            }, { status: 400 });
+        }
 
         // Get table info if tableId is provided
         let tableName = null;
@@ -101,134 +111,116 @@ export async function GET(request: Request) {
             .map(cat => ({
                 id: cat.id,
                 name: cat.name,
+                order: cat.sort_order || 0,
                 icon: cat.icon || '🍔',
-                emoji: cat.icon || '🍔',
-                sortOrder: cat.sort_order || 0,
-                isActive: true,
-            }))
-            .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+            }));
 
         // Process products
-        const productsForBusiness = allProducts.filter(p => p.business_id === businessId);
-        const uniqueBusinessIds = [...new Set(allProducts.map(p => p.business_id))];
-        const products = productsForBusiness
-            .filter(p => p.is_active !== false && p.in_stock !== false)
+        const products = allProducts
+            .filter(p => p.business_id === businessId && p.is_active !== false && p.in_stock !== false)
             .map(p => ({
                 id: p.id,
                 name: p.name,
                 description: p.description || '',
                 price: Number(p.price) || 0,
                 categoryId: p.category_id,
-                imageUrl: p.image_url || '',
                 image: p.image_url || '',
-                sortOrder: p.sort_order || 0,
-                isActive: true,
-                inStock: true,
-                extraGroupIds: p.extra_group_ids || [],
-            }))
-            .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+                inStock: p.in_stock !== false,
+                order: p.sort_order || 0,
+                extras: p.extra_group_ids || [],
+                sizes: p.sizes || {},
+                prepTime: p.prep_time || null,
+                discountPrice: p.discount_price ? Number(p.discount_price) : null,
+                discountUntil: p.discount_until ? new Date(p.discount_until) : null,
+                calories: p.calories || null,
+                spicyLevel: p.spicy_level || null,
+                allergens: p.allergens || [],
+            }));
 
         // Process extra groups
         const extraGroups = allExtraGroups
-            .filter(g => g.business_id === businessId && g.is_active !== false)
-            .map(group => ({
-                id: group.id,
-                name: group.name,
-                selectionType: group.selection_type || 'single',
-                isRequired: group.is_required || false,
-                maxSelections: group.max_selections || 1,
-                sortOrder: group.sort_order || 0,
-                extras: allExtras
-                    .filter(e => e.group_id === group.id && e.is_active !== false)
-                    .map(e => ({
-                        id: e.id,
-                        groupId: e.group_id,
-                        name: e.name,
-                        priceModifier: Number(e.price_modifier) || 0,
-                        isDefault: e.is_default || false,
-                        imageUrl: e.image_url || '',
-                        sortOrder: e.sort_order || 0,
-                    }))
-                    .sort((a, b) => ((a as any).sortOrder || 0) - ((b as any).sortOrder || 0))
-            }))
-            .sort((a, b) => ((a as any).sortOrder || 0) - ((b as any).sortOrder || 0));
+            .filter(eg => eg.business_id === businessId && eg.is_active !== false)
+            .map(eg => ({
+                id: eg.id,
+                name: eg.name,
+                selectionType: eg.selection_type || 'single',
+                isRequired: eg.is_required || false,
+                maxSelections: eg.max_selections || 1,
+                order: eg.sort_order || 0,
+            }));
+
+        // Process extras
+        const extras = allExtras
+            .filter(e => e.is_active !== false)
+            .map(e => ({
+                id: e.id,
+                groupId: e.group_id,
+                name: e.name,
+                priceModifier: Number(e.price_modifier) || 0,
+                isDefault: e.is_default || false,
+                image: e.image_url || '',
+                order: e.sort_order || 0,
+            }));
 
         // Process campaigns
-        const now = new Date();
         const campaigns = allCampaigns
             .filter(c => c.business_id === businessId && c.is_active !== false)
-            .filter(c => {
-                if (c.valid_until) {
-                    const validDate = new Date(c.valid_until as string);
-                    return validDate >= now;
-                }
-                return true;
-            })
+            .filter(c => !c.valid_until || new Date(c.valid_until) > new Date())
             .map(c => ({
                 id: c.id,
                 title: c.title,
                 description: c.description || '',
-                emoji: c.emoji || '🔥',
-                isActive: true,
-                validUntil: c.valid_until || null,
-            }))
-            .sort((a, b) => ((a as any).sortOrder || 0) - ((b as any).sortOrder || 0));
+                emoji: c.emoji || '🎉',
+            }));
 
         // Process settings
-        const minOrderAmount = Number(settings?.min_order_amount) || 0;
-        const deliveryFee = Number(settings?.delivery_fee) || 0;
-        const freeDeliveryAbove = Number(settings?.free_delivery_above) || 0;
-        const pickupEnabled = settings?.pickup_enabled !== false;
-        const deliveryEnabled = settings?.delivery_enabled !== false;
-        const cashPayment = settings?.cash_payment !== false;
-        const cardOnDelivery = settings?.card_on_delivery !== false;
-        const estimatedDeliveryTime = settings?.estimated_delivery_time || '30-45 dk';
-        const businessLogoUrl = settings?.business_logo_url || business.logo || '';
+        const businessSettings = {
+            deliveryEnabled: settings?.delivery_enabled !== false,
+            pickupEnabled: settings?.pickup_enabled !== false,
+            minOrderAmount: Number(settings?.min_order_amount) || 0,
+            deliveryFee: Number(settings?.delivery_fee) || 0,
+            freeDeliveryAbove: Number(settings?.free_delivery_above) || 0,
+            estimatedDeliveryTime: settings?.estimated_delivery_time || null,
+            cashPayment: settings?.cash_payment !== false,
+            cardOnDelivery: settings?.card_on_delivery !== false,
+            onlinePayment: settings?.online_payment !== false,
+            workingHours: settings?.working_hours || null,
+            useBusinessHours: settings?.use_business_hours !== false,
+            whatsappNumber: settings?.whatsapp_number || '',
+            notifications: settings?.notifications || {},
+            menuTheme: settings?.menu_theme || 'modern',
+            waiterCallEnabled: settings?.waiter_call_enabled !== false,
+            requestBillEnabled: settings?.request_bill_enabled !== false,
+            cartEnabled: settings?.cart_enabled !== false,
+            wifiPassword: settings?.wifi_password || '',
+            styleId: settings?.style_id || 'modern',
+            accentColorId: settings?.accent_color_id || 'emerald',
+            showAvatar: settings?.show_avatar !== false,
+            isActive: settings?.is_active !== false,
+        };
 
         return NextResponse.json({
             success: true,
             data: {
                 businessId,
+                businessName: business.name,
+                businessLogo: business.logo || '',
+                businessPhone: business.phone || '',
+                businessWhatsapp: business.whatsapp || business.phone || '',
+                tableName,
                 categories,
                 products,
                 extraGroups,
+                extras,
                 campaigns,
-                businessName: business.name,
-                businessLogoUrl,
-                whatsapp: business.whatsapp || business.phone,
-                whatsappNumber: business.whatsapp || business.phone,
-                tableName,
-                minOrderAmount,
-                deliveryFee,
-                freeDeliveryAbove,
-                pickupEnabled,
-                deliveryEnabled,
-                cashPayment,
-                cardOnDelivery,
-                estimatedDeliveryTime,
-                workingHours: settings?.working_hours || null,
-                useBusinessHours: settings?.use_business_hours !== false,
-                _debug: {
-                    matchingBusinessesCount: matchingBusinesses.length,
-                    usedBusinessId: businessId,
-                    totalProductsInDb: allProducts.length,
-                    productsForThisBusiness: productsForBusiness.length,
-                    uniqueBusinessIdsInProducts: uniqueBusinessIds,
-                    extraGroupsCount: extraGroups.length,
-                    campaignsCount: campaigns.length,
-                    optimizationEnabled: true, // Flag to verify optimization is active
-                }
-            }
-        }, {
-            headers: {
-                'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0',
+                settings: businessSettings,
             }
         });
-
     } catch (error) {
-        console.error('[Public FF Menu] GET error:', error);
-        return NextResponse.json({ success: false, error: 'Server error' }, { status: 500 });
+        console.error('[FastFood Public Menu] Error:', error);
+        return NextResponse.json({
+            success: false,
+            error: 'Server error'
+        }, { status: 500 });
     }
 }

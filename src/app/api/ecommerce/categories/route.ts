@@ -1,29 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-    getDocumentREST,
-    createDocumentREST,
-    updateDocumentREST,
-    deleteDocumentREST
-} from '@/lib/documentStore';
-import { getSupabaseClient } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { AppError, validateOrThrow } from '@/lib/errors';
 import { categorySchema } from '@/types/ecommerce';
-import type { Category } from '@/types/ecommerce';
 
-const COLLECTION = 'ecommerce_categories';
+const TABLE = 'ecommerce_categories';
 
-// Helper to generate slug
-function generateSlug(name: string): string {
-    return name
-        .toLowerCase()
-        .replace(/ş/g, 's').replace(/ğ/g, 'g').replace(/ü/g, 'u')
-        .replace(/ö/g, 'o').replace(/ç/g, 'c').replace(/ı/g, 'i')
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
+interface CategoryRow {
+    id: string;
+    business_id: string;
+    name: string;
+    name_en: string | null;
+    icon: string | null;
+    image_url: string | null;
+    sort_order: number;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
 }
 
-// GET: List categories or get single category
+function mapCategory(row: CategoryRow) {
+    return {
+        id: row.id,
+        businessId: row.business_id,
+        name: row.name,
+        nameEn: row.name_en,
+        icon: row.icon,
+        imageUrl: row.image_url,
+        sortOrder: row.sort_order,
+        isActive: row.is_active,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    };
+}
+
 export async function GET(request: NextRequest) {
     try {
         const searchParams = request.nextUrl.searchParams;
@@ -34,28 +43,32 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Business ID required' }, { status: 400 });
         }
 
-        // Get single category
+        const supabase = getSupabaseAdmin();
+
         if (categoryId) {
-            const category = await getDocumentREST(COLLECTION, categoryId);
-            if (!category || category.businessId !== businessId) {
+            const { data, error } = await supabase
+                .from(TABLE)
+                .select('*')
+                .eq('id', categoryId)
+                .eq('business_id', businessId)
+                .single();
+
+            if (error || !data) {
                 return NextResponse.json({ error: 'Category not found' }, { status: 404 });
             }
-            return NextResponse.json(category);
+
+            return NextResponse.json(mapCategory(data));
         }
 
-        // Get all categories for business
-        const supabase = getSupabaseClient();
         const { data, error } = await supabase
-            .from('app_documents')
-            .select('id,data')
-            .eq('collection', COLLECTION)
-            .eq('data->>businessId', businessId)
-            .range(0, 1999);
-        if (error) throw error;
-        const categories = (data || [])
-            .map((r: any) => ({ id: r.id as string, ...(r.data as Record<string, unknown>) } as unknown as Category))
-            .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+            .from(TABLE)
+            .select('*')
+            .eq('business_id', businessId)
+            .order('sort_order', { ascending: true });
 
+        if (error) throw error;
+
+        const categories = (data || []).map(mapCategory);
         return NextResponse.json({ success: true, categories });
     } catch (error) {
         console.error('[Ecommerce Categories GET Error]:', error);
@@ -66,7 +79,6 @@ export async function GET(request: NextRequest) {
     }
 }
 
-// POST: Create new category
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
@@ -76,57 +88,40 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Business ID required' }, { status: 400 });
         }
 
-        // Validate
-        const validation = categorySchema.safeParse(categoryData);
-        if (!validation.success) {
-            return NextResponse.json({
-                error: validation.error.issues[0].message
-            }, { status: 400 });
-        }
+        validateOrThrow(categorySchema, categoryData);
 
-        const data = validation.data;
+        const supabase = getSupabaseAdmin();
 
-        // Generate slug if not provided
-        const slug = data.slug || generateSlug(data.name);
+        const { data: existingCategories, error: checkError } = await supabase
+            .from(TABLE)
+            .select('sort_order')
+            .eq('business_id', businessId)
+            .order('sort_order', { ascending: false });
 
-        const supabase = getSupabaseClient();
-        const { data: categoryRows, error: categoriesError } = await supabase
-            .from('app_documents')
-            .select('id,data')
-            .eq('collection', COLLECTION)
-            .eq('data->>businessId', businessId)
-            .range(0, 1999);
-        if (categoriesError) throw categoriesError;
+        if (checkError) throw checkError;
 
-        const businessCategories = (categoryRows || []).map((r: any) => ({
-            id: r.id as string,
-            ...(r.data as Record<string, unknown>),
-        })) as unknown as Category[];
+        const maxSortOrder = existingCategories?.[0]?.sort_order ?? 0;
 
-        const duplicate = businessCategories.find(cat => cat.slug === slug);
-        if (duplicate) {
-            return NextResponse.json({ error: 'Bu slug zaten kullanılıyor' }, { status: 400 });
-        }
+        const { data, error } = await supabase
+            .from(TABLE)
+            .insert({
+                business_id: businessId,
+                name: categoryData.name,
+                name_en: categoryData.nameEn,
+                icon: categoryData.icon,
+                image_url: categoryData.imageUrl,
+                sort_order: categoryData.sortOrder ?? maxSortOrder + 1,
+                is_active: categoryData.isActive ?? true,
+            })
+            .select()
+            .single();
 
-        const maxSortOrder = businessCategories.reduce((max, cat) => Math.max(max, cat.sortOrder || 0), 0);
-
-        const newCategory = {
-            ...data,
-            businessId,
-            slug,
-            sortOrder: data.sortOrder || maxSortOrder + 1,
-            productCount: 0,
-            status: data.status || 'active',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        };
-
-        const id = await createDocumentREST(COLLECTION, newCategory);
+        if (error) throw error;
 
         return NextResponse.json({
             success: true,
-            id,
-            category: { id, ...newCategory }
+            id: data.id,
+            category: mapCategory(data)
         });
     } catch (error) {
         console.error('[Ecommerce Categories POST Error]:', error);
@@ -137,7 +132,6 @@ export async function POST(request: NextRequest) {
     }
 }
 
-// PUT: Update category
 export async function PUT(request: NextRequest) {
     try {
         const body = await request.json();
@@ -147,49 +141,35 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'Business ID and Category ID required' }, { status: 400 });
         }
 
-        // Check category exists and belongs to business
-        const existing = await getDocumentREST(COLLECTION, id);
-        if (!existing || existing.businessId !== businessId) {
+        const supabase = getSupabaseAdmin();
+
+        const { data: existing, error: checkError } = await supabase
+            .from(TABLE)
+            .select('*')
+            .eq('id', id)
+            .eq('business_id', businessId)
+            .single();
+
+        if (checkError || !existing) {
             return NextResponse.json({ error: 'Category not found' }, { status: 404 });
         }
 
-        // Validate
-        const validation = categorySchema.partial().safeParse(updateData);
-        if (!validation.success) {
-            return NextResponse.json({
-                error: validation.error.issues[0].message
-            }, { status: 400 });
-        }
+        const { data, error } = await supabase
+            .from(TABLE)
+            .update({
+                name: updateData.name,
+                name_en: updateData.nameEn,
+                icon: updateData.icon,
+                image_url: updateData.imageUrl,
+                sort_order: updateData.sortOrder,
+                is_active: updateData.isActive,
+            })
+            .eq('id', id)
+            .eq('business_id', businessId)
+            .select()
+            .single();
 
-        const data = validation.data;
-
-        // If name changed and no slug provided, generate new slug
-        if (data.name && !data.slug) {
-            data.slug = generateSlug(data.name);
-        }
-
-        // Check for duplicate slug if slug changed
-        if (data.slug && data.slug !== existing.slug) {
-            const supabase = getSupabaseClient();
-            const { data: duplicateRows, error: duplicateError } = await supabase
-                .from('app_documents')
-                .select('id')
-                .eq('collection', COLLECTION)
-                .eq('data->>businessId', businessId)
-                .eq('data->>slug', data.slug)
-                .neq('id', id)
-                .range(0, 0);
-            if (duplicateError) throw duplicateError;
-            const duplicate = duplicateRows?.[0];
-            if (duplicate) {
-                return NextResponse.json({ error: 'Bu slug zaten kullanılıyor' }, { status: 400 });
-            }
-        }
-
-        await updateDocumentREST(COLLECTION, id, {
-            ...data,
-            updatedAt: new Date().toISOString(),
-        });
+        if (error) throw error;
 
         return NextResponse.json({ success: true });
     } catch (error) {
@@ -201,7 +181,6 @@ export async function PUT(request: NextRequest) {
     }
 }
 
-// DELETE: Delete category
 export async function DELETE(request: NextRequest) {
     try {
         const searchParams = request.nextUrl.searchParams;
@@ -212,29 +191,41 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Business ID and Category ID required' }, { status: 400 });
         }
 
-        // Check category exists and belongs to business
-        const existing = await getDocumentREST(COLLECTION, id);
-        if (!existing || existing.businessId !== businessId) {
+        const supabase = getSupabaseAdmin();
+
+        const { data: existing, error: checkError } = await supabase
+            .from(TABLE)
+            .select('id, business_id')
+            .eq('id', id)
+            .eq('business_id', businessId)
+            .single();
+
+        if (checkError || !existing) {
             return NextResponse.json({ error: 'Category not found' }, { status: 404 });
         }
 
-        // Check if category has products
-        const supabase = getSupabaseClient();
-        const { data: productRows, error: productsError } = await supabase
-            .from('app_documents')
+        const { data: products, error: productsError } = await supabase
+            .from('ecommerce_products')
             .select('id')
-            .eq('collection', 'ecommerce_products')
-            .eq('data->>businessId', businessId)
-            .eq('data->>categoryId', id)
+            .eq('business_id', businessId)
+            .eq('category_id', id)
             .range(0, 0);
+
         if (productsError) throw productsError;
-        if (productRows && productRows.length > 0) {
+
+        if (products && products.length > 0) {
             return NextResponse.json({
                 error: 'Bu kategoride ürün var, önce ürünleri taşıyın veya silin'
             }, { status: 400 });
         }
 
-        await deleteDocumentREST(COLLECTION, id);
+        const { error } = await supabase
+            .from(TABLE)
+            .delete()
+            .eq('id', id)
+            .eq('business_id', businessId);
+
+        if (error) throw error;
 
         return NextResponse.json({ success: true });
     } catch (error) {

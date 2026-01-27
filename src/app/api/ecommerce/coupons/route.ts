@@ -1,15 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-    getDocumentREST,
-    createDocumentREST,
-    updateDocumentREST,
-    deleteDocumentREST
-} from '@/lib/documentStore';
-import { getSupabaseClient } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { couponSchema } from '@/types/ecommerce';
-import type { Coupon } from '@/types/ecommerce';
 
-const COLLECTION = 'ecommerce_coupons';
+const TABLE = 'ecommerce_coupons';
+
+interface CouponRow {
+    id: string;
+    business_id: string;
+    code: string;
+    title: string;
+    description: string | null;
+    discount_type: string;
+    discount_value: string | number;
+    max_discount_amount: string | number | null;
+    min_order_amount: string | number;
+    max_usage_count: number | null;
+    usage_per_user: number | null;
+    current_usage_count: number;
+    valid_from: string | null;
+    valid_until: string | null;
+    is_active: boolean;
+    is_public: boolean;
+    is_first_order_only: boolean;
+    applicable_category_ids: string[] | null;
+    applicable_product_ids: string[] | null;
+    created_at: string;
+    updated_at: string;
+}
+
+function mapCoupon(row: CouponRow) {
+    return {
+        id: row.id,
+        businessId: row.business_id,
+        code: row.code,
+        title: row.title,
+        description: row.description,
+        type: row.discount_type,
+        value: typeof row.discount_value === 'string' ? parseFloat(row.discount_value) : row.discount_value,
+        maxDiscount: row.max_discount_amount ? (typeof row.max_discount_amount === 'string' ? parseFloat(row.max_discount_amount) : row.max_discount_amount) : null,
+        minOrderAmount: typeof row.min_order_amount === 'string' ? parseFloat(row.min_order_amount) : row.min_order_amount,
+        usageLimit: row.max_usage_count,
+        usagePerUser: row.usage_per_user,
+        usageCount: row.current_usage_count,
+        startDate: row.valid_from,
+        endDate: row.valid_until,
+        status: row.is_active ? 'active' : 'inactive',
+        isPublic: row.is_public,
+        isFirstOrderOnly: row.is_first_order_only,
+        applicableCategoryIds: row.applicable_category_ids || [],
+        applicableProductIds: row.applicable_product_ids || [],
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    };
+}
 
 // GET: List coupons or get/validate single coupon
 export async function GET(request: NextRequest) {
@@ -17,51 +60,52 @@ export async function GET(request: NextRequest) {
         const searchParams = request.nextUrl.searchParams;
         const businessId = searchParams.get('businessId');
         const couponId = searchParams.get('id');
-        const code = searchParams.get('code'); // For validation
-        const orderAmount = searchParams.get('orderAmount'); // For validation
+        const code = searchParams.get('code');
+        const orderAmount = searchParams.get('orderAmount');
 
         if (!businessId) {
             return NextResponse.json({ error: 'Business ID required' }, { status: 400 });
         }
 
-        // Get single coupon by ID
+        const supabase = getSupabaseAdmin();
+
         if (couponId) {
-            const coupon = await getDocumentREST(COLLECTION, couponId);
-            if (!coupon || coupon.businessId !== businessId) {
+            const { data, error } = await supabase
+                .from(TABLE)
+                .select('*')
+                .eq('id', couponId)
+                .eq('business_id', businessId)
+                .single();
+            
+            if (error || !data) {
                 return NextResponse.json({ error: 'Coupon not found' }, { status: 404 });
             }
-            return NextResponse.json(coupon);
+            return NextResponse.json(mapCoupon(data));
         }
 
-        // Validate coupon code
         if (code) {
-            const supabase = getSupabaseClient();
             const { data, error } = await supabase
-                .from('app_documents')
-                .select('id,data')
-                .eq('collection', COLLECTION)
-                .eq('data->>businessId', businessId)
-                .ilike('data->>code', code)
-                .range(0, 0);
-            if (error) throw error;
-            const row = data?.[0] as { id: string; data: Record<string, unknown> } | undefined;
-            const coupon = row ? ({ id: row.id, ...(row.data as Record<string, unknown>) } as unknown as Coupon) : undefined;
-
-            if (!coupon) {
+                .from(TABLE)
+                .select('*')
+                .eq('business_id', businessId)
+                .ilike('code', code)
+                .single();
+            
+            if (error || !data) {
                 return NextResponse.json({ error: 'Kupon bulunamadı', valid: false }, { status: 404 });
             }
 
-            // Check if active
-            if (coupon.status !== 'active') {
+            const coupon = mapCoupon(data);
+
+            if (!coupon.isPublic || !coupon.isPublic) {
                 return NextResponse.json({ error: 'Kupon aktif değil', valid: false }, { status: 400 });
             }
 
-            // Check usage limit
-            if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) {
+            const usageLimit = typeof coupon.usageLimit === 'number' ? coupon.usageLimit : null;
+            if (usageLimit && coupon.usageCount >= usageLimit) {
                 return NextResponse.json({ error: 'Kupon kullanım limiti doldu', valid: false }, { status: 400 });
             }
 
-            // Check dates
             const now = new Date();
             if (coupon.startDate && new Date(coupon.startDate) > now) {
                 return NextResponse.json({ error: 'Kupon henüz aktif değil', valid: false }, { status: 400 });
@@ -70,7 +114,6 @@ export async function GET(request: NextRequest) {
                 return NextResponse.json({ error: 'Kupon süresi dolmuş', valid: false }, { status: 400 });
             }
 
-            // Check minimum order amount
             const amount = orderAmount ? parseFloat(orderAmount) : 0;
             if (coupon.minOrderAmount && amount < coupon.minOrderAmount) {
                 return NextResponse.json({
@@ -79,7 +122,6 @@ export async function GET(request: NextRequest) {
                 }, { status: 400 });
             }
 
-            // Calculate discount
             let discount = 0;
             if (coupon.type === 'percentage') {
                 discount = (amount * coupon.value) / 100;
@@ -101,21 +143,15 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        // Get all coupons for business
-        const supabase = getSupabaseClient();
         const { data, error } = await supabase
-            .from('app_documents')
-            .select('id,data')
-            .eq('collection', COLLECTION)
-            .eq('data->>businessId', businessId)
-            .range(0, 1999);
+            .from(TABLE)
+            .select('*')
+            .eq('business_id', businessId)
+            .order('created_at', { ascending: false });
+        
         if (error) throw error;
-        const coupons = (data || []).map((r: any) => ({ id: r.id as string, ...(r.data as Record<string, unknown>) } as unknown as Coupon));
-
-        // Sort by createdAt descending
-        coupons.sort((a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
+        
+        const coupons = (data || []).map(mapCoupon);
 
         return NextResponse.json({ success: true, coupons });
     } catch (error) {
@@ -137,7 +173,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Business ID required' }, { status: 400 });
         }
 
-        // Validate
         const validation = couponSchema.safeParse(couponData);
         if (!validation.success) {
             return NextResponse.json({
@@ -147,35 +182,51 @@ export async function POST(request: NextRequest) {
 
         const data = validation.data;
 
-        // Check for duplicate code
-        const supabase = getSupabaseClient();
-        const { data: duplicateRows, error: duplicateError } = await supabase
-            .from('app_documents')
+        const supabase = getSupabaseAdmin();
+        const { data: duplicateData, error: duplicateError } = await supabase
+            .from(TABLE)
             .select('id')
-            .eq('collection', COLLECTION)
-            .eq('data->>businessId', businessId)
-            .ilike('data->>code', data.code)
+            .eq('business_id', businessId)
+            .ilike('code', data.code)
             .range(0, 0);
+        
         if (duplicateError) throw duplicateError;
-        const duplicate = duplicateRows?.[0];
+        const duplicate = duplicateData?.[0];
         if (duplicate) {
             return NextResponse.json({ error: 'Bu kupon kodu zaten kullanılıyor' }, { status: 400 });
         }
 
-        const newCoupon = {
-            ...data,
-            code: data.code.toUpperCase(),
-            businessId,
-            usageCount: 0,
-            createdAt: new Date().toISOString(),
-        };
-
-        const id = await createDocumentREST(COLLECTION, newCoupon);
+        const { data: newCoupon, error: insertError } = await supabase
+            .from(TABLE)
+            .insert({
+                business_id: businessId,
+                code: data.code.toUpperCase(),
+                title: data.title,
+                description: data.description || null,
+                discount_type: data.type,
+                discount_value: data.value,
+                max_discount_amount: data.maxDiscount || null,
+                min_order_amount: data.minOrderAmount || 0,
+                max_usage_count: data.usageLimit || null,
+                usage_per_user: data.usagePerUser || null,
+                current_usage_count: 0,
+                valid_from: data.startDate || null,
+                valid_until: data.endDate || null,
+                is_active: data.status === 'active',
+                is_public: data.isPublic ?? true,
+                is_first_order_only: data.isFirstOrderOnly ?? false,
+                applicable_category_ids: data.applicableCategoryIds || [],
+                applicable_product_ids: data.applicableProductIds || [],
+            })
+            .select()
+            .single();
+        
+        if (insertError) throw insertError;
 
         return NextResponse.json({
             success: true,
-            id,
-            coupon: { id, ...newCoupon }
+            id: newCoupon.id,
+            coupon: mapCoupon(newCoupon)
         });
     } catch (error) {
         console.error('[Ecommerce Coupons POST Error]:', error);
@@ -196,13 +247,19 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'Business ID and Coupon ID required' }, { status: 400 });
         }
 
-        // Check coupon exists
-        const existing = await getDocumentREST(COLLECTION, id);
-        if (!existing || existing.businessId !== businessId) {
+        const supabase = getSupabaseAdmin();
+        
+        const { data: existingData, error: existingError } = await supabase
+            .from(TABLE)
+            .select('*')
+            .eq('id', id)
+            .eq('business_id', businessId)
+            .single();
+        
+        if (existingError || !existingData) {
             return NextResponse.json({ error: 'Coupon not found' }, { status: 404 });
         }
 
-        // Validate
         const validation = couponSchema.partial().safeParse(updateData);
         if (!validation.success) {
             return NextResponse.json({
@@ -212,28 +269,47 @@ export async function PUT(request: NextRequest) {
 
         const data = validation.data;
 
-        // Check duplicate code if changed
-        if (data.code && data.code.toUpperCase() !== (existing.code as string).toUpperCase()) {
-            const supabase = getSupabaseClient();
-            const { data: duplicateRows, error: duplicateError } = await supabase
-                .from('app_documents')
+        if (data.code && data.code.toUpperCase() !== existingData.code.toUpperCase()) {
+            const { data: duplicateData, error: duplicateError } = await supabase
+                .from(TABLE)
                 .select('id')
-                .eq('collection', COLLECTION)
-                .eq('data->>businessId', businessId)
-                .ilike('data->>code', data.code)
+                .eq('business_id', businessId)
+                .ilike('code', data.code)
                 .neq('id', id)
                 .range(0, 0);
+            
             if (duplicateError) throw duplicateError;
-            const duplicate = duplicateRows?.[0];
+            const duplicate = duplicateData?.[0];
             if (duplicate) {
                 return NextResponse.json({ error: 'Bu kupon kodu zaten kullanılıyor' }, { status: 400 });
             }
         }
 
-        await updateDocumentREST(COLLECTION, id, {
-            ...data,
-            code: data.code ? data.code.toUpperCase() : undefined,
-        });
+        const updateObj: Record<string, unknown> = {};
+        if (data.code !== undefined) updateObj.code = data.code.toUpperCase();
+        if (data.title !== undefined) updateObj.title = data.title;
+        if (data.description !== undefined) updateObj.description = data.description;
+        if (data.type !== undefined) updateObj.discount_type = data.type;
+        if (data.value !== undefined) updateObj.discount_value = data.value;
+        if (data.maxDiscount !== undefined) updateObj.max_discount_amount = data.maxDiscount;
+        if (data.minOrderAmount !== undefined) updateObj.min_order_amount = data.minOrderAmount;
+        if (data.usageLimit !== undefined) updateObj.max_usage_count = data.usageLimit;
+        if (data.usagePerUser !== undefined) updateObj.usage_per_user = data.usagePerUser;
+        if (data.startDate !== undefined) updateObj.valid_from = data.startDate;
+        if (data.endDate !== undefined) updateObj.valid_until = data.endDate;
+        if (data.status !== undefined) updateObj.is_active = data.status === 'active';
+        if (data.isPublic !== undefined) updateObj.is_public = data.isPublic;
+        if (data.isFirstOrderOnly !== undefined) updateObj.is_first_order_only = data.isFirstOrderOnly;
+        if (data.applicableCategoryIds !== undefined) updateObj.applicable_category_ids = data.applicableCategoryIds;
+        if (data.applicableProductIds !== undefined) updateObj.applicable_product_ids = data.applicableProductIds;
+
+        const { error: updateError } = await supabase
+            .from(TABLE)
+            .update(updateObj)
+            .eq('id', id)
+            .eq('business_id', businessId);
+        
+        if (updateError) throw updateError;
 
         return NextResponse.json({ success: true });
     } catch (error) {
@@ -256,12 +332,26 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Business ID and Coupon ID required' }, { status: 400 });
         }
 
-        const existing = await getDocumentREST(COLLECTION, id);
-        if (!existing || existing.businessId !== businessId) {
+        const supabase = getSupabaseAdmin();
+        
+        const { data: existingData, error: existingError } = await supabase
+            .from(TABLE)
+            .select('id')
+            .eq('id', id)
+            .eq('business_id', businessId)
+            .single();
+        
+        if (existingError || !existingData) {
             return NextResponse.json({ error: 'Coupon not found' }, { status: 404 });
         }
 
-        await deleteDocumentREST(COLLECTION, id);
+        const { error: deleteError } = await supabase
+            .from(TABLE)
+            .delete()
+            .eq('id', id)
+            .eq('business_id', businessId);
+        
+        if (deleteError) throw deleteError;
 
         return NextResponse.json({ success: true });
     } catch (error) {

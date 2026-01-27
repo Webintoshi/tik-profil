@@ -1,53 +1,48 @@
-// Beauty Staff API - CRUD Operations
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getSessionSecretBytes } from '@/lib/env';
-import { staffSchema } from '@/types/beauty';
 
-const TABLE = 'beauty_staff';
+const TABLE = 'clinic_billing';
 
-interface StaffRow {
+interface BillingRow {
     id: string;
     business_id: string;
-    name: string;
-    title: string | null;
-    image_url: string;
-    phone: string | null;
-    email: string | null;
-    specializations: string[] | null;
-    is_active: boolean;
+    patient_id: string | null;
+    appointment_id: string | null;
+    invoice_number: string | null;
+    subtotal: string | number | null;
+    discount_amount: string | number | null;
+    total_amount: string | number | null;
+    payment_method: string | null;
+    payment_status: string;
     created_at: string;
-    updated_at: string;
 }
 
-function mapStaff(row: StaffRow) {
+function mapBilling(row: BillingRow) {
     return {
         id: row.id,
         businessId: row.business_id,
-        name: row.name,
-        title: row.title,
-        photoUrl: row.image_url,
-        phone: row.phone,
-        email: row.email,
-        specialties: row.specializations || [],
-        isActive: row.is_active,
+        patientId: row.patient_id,
+        appointmentId: row.appointment_id,
+        invoiceNumber: row.invoice_number,
+        subtotal: typeof row.subtotal === 'string' ? parseFloat(row.subtotal) : row.subtotal,
+        discountAmount: typeof row.discount_amount === 'string' ? parseFloat(row.discount_amount) : row.discount_amount,
+        totalAmount: typeof row.total_amount === 'string' ? parseFloat(row.total_amount) : row.total_amount,
+        paymentMethod: row.payment_method,
+        paymentStatus: row.payment_status,
         createdAt: row.created_at,
-        updatedAt: row.updated_at,
     };
 }
 
-// Get JWT secret
 const getJwtSecret = () => getSessionSecretBytes();
 
-// Get business ID from session
 async function getBusinessId(): Promise<string | null> {
     try {
         const cookieStore = await cookies();
         const token = cookieStore.get("tikprofil_owner_session")?.value;
         if (!token) return null;
-
         const { payload } = await jwtVerify(token, getJwtSecret());
         return payload.businessId as string || null;
     } catch {
@@ -55,61 +50,44 @@ async function getBusinessId(): Promise<string | null> {
     }
 }
 
-// GET - List staff
-// Supports both:
-// 1. Public access with ?businessId=xxx (for booking wizard)
-// 2. Authenticated access (for panel management)
 export async function GET(request: Request) {
     try {
-        const { searchParams } = new URL(request.url);
-        const queryBusinessId = searchParams.get('businessId');
-
-        const supabase = getSupabaseAdmin();
-
-        // If businessId is provided, allow public access (for booking wizard)
-        if (queryBusinessId) {
-            const { data, error } = await supabase
-                .from(TABLE)
-                .select('*')
-                .eq('business_id', queryBusinessId)
-                .eq('is_active', true);
-
-            if (error) throw error;
-
-            const staff = (data || []).map(s => ({
-                id: s.id,
-                name: s.name,
-                title: s.title,
-                photoUrl: s.image_url,
-                specialties: s.specializations
-            }));
-
-            return NextResponse.json({ success: true, staff });
-        }
-
-        // Otherwise, require authentication (for panel management)
         const businessId = await getBusinessId();
         if (!businessId) {
             return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { data, error } = await supabase
+        const { searchParams } = new URL(request.url);
+        const status = searchParams.get('status');
+        const patientId = searchParams.get('patientId');
+
+        const supabase = getSupabaseAdmin();
+        let query = supabase
             .from(TABLE)
             .select('*')
             .eq('business_id', businessId);
 
+        if (status) {
+            query = query.eq('payment_status', status);
+        }
+
+        if (patientId) {
+            query = query.eq('patient_id', patientId);
+        }
+
+        const { data, error } = await query.order('created_at', { ascending: false });
+
         if (error) throw error;
 
-        const staff = (data || []).map(mapStaff);
+        const billing = (data || []).map(mapBilling);
 
-        return NextResponse.json({ success: true, staff });
+        return NextResponse.json({ success: true, billing });
     } catch (error) {
-        console.error('[Beauty Staff] GET error:', error);
+        console.error('[Clinic Billing] GET error:', error);
         return NextResponse.json({ success: false, error: 'Server error' }, { status: 500 });
     }
 }
 
-// POST - Create staff
 export async function POST(request: Request) {
     try {
         const businessId = await getBusinessId();
@@ -119,44 +97,36 @@ export async function POST(request: Request) {
 
         const body = await request.json();
 
-        const validation = staffSchema.safeParse(body);
-        if (!validation.success) {
-            const errors = validation.error.issues.map(e => `${e.path.join('.')}: ${e.message}`);
-            return NextResponse.json({
-                success: false,
-                error: 'Doğrulama hatası',
-                details: errors
-            }, { status: 400 });
+        if (!body.totalAmount) {
+            return NextResponse.json({ success: false, error: 'Toplam tutar zorunlu' }, { status: 400 });
         }
 
-        const data = validation.data;
-
         const supabase = getSupabaseAdmin();
-        const { data: newStaff, error: insertError } = await supabase
+        const { data: newBilling, error: insertError } = await supabase
             .from(TABLE)
             .insert({
                 business_id: businessId,
-                name: data.name,
-                title: data.title || 'Uzman',
-                specializations: data.specialties || [],
-                phone: data.phone || null,
-                email: null,
-                image_url: data.photoUrl || '',
-                is_active: data.isActive !== false,
+                patient_id: body.patientId || null,
+                appointment_id: body.appointmentId || null,
+                invoice_number: body.invoiceNumber || null,
+                subtotal: body.subtotal || null,
+                discount_amount: body.discountAmount || null,
+                total_amount: body.totalAmount,
+                payment_method: body.paymentMethod || null,
+                payment_status: body.paymentStatus || 'pending',
             })
             .select()
             .single();
-        
+
         if (insertError) throw insertError;
 
-        return NextResponse.json({ success: true, staffId: newStaff.id });
+        return NextResponse.json({ success: true, billingId: newBilling.id });
     } catch (error) {
-        console.error('[Beauty Staff] POST error:', error);
+        console.error('[Clinic Billing] POST error:', error);
         return NextResponse.json({ success: false, error: 'Server error' }, { status: 500 });
     }
 }
 
-// PUT - Update staff
 export async function PUT(request: Request) {
     try {
         const businessId = await getBusinessId();
@@ -172,42 +142,43 @@ export async function PUT(request: Request) {
         }
 
         const supabase = getSupabaseAdmin();
-        
+
         const { data: existingData, error: existingError } = await supabase
             .from(TABLE)
             .select('id')
             .eq('id', id)
             .eq('business_id', businessId)
             .single();
-        
+
         if (existingError || !existingData) {
-            return NextResponse.json({ success: false, error: 'Personel bulunamadı' }, { status: 404 });
+            return NextResponse.json({ success: false, error: 'Fatura bulunamadı' }, { status: 404 });
         }
 
         const updateObj: Record<string, unknown> = {};
-        if (updateData.name !== undefined) updateObj.name = updateData.name;
-        if (updateData.title !== undefined) updateObj.title = updateData.title;
-        if (updateData.photoUrl !== undefined) updateObj.image_url = updateData.photoUrl;
-        if (updateData.phone !== undefined) updateObj.phone = updateData.phone;
-        if (updateData.specialties !== undefined) updateObj.specializations = updateData.specialties;
-        if (updateData.isActive !== undefined) updateObj.is_active = updateData.isActive;
+        if (updateData.patientId !== undefined) updateObj.patient_id = updateData.patientId;
+        if (updateData.appointmentId !== undefined) updateObj.appointment_id = updateData.appointmentId;
+        if (updateData.invoiceNumber !== undefined) updateObj.invoice_number = updateData.invoiceNumber;
+        if (updateData.subtotal !== undefined) updateObj.subtotal = updateData.subtotal;
+        if (updateData.discountAmount !== undefined) updateObj.discount_amount = updateData.discountAmount;
+        if (updateData.totalAmount !== undefined) updateObj.total_amount = updateData.totalAmount;
+        if (updateData.paymentMethod !== undefined) updateObj.payment_method = updateData.paymentMethod;
+        if (updateData.paymentStatus !== undefined) updateObj.payment_status = updateData.paymentStatus;
 
         const { error: updateError } = await supabase
             .from(TABLE)
             .update(updateObj)
             .eq('id', id)
             .eq('business_id', businessId);
-        
+
         if (updateError) throw updateError;
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('[Beauty Staff] PUT error:', error);
+        console.error('[Clinic Billing] PUT error:', error);
         return NextResponse.json({ success: false, error: 'Server error' }, { status: 500 });
     }
 }
 
-// DELETE - Delete staff
 export async function DELETE(request: Request) {
     try {
         const businessId = await getBusinessId();
@@ -223,16 +194,16 @@ export async function DELETE(request: Request) {
         }
 
         const supabase = getSupabaseAdmin();
-        
+
         const { data: existingData, error: existingError } = await supabase
             .from(TABLE)
             .select('id')
             .eq('id', id)
             .eq('business_id', businessId)
             .single();
-        
+
         if (existingError || !existingData) {
-            return NextResponse.json({ success: false, error: 'Personel bulunamadı' }, { status: 404 });
+            return NextResponse.json({ success: false, error: 'Fatura bulunamadı' }, { status: 404 });
         }
 
         const { error: deleteError } = await supabase
@@ -240,12 +211,12 @@ export async function DELETE(request: Request) {
             .delete()
             .eq('id', id)
             .eq('business_id', businessId);
-        
+
         if (deleteError) throw deleteError;
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('[Beauty Staff] DELETE error:', error);
+        console.error('[Clinic Billing] DELETE error:', error);
         return NextResponse.json({ success: false, error: 'Server error' }, { status: 500 });
     }
 }

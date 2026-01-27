@@ -1,10 +1,10 @@
-// Beauty Services API - CRUD Operations
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { jwtVerify } from 'jose';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { requireAuth } from '@/lib/apiAuth';
-import { AppError, validateOrThrow } from '@/lib/errors';
-import { createServiceSchema } from '@/types/beauty';
+import { getSessionSecretBytes } from '@/lib/env';
 
-const TABLE = 'beauty_services';
+const TABLE = 'clinic_services';
 
 interface ServiceRow {
     id: string;
@@ -18,8 +18,6 @@ interface ServiceRow {
     duration_minutes: number | null;
     image_url: string | null;
     is_active: boolean;
-    is_featured: boolean;
-    tags: string[] | null;
     sort_order: number;
     created_at: string;
     updated_at: string;
@@ -37,23 +35,33 @@ function mapService(row: ServiceRow) {
         duration: row.duration_minutes,
         images: row.image_url ? [row.image_url] : [],
         isActive: row.is_active,
-        isFeatured: row.is_featured,
-        tags: row.tags || [],
         sortOrder: row.sort_order,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
     };
 }
 
-// GET - List services with optional filters
+const getJwtSecret = () => getSessionSecretBytes();
+
+async function getBusinessId(): Promise<string | null> {
+    try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get("tikprofil_owner_session")?.value;
+        if (!token) return null;
+        const { payload } = await jwtVerify(token, getJwtSecret());
+        return payload.businessId as string || null;
+    } catch {
+        return null;
+    }
+}
+
 export async function GET(request: Request) {
     try {
-        const authResult = await requireAuth();
-        if (!authResult.authorized || !authResult.user) {
-            return AppError.unauthorized().toResponse();
+        const businessId = await getBusinessId();
+        if (!businessId) {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
 
-        const businessId = authResult.user.businessId;
         const { searchParams } = new URL(request.url);
         const categoryId = searchParams.get('categoryId');
 
@@ -67,85 +75,85 @@ export async function GET(request: Request) {
             query = query.eq('category_id', categoryId);
         }
 
-        const { data, error } = await query.order('created_at', { ascending: false });
+        const { data, error } = await query.order('sort_order', { ascending: true });
 
         if (error) throw error;
 
         const services = (data || []).map(mapService);
 
-        return Response.json({ success: true, services });
+        return NextResponse.json({ success: true, services });
     } catch (error) {
-        return AppError.toResponse(error, 'Beauty Services GET');
+        console.error('[Clinic Services] GET error:', error);
+        return NextResponse.json({ success: false, error: 'Server error' }, { status: 500 });
     }
 }
 
-// POST - Create service
 export async function POST(request: Request) {
     try {
-        const authResult = await requireAuth();
-        if (!authResult.authorized || !authResult.user) {
-            return AppError.unauthorized().toResponse();
+        const businessId = await getBusinessId();
+        if (!businessId) {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
 
-        const businessId = authResult.user.businessId;
         const body = await request.json();
 
-        const data = validateOrThrow(createServiceSchema, body);
+        if (!body.name || !body.price) {
+            return NextResponse.json({ success: false, error: 'Hizmet adı ve fiyat zorunlu' }, { status: 400 });
+        }
 
         const supabase = getSupabaseAdmin();
         const { data: newService, error: insertError } = await supabase
             .from(TABLE)
             .insert({
                 business_id: businessId,
-                category_id: data.categoryId,
-                name: data.name,
-                description: data.description || null,
-                price: data.price,
-                duration_minutes: data.duration,
-                image_url: data.images?.[0] || null,
-                is_active: data.isActive !== false,
-                is_featured: false,
-                tags: [],
+                category_id: body.categoryId || null,
+                name: body.name,
+                name_en: body.nameEn || null,
+                description: body.description || null,
+                description_en: body.descriptionEn || null,
+                price: body.price,
+                duration_minutes: body.duration || null,
+                image_url: body.images?.[0] || null,
+                is_active: body.isActive !== false,
                 sort_order: 0,
             })
             .select()
             .single();
-        
+
         if (insertError) throw insertError;
 
-        return Response.json({ success: true, serviceId: newService.id });
+        return NextResponse.json({ success: true, serviceId: newService.id });
     } catch (error) {
-        return AppError.toResponse(error, 'Beauty Services POST');
+        console.error('[Clinic Services] POST error:', error);
+        return NextResponse.json({ success: false, error: 'Server error' }, { status: 500 });
     }
 }
 
-// PUT - Update service
 export async function PUT(request: Request) {
     try {
-        const authResult = await requireAuth();
-        if (!authResult.authorized || !authResult.user) {
-            return AppError.unauthorized().toResponse();
+        const businessId = await getBusinessId();
+        if (!businessId) {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
 
-        const businessId = authResult.user.businessId;
         const body = await request.json();
         const { id, ...updateData } = body;
 
         if (!id) {
-            return AppError.badRequest('ID zorunlu').toResponse();
+            return NextResponse.json({ success: false, error: 'ID zorunlu' }, { status: 400 });
         }
 
         const supabase = getSupabaseAdmin();
-        
+
         const { data: existingData, error: existingError } = await supabase
             .from(TABLE)
             .select('id')
             .eq('id', id)
             .eq('business_id', businessId)
             .single();
-        
+
         if (existingError || !existingData) {
-            return AppError.notFound('Hizmet').toResponse();
+            return NextResponse.json({ success: false, error: 'Hizmet bulunamadı' }, { status: 404 });
         }
 
         const updateObj: Record<string, unknown> = {};
@@ -156,8 +164,6 @@ export async function PUT(request: Request) {
         if (updateData.duration !== undefined) updateObj.duration_minutes = updateData.duration;
         if (updateData.images !== undefined) updateObj.image_url = updateData.images?.[0] || null;
         if (updateData.isActive !== undefined) updateObj.is_active = updateData.isActive;
-        if (updateData.isFeatured !== undefined) updateObj.is_featured = updateData.isFeatured;
-        if (updateData.tags !== undefined) updateObj.tags = updateData.tags;
         if (updateData.sortOrder !== undefined) updateObj.sort_order = updateData.sortOrder;
 
         const { error: updateError } = await supabase
@@ -165,42 +171,41 @@ export async function PUT(request: Request) {
             .update(updateObj)
             .eq('id', id)
             .eq('business_id', businessId);
-        
+
         if (updateError) throw updateError;
 
-        return Response.json({ success: true });
+        return NextResponse.json({ success: true });
     } catch (error) {
-        return AppError.toResponse(error, 'Beauty Services PUT');
+        console.error('[Clinic Services] PUT error:', error);
+        return NextResponse.json({ success: false, error: 'Server error' }, { status: 500 });
     }
 }
 
-// DELETE - Delete service
 export async function DELETE(request: Request) {
     try {
-        const authResult = await requireAuth();
-        if (!authResult.authorized || !authResult.user) {
-            return AppError.unauthorized().toResponse();
+        const businessId = await getBusinessId();
+        if (!businessId) {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
 
-        const businessId = authResult.user.businessId;
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
 
         if (!id) {
-            return AppError.badRequest('ID zorunlu').toResponse();
+            return NextResponse.json({ success: false, error: 'ID zorunlu' }, { status: 400 });
         }
 
         const supabase = getSupabaseAdmin();
-        
+
         const { data: existingData, error: existingError } = await supabase
             .from(TABLE)
             .select('id')
             .eq('id', id)
             .eq('business_id', businessId)
             .single();
-        
+
         if (existingError || !existingData) {
-            return AppError.notFound('Hizmet').toResponse();
+            return NextResponse.json({ success: false, error: 'Hizmet bulunamadı' }, { status: 404 });
         }
 
         const { error: deleteError } = await supabase
@@ -208,11 +213,12 @@ export async function DELETE(request: Request) {
             .delete()
             .eq('id', id)
             .eq('business_id', businessId);
-        
+
         if (deleteError) throw deleteError;
 
-        return Response.json({ success: true });
+        return NextResponse.json({ success: true });
     } catch (error) {
-        return AppError.toResponse(error, 'Beauty Services DELETE');
+        console.error('[Clinic Services] DELETE error:', error);
+        return NextResponse.json({ success: false, error: 'Server error' }, { status: 500 });
     }
 }

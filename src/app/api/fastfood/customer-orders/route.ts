@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCollectionREST, getDocumentREST } from '@/lib/firestoreREST';
+import { getCollectionREST, getDocumentREST } from '@/lib/documentStore';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';

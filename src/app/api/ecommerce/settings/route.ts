@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDocumentREST, createDocumentREST, updateDocumentREST } from '@/lib/documentStore';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { settingsSchema } from '@/types/ecommerce';
-import type { EcommerceSettings } from '@/types/ecommerce';
 
-const COLLECTION = 'ecommerce_settings';
+const TABLE = 'ecommerce_settings';
 
-// Default settings factory
-function getDefaultSettings(businessId: string): EcommerceSettings {
+function getDefaultSettings(businessId: string) {
     return {
         id: businessId,
         storeName: 'Mağazam',
@@ -58,40 +56,43 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Business ID required' }, { status: 400 });
         }
 
-        // Try to get existing settings
-        const settings = await getDocumentREST(COLLECTION, businessId);
-
-        if (!settings) {
-            // Return default settings if none exist
+        const supabase = getSupabaseAdmin();
+        const { data, error } = await supabase
+            .from(TABLE)
+            .select('*')
+            .eq('business_id', businessId)
+            .single();
+        
+        if (error || !data) {
             const defaults = getDefaultSettings(businessId);
             return NextResponse.json(defaults);
         }
 
         return NextResponse.json({
             id: businessId,
-            storeName: settings.storeName || 'Mağazam',
-            storeDescription: settings.storeDescription || '',
-            currency: settings.currency || 'TRY',
-            minOrderAmount: settings.minOrderAmount || 0,
-            freeShippingThreshold: settings.freeShippingThreshold || undefined,
-            taxRate: settings.taxRate || 0,
-            shippingOptions: settings.shippingOptions || [],
-            paymentMethods: settings.paymentMethods || {
+            storeName: data.store_name || 'Mağazam',
+            storeDescription: data.store_description || '',
+            currency: data.currency || 'TRY',
+            minOrderAmount: typeof data.min_order_amount === 'string' ? parseFloat(data.min_order_amount) : (data.min_order_amount || 0),
+            freeShippingThreshold: data.free_shipping_threshold ? (typeof data.free_shipping_threshold === 'string' ? parseFloat(data.free_shipping_threshold) : data.free_shipping_threshold) : undefined,
+            taxRate: typeof data.tax_rate === 'string' ? parseFloat(data.tax_rate) : (data.tax_rate || 0),
+            shippingOptions: data.shipping_options || [],
+            paymentMethods: data.payment_methods || {
                 cash: true,
                 card: false,
                 transfer: false,
                 online: false,
             },
-            orderNotifications: settings.orderNotifications || {
+            orderNotifications: data.order_notifications || {
                 email: false,
                 whatsapp: true,
             },
-            stockSettings: settings.stockSettings || {
+            stockSettings: data.stock_settings || {
                 trackStock: true,
                 allowBackorder: false,
                 lowStockThreshold: 5,
             },
-            checkoutSettings: settings.checkoutSettings || {
+            checkoutSettings: data.checkout_settings || {
                 requirePhone: true,
                 requireEmail: false,
                 requireAddress: true,
@@ -117,7 +118,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Business ID required' }, { status: 400 });
         }
 
-        // Validate with Zod
         const validationResult = settingsSchema.safeParse(settingsData);
         if (!validationResult.success) {
             return NextResponse.json(
@@ -128,24 +128,58 @@ export async function POST(request: NextRequest) {
 
         const validData = validationResult.data;
 
-        // Check if settings already exist
-        const existingSettings = await getDocumentREST(COLLECTION, businessId);
+        const supabase = getSupabaseAdmin();
+        const { data: existingData, error: existingError } = await supabase
+            .from(TABLE)
+            .select('business_id')
+            .eq('business_id', businessId)
+            .single();
 
         const dataToSave = {
-            ...validData,
-            businessId,
-            updatedAt: new Date().toISOString(),
+            business_id: businessId,
+            store_name: validData.storeName || 'Mağazam',
+            store_description: validData.storeDescription || null,
+            currency: validData.currency || 'TRY',
+            min_order_amount: validData.minOrderAmount || 0,
+            free_shipping_threshold: validData.freeShippingThreshold || null,
+            tax_rate: validData.taxRate || 0,
+            shipping_options: validData.shippingOptions || [],
+            payment_methods: validData.paymentMethods || {
+                cash: true,
+                card: false,
+                transfer: false,
+                online: false,
+            },
+            order_notifications: validData.orderNotifications || {
+                email: false,
+                whatsapp: true,
+            },
+            stock_settings: validData.stockSettings || {
+                trackStock: true,
+                allowBackorder: false,
+                lowStockThreshold: 5,
+            },
+            checkout_settings: validData.checkoutSettings || {
+                requirePhone: true,
+                requireEmail: false,
+                requireAddress: true,
+                allowNotes: true,
+            },
         };
 
-        if (existingSettings) {
-            // Update existing
-            await updateDocumentREST(COLLECTION, businessId, dataToSave);
+        if (!existingError && existingData) {
+            const { error: updateError } = await supabase
+                .from(TABLE)
+                .update(dataToSave)
+                .eq('business_id', businessId);
+            
+            if (updateError) throw updateError;
         } else {
-            // Create new with specific ID
-            await createDocumentREST(COLLECTION, {
-                ...dataToSave,
-                createdAt: new Date().toISOString(),
-            }, businessId);
+            const { error: insertError } = await supabase
+                .from(TABLE)
+                .insert(dataToSave);
+            
+            if (insertError) throw insertError;
         }
 
         return NextResponse.json({

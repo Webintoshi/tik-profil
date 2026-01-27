@@ -152,14 +152,31 @@ export function subscribeToIndustryDefinitions(
 export async function createIndustryDefinition(
     data: Omit<IndustryDefinition, "id" | "createdAt">
 ): Promise<string> {
-    const { createDocumentREST } = await import('./documentStore');
+    const isServer = typeof window === 'undefined';
 
-    try {
-        const docId = await createDocumentREST(INDUSTRY_DEFINITIONS_COLLECTION, data as Record<string, unknown>);
-        return docId;
-    } catch (error) {
-        console.error("REST API error:", error);
-        throw error;
+    if (isServer) {
+        const { createDocumentREST } = await import('./documentStore');
+        try {
+            const docId = await createDocumentREST(INDUSTRY_DEFINITIONS_COLLECTION, data as Record<string, unknown>);
+            return docId;
+        } catch (error) {
+            console.error("REST API error:", error);
+            throw error;
+        }
+    } else {
+        const response = await fetch('/api/admin/industries', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to create industry definition');
+        }
+
+        return result.industry.id;
     }
 }
 
@@ -168,25 +185,53 @@ export async function updateIndustryDefinition(
     id: string,
     data: Partial<Omit<IndustryDefinition, "id" | "createdAt">>
 ): Promise<void> {
-    const { updateDocumentREST } = await import('./documentStore');
+    const isServer = typeof window === 'undefined';
 
-    try {
-        await updateDocumentREST(INDUSTRY_DEFINITIONS_COLLECTION, id, data as Record<string, unknown>);
-    } catch (error) {
-        console.error("REST API error:", error);
-        throw error;
+    if (isServer) {
+        const { updateDocumentREST } = await import('./documentStore');
+        try {
+            await updateDocumentREST(INDUSTRY_DEFINITIONS_COLLECTION, id, data as Record<string, unknown>);
+        } catch (error) {
+            console.error("REST API error:", error);
+            throw error;
+        }
+    } else {
+        const response = await fetch('/api/admin/industries', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, ...data }),
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to update industry definition');
+        }
     }
 }
 
 // Delete industry definition (REST API)
 export async function deleteIndustryDefinition(id: string): Promise<void> {
-    const { deleteDocumentREST } = await import('./documentStore');
+    const isServer = typeof window === 'undefined';
 
-    try {
-        await deleteDocumentREST(INDUSTRY_DEFINITIONS_COLLECTION, id);
-    } catch (error) {
-        console.error("REST API error:", error);
-        throw error;
+    if (isServer) {
+        const { deleteDocumentREST } = await import('./documentStore');
+        try {
+            await deleteDocumentREST(INDUSTRY_DEFINITIONS_COLLECTION, id);
+        } catch (error) {
+            console.error("REST API error:", error);
+            throw error;
+        }
+    } else {
+        const response = await fetch(`/api/admin/industries?id=${id}`, {
+            method: 'DELETE',
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to delete industry definition');
+        }
     }
 }
 

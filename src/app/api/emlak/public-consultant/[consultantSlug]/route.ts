@@ -52,7 +52,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
         // Find consultant by slug within this business
         const { data: consultantRows, error: consultantError } = await supabase
-            .from('firestore_documents')
+            .from('app_documents')
             .select('id,data')
             .eq('collection', CONSULTANTS_COLLECTION)
             .eq('data->>businessId', business.id)
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
         // Get listings for this consultant
         const { data: listingRows, error: listingsError } = await supabase
-            .from('firestore_documents')
+            .from('app_documents')
             .select('id,data')
             .eq('collection', LISTINGS_COLLECTION)
             .eq('data->>businessId', business.id)

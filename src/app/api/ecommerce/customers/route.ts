@@ -1,17 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-    getCollectionREST,
-    getDocumentREST,
-    createDocumentREST,
-    updateDocumentREST,
-    deleteDocumentREST
-} from '@/lib/documentStore';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { AppError, validateOrThrow } from '@/lib/errors';
 import { customerSchema } from '@/types/ecommerce';
-import type { Customer } from '@/types/ecommerce';
 
-const COLLECTION = 'ecommerce_customers';
+const TABLE = 'ecommerce_customers';
 
-// GET: List customers or get single customer
+interface CustomerRow {
+    id: string;
+    business_id: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
+    city: string | null;
+    country: string | null;
+    postal_code: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+function mapCustomer(row: CustomerRow) {
+    return {
+        id: row.id,
+        businessId: row.business_id,
+        name: row.name,
+        email: row.email,
+        phone: row.phone,
+        address: row.address,
+        city: row.city,
+        country: row.country,
+        postalCode: row.postal_code,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    };
+}
+
 export async function GET(request: NextRequest) {
     try {
         const searchParams = request.nextUrl.searchParams;
@@ -23,33 +46,39 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Business ID required' }, { status: 400 });
         }
 
-        // Get single customer
+        const supabase = getSupabaseAdmin();
+
         if (customerId) {
-            const customer = await getDocumentREST(COLLECTION, customerId);
-            if (!customer || customer.businessId !== businessId) {
+            const { data, error } = await supabase
+                .from(TABLE)
+                .select('*')
+                .eq('id', customerId)
+                .eq('business_id', businessId)
+                .single();
+
+            if (error || !data) {
                 return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
             }
-            return NextResponse.json(customer);
+
+            return NextResponse.json(mapCustomer(data));
         }
 
-        // Get all customers for business
-        const allCustomers = await getCollectionREST(COLLECTION) as unknown as Customer[];
-        let customers = allCustomers.filter(c => c.businessId === businessId);
+        let query = supabase
+            .from(TABLE)
+            .select('*')
+            .eq('business_id', businessId);
 
-        // Search if provided
         if (search) {
-            const searchLower = search.toLowerCase();
-            customers = customers.filter(c =>
-                c.name.toLowerCase().includes(searchLower) ||
-                c.email.toLowerCase().includes(searchLower) ||
-                c.phone.includes(search)
-            );
+            query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
         }
 
-        // Sort by totalSpent descending
-        customers.sort((a, b) => (b.totalSpent || 0) - (a.totalSpent || 0));
+        query = query.order('created_at', { ascending: false });
 
-        // Calculate stats
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const customers = (data || []).map(mapCustomer);
+
         const stats = {
             total: customers.length,
             totalRevenue: customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0),
@@ -69,7 +98,6 @@ export async function GET(request: NextRequest) {
     }
 }
 
-// POST: Create new customer
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
@@ -79,40 +107,44 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Business ID required' }, { status: 400 });
         }
 
-        // Validate
-        const validation = customerSchema.safeParse(customerData);
-        if (!validation.success) {
-            return NextResponse.json({
-                error: validation.error.issues[0].message
-            }, { status: 400 });
-        }
+        validateOrThrow(customerSchema, customerData);
 
-        const data = validation.data;
+        const supabase = getSupabaseAdmin();
 
-        // Check for duplicate phone in same business
-        const allCustomers = await getCollectionREST(COLLECTION) as unknown as Customer[];
-        const duplicate = allCustomers.find(
-            c => c.businessId === businessId && c.phone === data.phone
-        );
-        if (duplicate) {
+        const { data: existingCustomers, error: checkError } = await supabase
+            .from(TABLE)
+            .select('phone')
+            .eq('business_id', businessId)
+            .eq('phone', customerData.phone)
+            .range(0, 0);
+
+        if (checkError) throw checkError;
+
+        if (existingCustomers && existingCustomers.length > 0) {
             return NextResponse.json({ error: 'Bu telefon numarası zaten kayıtlı' }, { status: 400 });
         }
 
-        const newCustomer = {
-            ...data,
-            businessId,
-            totalOrders: 0,
-            totalSpent: 0,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        };
+        const { data, error } = await supabase
+            .from(TABLE)
+            .insert({
+                business_id: businessId,
+                name: customerData.name,
+                email: customerData.email,
+                phone: customerData.phone,
+                address: customerData.address,
+                city: customerData.city,
+                country: customerData.country,
+                postal_code: customerData.postalCode,
+            })
+            .select()
+            .single();
 
-        const id = await createDocumentREST(COLLECTION, newCustomer);
+        if (error) throw error;
 
         return NextResponse.json({
             success: true,
-            id,
-            customer: { id, ...newCustomer }
+            id: data.id,
+            customer: mapCustomer(data)
         });
     } catch (error) {
         console.error('[Ecommerce Customers POST Error]:', error);
@@ -123,7 +155,6 @@ export async function POST(request: NextRequest) {
     }
 }
 
-// PUT: Update customer
 export async function PUT(request: NextRequest) {
     try {
         const body = await request.json();
@@ -133,37 +164,52 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'Business ID and Customer ID required' }, { status: 400 });
         }
 
-        // Check customer exists and belongs to business
-        const existing = await getDocumentREST(COLLECTION, id);
-        if (!existing || existing.businessId !== businessId) {
+        const supabase = getSupabaseAdmin();
+
+        const { data: existing, error: checkError } = await supabase
+            .from(TABLE)
+            .select('*')
+            .eq('id', id)
+            .eq('business_id', businessId)
+            .single();
+
+        if (checkError || !existing) {
             return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
         }
 
-        // Validate
-        const validation = customerSchema.partial().safeParse(updateData);
-        if (!validation.success) {
-            return NextResponse.json({
-                error: validation.error.issues[0].message
-            }, { status: 400 });
-        }
+        if (updateData.phone && updateData.phone !== existing.phone) {
+            const { data: existingCustomers, error: duplicateError } = await supabase
+                .from(TABLE)
+                .select('id')
+                .eq('business_id', businessId)
+                .eq('phone', updateData.phone)
+                .neq('id', id)
+                .range(0, 0);
 
-        const data = validation.data;
+            if (duplicateError) throw duplicateError;
 
-        // Check for duplicate phone if phone changed
-        if (data.phone && data.phone !== existing.phone) {
-            const allCustomers = await getCollectionREST(COLLECTION) as unknown as Customer[];
-            const duplicate = allCustomers.find(
-                c => c.businessId === businessId && c.phone === data.phone && c.id !== id
-            );
-            if (duplicate) {
+            if (existingCustomers && existingCustomers.length > 0) {
                 return NextResponse.json({ error: 'Bu telefon numarası zaten kayıtlı' }, { status: 400 });
             }
         }
 
-        await updateDocumentREST(COLLECTION, id, {
-            ...data,
-            updatedAt: new Date().toISOString(),
-        });
+        const { data, error } = await supabase
+            .from(TABLE)
+            .update({
+                name: updateData.name,
+                email: updateData.email,
+                phone: updateData.phone,
+                address: updateData.address,
+                city: updateData.city,
+                country: updateData.country,
+                postal_code: updateData.postalCode,
+            })
+            .eq('id', id)
+            .eq('business_id', businessId)
+            .select()
+            .single();
+
+        if (error) throw error;
 
         return NextResponse.json({ success: true });
     } catch (error) {
@@ -175,7 +221,6 @@ export async function PUT(request: NextRequest) {
     }
 }
 
-// DELETE: Delete customer
 export async function DELETE(request: NextRequest) {
     try {
         const searchParams = request.nextUrl.searchParams;
@@ -186,13 +231,26 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Business ID and Customer ID required' }, { status: 400 });
         }
 
-        // Check customer exists and belongs to business
-        const existing = await getDocumentREST(COLLECTION, id);
-        if (!existing || existing.businessId !== businessId) {
+        const supabase = getSupabaseAdmin();
+
+        const { data: existing, error: checkError } = await supabase
+            .from(TABLE)
+            .select('id, business_id')
+            .eq('id', id)
+            .eq('business_id', businessId)
+            .single();
+
+        if (checkError || !existing) {
             return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
         }
 
-        await deleteDocumentREST(COLLECTION, id);
+        const { error } = await supabase
+            .from(TABLE)
+            .delete()
+            .eq('id', id)
+            .eq('business_id', businessId);
+
+        if (error) throw error;
 
         return NextResponse.json({ success: true });
     } catch (error) {
