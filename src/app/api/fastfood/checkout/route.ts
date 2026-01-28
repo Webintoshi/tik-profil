@@ -93,7 +93,7 @@ export async function POST(request: Request) {
 
         const data = validation.data;
 
-        const businesses = await getCollectionREST<Record<string, unknown>>('businesses');
+        const businesses = await getCollectionREST('businesses');
         const business = businesses.find((b) => {
             const slug = (b as { slug?: string }).slug;
             return typeof slug === "string" && slug.toLowerCase() === data.businessSlug.toLowerCase();
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
             }, { status: 404 });
         }
 
-        const settings = await getCollectionREST<Record<string, unknown>>('ff_settings');
+        const settings = await getCollectionREST('ff_settings');
         const businessSettings = settings.find((s) => (s as { businessId?: string }).businessId === businessId) as {
             deliveryFee?: number;
             minOrderAmount?: number;
@@ -141,7 +141,7 @@ export async function POST(request: Request) {
         let appliedCoupon = null;
 
         if (data.couponCode) {
-            const coupons = await getCollectionREST<Record<string, unknown>>('ff_coupons');
+            const coupons = await getCollectionREST('ff_coupons');
             const coupon = coupons.find((c) => {
                 const couponBusinessId = (c as { businessId?: string }).businessId;
                 const code = (c as { code?: string }).code;

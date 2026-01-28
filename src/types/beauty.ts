@@ -9,6 +9,7 @@ import { z } from 'zod';
 export const serviceCategorySchema = z.object({
     name: z.string().min(1, 'Kategori adı zorunlu').max(100),
     icon: z.string().max(50).optional(),
+    imageUrl: z.string().url().optional().or(z.literal('')),
     order: z.number().min(0).default(0),
     isActive: z.boolean().default(true),
 });

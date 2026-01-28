@@ -15,6 +15,8 @@ interface CustomerRow {
     city: string | null;
     country: string | null;
     postal_code: string | null;
+    total_spent: number | null;
+    total_orders: number | null;
     created_at: string;
     updated_at: string;
 }
@@ -30,6 +32,8 @@ function mapCustomer(row: CustomerRow) {
         city: row.city,
         country: row.country,
         postalCode: row.postal_code,
+        totalSpent: row.total_spent || 0,
+        totalOrders: row.total_orders || 0,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
     };

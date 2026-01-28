@@ -321,14 +321,21 @@ export const customerSchema = z.object({
 
 export const couponSchema = z.object({
     code: z.string().min(3).max(20).toUpperCase(),
+    title: z.string().min(1).max(100),
+    description: z.string().max(500).optional(),
     type: z.enum(['percentage', 'fixed']),
     value: z.number().positive(),
     minOrderAmount: z.number().positive().optional(),
     maxDiscount: z.number().positive().optional(),
     usageLimit: z.number().int().positive().optional(),
+    usagePerUser: z.number().int().positive().optional(),
     startDate: z.date().optional(),
     endDate: z.date().optional(),
     status: z.enum(['active', 'inactive']).default('active'),
+    isPublic: z.boolean().default(true),
+    isFirstOrderOnly: z.boolean().default(false),
+    applicableCategoryIds: z.array(z.string()).optional(),
+    applicableProductIds: z.array(z.string()).optional(),
 });
 
 export const checkoutSchema = z.object({
