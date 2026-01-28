@@ -71,9 +71,18 @@ const INDUSTRY_ACTIONS: Record<string, { label: string; icon: string }> = {
     "hostel": { label: "Odaları Gör", icon: "building" },
     "boutique": { label: "Odaları Gör", icon: "building" },
     "aparthotel": { label: "Odaları Gör", icon: "building" },
-    "health": { label: "Randevu Al", icon: "calendar" },
+    "health": { label: "Hizmetler", icon: "calendar" },
     "beauty": { label: "Randevu Al", icon: "scissors" },
-    "clinic": { label: "Randevu Al", icon: "stethoscope" },
+    "clinic": { label: "Hizmetler", icon: "stethoscope" },
+    "hospital": { label: "Hizmetler", icon: "stethoscope" },
+    "dentist": { label: "Hizmetler", icon: "stethoscope" },
+    "veteriner": { label: "Hizmetler", icon: "stethoscope" },
+    "pharmacy": { label: "Hizmetler", icon: "stethoscope" },
+    "optik": { label: "Hizmetler", icon: "stethoscope" },
+    "physiotherapy": { label: "Hizmetler", icon: "stethoscope" },
+    "psychology": { label: "Hizmetler", icon: "stethoscope" },
+    "nutrition": { label: "Hizmetler", icon: "stethoscope" },
+    "laboratory": { label: "Hizmetler", icon: "stethoscope" },
     "salon": { label: "Randevu Al", icon: "scissors" },
     "barber": { label: "Randevu Al", icon: "scissors" },
     "spa": { label: "Randevu Al", icon: "calendar" },
@@ -473,8 +482,55 @@ async function getBusinessBySlug(slug: string): Promise<Business | null> {
             .replace(/ö/g, "o").replace(/ç/g, "c").replace(/ı/g, "i")
             .replace(/\s+/g, "").replace(/-/g, "");
 
-        // Use first module as industry, or normalized label, or default
-        const derivedIndustry = modulesArr[0] || normalizedLabel || "default";
+        // Check for clinic/health modules first
+        const clinicModules = ["clinic", "hospital", "dentist", "veteriner", "pharmacy", "optik", "physiotherapy", "psychology", "nutrition", "laboratory"];
+        const foundClinicModule = modulesArr.find(m => clinicModules.includes(m.toLowerCase()));
+        
+        // Check for beauty modules
+        const beautyModules = ["beauty", "salon", "guzellik", "kuafor", "spa", "barber"];
+        const foundBeautyModule = modulesArr.find(m => beautyModules.includes(m.toLowerCase()));
+        
+        // Check for hotel modules
+        const hotelModules = ["hotel", "otel", "hostel", "boutique", "aparthotel"];
+        const foundHotelModule = modulesArr.find(m => hotelModules.includes(m.toLowerCase()));
+        
+        // Check for restaurant/food modules
+        const restaurantModules = ["restaurant", "restoran", "cafe", "kafe"];
+        const foundRestaurantModule = modulesArr.find(m => restaurantModules.includes(m.toLowerCase()));
+        
+        // Check for fastfood modules
+        const fastfoodModules = ["fastfood", "fast-food"];
+        const foundFastfoodModule = modulesArr.find(m => fastfoodModules.includes(m.toLowerCase()));
+        
+        // Check for emlak modules
+        const emlakModules = ["emlak", "realestate", "real-estate", "gayrimenkul"];
+        const foundEmlakModule = modulesArr.find(m => emlakModules.includes(m.toLowerCase()));
+        
+        // Check for ecommerce modules
+        const ecommerceModules = ["ecommerce", "e-commerce", "magaza", "shop", "store"];
+        const foundEcommerceModule = modulesArr.find(m => ecommerceModules.includes(m.toLowerCase()));
+
+        // Determine industry based on module priority
+        let derivedIndustry = "default";
+        if (foundClinicModule) {
+            derivedIndustry = "clinic";
+        } else if (foundBeautyModule) {
+            derivedIndustry = "beauty";
+        } else if (foundHotelModule) {
+            derivedIndustry = "hotel";
+        } else if (foundRestaurantModule) {
+            derivedIndustry = "restaurant";
+        } else if (foundFastfoodModule) {
+            derivedIndustry = "fastfood";
+        } else if (foundEmlakModule) {
+            derivedIndustry = "emlak";
+        } else if (foundEcommerceModule) {
+            derivedIndustry = "ecommerce";
+        } else if (modulesArr.length > 0) {
+            derivedIndustry = modulesArr[0];
+        } else if (normalizedLabel) {
+            derivedIndustry = normalizedLabel;
+        }
 
         return {
             id: (business.id as string) || '',

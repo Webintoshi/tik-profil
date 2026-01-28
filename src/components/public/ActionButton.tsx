@@ -6,6 +6,7 @@ import { ReservationModal } from "./ReservationModal";
 import { InlineMenu } from "./InlineMenu";
 import { EmlakListingsSheet } from "./EmlakListingsSheet";
 import BeautyServicesSheet from "./BeautyServicesSheet";
+import ClinicServicesSheet from "./ClinicServicesSheet";
 import EcommerceSheet from "./EcommerceSheet";
 import { HotelInlineMenu } from "./HotelInlineMenu";
 import { prefetchMenuData } from "@/lib/menuCache";
@@ -53,9 +54,18 @@ const INDUSTRY_ACTIONS: Record<string, { label: string; icon: string; type: "res
     "kuafor": { label: "Hizmetler", icon: "scissors", type: "beauty-menu" },
     "spa": { label: "Hizmetler", icon: "scissors", type: "beauty-menu" },
     "barber": { label: "Hizmetler", icon: "scissors", type: "beauty-menu" },
-    // Other types
-    "health": { label: "Randevu Al", icon: "calendar", type: "reservation" },
-    "clinic": { label: "Randevu Al", icon: "stethoscope", type: "reservation" },
+    // Health & Clinic types - inline menu for services
+    "health": { label: "Hizmetler", icon: "calendar", type: "clinic-menu" },
+    "clinic": { label: "Hizmetler", icon: "stethoscope", type: "clinic-menu" },
+    "hospital": { label: "Hizmetler", icon: "stethoscope", type: "clinic-menu" },
+    "dentist": { label: "Hizmetler", icon: "stethoscope", type: "clinic-menu" },
+    "veteriner": { label: "Hizmetler", icon: "stethoscope", type: "clinic-menu" },
+    "pharmacy": { label: "Hizmetler", icon: "stethoscope", type: "clinic-menu" },
+    "optik": { label: "Hizmetler", icon: "stethoscope", type: "clinic-menu" },
+    "physiotherapy": { label: "Hizmetler", icon: "stethoscope", type: "clinic-menu" },
+    "psychology": { label: "Hizmetler", icon: "stethoscope", type: "clinic-menu" },
+    "nutrition": { label: "Hizmetler", icon: "stethoscope", type: "clinic-menu" },
+    "laboratory": { label: "Hizmetler", icon: "stethoscope", type: "clinic-menu" },
     "default": { label: "İletişime Geç", icon: "phone", type: "call" },
 };
 
@@ -64,6 +74,7 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
     const [showInlineMenu, setShowInlineMenu] = useState(false);
     const [showEmlakSheet, setShowEmlakSheet] = useState(false);
     const [showBeautySheet, setShowBeautySheet] = useState(false);
+    const [showClinicSheet, setShowClinicSheet] = useState(false);
     const [showFastFoodMenu, setShowFastFoodMenu] = useState(false);
     const [showRestaurantMenu, setShowRestaurantMenu] = useState(false);
     const [showEcommerceSheet, setShowEcommerceSheet] = useState(false);
@@ -132,6 +143,8 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
             setShowEmlakSheet(!showEmlakSheet);
         } else if (action.type === "beauty-menu") {
             setShowBeautySheet(!showBeautySheet);
+        } else if (action.type === "clinic-menu") {
+            setShowClinicSheet(!showClinicSheet);
         } else if (action.type === "fastfood-menu") {
             setShowFastFoodMenu(!showFastFoodMenu);
         } else if (action.type === "restaurant-menu") {
@@ -260,6 +273,39 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
                         isOpen={showBeautySheet}
                         businessSlug={businessSlug}
                         onClose={() => setShowBeautySheet(false)}
+                    />
+                )}
+            </>
+        );
+    }
+
+    // For clinic-menu type, render button + ClinicServicesSheet
+    if (action.type === "clinic-menu") {
+        return (
+            <>
+                {/* Button */}
+                <button
+                    onClick={handleClick}
+                    className="
+                        h-14 rounded-2xl flex items-center justify-center gap-2 font-bold text-white text-sm md:text-base
+                        bg-purple-600 shadow-lg shadow-purple-500/25
+                        transition-transform active:scale-95 hover:bg-purple-700
+                    "
+                >
+                    {renderIcon()}
+                    {action.label}
+                    <ChevronDown className={clsx(
+                        "w-4 h-4 transition-transform",
+                        showClinicSheet && "rotate-180"
+                    )} />
+                </button>
+
+                {/* Clinic Services Sheet */}
+                {businessSlug && (
+                    <ClinicServicesSheet
+                        isOpen={showClinicSheet}
+                        businessSlug={businessSlug}
+                        onClose={() => setShowClinicSheet(false)}
                     />
                 )}
             </>

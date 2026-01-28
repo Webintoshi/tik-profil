@@ -158,15 +158,50 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         icon: "Stethoscope",
         permissions: [
             {
+                id: "clinic.dashboard",
+                label: "Klinik Dashboard",
+                routes: ["/panel/clinic"],
+            },
+            {
+                id: "clinic.appointments",
+                label: "Randevular",
+                routes: ["/panel/clinic/appointments"],
+            },
+            {
                 id: "clinic.patients",
                 label: "Hasta Kayıtları",
                 routes: ["/panel/clinic/patients"],
                 minRole: "manager", // Sensitive data
             },
             {
-                id: "clinic.appointments",
-                label: "Randevular",
-                routes: ["/panel/clinic/appointments"],
+                id: "clinic.categories",
+                label: "Kategoriler",
+                routes: ["/panel/clinic/categories"],
+            },
+            {
+                id: "clinic.services",
+                label: "Hizmetler",
+                routes: ["/panel/clinic/services"],
+            },
+            {
+                id: "clinic.staff",
+                label: "Personel",
+                routes: ["/panel/clinic/staff"],
+            },
+            {
+                id: "clinic.billing",
+                label: "Fatura & Ödeme",
+                routes: ["/panel/clinic/billing"],
+            },
+            {
+                id: "clinic.analytics",
+                label: "Analizler",
+                routes: ["/panel/clinic/analytics"],
+            },
+            {
+                id: "clinic.settings",
+                label: "Ayarlar",
+                routes: ["/panel/clinic/settings"],
             },
         ],
     },

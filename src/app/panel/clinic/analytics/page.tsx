@@ -18,13 +18,17 @@ interface Analytics {
 }
 
 export default function ClinicAnalyticsPage() {
-  const { businessId, loading } = useBusinessSession();
+  const { session, isLoading: sessionLoading } = useBusinessSession();
+  const businessId = session?.businessId;
   const [analytics, setAnalytics] = useState<Analytics[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [period, setPeriod] = useState<'month' | 'year'>('month');
 
   useEffect(() => {
-    if (!businessId) return;
+    if (!businessId) {
+      setIsLoading(false);
+      return;
+    }
 
     const fetchAnalytics = async () => {
       setIsLoading(true);
@@ -77,10 +81,10 @@ export default function ClinicAnalyticsPage() {
     setPeriod(period);
   };
 
-  if (loading || isLoading) {
+  if (sessionLoading || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
       </div>
     );
   }
@@ -89,21 +93,21 @@ export default function ClinicAnalyticsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Analitik</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">İstatistikler ve raporlar</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">Analitik</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 transition-colors">İstatistikler ve raporlar</p>
         </div>
         <div className="flex items-center gap-3">
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value as 'month' | 'year')}
-            className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500"
+            className="px-3 py-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 dark:text-white transition-colors"
           >
             <option value="month">Aylık</option>
             <option value="year">Yıllık</option>
           </select>
           <button
             onClick={refreshData}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
             Yenile
@@ -115,64 +119,64 @@ export default function ClinicAnalyticsPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow"
+          className="p-6 bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all"
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-              <Calendar className="w-6 h-6 text-blue-500" />
+            <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl transition-colors">
+              <Calendar className="w-6 h-6 text-emerald-500" />
             </div>
-            <div className="flex items-center gap-1 text-green-600 dark:text-green-400 text-sm">
+            <div className="flex items-center gap-1 text-emerald-600 text-sm">
               <TrendingUp className="w-4 h-4" />
               {completionRate}%
             </div>
           </div>
-          <div className="text-3xl font-bold mb-1">{totals.totalAppointments}</div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">Toplam Randevu</div>
+          <div className="text-3xl font-bold text-gray-900 dark:text-white transition-colors mb-1">{totals.totalAppointments}</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400 transition-colors">Toplam Randevu</div>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow"
+          className="p-6 bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all"
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-xl">
-              <Users className="w-6 h-6 text-green-500" />
+            <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl transition-colors">
+              <Users className="w-6 h-6 text-emerald-500" />
             </div>
           </div>
-          <div className="text-3xl font-bold mb-1">{totals.newPatients}</div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">Yeni Hasta</div>
+          <div className="text-3xl font-bold text-gray-900 dark:text-white transition-colors mb-1">{totals.newPatients}</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400 transition-colors">Yeni Hasta</div>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow"
+          className="p-6 bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all"
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
-              <DollarSign className="w-6 h-6 text-purple-500" />
+            <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl transition-colors">
+              <DollarSign className="w-6 h-6 text-emerald-500" />
             </div>
           </div>
-          <div className="text-3xl font-bold mb-1">₺{totals.totalRevenue.toLocaleString('tr-TR')}</div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">Toplam Gelir</div>
+          <div className="text-3xl font-bold text-gray-900 dark:text-white transition-colors mb-1">₺{totals.totalRevenue.toLocaleString('tr-TR')}</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400 transition-colors">Toplam Gelir</div>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow"
+          className="p-6 bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all"
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-xl">
-              <TrendingUp className="w-6 h-6 text-orange-500" />
+            <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl transition-colors">
+              <TrendingUp className="w-6 h-6 text-emerald-500" />
             </div>
           </div>
-          <div className="text-3xl font-bold mb-1">₺{Math.round(totals.averageAppointmentValue).toLocaleString('tr-TR')}</div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">Ortalama Randevu Değeri</div>
+          <div className="text-3xl font-bold text-gray-900 dark:text-white transition-colors mb-1">₺{Math.round(totals.averageAppointmentValue).toLocaleString('tr-TR')}</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400 transition-colors">Ortalama Randevu Değeri</div>
         </motion.div>
       </div>
 
@@ -181,28 +185,28 @@ export default function ClinicAnalyticsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700"
+          className="p-6 bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm transition-all"
         >
-          <h2 className="text-lg font-semibold mb-4">Randevu Durumları</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white transition-colors mb-4">Randevu Durumları</h2>
           <div className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Tamamlandı</span>
-                <span className="text-sm font-medium">{totals.completedAppointments}</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400 transition-colors">Tamamlandı</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white transition-colors">{totals.completedAppointments}</span>
               </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 transition-colors">
                 <div
-                  className="bg-green-500 h-2 rounded-full transition-all"
+                  className="bg-emerald-500 h-2 rounded-full transition-all"
                   style={{ width: `${completionRate}%` }}
                 />
               </div>
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600 dark:text-gray-400">İptal</span>
-                <span className="text-sm font-medium">{totals.cancelledAppointments}</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400 transition-colors">İptal</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white transition-colors">{totals.cancelledAppointments}</span>
               </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 transition-colors">
                 <div
                   className="bg-red-500 h-2 rounded-full transition-all"
                   style={{ width: `${cancellationRate}%` }}
@@ -216,21 +220,21 @@ export default function ClinicAnalyticsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700"
+          className="p-6 bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm transition-all"
         >
-          <h2 className="text-lg font-semibold mb-4">Özet</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white transition-colors mb-4">Özet</h2>
           <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Tamamlama Oranı</span>
-              <span className="font-semibold text-green-600 dark:text-green-400">{completionRate}%</span>
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-colors">
+              <span className="text-sm text-gray-600 dark:text-gray-400 transition-colors">Tamamlama Oranı</span>
+              <span className="font-semibold text-emerald-600">{completionRate}%</span>
             </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
-              <span className="text-sm text-gray-600 dark:text-gray-400">İptal Oranı</span>
-              <span className="font-semibold text-red-600 dark:text-red-400">{cancellationRate}%</span>
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-colors">
+              <span className="text-sm text-gray-600 dark:text-gray-400 transition-colors">İptal Oranı</span>
+              <span className="font-semibold text-red-600">{cancellationRate}%</span>
             </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Hasta başı ortalama</span>
-              <span className="font-semibold">₺{totals.newPatients > 0 ? Math.round(totals.totalRevenue / totals.newPatients).toLocaleString('tr-TR') : '0'}</span>
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-colors">
+              <span className="text-sm text-gray-600 dark:text-gray-400 transition-colors">Hasta başı ortalama</span>
+              <span className="font-semibold text-gray-900 dark:text-white transition-colors">₺{totals.newPatients > 0 ? Math.round(totals.totalRevenue / totals.newPatients).toLocaleString('tr-TR') : '0'}</span>
             </div>
           </div>
         </motion.div>
@@ -241,19 +245,19 @@ export default function ClinicAnalyticsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700"
+          className="p-6 bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm transition-all"
         >
-          <h2 className="text-lg font-semibold mb-4">Detaylı Analitik</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white transition-colors mb-4">Detaylı Analitik</h2>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Dönem</th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Randevu</th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Tamamlandı</th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">İptal</th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Yeni Hasta</th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Gelir</th>
+                <tr className="border-b border-gray-200 dark:border-gray-800 transition-colors">
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400 transition-colors">Dönem</th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400 transition-colors">Randevu</th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400 transition-colors">Tamamlandı</th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400 transition-colors">İptal</th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400 transition-colors">Yeni Hasta</th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400 transition-colors">Gelir</th>
                 </tr>
               </thead>
               <tbody>
@@ -263,14 +267,14 @@ export default function ClinicAnalyticsPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.7 + index * 0.05 }}
-                    className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/50"
+                    className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                   >
-                    <td className="py-3 px-4 text-sm">{item.period}</td>
-                    <td className="py-3 px-4 text-sm text-right">{item.totalAppointments}</td>
-                    <td className="py-3 px-4 text-sm text-right text-green-600 dark:text-green-400">{item.completedAppointments}</td>
-                    <td className="py-3 px-4 text-sm text-right text-red-600 dark:text-red-400">{item.cancelledAppointments}</td>
-                    <td className="py-3 px-4 text-sm text-right">{item.newPatients}</td>
-                    <td className="py-3 px-4 text-sm text-right font-medium">₺{item.totalRevenue.toLocaleString('tr-TR')}</td>
+                    <td className="py-3 px-4 text-sm text-gray-900 dark:text-white transition-colors">{item.period}</td>
+                    <td className="py-3 px-4 text-sm text-right text-gray-900 dark:text-white transition-colors">{item.totalAppointments}</td>
+                    <td className="py-3 px-4 text-sm text-right text-emerald-600">{item.completedAppointments}</td>
+                    <td className="py-3 px-4 text-sm text-right text-red-600">{item.cancelledAppointments}</td>
+                    <td className="py-3 px-4 text-sm text-right text-gray-900 dark:text-white transition-colors">{item.newPatients}</td>
+                    <td className="py-3 px-4 text-sm text-right font-medium text-gray-900 dark:text-white transition-colors">₺{item.totalRevenue.toLocaleString('tr-TR')}</td>
                   </motion.tr>
                 ))}
               </tbody>
@@ -282,11 +286,11 @@ export default function ClinicAnalyticsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-2xl"
+          className="text-center py-12 bg-gray-50 dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 transition-all"
         >
           <div className="text-6xl mb-4">📊</div>
-          <h3 className="text-xl font-semibold mb-2">Analitik Verisi Yok</h3>
-          <p className="text-gray-600 dark:text-gray-400">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white transition-colors mb-2">Analitik Verisi Yok</h3>
+          <p className="text-gray-600 dark:text-gray-400 transition-colors">
             Henüz yeterli veri yok. Analitik verileri zamanla oluşacaktır.
           </p>
         </motion.div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, Plus, Edit, Trash2, Search, Phone, Mail, Clock, User, Stethoscope, GraduationCap, Calendar } from 'lucide-react';
+import { Loader2, Plus, Edit, Trash2, Search, Phone, Mail, Clock, User, Stethoscope, GraduationCap, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBusinessSession } from '@/hooks/useBusinessSession';
 
@@ -43,13 +43,13 @@ const daysOfWeek = [
 ];
 
 export default function ClinicStaffPage() {
-  const { businessId, loading } = useBusinessSession();
+  const { session, isLoading: sessionLoading } = useBusinessSession();
+  const businessId = session?.businessId;
   const [staff, setStaff] = useState<Staff[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
-  const [showWorkingHours, setShowWorkingHours] = useState(false);
   const [formData, setFormData] = useState<StaffFormData>({
     name: '',
     title: '',
@@ -62,7 +62,10 @@ export default function ClinicStaffPage() {
   });
 
   useEffect(() => {
-    if (!businessId) return;
+    if (!businessId) {
+      setIsLoading(false);
+      return;
+    }
 
     const fetchStaff = async () => {
       setIsLoading(true);
@@ -200,10 +203,10 @@ export default function ClinicStaffPage() {
     setShowModal(true);
   };
 
-  if (loading || isLoading) {
+  if (sessionLoading || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
       </div>
     );
   }
@@ -212,12 +215,12 @@ export default function ClinicStaffPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Personel</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Doktor ve personel yönetimi</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">Personel</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 transition-colors">Doktor ve personel yönetimi</p>
         </div>
         <button
           onClick={openCreateModal}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 hover:shadow-lg transition-all"
         >
           <Plus className="w-4 h-4" />
           Yeni Personel Ekle
@@ -225,21 +228,21 @@ export default function ClinicStaffPage() {
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500 transition-colors" />
         <input
           type="text"
           placeholder="Personel ara..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          className="w-full pl-10 pr-4 py-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 transition-colors"
         />
       </div>
 
       {filteredStaff.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-2xl">
+        <div className="text-center py-12 bg-gray-50 dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 transition-all">
           <div className="text-6xl mb-4">👨‍⚕️</div>
-          <h3 className="text-xl font-semibold mb-2">Personel Bulunamadı</h3>
-          <p className="text-gray-600 dark:text-gray-400">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white transition-colors mb-2">Personel Bulunamadı</h3>
+          <p className="text-gray-600 dark:text-gray-400 transition-colors">
             {searchQuery ? 'Arama kriterlerine uygun personel yok' : 'Henüz personel eklenmemiş'}
           </p>
         </div>
@@ -251,57 +254,57 @@ export default function ClinicStaffPage() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.05 }}
-              className={`p-6 bg-white dark:bg-gray-800 rounded-2xl border ${
-                member.isActive ? 'border-gray-200 dark:border-gray-700' : 'border-gray-300 dark:border-gray-600 opacity-60'
-              } hover:shadow-lg transition-shadow`}
+              className={`p-6 bg-white dark:bg-[#111111] rounded-xl border ${
+                member.isActive ? 'border-gray-200 dark:border-gray-800' : 'border-gray-300 dark:border-gray-700 opacity-60'
+              } shadow-sm hover:shadow-md transition-all`}
             >
               <div className="flex items-start gap-4 mb-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl flex items-center justify-center text-3xl">
+                <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-emerald-50 dark:from-emerald-900/30 dark:to-emerald-800/20 rounded-xl flex items-center justify-center text-3xl text-emerald-600 dark:text-emerald-400 transition-colors">
                   {member.imageUrl ? (
                     <img src={member.imageUrl} alt={member.name} className="w-full h-full object-cover rounded-xl" />
                   ) : (
-                    <Stethoscope className="w-8 h-8 text-purple-500" />
+                    <Stethoscope className="w-8 h-8 text-emerald-500" />
                   )}
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold mb-1">{member.name}</h3>
-                  <p className="text-sm text-purple-600 dark:text-purple-400">{member.title}</p>
+                  <h3 className="font-semibold text-gray-900 dark:text-white transition-colors mb-1">{member.name}</h3>
+                  <p className="text-sm text-emerald-600">{member.title}</p>
                   {member.specialty && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 transition-colors mt-1 flex items-center gap-1">
                       <GraduationCap className="w-3 h-3" />
                       {member.specialty}
                     </p>
                   )}
                 </div>
                 {!member.isActive && (
-                  <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
+                  <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full transition-colors">
                     Pasif
                   </span>
                 )}
               </div>
 
               {member.bio && (
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400 transition-colors mb-4 line-clamp-2">
                   {member.bio}
                 </p>
               )}
 
               <div className="space-y-2 mb-4">
                 {member.phone && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <Phone className="w-4 h-4" />
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 transition-colors">
+                    <Phone className="w-4 h-4 text-gray-400 dark:text-gray-500 transition-colors" />
                     <span>{member.phone}</span>
                   </div>
                 )}
                 {member.email && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <Mail className="w-4 h-4" />
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 transition-colors">
+                    <Mail className="w-4 h-4 text-gray-400 dark:text-gray-500 transition-colors" />
                     <span className="truncate">{member.email}</span>
                   </div>
                 )}
                 {member.workingHours && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <Clock className="w-4 h-4" />
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 transition-colors">
+                    <Clock className="w-4 h-4 text-gray-400 dark:text-gray-500 transition-colors" />
                     <span>Çalışma saatleri ayarlandı</span>
                   </div>
                 )}
@@ -310,14 +313,14 @@ export default function ClinicStaffPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => openEditModal(member)}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors"
                 >
                   <Edit className="w-4 h-4" />
                   Düzenle
                 </button>
                 <button
                   onClick={() => handleDelete(member.id)}
-                  className="flex items-center justify-center gap-2 px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -332,95 +335,95 @@ export default function ClinicStaffPage() {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-lg bg-white dark:bg-gray-800 rounded-2xl p-6 my-8"
+            className="w-full max-w-lg bg-white dark:bg-[#111111] rounded-xl p-6 my-8 shadow-lg"
           >
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white transition-colors">
                 {editingStaff ? 'Personel Düzenle' : 'Yeni Personel Ekle'}
               </h2>
               <button
                 onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
               >
-                <Trash2 className="w-5 h-5 text-gray-500" />
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400 transition-colors" />
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium mb-1">Ad Soyad *</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors mb-1">Ad Soyad *</label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 transition-colors"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Unvan *</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors mb-1">Unvan *</label>
                   <input
                     type="text"
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                     placeholder="Örn: Dr., Uzm. Dr., Prk. Dr."
-                    className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 transition-colors"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Uzmanlık Alanı</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors mb-1">Uzmanlık Alanı</label>
                   <input
                     type="text"
                     value={formData.specialty}
                     onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}
                     placeholder="Örn: Kardiyoloji, Nöroloji"
-                    className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Telefon</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors mb-1">Telefon</label>
                   <input
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">E-posta</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors mb-1">E-posta</label>
                   <input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 transition-colors"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Biografi</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors mb-1">Biografi</label>
                 <textarea
                   value={formData.bio}
                   onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                   rows={3}
-                  className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Görsel URL</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors mb-1">Görsel URL</label>
                 <input
                   type="url"
                   value={formData.imageUrl}
                   onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
                   placeholder="https://..."
-                  className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 transition-colors"
                 />
               </div>
 
@@ -430,22 +433,22 @@ export default function ClinicStaffPage() {
                   id="isActive"
                   checked={formData.isActive}
                   onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                  className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
                 />
-                <label htmlFor="isActive" className="text-sm">Aktif</label>
+                <label htmlFor="isActive" className="text-sm text-gray-700 dark:text-gray-300 transition-colors">Aktif</label>
               </div>
 
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                 >
                   İptal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
+                  className="flex-1 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 hover:shadow-lg transition-all"
                 >
                   {editingStaff ? 'Güncelle' : 'Ekle'}
                 </button>

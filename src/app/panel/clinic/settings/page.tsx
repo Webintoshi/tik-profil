@@ -2,26 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, Save, Clock, Bell, Globe, Shield, DollarSign } from 'lucide-react';
+import { Loader2, Save, Clock, Bell, Shield, DollarSign, CalendarDays, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBusinessSession } from '@/hooks/useBusinessSession';
 
+interface WorkingHours {
+  start: string;
+  end: string;
+  isActive: boolean;
+}
+
 interface Settings {
   currency: string;
-  workingHours: Record<string, { start: string; end: string; isActive: boolean }>;
+  workingHours: Record<string, WorkingHours>;
   notificationEmail: boolean;
   notificationSMS: boolean;
   appointmentReminderHours: number;
-  newPatientWelcomeEmail: boolean;
-  requirePhone: boolean;
-  requireEmail: boolean;
-}
-
-interface SettingsFormData {
-  currency: string;
-  notificationEmail: boolean;
-  notificationSMS: boolean;
-  appointmentReminderHours: string;
   newPatientWelcomeEmail: boolean;
   requirePhone: boolean;
   requireEmail: boolean;
@@ -38,28 +34,47 @@ const daysOfWeek = [
 ];
 
 const currencyOptions = [
-  { value: 'TRY', label: 'Türk Lirası (₺)' },
-  { value: 'USD', label: 'Amerikan Doları ($)' },
-  { value: 'EUR', label: 'Euro (€)' },
+  { value: 'TRY', label: 'Türk Lirası (₺)', symbol: '₺' },
+  { value: 'USD', label: 'Amerikan Doları ($)', symbol: '$' },
+  { value: 'EUR', label: 'Euro (€)', symbol: '€' },
 ];
 
+const defaultWorkingHours: Record<string, WorkingHours> = {
+  monday: { start: '09:00', end: '18:00', isActive: true },
+  tuesday: { start: '09:00', end: '18:00', isActive: true },
+  wednesday: { start: '09:00', end: '18:00', isActive: true },
+  thursday: { start: '09:00', end: '18:00', isActive: true },
+  friday: { start: '09:00', end: '18:00', isActive: true },
+  saturday: { start: '10:00', end: '16:00', isActive: false },
+  sunday: { start: '10:00', end: '16:00', isActive: false },
+};
+
 export default function ClinicSettingsPage() {
-  const { businessId, loading } = useBusinessSession();
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState<SettingsFormData>({
+  const { session, isLoading: sessionLoading } = useBusinessSession();
+  const businessId = session?.businessId;
+  
+  const [settings, setSettings] = useState<Settings>({
     currency: 'TRY',
+    workingHours: defaultWorkingHours,
     notificationEmail: true,
     notificationSMS: false,
-    appointmentReminderHours: '24',
+    appointmentReminderHours: 24,
     newPatientWelcomeEmail: true,
     requirePhone: true,
     requireEmail: false,
   });
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
+  // Fetch settings on mount
   useEffect(() => {
-    if (!businessId) return;
+    if (sessionLoading) return;
+    
+    if (!businessId) {
+      setIsLoading(false);
+      return;
+    }
 
     const fetchSettings = async () => {
       setIsLoading(true);
@@ -68,75 +83,70 @@ export default function ClinicSettingsPage() {
         const data = await res.json();
 
         if (data.success && data.settings) {
-          setSettings(data.settings);
-          setFormData({
-            currency: data.settings.currency || 'TRY',
-            notificationEmail: data.settings.notificationEmail ?? true,
-            notificationSMS: data.settings.notificationSMS ?? false,
-            appointmentReminderHours: data.settings.appointmentReminderHours?.toString() || '24',
-            newPatientWelcomeEmail: data.settings.newPatientWelcomeEmail ?? true,
-            requirePhone: data.settings.requirePhone ?? true,
-            requireEmail: data.settings.requireEmail ?? false,
+          const s = data.settings;
+          
+          // Parse notifications object if it exists
+          const notifications = s.notifications || {};
+          
+          setSettings({
+            currency: s.currency || 'TRY',
+            workingHours: s.workingHours || defaultWorkingHours,
+            notificationEmail: notifications.email ?? true,
+            notificationSMS: notifications.sms ?? false,
+            appointmentReminderHours: notifications.appointmentReminderHours ?? 24,
+            newPatientWelcomeEmail: notifications.newPatientWelcomeEmail ?? true,
+            requirePhone: s.requirePhone ?? true,
+            requireEmail: s.requireEmail ?? false,
           });
         }
       } catch (error) {
         console.error('Ayarlar yüklenirken hata:', error);
+        toast.error('Ayarlar yüklenemedi');
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchSettings();
-  }, [businessId]);
+  }, [businessId, sessionLoading]);
 
-  const updateWorkingHours = (day: string, field: 'start' | 'end', value: string) => {
-    if (!settings) return;
-    setSettings({
-      ...settings,
+  const updateWorkingHours = (day: string, field: keyof WorkingHours, value: string | boolean) => {
+    setSettings(prev => ({
+      ...prev,
       workingHours: {
-        ...settings.workingHours,
+        ...prev.workingHours,
         [day]: {
-          ...settings.workingHours[day],
+          ...prev.workingHours[day],
           [field]: value,
         },
       },
-    });
-  };
-
-  const toggleWorkingDay = (day: string) => {
-    if (!settings) return;
-    setSettings({
-      ...settings,
-      workingHours: {
-        ...settings.workingHours,
-        [day]: {
-          ...settings.workingHours[day],
-          isActive: !settings.workingHours[day]?.isActive,
-        },
-      },
-    });
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!settings) return;
+    if (!businessId) return;
 
     setIsSaving(true);
 
     try {
       const payload = {
-        currency: formData.currency,
+        currency: settings.currency,
+        currencySymbol: currencyOptions.find(c => c.value === settings.currency)?.symbol || '₺',
         workingHours: settings.workingHours,
-        notificationEmail: formData.notificationEmail,
-        notificationSMS: formData.notificationSMS,
-        appointmentReminderHours: parseInt(formData.appointmentReminderHours),
-        newPatientWelcomeEmail: formData.newPatientWelcomeEmail,
-        requirePhone: formData.requirePhone,
-        requireEmail: formData.requireEmail,
+        notifications: {
+          email: settings.notificationEmail,
+          sms: settings.notificationSMS,
+          appointmentReminderHours: settings.appointmentReminderHours,
+          newPatientWelcomeEmail: settings.newPatientWelcomeEmail,
+        },
+        requirePhone: settings.requirePhone,
+        requireEmail: settings.requireEmail,
+        isActive: true,
       };
 
       const res = await fetch('/api/clinic/settings', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
@@ -146,7 +156,7 @@ export default function ClinicSettingsPage() {
       if (data.success) {
         toast.success('Ayarlar kaydedildi');
       } else {
-        toast.error(data.message || 'Kaydetme başarısız');
+        toast.error(data.error || 'Kaydetme başarısız');
       }
     } catch (error) {
       console.error('Kaydetme hatası:', error);
@@ -156,40 +166,62 @@ export default function ClinicSettingsPage() {
     }
   };
 
-  if (loading || isLoading || !settings) {
+  if (sessionLoading || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Ayarlar</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Klinik ayarları</p>
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Ayarlar</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Klinik ayarlarınızı yönetin</p>
+        </div>
+        <button
+          onClick={handleSubmit}
+          disabled={isSaving}
+          className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+        >
+          {isSaving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Save className="w-4 h-4" />
+          )}
+          {isSaving ? 'Kaydediliyor...' : 'Kaydet'}
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* General Settings */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700"
+          className="bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden"
         >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-              <DollarSign className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                <DollarSign className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-gray-900 dark:text-white">Genel Ayarlar</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Para birimi ve temel ayarlar</p>
+              </div>
             </div>
-            <h2 className="text-lg font-semibold">Genel Ayarlar</h2>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Para Birimi</label>
+          <div className="p-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Para Birimi
+            </label>
             <select
-              value={formData.currency}
-              onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-              className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500"
+              value={settings.currency}
+              onChange={(e) => setSettings(prev => ({ ...prev, currency: e.target.value }))}
+              className="w-full px-3 py-2 bg-white dark:bg-[#0a0a0a] border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
             >
               {currencyOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -200,199 +232,218 @@ export default function ClinicSettingsPage() {
           </div>
         </motion.div>
 
+        {/* Working Hours */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700"
+          className="bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden"
         >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <h2 className="text-lg font-semibold">Çalışma Saatleri</h2>
-          </div>
-
-          <div className="space-y-4">
-            {daysOfWeek.map((day) => (
-              <div key={day.key} className="flex items-center gap-4 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
-                <div className="flex items-center gap-2 min-w-[140px]">
-                  <input
-                    type="checkbox"
-                    id={day.key}
-                    checked={settings.workingHours[day.key]?.isActive ?? false}
-                    onChange={() => toggleWorkingDay(day.key)}
-                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                  />
-                  <label htmlFor={day.key} className="text-sm font-medium">
-                    {day.label}
-                  </label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="time"
-                    value={settings.workingHours[day.key]?.start || '09:00'}
-                    onChange={(e) => updateWorkingHours(day.key, 'start', e.target.value)}
-                    className="px-2 py-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm"
-                  />
-                  <span className="text-gray-400">-</span>
-                  <input
-                    type="time"
-                    value={settings.workingHours[day.key]?.end || '18:00'}
-                    onChange={(e) => updateWorkingHours(day.key, 'end', e.target.value)}
-                    className="px-2 py-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm"
-                  />
-                </div>
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                <Clock className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               </div>
-            ))}
+              <div>
+                <h2 className="font-semibold text-gray-900 dark:text-white">Çalışma Saatleri</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Haftalık çalışma programı</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="space-y-3">
+              {daysOfWeek.map((day) => {
+                const daySettings = settings.workingHours[day.key] || { start: '09:00', end: '18:00', isActive: false };
+                return (
+                  <div 
+                    key={day.key} 
+                    className={`flex items-center gap-4 p-4 rounded-lg border transition-all ${
+                      daySettings.isActive 
+                        ? 'bg-white dark:bg-[#0a0a0a] border-gray-200 dark:border-gray-700' 
+                        : 'bg-gray-50 dark:bg-gray-900/20 border-gray-100 dark:border-gray-800'
+                    }`}
+                  >
+                    <label className="flex items-center gap-3 min-w-[140px] cursor-pointer">
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={daySettings.isActive}
+                          onChange={() => updateWorkingHours(day.key, 'isActive', !daySettings.isActive)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500" />
+                      </div>
+                      <span className={`text-sm font-medium ${daySettings.isActive ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-500'}`}>
+                        {day.label}
+                      </span>
+                    </label>
+                    <div className={`flex items-center gap-2 ${daySettings.isActive ? 'opacity-100' : 'opacity-40'}`}>
+                      <input
+                        type="time"
+                        value={daySettings.start}
+                        onChange={(e) => updateWorkingHours(day.key, 'start', e.target.value)}
+                        disabled={!daySettings.isActive}
+                        className="px-3 py-1.5 bg-white dark:bg-[#0a0a0a] border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent disabled:cursor-not-allowed"
+                      />
+                      <span className="text-gray-400">-</span>
+                      <input
+                        type="time"
+                        value={daySettings.end}
+                        onChange={(e) => updateWorkingHours(day.key, 'end', e.target.value)}
+                        disabled={!daySettings.isActive}
+                        className="px-3 py-1.5 bg-white dark:bg-[#0a0a0a] border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent disabled:cursor-not-allowed"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </motion.div>
 
+        {/* Notifications */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700"
+          className="bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden"
         >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <Bell className="w-5 h-5 text-green-600 dark:text-green-400" />
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                <Bell className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-gray-900 dark:text-white">Bildirimler</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">E-posta ve SMS ayarları</p>
+              </div>
             </div>
-            <h2 className="text-lg font-semibold">Bildirimler</h2>
           </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+          <div className="p-6 space-y-6">
+            {/* Email Notifications */}
+            <div className="flex items-center justify-between">
               <div>
-                <div className="font-medium">E-posta Bildirimleri</div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">Randevu onayı ve hatırlatıcılar</div>
+                <h3 className="font-medium text-gray-900 dark:text-white">E-posta Bildirimleri</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Randevu onayı ve hatırlatıcılar</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.notificationEmail}
-                  onChange={(e) => setFormData({ ...formData, notificationEmail: e.target.checked })}
+                  checked={settings.notificationEmail}
+                  onChange={(e) => setSettings(prev => ({ ...prev, notificationEmail: e.target.checked }))}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600" />
+                <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500" />
               </label>
             </div>
 
-            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+            {/* SMS Notifications */}
+            <div className="flex items-center justify-between">
               <div>
-                <div className="font-medium">SMS Bildirimleri</div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">Randevu hatırlatıcı SMS gönderimi</div>
+                <h3 className="font-medium text-gray-900 dark:text-white">SMS Bildirimleri</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Randevu hatırlatıcı SMS gönderimi</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.notificationSMS}
-                  onChange={(e) => setFormData({ ...formData, notificationSMS: e.target.checked })}
+                  checked={settings.notificationSMS}
+                  onChange={(e) => setSettings(prev => ({ ...prev, notificationSMS: e.target.checked }))}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600" />
+                <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500" />
               </label>
             </div>
 
+            {/* Appointment Reminder Hours */}
             <div>
-              <label className="block text-sm font-medium mb-2">Randevu Hatırlatıcı (Saat Önce)</label>
-              <input
-                type="number"
-                value={formData.appointmentReminderHours}
-                onChange={(e) => setFormData({ ...formData, appointmentReminderHours: e.target.value })}
-                className="w-32 px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500"
-              />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Randevu Hatırlatma Süresi (Saat Önce)
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min="1"
+                  max="168"
+                  value={settings.appointmentReminderHours}
+                  onChange={(e) => setSettings(prev => ({ ...prev, appointmentReminderHours: parseInt(e.target.value) || 24 }))}
+                  className="w-24 px-3 py-2 bg-white dark:bg-[#0a0a0a] border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                />
+                <span className="text-sm text-gray-500 dark:text-gray-400">saat önce</span>
+              </div>
             </div>
 
-            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+            {/* Welcome Email */}
+            <div className="flex items-center justify-between">
               <div>
-                <div className="font-medium">Yeni Hasta Karşılama E-postası</div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">İlk kayıt olan hastalara hoş geldin e-postası</div>
+                <h3 className="font-medium text-gray-900 dark:text-white">Yeni Hasta Karşılama</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">İlk kayıt olan hastalara hoş geldin e-postası</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.newPatientWelcomeEmail}
-                  onChange={(e) => setFormData({ ...formData, newPatientWelcomeEmail: e.target.checked })}
+                  checked={settings.newPatientWelcomeEmail}
+                  onChange={(e) => setSettings(prev => ({ ...prev, newPatientWelcomeEmail: e.target.checked }))}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600" />
+                <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500" />
               </label>
             </div>
           </div>
         </motion.div>
 
+        {/* Requirements */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700"
+          className="bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden"
         >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-              <Shield className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-            </div>
-            <h2 className="text-lg font-semibold">Gereksinimler</h2>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                <Shield className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
               <div>
-                <div className="font-medium">Telefon Zorunlu</div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">Randevu alırken telefon numarası zorunlu olsun</div>
+                <h2 className="font-semibold text-gray-900 dark:text-white">Gereksinimler</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Randevu için zorunlu alanlar</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6 space-y-4">
+            {/* Require Phone */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium text-gray-900 dark:text-white">Telefon Zorunlu</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Randevu alırken telefon numarası zorunlu olsun</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.requirePhone}
-                  onChange={(e) => setFormData({ ...formData, requirePhone: e.target.checked })}
+                  checked={settings.requirePhone}
+                  onChange={(e) => setSettings(prev => ({ ...prev, requirePhone: e.target.checked }))}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600" />
+                <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500" />
               </label>
             </div>
 
-            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+            {/* Require Email */}
+            <div className="flex items-center justify-between">
               <div>
-                <div className="font-medium">E-posta Zorunlu</div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">Randevu alırken e-posta adresi zorunlu olsun</div>
+                <h3 className="font-medium text-gray-900 dark:text-white">E-posta Zorunlu</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Randevu alırken e-posta adresi zorunlu olsun</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.requireEmail}
-                  onChange={(e) => setFormData({ ...formData, requireEmail: e.target.checked })}
+                  checked={settings.requireEmail}
+                  onChange={(e) => setSettings(prev => ({ ...prev, requireEmail: e.target.checked }))}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600" />
+                <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500" />
               </label>
             </div>
           </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="flex justify-end"
-        >
-          <button
-            type="submit"
-            disabled={isSaving}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Kaydediliyor...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                Kaydet
-              </>
-            )}
-          </button>
         </motion.div>
       </form>
     </div>

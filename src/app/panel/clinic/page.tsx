@@ -15,12 +15,16 @@ interface Stats {
 }
 
 export default function ClinicDashboardPage() {
-  const { businessId, loading } = useBusinessSession();
+  const { session, isLoading: sessionLoading } = useBusinessSession();
+  const businessId = session?.businessId;
   const [stats, setStats] = useState<Stats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!businessId) return;
+    if (!businessId) {
+      setIsLoading(false);
+      return;
+    }
 
     const fetchStats = async () => {
       setIsLoading(true);
@@ -58,49 +62,49 @@ export default function ClinicDashboardPage() {
     fetchStats();
   }, [businessId]);
 
-  if (loading || isLoading) {
+  if (sessionLoading || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
       </div>
     );
   }
 
   const statsCards = [
-    { label: 'Kategoriler', value: stats?.categories || 0, icon: ListChecks, color: 'text-pink-500', bg: 'bg-pink-500/10' },
-    { label: 'Hizmetler', value: stats?.services || 0, icon: Stethoscope, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-    { label: 'Personel', value: stats?.staff || 0, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    { label: 'Randevular', value: stats?.appointments || 0, icon: Calendar, color: 'text-green-500', bg: 'bg-green-500/10' },
-    { label: 'Hastalar', value: stats?.patients || 0, icon: Activity, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+    { label: 'Kategoriler', value: stats?.categories || 0, icon: ListChecks, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+    { label: 'Hizmetler', value: stats?.services || 0, icon: Stethoscope, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+    { label: 'Personel', value: stats?.staff || 0, icon: Users, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+    { label: 'Randevular', value: stats?.appointments || 0, icon: Calendar, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+    { label: 'Hastalar', value: stats?.patients || 0, icon: Activity, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
   ];
 
   const quickActions = [
-    { label: 'Yeni Hizmet Ekle', href: '/panel/clinic/services', icon: Plus, color: 'from-pink-500 to-rose-600' },
-    { label: 'Kategorileri Yönet', href: '/panel/clinic/categories', icon: ListChecks, color: 'from-purple-500 to-violet-600' },
-    { label: 'Personel Ekle', href: '/panel/clinic/staff', icon: Users, color: 'from-blue-500 to-indigo-600' },
-    { label: 'Randevuları Görüntüle', href: '/panel/clinic/appointments', icon: Calendar, color: 'from-green-500 to-emerald-600' },
+    { label: 'Yeni Hizmet Ekle', href: '/panel/clinic/services', icon: Plus, color: 'from-emerald-500 to-emerald-600' },
+    { label: 'Kategorileri Yönet', href: '/panel/clinic/categories', icon: ListChecks, color: 'from-emerald-500 to-emerald-600' },
+    { label: 'Personel Ekle', href: '/panel/clinic/staff', icon: Users, color: 'from-emerald-500 to-emerald-600' },
+    { label: 'Randevuları Görüntüle', href: '/panel/clinic/appointments', icon: Calendar, color: 'from-emerald-500 to-emerald-600' },
   ];
 
   const revenueCards = [
-    { label: 'Bu Ay Randevu', value: `${stats?.appointments || 0} adet`, icon: Calendar, color: 'text-green-500', bg: 'bg-green-500/10' },
-    { label: 'Toplam Gelir', value: '₺0', icon: DollarSign, color: 'text-purple-500', bg: 'bg-purple-500/10' },
+    { label: 'Bu Ay Randevu', value: `${stats?.appointments || 0} adet`, icon: Calendar, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+    { label: 'Toplam Gelir', value: '₺0', icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
   ];
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center text-2xl">
+          <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center text-2xl">
             💉
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Klinik Merkezi</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Klinik yönetim paneli</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">Klinik Merkezi</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 transition-colors">Klinik yönetim paneli</p>
           </div>
         </div>
         <Link
           href="/panel/clinic/appointments"
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 hover:shadow-lg transition-all"
         >
           Randevular
           <ArrowRight className="w-4 h-4" />
@@ -114,22 +118,22 @@ export default function ClinicDashboardPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
-            className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow"
+            className="p-6 bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all"
           >
             <div className="flex items-center justify-between mb-4">
               <div className={`p-3 ${card.bg} rounded-xl`}>
                 <card.icon className={`w-6 h-6 ${card.color}`} />
               </div>
             </div>
-            <div className="text-3xl font-bold mb-1">{card.value}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">{card.label}</div>
+            <div className="text-3xl font-bold text-gray-900 dark:text-white transition-colors mb-1">{card.value}</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400 transition-colors">{card.label}</div>
           </motion.div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div>
-          <h2 className="text-lg font-semibold mb-4">Hızlı İşlemler</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white transition-colors mb-4">Hızlı İşlemler</h2>
           <div className="grid grid-cols-2 gap-4">
             {quickActions.map((action, index) => (
               <motion.div
@@ -140,12 +144,12 @@ export default function ClinicDashboardPage() {
               >
                 <Link
                   href={action.href}
-                  className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all group"
+                  className="flex flex-col items-center justify-center p-6 bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all group"
                 >
                   <div className={`p-3 bg-gradient-to-br ${action.color} rounded-xl mb-3 group-hover:scale-110 transition-transform`}>
                     <action.icon className="w-6 h-6 text-white" />
                   </div>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{action.label}</span>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors">{action.label}</span>
                 </Link>
               </motion.div>
             ))}
@@ -153,7 +157,7 @@ export default function ClinicDashboardPage() {
         </div>
 
         <div>
-          <h2 className="text-lg font-semibold mb-4">Gelir & Randevu</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white transition-colors mb-4">Gelir & Randevu</h2>
           <div className="space-y-4">
             {revenueCards.map((card, index) => (
               <motion.div
@@ -161,12 +165,12 @@ export default function ClinicDashboardPage() {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.7 + index * 0.1 }}
-                className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow"
+                className="p-6 bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">{card.label}</div>
-                    <div className="text-2xl font-bold">{card.value}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400 transition-colors mb-1">{card.label}</div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">{card.value}</div>
                   </div>
                   <div className={`p-3 ${card.bg} rounded-xl`}>
                     <card.icon className={`w-6 h-6 ${card.color}`} />
@@ -183,16 +187,16 @@ export default function ClinicDashboardPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.8 }}
-          className="text-center py-12 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 rounded-2xl border border-purple-200 dark:border-purple-700"
+          className="text-center py-12 bg-gray-50 dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 transition-all"
         >
           <div className="text-6xl mb-4">🏥</div>
-          <h3 className="text-xl font-semibold mb-2">Klinik Kurulumuna Başla</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white transition-colors mb-2">Klinik Kurulumuna Başla</h3>
+          <p className="text-gray-600 dark:text-gray-400 transition-colors mb-6 max-w-md mx-auto">
             Hizmetlerinizi ve personelinizi ekleyerek klinik yönetimine başlayın
           </p>
           <Link
             href="/panel/clinic/services"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-xl hover:shadow-lg transition-all"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 hover:shadow-lg transition-all"
           >
             <Plus className="w-5 h-5" />
             İlk Hizmeti Ekle

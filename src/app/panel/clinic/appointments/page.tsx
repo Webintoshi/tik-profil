@@ -23,13 +23,17 @@ interface Appointment {
 type TabType = 'pending' | 'confirmed' | 'history';
 
 export default function ClinicAppointmentsPage() {
-  const { businessId, loading } = useBusinessSession();
+  const { session, isLoading: sessionLoading } = useBusinessSession();
+  const businessId = session?.businessId;
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('pending');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!businessId) return;
+    if (!businessId) {
+      setIsLoading(false);
+      return;
+    }
 
     const fetchAppointments = async () => {
       setIsLoading(true);
@@ -60,7 +64,7 @@ export default function ClinicAppointmentsPage() {
       if (activeTab === 'history') return ['completed', 'cancelled', 'rejected'].includes(app.status);
       return false;
     }).sort((a, b) => {
-      const dateA = new Date(`${a.date}T${app.timeSlot}`).getTime();
+      const dateA = new Date(`${a.date}T${a.timeSlot}`).getTime();
       const dateB = new Date(`${b.date}T${b.timeSlot}`).getTime();
       if (activeTab === 'history') return dateB - dateA;
       return dateA - dateB;
@@ -92,17 +96,17 @@ export default function ClinicAppointmentsPage() {
   };
 
   const tabs = [
-    { id: 'pending' as TabType, label: 'Bekleyen', color: 'text-yellow-600 dark:text-yellow-400', bgColor: 'bg-yellow-100 dark:bg-yellow-900/20' },
-    { id: 'confirmed' as TabType, label: 'Onaylandı', color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-100 dark:bg-green-900/20' },
-    { id: 'history' as TabType, label: 'Geçmiş', color: 'text-gray-600 dark:text-gray-400', bgColor: 'bg-gray-100 dark:bg-gray-900/20' },
+    { id: 'pending' as TabType, label: 'Bekleyen', color: 'text-yellow-600', bgColor: 'bg-yellow-100' },
+    { id: 'confirmed' as TabType, label: 'Onaylandı', color: 'text-emerald-600', bgColor: 'bg-emerald-100' },
+    { id: 'history' as TabType, label: 'Geçmiş', color: 'text-gray-600', bgColor: 'bg-gray-100' },
   ];
 
   const filteredAppointments = getFilteredAppointments();
 
-  if (loading || isLoading) {
+  if (sessionLoading || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
       </div>
     );
   }
@@ -111,19 +115,19 @@ export default function ClinicAppointmentsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Randevular</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Randevu yönetimi</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">Randevular</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 transition-colors">Randevu yönetimi</p>
         </div>
         <button
           onClick={() => window.location.reload()}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
         >
           <RefreshCw className="w-4 h-4" />
           Yenile
         </button>
       </div>
 
-      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-800 transition-colors">
         {tabs.map(tab => {
           const count = tab.id === 'history' 
             ? appointments.filter(a => ['completed', 'cancelled', 'rejected'].includes(a.status)).length
@@ -135,20 +139,20 @@ export default function ClinicAppointmentsPage() {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors relative ${
                 activeTab === tab.id
-                  ? 'text-purple-600 dark:text-purple-400'
+                  ? 'text-emerald-600'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
               }`}
             >
               {tab.label}
               {count > 0 && (
-                <span className={`px-2 py-0.5 text-xs rounded-full ${tab.id === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                <span className={`px-2 py-0.5 text-xs rounded-full ${tab.id === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
                   {count}
                 </span>
               )}
               {activeTab === tab.id && (
                 <motion.div
                   layoutId="activeTab"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500"
                 />
               )}
             </button>
@@ -157,10 +161,10 @@ export default function ClinicAppointmentsPage() {
       </div>
 
       {filteredAppointments.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-2xl">
+        <div className="text-center py-12 bg-gray-50 dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 transition-all">
           <div className="text-6xl mb-4">📅</div>
-          <h3 className="text-xl font-semibold mb-2">Randevu Bulunamadı</h3>
-          <p className="text-gray-600 dark:text-gray-400">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white transition-colors mb-2">Randevu Bulunamadı</h3>
+          <p className="text-gray-600 dark:text-gray-400 transition-colors">
             {activeTab === 'pending' && 'Bekleyen randevu yok'}
             {activeTab === 'confirmed' && 'Onaylı randevu yok'}
             {activeTab === 'history' && 'Geçmiş randevu yok'}
@@ -174,20 +178,20 @@ export default function ClinicAppointmentsPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow"
+              className="p-6 bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-gray-500" />
-                      <span className="font-semibold">{appointment.patientName}</span>
+                      <User className="w-4 h-4 text-gray-400 dark:text-gray-500 transition-colors" />
+                      <span className="font-semibold text-gray-900 dark:text-white transition-colors">{appointment.patientName}</span>
                     </div>
                     {appointment.patientEmail && (
-                      <span className="text-sm text-gray-500 dark:text-gray-400">{appointment.patientEmail}</span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400 transition-colors">{appointment.patientEmail}</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400 transition-colors">
                     <div className="flex items-center gap-1">
                       <Phone className="w-4 h-4" />
                       <span>{appointment.patientPhone}</span>
@@ -196,7 +200,7 @@ export default function ClinicAppointmentsPage() {
                       href={`https://wa.me/90${appointment.patientPhone.replace(/\D/g, '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-green-600 hover:text-green-700"
+                      className="flex items-center gap-1 text-emerald-600 hover:text-emerald-700"
                     >
                       <MessageCircle className="w-4 h-4" />
                       WhatsApp
@@ -205,11 +209,11 @@ export default function ClinicAppointmentsPage() {
                 </div>
                 <div className="text-right">
                   <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    appointment.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
-                    appointment.status === 'confirmed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
-                    appointment.status === 'completed' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
-                    appointment.status === 'cancelled' ? 'bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300' :
-                    'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                    appointment.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                    appointment.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
+                    appointment.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                    appointment.status === 'cancelled' ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300' :
+                    'bg-red-100 text-red-700'
                   }`}>
                     {appointment.status === 'pending' && 'Bekliyor'}
                     {appointment.status === 'confirmed' && 'Onaylandı'}
@@ -222,32 +226,32 @@ export default function ClinicAppointmentsPage() {
 
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div className="flex items-center gap-2 text-sm">
-                  <Calendar className="w-4 h-4 text-purple-500" />
-                  <span className="text-gray-600 dark:text-gray-400">Hizmet:</span>
-                  <span className="font-medium">{appointment.serviceName}</span>
+                  <Calendar className="w-4 h-4 text-emerald-500" />
+                  <span className="text-gray-600 dark:text-gray-400 transition-colors">Hizmet:</span>
+                  <span className="font-medium text-gray-900 dark:text-white transition-colors">{appointment.serviceName}</span>
                 </div>
                 {appointment.doctorName && (
                   <div className="flex items-center gap-2 text-sm">
-                    <User className="w-4 h-4 text-blue-500" />
-                    <span className="text-gray-600 dark:text-gray-400">Doktor:</span>
-                    <span className="font-medium">{appointment.doctorName}</span>
+                    <User className="w-4 h-4 text-emerald-500" />
+                    <span className="text-gray-600 dark:text-gray-400 transition-colors">Doktor:</span>
+                    <span className="font-medium text-gray-900 dark:text-white transition-colors">{appointment.doctorName}</span>
                   </div>
                 )}
                 <div className="flex items-center gap-2 text-sm">
-                  <Clock className="w-4 h-4 text-orange-500" />
-                  <span className="text-gray-600 dark:text-gray-400">Tarih:</span>
-                  <span className="font-medium">{new Date(appointment.date).toLocaleDateString('tr-TR')}</span>
+                  <Clock className="w-4 h-4 text-emerald-500" />
+                  <span className="text-gray-600 dark:text-gray-400 transition-colors">Tarih:</span>
+                  <span className="font-medium text-gray-900 dark:text-white transition-colors">{new Date(appointment.date).toLocaleDateString('tr-TR')}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
-                  <Clock className="w-4 h-4 text-green-500" />
-                  <span className="text-gray-600 dark:text-gray-400">Saat:</span>
-                  <span className="font-medium">{appointment.timeSlot}</span>
+                  <Clock className="w-4 h-4 text-emerald-500" />
+                  <span className="text-gray-600 dark:text-gray-400 transition-colors">Saat:</span>
+                  <span className="font-medium text-gray-900 dark:text-white transition-colors">{appointment.timeSlot}</span>
                 </div>
               </div>
 
               {appointment.notes && (
-                <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  <span className="font-medium">Not:</span> {appointment.notes}
+                <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg text-sm text-gray-600 dark:text-gray-400 transition-colors mb-4">
+                  <span className="font-medium text-gray-900 dark:text-white transition-colors">Not:</span> {appointment.notes}
                 </div>
               )}
 
@@ -255,14 +259,14 @@ export default function ClinicAppointmentsPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => updateStatus(appointment.id, 'confirmed')}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors"
                   >
                     <Check className="w-4 h-4" />
                     Onayla
                   </button>
                   <button
                     onClick={() => updateStatus(appointment.id, 'rejected')}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors"
                   >
                     <X className="w-4 h-4" />
                     Reddet
@@ -274,7 +278,7 @@ export default function ClinicAppointmentsPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => updateStatus(appointment.id, 'completed')}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors"
                   >
                     <Check className="w-4 h-4" />
                     Tamamlandı

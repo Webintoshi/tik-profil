@@ -32,6 +32,9 @@ import {
     PartyPopper,
     Calendar,
     User,
+    Stethoscope,
+    FileText,
+    CreditCard,
 } from "lucide-react";
 import clsx from "clsx";
 import { useTheme } from "./ThemeProvider";
@@ -320,6 +323,64 @@ const ECOMMERCE_NAV_ITEMS = [
     },
 ];
 
+// Clinic module menu items (Klinik)
+const CLINIC_NAV_ITEMS = [
+    {
+        id: "clinic-dashboard",
+        label: "Klinik Dashboard",
+        href: "/panel/clinic",
+        icon: Stethoscope,
+    },
+    {
+        id: "clinic-appointments",
+        label: "Randevular",
+        href: "/panel/clinic/appointments",
+        icon: Calendar,
+    },
+    {
+        id: "clinic-patients",
+        label: "Hasta Kayıtları",
+        href: "/panel/clinic/patients",
+        icon: User,
+    },
+    {
+        id: "clinic-categories",
+        label: "Kategoriler",
+        href: "/panel/clinic/categories",
+        icon: LayoutGrid,
+    },
+    {
+        id: "clinic-services",
+        label: "Hizmetler",
+        href: "/panel/clinic/services",
+        icon: ClipboardList,
+    },
+    {
+        id: "clinic-staff",
+        label: "Personel",
+        href: "/panel/clinic/staff",
+        icon: Users,
+    },
+    {
+        id: "clinic-billing",
+        label: "Fatura & Ödeme",
+        href: "/panel/clinic/billing",
+        icon: CreditCard,
+    },
+    {
+        id: "clinic-analytics",
+        label: "Analizler",
+        href: "/panel/clinic/analytics",
+        icon: BarChart3,
+    },
+    {
+        id: "clinic-settings",
+        label: "Ayarlar",
+        href: "/panel/clinic/settings",
+        icon: Settings,
+    },
+];
+
 interface BusinessSidebarProps {
     businessName?: string;
     businessLogo?: string;
@@ -342,6 +403,13 @@ const PERMISSION_ROUTES: Record<string, string> = {
     "hotel.room-types": "/panel/hotel/room-types",
     "hotel.requests": "/panel/hotel/requests",
     "hotel.analytics": "/panel/hotel/analytics",
+    "clinic.appointments": "/panel/clinic/appointments",
+    "clinic.patients": "/panel/clinic/patients",
+    "clinic.services": "/panel/clinic/services",
+    "clinic.staff": "/panel/clinic/staff",
+    "clinic.billing": "/panel/clinic/billing",
+    "clinic.analytics": "/panel/clinic/analytics",
+    "clinic.settings": "/panel/clinic/settings",
 };
 
 export function BusinessSidebar({
@@ -355,7 +423,7 @@ export function BusinessSidebar({
     const router = useRouter();
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
-    const [expandedGroups, setExpandedGroups] = useState<string[]>(["hotel", "restaurant"]);
+    const [expandedGroups, setExpandedGroups] = useState<string[]>(["hotel", "restaurant", "clinic"]);
     const { isDark } = useTheme();
 
     // Check if restaurant module is enabled
@@ -395,6 +463,18 @@ export function BusinessSidebar({
         enabledModules.includes("shop") ||
         enabledModules.includes("store");
 
+    // Check if clinic module is enabled
+    const hasClinicModule = enabledModules.includes("clinic") ||
+        enabledModules.includes("hospital") ||
+        enabledModules.includes("dentist") ||
+        enabledModules.includes("veteriner") ||
+        enabledModules.includes("pharmacy") ||
+        enabledModules.includes("optik") ||
+        enabledModules.includes("physiotherapy") ||
+        enabledModules.includes("psychology") ||
+        enabledModules.includes("nutrition") ||
+        enabledModules.includes("laboratory");
+
     // Permission check helper
     const canAccessRoute = (href: string): boolean => {
         // Owner has access to everything
@@ -415,6 +495,7 @@ export function BusinessSidebar({
     const filteredEmlakNavItems = EMLAK_NAV_ITEMS.filter(item => canAccessRoute(item.href));
     const filteredBeautyNavItems = BEAUTY_NAV_ITEMS.filter(item => canAccessRoute(item.href));
     const filteredEcommerceNavItems = ECOMMERCE_NAV_ITEMS.filter(item => canAccessRoute(item.href));
+    const filteredClinicNavItems = CLINIC_NAV_ITEMS.filter(item => canAccessRoute(item.href));
 
     const handleLogout = async () => {
         setIsLoggingOut(true);
@@ -767,6 +848,47 @@ export function BusinessSidebar({
                                 >
                                     <div className="pt-1 space-y-0.5">
                                         {filteredEcommerceNavItems.map((item) => (
+                                            <NavItem key={item.id} item={item} isNested />
+                                        ))}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                )}
+
+                {/* Clinic Module Group */}
+                {hasClinicModule && (
+                    <div className="pt-3">
+                        <button
+                            onClick={() => toggleGroup("clinic")}
+                            className={clsx(
+                                "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-colors",
+                                hoverBg
+                            )}
+                        >
+                            <Stethoscope className={clsx("h-4 w-4", "text-red-500")} />
+                            <span className={clsx("font-medium text-sm flex-1 text-left", textSecondary)}>
+                                Klinik Yönetimi
+                            </span>
+                            <ChevronDown className={clsx(
+                                "h-4 w-4 transition-transform",
+                                textMuted,
+                                expandedGroups.includes("clinic") && "rotate-180"
+                            )} />
+                        </button>
+
+                        <AnimatePresence>
+                            {expandedGroups.includes("clinic") && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="overflow-hidden"
+                                >
+                                    <div className="pt-1 space-y-0.5">
+                                        {filteredClinicNavItems.map((item) => (
                                             <NavItem key={item.id} item={item} isNested />
                                         ))}
                                     </div>

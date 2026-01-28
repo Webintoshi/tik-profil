@@ -12,22 +12,11 @@ interface SettingsRow {
     currency_symbol: string;
     working_hours: unknown;
     notifications: unknown;
+    require_phone: boolean;
+    require_email: boolean;
     is_active: boolean;
     created_at: string;
     updated_at: string;
-}
-
-function mapSettings(row: SettingsRow) {
-    return {
-        businessId: row.business_id,
-        currency: row.currency,
-        currencySymbol: row.currency_symbol,
-        workingHours: row.working_hours,
-        notifications: row.notifications,
-        isActive: row.is_active,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-    };
 }
 
 const getJwtSecret = () => getSessionSecretBytes();
@@ -44,6 +33,17 @@ async function getBusinessId(): Promise<string | null> {
     }
 }
 
+// Default settings
+const defaultWorkingHours = {
+    monday: { start: '09:00', end: '18:00', isActive: true },
+    tuesday: { start: '09:00', end: '18:00', isActive: true },
+    wednesday: { start: '09:00', end: '18:00', isActive: true },
+    thursday: { start: '09:00', end: '18:00', isActive: true },
+    friday: { start: '09:00', end: '18:00', isActive: true },
+    saturday: { start: '10:00', end: '16:00', isActive: false },
+    sunday: { start: '10:00', end: '16:00', isActive: false },
+};
+
 export async function GET(request: Request) {
     try {
         const businessId = await getBusinessId();
@@ -56,13 +56,50 @@ export async function GET(request: Request) {
             .from(TABLE)
             .select('*')
             .eq('business_id', businessId)
-            .single();
+            .maybeSingle();
 
-        if (error) throw error;
+        if (error) {
+            console.error('[Clinic Settings] GET error:', error);
+            throw error;
+        }
 
-        const settings = data ? mapSettings(data) : null;
+        // If no settings exist, return default settings
+        if (!data) {
+            return NextResponse.json({
+                success: true,
+                settings: {
+                    currency: 'TRY',
+                    currencySymbol: '₺',
+                    workingHours: defaultWorkingHours,
+                    notifications: {
+                        email: true,
+                        sms: false,
+                        appointmentReminderHours: 24,
+                        newPatientWelcomeEmail: true,
+                    },
+                    requirePhone: true,
+                    requireEmail: false,
+                    isActive: true,
+                }
+            });
+        }
 
-        return NextResponse.json({ success: true, settings });
+        const row = data as SettingsRow;
+
+        return NextResponse.json({
+            success: true,
+            settings: {
+                currency: row.currency || 'TRY',
+                currencySymbol: row.currency_symbol || '₺',
+                workingHours: row.working_hours || defaultWorkingHours,
+                notifications: row.notifications || {},
+                requirePhone: row.require_phone ?? true,
+                requireEmail: row.require_email ?? false,
+                isActive: row.is_active ?? true,
+                createdAt: row.created_at,
+                updatedAt: row.updated_at,
+            }
+        });
     } catch (error) {
         console.error('[Clinic Settings] GET error:', error);
         return NextResponse.json({ success: false, error: 'Server error' }, { status: 500 });
@@ -79,20 +116,28 @@ export async function PUT(request: Request) {
         const body = await request.json();
 
         const supabase = getSupabaseAdmin();
-        const { error: updateError } = await supabase
+        
+        // Upsert settings
+        const { error: upsertError } = await supabase
             .from(TABLE)
             .upsert({
                 business_id: businessId,
                 currency: body.currency || 'TRY',
                 currency_symbol: body.currencySymbol || '₺',
-                working_hours: body.workingHours || null,
+                working_hours: body.workingHours || defaultWorkingHours,
                 notifications: body.notifications || {},
+                require_phone: body.requirePhone ?? true,
+                require_email: body.requireEmail ?? false,
                 is_active: body.isActive !== false,
-            })
-            .select()
-            .single();
+                updated_at: new Date().toISOString(),
+            }, {
+                onConflict: 'business_id'
+            });
 
-        if (updateError) throw updateError;
+        if (upsertError) {
+            console.error('[Clinic Settings] PUT error:', upsertError);
+            throw upsertError;
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {

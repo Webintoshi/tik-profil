@@ -7,6 +7,7 @@ export const revalidate = 0;
 const TABLE = 'clinic_services';
 const CATEGORIES_TABLE = 'clinic_categories';
 const BUSINESSES_TABLE = 'businesses';
+const SETTINGS_TABLE = 'clinic_settings';
 
 interface ServiceRow {
     id: string;
@@ -41,6 +42,14 @@ interface BusinessRow {
     phone: string | null;
 }
 
+interface SettingsRow {
+    business_id: string;
+    working_hours: unknown;
+    require_phone: boolean;
+    require_email: boolean;
+    is_active: boolean;
+}
+
 function mapService(row: ServiceRow) {
     return {
         id: row.id,
@@ -69,6 +78,16 @@ function mapCategory(row: CategoryRow) {
         sortOrder: row.sort_order,
     };
 }
+
+const defaultWorkingHours = {
+    monday: { start: '09:00', end: '18:00', isActive: true },
+    tuesday: { start: '09:00', end: '18:00', isActive: true },
+    wednesday: { start: '09:00', end: '18:00', isActive: true },
+    thursday: { start: '09:00', end: '18:00', isActive: true },
+    friday: { start: '09:00', end: '18:00', isActive: true },
+    saturday: { start: '10:00', end: '16:00', isActive: false },
+    sunday: { start: '10:00', end: '16:00', isActive: false },
+};
 
 export async function GET(request: Request) {
     try {
@@ -102,7 +121,7 @@ export async function GET(request: Request) {
         const business = businesses[0] as BusinessRow;
         const businessId = business.id;
 
-        const [categoriesResult, servicesResult] = await Promise.all([
+        const [categoriesResult, servicesResult, settingsResult] = await Promise.all([
             supabase
                 .from(CATEGORIES_TABLE)
                 .select('*')
@@ -115,6 +134,11 @@ export async function GET(request: Request) {
                 .eq('business_id', businessId)
                 .eq('is_active', true)
                 .order('sort_order', { ascending: true }),
+            supabase
+                .from(SETTINGS_TABLE)
+                .select('working_hours, require_phone, require_email, is_active')
+                .eq('business_id', businessId)
+                .maybeSingle(),
         ]);
 
         if (categoriesResult.error || servicesResult.error) {
@@ -135,6 +159,9 @@ export async function GET(request: Request) {
 
         services.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
 
+        // Parse settings
+        const settings = settingsResult.data as SettingsRow | null;
+
         return NextResponse.json({
             success: true,
             data: {
@@ -143,6 +170,11 @@ export async function GET(request: Request) {
                 totalCount: services.length,
                 businessName: business.name,
                 whatsappNumber: business.whatsapp || business.phone,
+                settings: {
+                    workingHours: settings?.working_hours || defaultWorkingHours,
+                    requirePhone: settings?.require_phone ?? true,
+                    requireEmail: settings?.require_email ?? false,
+                },
             },
         }, {
             headers: {
