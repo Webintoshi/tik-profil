@@ -741,6 +741,8 @@ export default function ClinicServicesSheet({ isOpen, onClose, businessSlug }: C
                                             {/* Services Grid - 2 columns */}
                                             <div className="grid grid-cols-2 gap-3">
                                                 {filteredServices.map((service, index) => {
+                                                    const hasImage = !!service.image;
+
                                                     return (
                                                         <motion.div
                                                             key={service.id}
@@ -752,7 +754,7 @@ export default function ClinicServicesSheet({ isOpen, onClose, businessSlug }: C
                                                         >
                                                             {/* Image Container */}
                                                             <div className="relative h-32 bg-purple-50 overflow-hidden">
-                                                                {service.image ? (
+                                                                {hasImage ? (
                                                                     <Image
                                                                         src={service.image}
                                                                         alt={service.name}

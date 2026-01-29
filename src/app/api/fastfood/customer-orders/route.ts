@@ -72,7 +72,7 @@ export async function GET(request: Request) {
             }, { status: 400 });
         }
 
-        const businesses = await getCollectionREST('businesses');
+        const businesses = await getCollectionREST<Record<string, unknown>>('businesses');
         const business = businesses.find(b =>
             (b.slug as string)?.toLowerCase() === businessSlug.toLowerCase()
         );
@@ -86,7 +86,7 @@ export async function GET(request: Request) {
 
         const businessId = business.id as string;
 
-        const allOrders = await getCollectionREST('ff_orders');
+        const allOrders = await getCollectionREST<Record<string, unknown>>('ff_orders');
         const customerOrders = allOrders.filter(o =>
             (o.businessId as string) === businessId &&
             (o.customer as { phone?: string })?.phone === customerPhone

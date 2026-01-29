@@ -25,7 +25,7 @@ interface ActionButtonProps {
 }
 
 // Industry action configurations
-const INDUSTRY_ACTIONS: Record<string, { label: string; icon: string; type: "reservation" | "call" | "link" | "inline-menu" | "emlak-menu" | "beauty-menu" | "fastfood-menu" | "restaurant-menu" | "ecommerce-menu" | "hotel-menu" | "clinic-menu"; linkPath?: string }> = {
+const INDUSTRY_ACTIONS: Record<string, { label: string; icon: string; type: "reservation" | "call" | "link" | "inline-menu" | "emlak-menu" | "beauty-menu" | "fastfood-menu" | "restaurant-menu" | "ecommerce-menu" | "hotel-menu"; linkPath?: string }> = {
     "e-commerce": { label: "Sipariş Ver", icon: "cart", type: "ecommerce-menu" },
     "ecommerce": { label: "Sipariş Ver", icon: "cart", type: "ecommerce-menu" },
     "online-magaza": { label: "Sipariş Ver", icon: "cart", type: "ecommerce-menu" },
