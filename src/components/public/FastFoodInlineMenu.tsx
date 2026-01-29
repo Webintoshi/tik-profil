@@ -953,6 +953,15 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
         try {
             const res = await fetch(`/api/fastfood/public-menu?businessSlug=${businessSlug}`);
             const data = await res.json();
+            
+            console.log('[FastFoodInlineMenu] API Response:', {
+                success: data.success,
+                categories: data.data?.categories?.length || 0,
+                products: data.data?.products?.length || 0,
+                productsList: data.data?.products,
+                fullData: data.data
+            });
+            
             if (data.success && data.data) {
                 const {
                     categories: cats, products: prods, businessId: fetchedId, campaigns: camps, extraGroups: extras,
@@ -1209,7 +1218,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                             )}
                             {/* 3. PRODUCTS LIST - Minimalist */}
                             <div className="px-5 py-4">
-                                {categories.filter(c => c.isActive).map((cat) => {
+                                {categories.map((cat) => {
                                     const catProducts = getProductsByCategory(cat.id);
                                     if (catProducts.length === 0) return null;
 

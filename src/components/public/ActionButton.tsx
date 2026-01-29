@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Utensils, Phone, Scissors, Stethoscope, Calendar, BedDouble, ChevronDown, Home, BookOpen, ShoppingBag } from "lucide-react";
+import { Utensils, Phone, Scissors, Stethoscope, Calendar, BedDouble, ChevronDown, Home, BookOpen, ShoppingBag, Car } from "lucide-react";
 import { ReservationModal } from "./ReservationModal";
 import { InlineMenu } from "./InlineMenu";
 import { EmlakListingsSheet } from "./EmlakListingsSheet";
@@ -9,6 +9,7 @@ import BeautyServicesSheet from "./BeautyServicesSheet";
 import ClinicServicesSheet from "./ClinicServicesSheet";
 import EcommerceSheet from "./EcommerceSheet";
 import { HotelInlineMenu } from "./HotelInlineMenu";
+import VehicleRentalSheet from "./VehicleRentalSheet";
 import { prefetchMenuData } from "@/lib/menuCache";
 import { prefetchBeautyData } from "@/lib/beautyCache";
 import Link from "next/link";
@@ -25,7 +26,7 @@ interface ActionButtonProps {
 }
 
 // Industry action configurations
-const INDUSTRY_ACTIONS: Record<string, { label: string; icon: string; type: "reservation" | "call" | "link" | "inline-menu" | "emlak-menu" | "beauty-menu" | "fastfood-menu" | "restaurant-menu" | "ecommerce-menu" | "hotel-menu"; linkPath?: string }> = {
+const INDUSTRY_ACTIONS: Record<string, { label: string; icon: string; type: "reservation" | "call" | "link" | "inline-menu" | "emlak-menu" | "beauty-menu" | "fastfood-menu" | "restaurant-menu" | "ecommerce-menu" | "hotel-menu" | "vehicle-rental"; linkPath?: string }> = {
     "e-commerce": { label: "Sipariş Ver", icon: "cart", type: "ecommerce-menu" },
     "ecommerce": { label: "Sipariş Ver", icon: "cart", type: "ecommerce-menu" },
     "online-magaza": { label: "Sipariş Ver", icon: "cart", type: "ecommerce-menu" },
@@ -66,6 +67,12 @@ const INDUSTRY_ACTIONS: Record<string, { label: string; icon: string; type: "res
     "psychology": { label: "Hizmetler", icon: "stethoscope", type: "clinic-menu" },
     "nutrition": { label: "Hizmetler", icon: "stethoscope", type: "clinic-menu" },
     "laboratory": { label: "Hizmetler", icon: "stethoscope", type: "clinic-menu" },
+    // Vehicle Rental types
+    "vehicle-rental": { label: "Araç Kirala", icon: "car", type: "vehicle-rental" },
+    "arac-kiralama": { label: "Araç Kirala", icon: "car", type: "vehicle-rental" },
+    "rentacar": { label: "Araç Kirala", icon: "car", type: "vehicle-rental" },
+    "oto-kiralama": { label: "Araç Kirala", icon: "car", type: "vehicle-rental" },
+    "rent-a-car": { label: "Araç Kirala", icon: "car", type: "vehicle-rental" },
     "default": { label: "İletişime Geç", icon: "phone", type: "call" },
 };
 
@@ -79,6 +86,7 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
     const [showRestaurantMenu, setShowRestaurantMenu] = useState(false);
     const [showEcommerceSheet, setShowEcommerceSheet] = useState(false);
     const [showHotelMenu, setShowHotelMenu] = useState(false);
+    const [showVehicleRental, setShowVehicleRental] = useState(false);
     const [menuDataLoaded, setMenuDataLoaded] = useState(false);
     const [beautyDataLoaded, setBeautyDataLoaded] = useState(false);
 
@@ -128,6 +136,8 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
                 return <Home className="w-6 h-6" />;
             case "book":
                 return <BookOpen className="w-6 h-6" />;
+            case "car":
+                return <Car className="w-6 h-6" />;
             case "phone":
             default:
                 return <Phone className="w-6 h-6" />;
@@ -153,6 +163,8 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
             setShowEcommerceSheet(!showEcommerceSheet);
         } else if (action.type === "hotel-menu") {
             setShowHotelMenu(!showHotelMenu);
+        } else if (action.type === "vehicle-rental") {
+            setShowVehicleRental(!showVehicleRental);
         } else if (action.type === "call" && whatsappNumber) {
             const cleanNumber = whatsappNumber.replace(/[\s\-\(\)]/g, "");
             window.open(`tel:${cleanNumber}`, "_self");
@@ -374,6 +386,41 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
                         isOpen={showHotelMenu}
                         businessSlug={businessSlug}
                         onClose={() => setShowHotelMenu(false)}
+                    />
+                )}
+            </>
+        );
+    }
+
+    // For vehicle-rental type, render button + VehicleRentalSheet
+    if (action.type === "vehicle-rental") {
+        return (
+            <>
+                {/* Button */}
+                <button
+                    onClick={handleClick}
+                    className="
+                        h-14 rounded-2xl flex items-center justify-center gap-2 font-bold text-white text-sm md:text-base
+                        bg-purple-600 shadow-lg shadow-purple-500/25
+                        transition-transform active:scale-95 hover:bg-purple-700
+                    "
+                >
+                    {renderIcon()}
+                    {action.label}
+                    <ChevronDown className={clsx(
+                        "w-4 h-4 transition-transform",
+                        showVehicleRental && "rotate-180"
+                    )} />
+                </button>
+
+                {/* Vehicle Rental Sheet */}
+                {businessSlug && (
+                    <VehicleRentalSheet
+                        isOpen={showVehicleRental}
+                        businessSlug={businessSlug}
+                        businessName={businessName}
+                        whatsappNumber={whatsappNumber}
+                        onClose={() => setShowVehicleRental(false)}
                     />
                 )}
             </>

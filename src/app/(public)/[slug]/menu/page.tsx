@@ -92,6 +92,14 @@ function MenuContent() {
                 return;
             }
 
+            console.log('[Menu] API Response Data:', {
+                businessId: data.data.businessId,
+                businessName: data.data.businessName,
+                categories: data.data.categories?.length || 0,
+                products: data.data.products?.length || 0,
+                productsList: data.data.products
+            });
+
             setBusiness({
                 id: data.data.businessId,
                 name: data.data.businessName || "İşletme",

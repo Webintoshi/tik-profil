@@ -204,9 +204,9 @@ export async function GET(request: Request) {
             data: {
                 businessId,
                 businessName: business.name,
-                businessLogo: business.logo || '',
+                businessLogoUrl: business.logo || '',
                 businessPhone: business.phone || '',
-                businessWhatsapp: business.whatsapp || business.phone || '',
+                whatsapp: business.whatsapp || business.phone || '',
                 tableName,
                 categories,
                 products,
