@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Users, Search, Filter, CheckCircle, XCircle, Clock, Car } from 'lucide-react';
+import { Calendar, Users, Search, Filter, CheckCircle, XCircle, Clock, Car, Edit2 } from 'lucide-react';
 import { toast } from 'sonner';
+import EditReservationModal from '@/components/vehicle-rental/EditReservationModal';
 
 interface Reservation {
   id: string;
@@ -26,6 +27,8 @@ export default function ReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   useEffect(() => {
     loadReservations();
@@ -153,6 +156,17 @@ export default function ReservationsPage() {
                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(reservation.status).className}`}>
                   {getStatusBadge(reservation.status).label}
                 </span>
+
+                <button
+                  onClick={() => {
+                    setEditingReservation(reservation);
+                    setIsEditModalOpen(true);
+                  }}
+                  className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
+                  title="Düzenle"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
                 
                 {reservation.status === 'pending' && (
                   <>
@@ -187,6 +201,17 @@ export default function ReservationsPage() {
           </motion.div>
         ))}
       </div>
+
+      {/* Edit Modal */}
+      <EditReservationModal
+        reservation={editingReservation}
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingReservation(null);
+        }}
+        onSaved={loadReservations}
+      />
     </div>
   );
 }

@@ -22,9 +22,10 @@ import { useFastfoodMenuSubscription } from "@/hooks/useMenuRealtime";
 interface Category {
     id: string;
     name: string;
+    icon?: string;
     emoji?: string;
-    isActive: boolean;
-    sortOrder?: number;
+    isActive?: boolean;
+    order?: number;
 }
 
 interface Product {
@@ -35,9 +36,9 @@ interface Product {
     categoryId: string;
     image?: string;
     imageUrl?: string;
-    isActive: boolean;
+    isActive?: boolean;
     inStock: boolean;
-    sortOrder?: number;
+    order?: number;
     extraGroupIds?: string[];
     // New fields
     sizes?: SizeOption[];
@@ -910,7 +911,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
             const cached = getCachedMenuData(businessSlug);
             if (cached) {
                 if (cached.businessId) setFetchedBusinessId(cached.businessId);
-                const sortedCats = (cached.categories || []).sort((a: Category, b: Category) => (a.sortOrder || 0) - (b.sortOrder || 0));
+                const sortedCats = (cached.categories || []).sort((a: Category, b: Category) => (a.order || 0) - (b.order || 0));
                 setCategories(sortedCats);
                 setProducts(cached.products || []);
                 setCampaigns(cached.campaigns || []);
@@ -970,7 +971,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                     estimatedDeliveryTime: estTime, workingHours: hours, useBusinessHours: useBizHours
                 } = data.data;
                 if (fetchedId) setFetchedBusinessId(fetchedId);
-                const sortedCats = (cats || []).sort((a: Category, b: Category) => (a.sortOrder || 0) - (b.sortOrder || 0));
+                const sortedCats = (cats || []).sort((a: Category, b: Category) => (a.order || 0) - (b.order || 0));
                 setCategories(sortedCats);
                 setProducts(prods || []);
                 setCampaigns(camps || []);
@@ -1049,7 +1050,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
     const formatPrice = (price: number) => new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(price);
 
     const getProductsByCategory = (categoryId: string) => {
-        return products.filter(p => p.categoryId === categoryId && p.isActive && p.inStock).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        return products.filter(p => p.categoryId === categoryId && p.inStock).sort((a, b) => (a.order || 0) - (b.order || 0));
     };
 
     const openProductDetail = (product: Product) => {
@@ -1142,10 +1143,10 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                         <div className={clsx("h-full overflow-y-auto pb-24", !isBusinessOpen && "opacity-40 pointer-events-none")} style={{ maxHeight: '700px' }} ref={scrollContainerRef}>
 
                             {/* 1. CAMPAIGNS - Minimalist */}
-                            {campaigns.length > 0 && campaigns.some(c => c.isActive) && (
+                            {campaigns.length > 0 && (
                                 <div className="px-5 pt-4 pb-2">
                                     <div className="flex gap-3 overflow-x-auto scrollbar-hide snap-x">
-                                        {campaigns.filter(c => c.isActive).map(camp => (
+                                        {campaigns.map(camp => (
                                             <div
                                                 key={camp.id}
                                                 className="flex-shrink-0 w-full sm:w-[280px] snap-center rounded-xl bg-[#9333ea] p-4 text-white"
@@ -1162,7 +1163,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                             {/* 2. STICKY CATEGORY NAV - Purple Theme */}
                             <div className="sticky top-0 z-10 bg-white border-b border-gray-100">
                                 <div className="flex gap-2 overflow-x-auto scrollbar-hide no-scrollbar px-5 py-3">
-                                    {categories.filter(c => c.isActive).map((cat) => (
+                                    {categories.map((cat) => (
                                         <button
                                             key={cat.id}
                                             onClick={() => scrollToCategory(cat.id)}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Car, Plus, Search, Filter, Edit2, Trash2, AlertCircle } from 'lucide-react';
+import { Car, Plus, Search, Filter, Edit2, Trash2, AlertCircle, Tag } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { toast } from 'sonner';
@@ -101,13 +101,22 @@ export default function VehiclesPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Araçlarım</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{vehicles.length} araç</p>
         </div>
-        <Link
-          href="/panel/vehicle-rental/vehicles/new"
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Yeni Araç Ekle
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/panel/vehicle-rental/categories"
+            className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          >
+            <Tag className="w-4 h-4" />
+            Kategoriler
+          </Link>
+          <Link
+            href="/panel/vehicle-rental/vehicles/new"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Yeni Araç Ekle
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -210,13 +219,13 @@ export default function VehiclesPage() {
 
               {/* Actions */}
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {/* Edit logic */}}
+                <Link
+                  href={`/panel/vehicle-rental/vehicles/${vehicle.id}`}
                   className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm"
                 >
                   <Edit2 className="w-4 h-4" />
                   Düzenle
-                </button>
+                </Link>
                 <button
                   onClick={() => handleDelete(vehicle.id)}
                   className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
