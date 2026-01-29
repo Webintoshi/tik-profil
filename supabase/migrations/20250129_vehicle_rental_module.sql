@@ -1,10 +1,11 @@
 -- Araç Kiralama Modülü - Temiz SQL Yapısı
 -- Tarih: 2025-01-29
+-- NOT: businesses.id TEXT tipinde olduğu için business_id de TEXT olarak tanımlandı
 
 -- 1. Kategoriler (Basit gruplama)
 CREATE TABLE IF NOT EXISTS vehicle_categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+    business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     name VARCHAR(50) NOT NULL,
     icon VARCHAR(50) DEFAULT 'Car',
     color VARCHAR(20) DEFAULT 'blue',
@@ -16,7 +17,7 @@ CREATE TABLE IF NOT EXISTS vehicle_categories (
 -- 2. Araçlar (Ana tablo - minimal alanlar)
 CREATE TABLE IF NOT EXISTS vehicles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+    business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     category_id UUID REFERENCES vehicle_categories(id) ON DELETE SET NULL,
     
     -- Temel Bilgiler
@@ -57,7 +58,7 @@ CREATE TABLE IF NOT EXISTS vehicle_images (
 -- 4. Rezervasyonlar (Sade & Anlaşılır)
 CREATE TABLE IF NOT EXISTS vehicle_reservations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+    business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     vehicle_id UUID NOT NULL REFERENCES vehicles(id),
     
     -- Müşteri Bilgileri
@@ -99,9 +100,7 @@ CREATE INDEX IF NOT EXISTS idx_reservations_vehicle ON vehicle_reservations(vehi
 CREATE INDEX IF NOT EXISTS idx_reservations_dates ON vehicle_reservations(start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_reservations_status ON vehicle_reservations(status);
 
--- Modül kaydı için hazırlık (Sadece development)
--- Not: Gerçek modül kaydı MODULE_REGISTRY üzerinden yapılacak
-
+-- Açıklamalar
 COMMENT ON TABLE vehicles IS 'Kiralık araçlar';
 COMMENT ON TABLE vehicle_reservations IS 'Araç rezervasyonları';
 COMMENT ON COLUMN vehicles.status IS 'available: Müsait, rented: Kirada, maintenance: Bakımda';
