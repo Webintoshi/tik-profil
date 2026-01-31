@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
             time: validData.time,
             endTime: endTime,
             status: 'pending', // Default status
-            note: validData.note || "",
+            note: validData.notes || "",
             createdAt: new Date().toISOString()
         };
 

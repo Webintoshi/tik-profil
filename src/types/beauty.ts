@@ -43,6 +43,7 @@ export const createAppointmentSchema = z.object({
     date: z.string().min(1, 'Tarih seçimi zorunlu'),
     time: z.string().min(1, 'Saat seçimi zorunlu'),
     notes: z.string().optional(),
+    note: z.string().optional(),
 });
 
 // Staff Schema
