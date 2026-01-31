@@ -1,0 +1,114 @@
+# TikProfil BMad Method Konfigürasyonu
+
+project:
+  name: TikProfil
+  version: "2.0"
+  type: monorepo
+  language: tr  # Türkçe dokümantasyon
+  
+platforms:
+  web:
+    name: TikProfil Web
+    path: tikprofil-v2
+    framework: nextjs-15
+    framework_version: "15.1.0"
+    react_version: "19.0.0"
+    language: typescript
+    styling: tailwindcss
+    state_management: swr
+    validation: zod
+    
+  mobile:
+    name: TikProfil Mobile
+    path: apps/tikprofil-mobile
+    framework: expo
+    framework_version: "54.0.32"
+    react_native_version: "0.81.5"
+    language: typescript
+    navigation: react-navigation-v7
+    state_management: react-query
+    animation: react-native-reanimated
+    
+  shared:
+    - name: shared-api
+      path: packages/shared-api
+      description: API fonksiyonları
+      
+    - name: shared-types
+      path: packages/shared-types
+      description: TypeScript tipleri
+      
+    - name: shared-utils
+      path: packages/shared-utils
+      description: Utility fonksiyonlar
+      
+    - name: shared-constants
+      path: packages/shared-constants
+      description: Sabitler
+
+database:
+  provider: supabase
+  type: postgresql
+  path: tikprofil-v2/supabase
+  features:
+    - auth
+    - storage
+    - edge_functions
+
+existing_agents:
+  - name: seo-agent
+    path: agents/seo-agent.md
+    description: SEO optimizasyonu agentı
+
+bug_tracking:
+  source: bug.md
+  format: markdown
+  levels:
+    - Kritik
+    - Orta
+    - Düşük
+
+defaults:
+  level: 2  # Varsayılan feature seviyesi
+  priority: P1
+  story_points: 5
+  
+workflows:
+  - workflow-init
+  - quick-spec
+  - feature-plan
+  - bug-import
+  - tech-spec
+  - dev-story
+
+agents:
+  core:
+    - bmad-master
+    - tikprofil-pm
+  technical:
+    - web-architect
+    - mobile-architect
+    - supabase-expert
+    - full-stack-dev
+    - test-architect
+  existing:
+    - seo-agent
+
+folder_structure:
+  bmad:
+    - BMAD.md           # Ana dokümantasyon
+    - _cfg/
+      - agents/         # Ajan konfigürasyonları
+      - workflows/      # Workflow tanımları
+      - project.yaml    # Proje ayarları
+    - _docs/
+      - agents.md
+      - workflows.md
+    - templates/
+      - prd-template.md
+      - story-template.md
+    - stories/
+      - prd-*.md        # Feature PRD'leri
+      - story-*.md      # Implementasyon story'leri
+      - tech-spec-*.md  # Teknik spesifikasyonlar
+      - bugs/           # Bug story'leri

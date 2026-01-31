@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "TikPofil Keşfet",
+    "slug": "tikprofil-explore",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#10B981"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.tikprofil.explore",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Konumunu kullanarak yakındaki işletmeleri gösteriyoruz.",
+        "NSCameraUsageDescription": "Profil fotoğrafı yüklemek için kamera erişimi gereklidir.",
+        "NSPhotoLibraryUsageDescription": "Profil fotoğrafı yüklemek için galeri erişimi gereklidir."
+      }
+    },
+    "android": {
+      "package": "com.tikprofil.explore",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#10B981"
+      },
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ],
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-location"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "tikprofil-explore-project-id"
+      }
+    }
+  }
+}
