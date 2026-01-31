@@ -5,3 +5,4 @@ export const couponSchema = z.object({
     type: z.enum(['percentage', 'fixed']),
     value: z.number().positive(),
     minOrderAmount: z.number().positive().optional(),
+});
