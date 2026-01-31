@@ -6,6 +6,19 @@ export const couponSchema = z.object({
     type: z.enum(['percentage', 'fixed']),
     value: z.number().positive(),
     minOrderAmount: z.number().positive().optional(),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    maxDiscount: z.number().optional(),
+    usageLimit: z.number().optional(),
+    usageCount: z.number().optional(),
+    usagePerUser: z.number().optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+    status: z.enum(['active', 'inactive', 'expired']).optional(),
+    isPublic: z.boolean().optional(),
+    isFirstOrderOnly: z.boolean().optional(),
+    applicableCategoryIds: z.array(z.string()).optional(),
+    applicableProductIds: z.array(z.string()).optional(),
 });
 
 // Category Schema
@@ -65,7 +78,7 @@ export const ORDER_STATUS_COLORS: Record<string, string> = {
 };
 
 // Order Status Type
-export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
+export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
 
 // Order Item
 export interface OrderItem {
@@ -83,12 +96,18 @@ export interface ShippingOption {
     id: string;
     name: string;
     fee: number;
+    price?: number;
     isActive: boolean;
+    freeAbove?: number;
+    estimatedDays?: string;
 }
 
 // Cart Item
 export interface CartItem extends OrderItem {
+    id?: string;
     maxQuantity?: number;
+    maxStock?: number;
+    variantId?: string;
 }
 
 // Customer
@@ -101,6 +120,8 @@ export interface Customer {
     businessId?: string;
     createdAt?: string;
     updatedAt?: string;
+    totalSpent?: number;
+    totalOrders?: number;
 }
 
 // Types
@@ -212,10 +233,13 @@ export interface EcommerceSettings {
         email?: boolean;
         sms?: boolean;
         push?: boolean;
+        whatsapp?: boolean;
     };
     stockSettings?: {
         lowStockThreshold?: number;
         notifyLowStock?: boolean;
+        trackStock?: boolean;
+        allowBackorder?: boolean;
     };
     checkoutSettings?: {
         requirePhone?: boolean;

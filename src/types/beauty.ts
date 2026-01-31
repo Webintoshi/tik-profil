@@ -6,6 +6,7 @@ export const serviceCategorySchema = z.object({
     icon: z.string().max(50).optional(),
     order: z.number().min(0).default(0),
     isActive: z.boolean().default(true),
+    imageUrl: z.string().optional(),
 });
 
 // Category Icons
@@ -54,6 +55,8 @@ export const staffSchema = z.object({
     bio: z.string().max(500).optional(),
     avatar: z.string().optional(),
     isActive: z.boolean().default(true),
+    title: z.string().optional(),
+    photoUrl: z.string().optional(),
 });
 
 // Customer Schema
@@ -62,6 +65,7 @@ export const customerSchema = z.object({
     email: z.string().email().optional(),
     phone: z.string().min(10, 'Telefon zorunlu'),
     notes: z.string().optional(),
+    tags: z.array(z.string()).optional(),
 });
 
 // Service Schema
@@ -73,6 +77,8 @@ export const createServiceSchema = z.object({
     categoryId: z.string().min(1, 'Kategori seçimi zorunlu'),
     staffIds: z.array(z.string()).default([]),
     isActive: z.boolean().default(true),
+    images: z.array(z.string()).optional(),
+    currency: z.string().optional(),
 });
 
 // Settings Schema
@@ -98,6 +104,8 @@ export interface DayHours {
     end: string;
     isActive: boolean;
     isOpen?: boolean;
+    open?: string;
+    close?: string;
 }
 
 export interface WorkingHours {
