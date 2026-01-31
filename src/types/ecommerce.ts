@@ -10,7 +10,7 @@ export const couponSchema = z.object({
 
 // Category Schema
 export const categorySchema = z.object({
-    name: z.string().min(1, 'Kategori adı zorunlu'),
+    name: z.string().min(1, 'Kategori adı zorunlu').max(100),
     slug: z.string().min(1, 'Slug zorunlu'),
     description: z.string().optional(),
     image: z.string().optional(),
@@ -64,6 +64,45 @@ export const ORDER_STATUS_COLORS: Record<string, string> = {
     refunded: 'gray',
 };
 
+// Order Status Type
+export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
+
+// Order Item
+export interface OrderItem {
+    productId: string;
+    name: string;
+    quantity: number;
+    price: number;
+    total?: number;
+    image?: string;
+    variantName?: string;
+}
+
+// Shipping Option
+export interface ShippingOption {
+    id: string;
+    name: string;
+    fee: number;
+    isActive: boolean;
+}
+
+// Cart Item
+export interface CartItem extends OrderItem {
+    maxQuantity?: number;
+}
+
+// Customer
+export interface Customer {
+    id: string;
+    name: string;
+    email?: string;
+    phone: string;
+    address?: string;
+    businessId?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
 // Types
 export interface Coupon {
     id: string;
@@ -73,6 +112,19 @@ export interface Coupon {
     minOrderAmount?: number;
     isActive: boolean;
     expiresAt?: string;
+    title?: string;
+    description?: string;
+    maxDiscount?: number;
+    usageLimit?: number;
+    usageCount?: number;
+    usagePerUser?: number;
+    startDate?: string;
+    endDate?: string;
+    status?: 'active' | 'inactive' | 'expired';
+    isPublic?: boolean;
+    isFirstOrderOnly?: boolean;
+    applicableCategoryIds?: string[];
+    applicableProductIds?: string[];
 }
 
 export interface Category {
@@ -83,10 +135,14 @@ export interface Category {
     image?: string;
     isActive: boolean;
     order: number;
+    status?: 'active' | 'inactive';
+    productCount?: number;
+    sortOrder?: number;
 }
 
 export interface Product {
     id: string;
+    businessId?: string;
     name: string;
     description?: string;
     price: number;
@@ -98,10 +154,17 @@ export interface Product {
     images: string[];
     isActive: boolean;
     isFeatured: boolean;
+    status?: 'active' | 'inactive' | 'draft';
+    stock?: number;
+    stockQuantity?: number;
+    trackStock?: boolean;
+    sortOrder?: number;
+    createdAt?: string;
 }
 
 export interface Order {
     id: string;
+    businessId?: string;
     orderNumber: string;
     customer: {
         name: string;
@@ -109,21 +172,25 @@ export interface Order {
         phone: string;
         address: string;
     };
-    items: {
-        productId: string;
+    customerInfo?: {
         name: string;
-        quantity: number;
-        price: number;
-    }[];
+        email: string;
+        phone: string;
+        address: string;
+    };
+    items: OrderItem[];
     subtotal: number;
     deliveryFee: number;
+    shippingCost?: number;
     total: number;
     paymentMethod: string;
     paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
-    status: string;
+    status: OrderStatus;
     customerNote?: string;
+    notes?: string;
     couponCode?: string;
     couponDiscount?: number;
+    discount?: number;
     createdAt: string;
     updatedAt: string;
 }
@@ -137,4 +204,42 @@ export interface EcommerceSettings {
     taxRate: number;
     freeShippingThreshold?: number;
     shippingFee: number;
+    storeDescription?: string;
+    minOrderAmount?: number;
+    shippingOptions?: ShippingOption[];
+    paymentMethods?: string[];
+    orderNotifications?: {
+        email?: boolean;
+        sms?: boolean;
+        push?: boolean;
+    };
+    stockSettings?: {
+        lowStockThreshold?: number;
+        notifyLowStock?: boolean;
+    };
+    checkoutSettings?: {
+        requirePhone?: boolean;
+        requireEmail?: boolean;
+        guestCheckout?: boolean;
+    };
+}
+
+// Extended Order interface (for backward compatibility)
+export interface ExtendedOrder extends Order {
+    // All fields already included in Order
+}
+
+// Extended Product interface (for backward compatibility)
+export interface ExtendedProduct extends Product {
+    // All fields already included in Product
+}
+
+// Extended Category interface (for backward compatibility)
+export interface ExtendedCategory extends Category {
+    // All fields already included in Category
+}
+
+// Extended Coupon interface (for backward compatibility)
+export interface ExtendedCoupon extends Coupon {
+    // All fields already included in Coupon
 }

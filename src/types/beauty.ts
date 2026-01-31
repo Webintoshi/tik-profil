@@ -43,7 +43,6 @@ export const createAppointmentSchema = z.object({
     date: z.string().min(1, 'Tarih seçimi zorunlu'),
     time: z.string().min(1, 'Saat seçimi zorunlu'),
     notes: z.string().optional(),
-    note: z.string().optional(),
 });
 
 // Staff Schema
@@ -82,7 +81,7 @@ export const beautySettingsSchema = z.object({
     address: z.string().optional(),
     phone: z.string().optional(),
     email: z.string().email().optional(),
-    workingHours: z.record(z.object({
+    workingHours: z.record(z.string(), z.object({
         start: z.string(),
         end: z.string(),
         isActive: z.boolean(),
@@ -90,7 +89,41 @@ export const beautySettingsSchema = z.object({
     requirePhone: z.boolean().default(true),
     requireEmail: z.boolean().default(false),
     isActive: z.boolean().default(true),
+    appointmentSlotMinutes: z.number().default(30),
 });
+
+// Working Hours Types
+export interface DayHours {
+    start: string;
+    end: string;
+    isActive: boolean;
+}
+
+export interface WorkingHours {
+    monday: DayHours;
+    tuesday: DayHours;
+    wednesday: DayHours;
+    thursday: DayHours;
+    friday: DayHours;
+    saturday: DayHours;
+    sunday: DayHours;
+}
+
+// Appointment Status
+export type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
+
+// Beauty Settings
+export interface BeautySettings {
+    businessName?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    workingHours?: WorkingHours;
+    requirePhone: boolean;
+    requireEmail: boolean;
+    isActive: boolean;
+    appointmentSlotMinutes?: number;
+}
 
 // Types
 export interface Service {
@@ -102,6 +135,9 @@ export interface Service {
     categoryId: string;
     staffIds: string[];
     isActive: boolean;
+    businessId?: string;
+    images?: string[];
+    currency?: string;
 }
 
 export interface Staff {
@@ -113,14 +149,16 @@ export interface Staff {
     bio?: string;
     avatar?: string;
     isActive: boolean;
+    title?: string;
+    photoUrl?: string;
 }
 
 export interface Appointment {
     id: string;
-    businessId: string;
+    businessId?: string;
     serviceId: string;
-    serviceName: string;
-    serviceDuration: number;
+    serviceName?: string;
+    serviceDuration?: number;
     staffId: string;
     staffName?: string;
     customerName: string;
@@ -128,10 +166,11 @@ export interface Appointment {
     customerEmail?: string;
     date: string;
     time: string;
+    startTime?: string;
     endTime?: string;
     notes?: string;
     note?: string;
-    status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+    status: AppointmentStatus;
     createdAt?: string;
 }
 
@@ -141,6 +180,11 @@ export interface Customer {
     email?: string;
     phone: string;
     notes?: string;
+    businessId?: string;
+    tags?: string[];
+    lastVisit?: string;
+    totalAppointments?: number;
+    totalSpent?: number;
 }
 
 export interface ServiceCategory {
@@ -149,6 +193,32 @@ export interface ServiceCategory {
     icon?: string;
     order: number;
     isActive: boolean;
+    imageUrl?: string;
+}
+
+// Extended interfaces (for backward compatibility)
+export interface ExtendedCustomer extends Customer {
+    // All fields already included in Customer
+}
+
+export interface ExtendedService extends Service {
+    // All fields already included in Service
+}
+
+export interface ExtendedStaff extends Staff {
+    // All fields already included in Staff
+}
+
+export interface ExtendedAppointment extends Appointment {
+    // All fields already included in Appointment
+}
+
+export interface ExtendedServiceCategory extends ServiceCategory {
+    // All fields already included in ServiceCategory
+}
+
+export interface ExtendedBeautySettings extends BeautySettings {
+    // All fields already included in BeautySettings
 }
 
 // Helper functions
