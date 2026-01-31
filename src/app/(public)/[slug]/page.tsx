@@ -510,6 +510,10 @@ async function getBusinessBySlug(slug: string): Promise<Business | null> {
         const ecommerceModules = ["ecommerce", "e-commerce", "magaza", "shop", "store"];
         const foundEcommerceModule = modulesArr.find(m => ecommerceModules.includes(m.toLowerCase()));
 
+        // Check for vehicle rental modules
+        const vehicleRentalModules = ["vehicle-rental", "rentacar", "arac-kiralama", "oto-kiralama", "rent-a-car"];
+        const foundVehicleRentalModule = modulesArr.find(m => vehicleRentalModules.includes(m.toLowerCase()));
+
         // Determine industry based on module priority
         let derivedIndustry = "default";
         if (foundClinicModule) {
@@ -526,8 +530,12 @@ async function getBusinessBySlug(slug: string): Promise<Business | null> {
             derivedIndustry = "emlak";
         } else if (foundEcommerceModule) {
             derivedIndustry = "ecommerce";
+        } else if (foundVehicleRentalModule) {
+            derivedIndustry = "vehicle-rental";
         } else if (modulesArr.length > 0) {
             derivedIndustry = modulesArr[0];
+        } else if (normalizedLabel === "arackiralama" || normalizedLabel === "rentacar" || normalizedLabel === "otokiralama" || normalizedLabel === "rentacar") {
+            derivedIndustry = "vehicle-rental";
         } else if (normalizedLabel) {
             derivedIndustry = normalizedLabel;
         }

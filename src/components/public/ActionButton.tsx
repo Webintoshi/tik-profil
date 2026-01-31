@@ -3,13 +3,12 @@
 import { useState, useEffect } from "react";
 import { Utensils, Phone, Scissors, Stethoscope, Calendar, BedDouble, ChevronDown, Home, BookOpen, ShoppingBag, Car } from "lucide-react";
 import { ReservationModal } from "./ReservationModal";
-import { InlineMenu } from "./InlineMenu";
 import { EmlakListingsSheet } from "./EmlakListingsSheet";
 import BeautyServicesSheet from "./BeautyServicesSheet";
 import ClinicServicesSheet from "./ClinicServicesSheet";
 import EcommerceSheet from "./EcommerceSheet";
 import { HotelInlineMenu } from "./HotelInlineMenu";
-import VehicleRentalSheet from "./VehicleRentalSheet";
+import { VehicleRentalInlineMenu } from "./VehicleRentalInlineMenu";
 import { prefetchMenuData } from "@/lib/menuCache";
 import { prefetchBeautyData } from "@/lib/beautyCache";
 import Link from "next/link";
@@ -73,12 +72,14 @@ const INDUSTRY_ACTIONS: Record<string, { label: string; icon: string; type: "res
     "rentacar": { label: "Araç Kirala", icon: "car", type: "vehicle-rental" },
     "oto-kiralama": { label: "Araç Kirala", icon: "car", type: "vehicle-rental" },
     "rent-a-car": { label: "Araç Kirala", icon: "car", type: "vehicle-rental" },
+    // Normalized label formats (from [slug]/page.tsx)
+    "arackiralama": { label: "Araç Kirala", icon: "car", type: "vehicle-rental" },
+    "otokiralama": { label: "Araç Kirala", icon: "car", type: "vehicle-rental" },
     "default": { label: "İletişime Geç", icon: "phone", type: "call" },
 };
 
 export function ActionButton({ industry, whatsappNumber, businessName, businessSlug, businessId, businessLogo, businessPhone }: ActionButtonProps) {
     const [showReservationModal, setShowReservationModal] = useState(false);
-    const [showInlineMenu, setShowInlineMenu] = useState(false);
     const [showEmlakSheet, setShowEmlakSheet] = useState(false);
     const [showBeautySheet, setShowBeautySheet] = useState(false);
     const [showClinicSheet, setShowClinicSheet] = useState(false);
@@ -147,8 +148,7 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
     const handleClick = () => {
         if (action.type === "reservation") {
             setShowReservationModal(true);
-        } else if (action.type === "inline-menu") {
-            setShowInlineMenu(!showInlineMenu);
+
         } else if (action.type === "emlak-menu") {
             setShowEmlakSheet(!showEmlakSheet);
         } else if (action.type === "beauty-menu") {
@@ -185,41 +185,6 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
                 {renderIcon()}
                 {action.label}
             </Link>
-        );
-    }
-
-    // For inline-menu type, render button (normal grid) + inline menu expands OUTSIDE the grid
-    if (action.type === "inline-menu") {
-        return (
-            <>
-                {/* Button - same styling as others, stays in 2x2 grid */}
-                <button
-                    onClick={handleClick}
-                    className="
-                        h-14 rounded-2xl flex items-center justify-center gap-2 font-bold text-white text-sm md:text-base
-                        bg-purple-600 shadow-lg shadow-purple-500/25
-                        transition-transform active:scale-95 hover:bg-purple-700
-                    "
-                >
-                    {renderIcon()}
-                    {action.label}
-                    <ChevronDown className={clsx(
-                        "w-4 h-4 transition-transform",
-                        showInlineMenu && "rotate-180"
-                    )} />
-                </button>
-
-                {/* Inline Menu - renders via portal at end of page */}
-                {businessSlug && showInlineMenu && (
-                    <InlineMenu
-                        isOpen={showInlineMenu}
-                        businessSlug={businessSlug}
-                        businessName={businessName}
-                        whatsappNumber={whatsappNumber}
-                        onClose={() => setShowInlineMenu(false)}
-                    />
-                )}
-            </>
         );
     }
 
@@ -392,7 +357,7 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
         );
     }
 
-    // For vehicle-rental type, render button + VehicleRentalSheet
+    // For vehicle-rental type, render button + VehicleRentalInlineMenu
     if (action.type === "vehicle-rental") {
         return (
             <>
@@ -413,9 +378,9 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
                     )} />
                 </button>
 
-                {/* Vehicle Rental Sheet */}
-                {businessSlug && (
-                    <VehicleRentalSheet
+                {/* Vehicle Rental Inline Menu */}
+                {businessSlug && showVehicleRental && (
+                    <VehicleRentalInlineMenu
                         isOpen={showVehicleRental}
                         businessSlug={businessSlug}
                         businessName={businessName}

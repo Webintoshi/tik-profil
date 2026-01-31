@@ -876,6 +876,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [mounted, setMounted] = useState(false);
 
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -952,16 +953,25 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
         }
 
         try {
+            setError(null);
             const res = await fetch(`/api/fastfood/public-menu?businessSlug=${businessSlug}`);
             const data = await res.json();
             
             console.log('[FastFoodInlineMenu] API Response:', {
                 success: data.success,
+                error: data.error,
                 categories: data.data?.categories?.length || 0,
                 products: data.data?.products?.length || 0,
-                productsList: data.data?.products,
-                fullData: data.data
+                debug: data.debug
             });
+            
+            if (!data.success) {
+                const errorMsg = data.error || 'Menü yüklenemedi';
+                const debugInfo = data.debug ? ` (Modül: ${data.debug.active_module})` : '';
+                setError(errorMsg + debugInfo);
+                setLoading(false);
+                return;
+            }
             
             if (data.success && data.data) {
                 const {
@@ -991,13 +1001,36 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                     setWorkingHours(hours);
                     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
                     const now = new Date();
-                    const currentDay = days[now.getDay()];
+                    const turkeyNow = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Istanbul"}));
+                    const currentDay = days[turkeyNow.getDay()];
                     const todayHours = hours[currentDay];
+                    
+                    console.log('[FastFoodInlineMenu] Business Hours Check:', {
+                        turkeyTime: turkeyNow.toLocaleString('tr-TR'),
+                        currentDay,
+                        todayHours,
+                        isOpenNow: isBusinessOpen
+                    });
+                    
                     if (todayHours && todayHours.isOpen) {
-                        const currentTime = now.getHours() * 60 + now.getMinutes();
+                        const currentTime = turkeyNow.getHours() * 60 + turkeyNow.getMinutes();
                         const [openHour, openMin] = todayHours.open.split(':').map(Number);
                         const [closeHour, closeMin] = todayHours.close.split(':').map(Number);
-                        setIsBusinessOpen(currentTime >= openHour * 60 + openMin && currentTime < closeHour * 60 + closeMin);
+                        const openMinutes = openHour * 60 + openMin;
+                        const closeMinutes = closeHour * 60 + closeMin;
+                        const isOpen = currentTime >= openMinutes && currentTime < closeMinutes;
+                        
+                        console.log('[FastFoodInlineMenu] Time Comparison:', {
+                            currentTime: `${turkeyNow.getHours()}:${turkeyNow.getMinutes().toString().padStart(2, '0')}`,
+                            currentTimeMinutes: currentTime,
+                            openTime: todayHours.open,
+                            openMinutes,
+                            closeTime: todayHours.close,
+                            closeMinutes,
+                            isOpen
+                        });
+                        
+                        setIsBusinessOpen(isOpen);
                     } else {
                         setIsBusinessOpen(false);
                     }
@@ -1067,8 +1100,12 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
 
     const getProductExtraGroups = (product: Product) => {
         // Only show extra groups that are explicitly assigned to this product
+        console.log('[getProductExtraGroups] Product:', product.name, 'extraGroupIds:', product.extraGroupIds);
+        console.log('[getProductExtraGroups] Available extraGroups:', extraGroups);
         if (product.extraGroupIds && product.extraGroupIds.length > 0) {
-            return extraGroups.filter(g => product.extraGroupIds?.includes(g.id));
+            const matched = extraGroups.filter(g => product.extraGroupIds?.includes(g.id));
+            console.log('[getProductExtraGroups] Matched groups:', matched);
+            return matched;
         }
         // If no extraGroupIds assigned, show no extras
         return [];
@@ -1093,7 +1130,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                     className="overflow-hidden w-full col-span-2 relative"
                     style={{ marginTop: '0.75rem' }}
                 >
-                    <div className="rounded-2xl overflow-hidden border border-gray-200 bg-white relative min-h-[600px]">
+                    <div className="rounded-2xl overflow-hidden border border-gray-200 bg-white relative min-h-[500px] sm:min-h-[600px]">
 
                         {/* Close Button */}
                         <button
@@ -1103,44 +1140,132 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                             <X className="w-4 h-4" />
                         </button>
 
-                        {/* Closed Business Overlay */}
-                        {!isBusinessOpen && workingHours && (
-                            <div className="absolute inset-0 z-30 bg-black/60 backdrop-blur-sm flex items-center justify-center">
-                                <div className="bg-white rounded-2xl p-8 mx-4 text-center shadow-2xl max-w-sm">
-                                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <Clock className="w-8 h-8 text-gray-500" />
+                        {/* CLOSED BUSINESS - Full Screen Message */}
+                        {!isBusinessOpen && workingHours ? (
+                            <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+                                {/* Animated Icon */}
+                                <motion.div
+                                    initial={{ scale: 0.8, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    transition={{ delay: 0.1 }}
+                                    className="w-24 h-24 bg-gradient-to-br from-purple-100 to-pink-100 rounded-full flex items-center justify-center mb-6 shadow-lg"
+                                >
+                                    <Clock className="w-12 h-12 text-purple-600" />
+                                </motion.div>
+                                
+                                {/* Title */}
+                                <motion.h3
+                                    initial={{ y: 20, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    transition={{ delay: 0.2 }}
+                                    className="text-2xl font-bold text-gray-900 mb-3 text-center"
+                                >
+                                    Şu Anda Kapalıyız
+                                </motion.h3>
+                                
+                                {/* Message */}
+                                <motion.p
+                                    initial={{ y: 20, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    transition={{ delay: 0.3 }}
+                                    className="text-gray-500 text-center mb-8 max-w-xs"
+                                >
+                                    Siparişlerinizi çalışma saatlerimiz içinde alıyoruz. Sizi yeniden aramızda görmek için sabırsızlanıyoruz!
+                                </motion.p>
+                                
+                                {/* Working Hours Card */}
+                                <motion.div
+                                    initial={{ y: 20, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    transition={{ delay: 0.4 }}
+                                    className="w-full max-w-sm bg-white rounded-2xl border border-purple-100 shadow-xl overflow-hidden"
+                                >
+                                    <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4">
+                                        <h4 className="text-white font-bold flex items-center gap-2">
+                                            <Clock className="w-5 h-5" />
+                                            Mesai Saatlerimiz
+                                        </h4>
                                     </div>
-                                    <h3 className="text-xl font-bold text-gray-900 mb-2">Çalışma Saatleri Dışındayız</h3>
-                                    <p className="text-gray-500 mb-4">
-                                        Şu anda sipariş alamıyoruz. Lütfen çalışma saatlerimizde tekrar deneyin.
-                                    </p>
-                                    {(() => {
-                                        const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                                        const dayNames: Record<string, string> = { sunday: 'Pazar', monday: 'Pazartesi', tuesday: 'Salı', wednesday: 'Çarşamba', thursday: 'Perşembe', friday: 'Cuma', saturday: 'Cumartesi' };
-                                        const now = new Date();
-                                        const currentDay = days[now.getDay()];
-                                        const todayHours = workingHours[currentDay];
-                                        if (todayHours && todayHours.isOpen) {
-                                            return (
-                                                <div className="bg-gray-50 rounded-xl px-4 py-3">
-                                                    <p className="text-sm text-gray-600">
-                                                        <span className="font-semibold">{dayNames[currentDay]}:</span> {todayHours.open} - {todayHours.close}
-                                                    </p>
-                                                </div>
-                                            );
-                                        } else {
-                                            return (
-                                                <div className="bg-red-50 rounded-xl px-4 py-3">
-                                                    <p className="text-sm text-red-600 font-medium">Bugün kapalıyız</p>
-                                                </div>
-                                            );
-                                        }
-                                    })()}
-                                </div>
+                                    <div className="p-4 space-y-2">
+                                        {(() => {
+                                            const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                                            const dayNames: Record<string, string> = { 
+                                                sunday: 'Pazar', 
+                                                monday: 'Pazartesi', 
+                                                tuesday: 'Salı', 
+                                                wednesday: 'Çarşamba', 
+                                                thursday: 'Perşembe', 
+                                                friday: 'Cuma', 
+                                                saturday: 'Cumartesi' 
+                                            };
+                                            const now = new Date();
+                                            const currentDay = days[now.getDay()];
+                                            
+                                            // Show all days with hours
+                                            return days.map((day, index) => {
+                                                const dayHours = workingHours[day];
+                                                const isToday = day === currentDay;
+                                                
+                                                if (!dayHours || !dayHours.isOpen) {
+                                                    return (
+                                                        <div 
+                                                            key={day}
+                                                            className={clsx(
+                                                                "flex justify-between items-center py-2 px-3 rounded-lg",
+                                                                isToday && "bg-red-50"
+                                                            )}
+                                                        >
+                                                            <span className={clsx(
+                                                                "text-sm",
+                                                                isToday ? "font-bold text-red-700" : "text-gray-600"
+                                                            )}>
+                                                                {dayNames[day]}
+                                                            </span>
+                                                            <span className="text-sm text-gray-400 font-medium">Kapalı</span>
+                                                        </div>
+                                                    );
+                                                }
+                                                
+                                                return (
+                                                    <div 
+                                                        key={day}
+                                                        className={clsx(
+                                                            "flex justify-between items-center py-2 px-3 rounded-lg",
+                                                            isToday && "bg-purple-50 border border-purple-100"
+                                                        )}
+                                                    >
+                                                        <span className={clsx(
+                                                            "text-sm",
+                                                            isToday ? "font-bold text-purple-700" : "text-gray-600"
+                                                        )}>
+                                                            {dayNames[day]}
+                                                            {isToday && <span className="ml-2 text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full">Bugün</span>}
+                                                        </span>
+                                                        <span className={clsx(
+                                                            "text-sm font-medium",
+                                                            isToday ? "text-purple-700" : "text-gray-900"
+                                                        )}>
+                                                            {dayHours.open} - {dayHours.close}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            });
+                                        })()}
+                                    </div>
+                                </motion.div>
+                                
+                                {/* Footer Message */}
+                                <motion.p
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ delay: 0.6 }}
+                                    className="mt-8 text-sm text-gray-400 text-center"
+                                >
+                                    💜 Sizi yeniden aramızda görmek için sabırsızlanıyoruz!
+                                </motion.p>
                             </div>
-                        )}
-
-                        <div className={clsx("h-full overflow-y-auto pb-24", !isBusinessOpen && "opacity-40 pointer-events-none")} style={{ maxHeight: '700px' }} ref={scrollContainerRef}>
+                        ) : (
+                        <div className="h-full overflow-y-auto pb-24" style={{ maxHeight: 'calc(100vh - 200px)' }} ref={scrollContainerRef}>
 
                             {/* 1. CAMPAIGNS - Minimalist */}
                             {campaigns.length > 0 && (
@@ -1283,21 +1408,39 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                                 })}
                             </div>
 
+                            {/* Error State */}
+                            {error && !loading && (
+                                <div className="flex flex-col items-center justify-center py-20 text-center px-5">
+                                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                                        <Utensils className="w-8 h-8 text-red-400" />
+                                    </div>
+                                    <h3 className="text-base font-medium text-red-600">Menü Yüklenemedi</h3>
+                                    <p className="text-sm text-gray-500 mt-1">{error}</p>
+                                    <button 
+                                        onClick={() => refreshMenu(false, true)}
+                                        className="mt-4 px-4 py-2 bg-[#9333ea] text-white rounded-lg text-sm font-medium"
+                                    >
+                                        Tekrar Dene
+                                    </button>
+                                </div>
+                            )}
+
                             {/* Empty State */}
-                            {products.length === 0 && !loading && (
+                            {!error && products.length === 0 && !loading && (
                                 <div className="flex flex-col items-center justify-center py-20 text-center px-5">
                                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                                         <Utensils className="w-8 h-8 text-gray-400" />
                                     </div>
-                                    <h3 className="text-base font-medium text-gray-900">Menü Hazırlanıyor</h3>
-                                    <p className="text-sm text-gray-500 mt-1">Lütfen daha sonra tekrar kontrol edin.</p>
+                                    <h3 className="text-base font-medium text-gray-900">Menü Boş</h3>
+                                    <p className="text-sm text-gray-500 mt-1">Bu işletme için henüz ürün eklenmemiş.</p>
                                 </div>
                             )}
                         </div>
+                        )}
 
-                        {/* 4. FLOATING CART BAR - Auto-hides after 4 seconds */}
+                        {/* 4. FLOATING CART BAR - Auto-hides after 4 seconds - Only show when business is open */}
                         <AnimatePresence>
-                            {totalItems > 0 && showCartBar && !showCheckout && (
+                            {isBusinessOpen && totalItems > 0 && showCartBar && !showCheckout && (
                                 <motion.div
                                     initial={{ y: 100, opacity: 0 }}
                                     animate={{ y: 0, opacity: 1 }}

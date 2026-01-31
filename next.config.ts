@@ -66,6 +66,11 @@ const nextConfig: NextConfig = {
                 hostname: 'storage.googleapis.com',
                 pathname: '/**',
             },
+            {
+                protocol: 'https',
+                hostname: 'cdn.tikprofil.com',
+                pathname: '/**',
+            },
         ],
     },
 

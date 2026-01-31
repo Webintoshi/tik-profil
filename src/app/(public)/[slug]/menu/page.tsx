@@ -83,22 +83,34 @@ function MenuContent() {
         try {
             if (showLoading) setLoading(true);
 
+            // Validate slug before fetching
+            if (!slug) {
+                setError("İşletme bilgisi bulunamadı");
+                setLoading(false);
+                return;
+            }
+
             // Fetch menu data
-            const res = await fetch(`/api/fastfood/public-menu?businessSlug=${slug}${tableId ? `&tableId=${tableId}` : ''}`);
+            const url = `/api/fastfood/public-menu?businessSlug=${encodeURIComponent(slug)}${tableId ? `&tableId=${encodeURIComponent(tableId)}` : ''}`;
+            console.log('[Menu] Fetching from URL:', url);
+
+            const res = await fetch(url);
+            console.log('[Menu] Response status:', res.status);
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                console.error('[Menu] HTTP Error:', res.status, errorText);
+                setError(`Sunucu hatası: ${res.status}`);
+                return;
+            }
+
             const data = await res.json();
+            console.log('[Menu] Response data:', data);
 
             if (!data.success) {
                 setError(data.error || "Menü yüklenemedi");
                 return;
             }
-
-            console.log('[Menu] API Response Data:', {
-                businessId: data.data.businessId,
-                businessName: data.data.businessName,
-                categories: data.data.categories?.length || 0,
-                products: data.data.products?.length || 0,
-                productsList: data.data.products
-            });
 
             setBusiness({
                 id: data.data.businessId,
@@ -130,8 +142,14 @@ function MenuContent() {
 
             setError(null);
         } catch (err) {
-            console.error("Menu fetch error:", err);
-            setError("Menü yüklenirken bir hata oluştu");
+            console.error("[Menu] Fetch error:", err);
+            if (err instanceof TypeError && err.message === 'Failed to fetch') {
+                setError("Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.");
+            } else if (err instanceof Error) {
+                setError(`Menü yüklenirken hata: ${err.message}`);
+            } else {
+                setError("Menü yüklenirken bilinmeyen bir hata oluştu");
+            }
         } finally {
             if (showLoading) setLoading(false);
         }
@@ -206,6 +224,17 @@ function MenuContent() {
             .filter(p => p.categoryId === cat.id)
             .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
     })).filter(cat => cat.products.length > 0);
+
+    // Debug logging
+    console.log('[Menu] Debug Info:', {
+        businessId,
+        categoriesCount: categories.length,
+        productsCount: products.length,
+        productsByCategoryCount: productsByCategory.length,
+        categoryIds: categories.map(c => c.id),
+        productCategoryIds: [...new Set(products.map(p => p.categoryId))],
+        sampleProduct: products[0]
+    });
 
     if (loading) {
         return (

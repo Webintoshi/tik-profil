@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Car, Calendar, User, Phone, MessageCircle, ChevronLeft, Check, Loader2 } from "lucide-react";
+import { X, Car, Calendar, User, Phone, MessageCircle, ChevronLeft, Check, Loader2, Plus, Minus } from "lucide-react";
 import clsx from "clsx";
 
 interface Vehicle {
@@ -250,21 +250,21 @@ Onayınızı bekliyorum.`;
               {/* Days Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Kaç Gün? <span className="text-gray-400">(Toplam: ₺{selectedVehicle ? (days * selectedVehicle.daily_price).toLocaleString() : 0})</span>
+                  Kaç Gün? <span className="text-purple-600 font-semibold">(Toplam: ₺{selectedVehicle ? (days * selectedVehicle.daily_price).toLocaleString() : 0})</span>
                 </label>
                 <div className="flex items-center gap-4">
                   <button
                     onClick={() => setDays(Math.max(1, days - 1))}
-                    className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50"
+                    className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
                   >
-                    -
+                    <Minus className="w-4 h-4 text-gray-600" />
                   </button>
-                  <span className="text-xl font-bold w-8 text-center">{days}</span>
+                  <span className="text-xl font-bold w-8 text-center bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">{days}</span>
                   <button
                     onClick={() => setDays(days + 1)}
-                    className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50"
+                    className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center hover:bg-purple-700 transition-colors shadow-lg shadow-purple-500/25"
                   >
-                    +
+                    <Plus className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -310,7 +310,7 @@ Onayınızı bekliyorum.`;
                 className={clsx(
                   "w-full py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-all",
                   formData.name && formData.phone && selectedDate && !submitting
-                    ? "bg-purple-600 hover:bg-purple-700 shadow-lg"
+                    ? "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-xl shadow-purple-500/25 hover:shadow-purple-500/40"
                     : "bg-gray-300 cursor-not-allowed"
                 )}
               >

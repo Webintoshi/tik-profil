@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { VEHICLE_BRANDS, VEHICLE_COLORS, FUEL_TYPES, TRANSMISSION_TYPES } from '@/lib/vehicleData';
 import Image from 'next/image';
+import { VehicleRentalGuard } from '@/components/panel/VehicleRentalGuard';
 
 interface Vehicle {
   id: string;
@@ -27,6 +28,14 @@ interface Vehicle {
 }
 
 export default function EditVehiclePage() {
+  return (
+    <VehicleRentalGuard>
+      <EditVehiclePageContent />
+    </VehicleRentalGuard>
+  );
+}
+
+function EditVehiclePageContent() {
   const router = useRouter();
   const params = useParams();
   const vehicleId = params.id as string;
@@ -153,7 +162,7 @@ export default function EditVehiclePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
   }
@@ -168,8 +177,8 @@ export default function EditVehiclePage() {
           <ChevronLeft className="w-5 h-5" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Araç Düzenle</h1>
-          <p className="text-sm text-gray-500">{vehicle.brand} {vehicle.model} - {vehicle.plate}</p>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Araç Düzenle</h1>
+          <p className="text-base text-gray-600 font-semibold">{vehicle.brand} {vehicle.model} - <span className="font-bold">{vehicle.plate}</span></p>
         </div>
       </div>
 
@@ -183,13 +192,13 @@ export default function EditVehiclePage() {
         {vehicle.status === 'rented' && (
           <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-orange-500" />
-            <p className="text-sm text-orange-700">Bu araç şu anda kirada. Bazı alanlar değiştirilemez.</p>
+            <p className="text-base font-bold text-orange-800">Bu araç şu anda kirada. Bazı alanlar değiştirilemez.</p>
           </div>
         )}
 
         {/* Marka */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Marka *</label>
+          <label className="block text-base font-bold text-gray-800 mb-2">Marka *</label>
           <select
             required
             value={selectedBrand}
@@ -208,7 +217,7 @@ export default function EditVehiclePage() {
 
         {/* Model */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Model *</label>
+          <label className="block text-base font-bold text-gray-800 mb-2">Model *</label>
           <select
             required
             value={vehicle.model}
@@ -226,7 +235,7 @@ export default function EditVehiclePage() {
         {/* Yıl & Plaka */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Yıl *</label>
+            <label className="block text-base font-bold text-gray-800 mb-2">Yıl *</label>
             <select
               required
               value={vehicle.year}
@@ -239,7 +248,7 @@ export default function EditVehiclePage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Plaka *</label>
+            <label className="block text-base font-bold text-gray-800 mb-2">Plaka *</label>
             <input
               type="text"
               required
@@ -253,7 +262,7 @@ export default function EditVehiclePage() {
         {/* Fiyat & Depozito */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Günlük Fiyat (₺) *</label>
+            <label className="block text-base font-bold text-gray-800 mb-2">Günlük Fiyat (₺) *</label>
             <input
               type="number"
               required
@@ -264,7 +273,7 @@ export default function EditVehiclePage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Depozito (₺)</label>
+            <label className="block text-base font-bold text-gray-800 mb-2">Depozito (₺)</label>
             <input
               type="number"
               min="0"
@@ -277,7 +286,7 @@ export default function EditVehiclePage() {
 
         {/* Durum */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Durum</label>
+          <label className="block text-base font-bold text-gray-800 mb-2">Durum</label>
           <select
             value={vehicle.status}
             onChange={(e) => setVehicle({ ...vehicle, status: e.target.value as any })}
@@ -292,7 +301,7 @@ export default function EditVehiclePage() {
         {/* Özellikler */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Yakıt</label>
+            <label className="block text-base font-bold text-gray-800 mb-2">Yakıt</label>
             <select
               value={vehicle.fuel_type}
               onChange={(e) => setVehicle({ ...vehicle, fuel_type: e.target.value })}
@@ -304,7 +313,7 @@ export default function EditVehiclePage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Vites</label>
+            <label className="block text-base font-bold text-gray-800 mb-2">Vites</label>
             <select
               value={vehicle.transmission}
               onChange={(e) => setVehicle({ ...vehicle, transmission: e.target.value })}
@@ -320,7 +329,7 @@ export default function EditVehiclePage() {
         {/* Mevcut Fotoğraflar */}
         {vehicle.images && vehicle.images.length > 0 && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Mevcut Fotoğraflar</label>
+            <label className="block text-base font-bold text-gray-800 mb-2">Mevcut Fotoğraflar</label>
             <div className="flex flex-wrap gap-2">
               {vehicle.images.map((image) => (
                 <div key={image.id} className="relative">
@@ -334,12 +343,12 @@ export default function EditVehiclePage() {
                     />
                   </div>
                   {image.is_primary && (
-                    <span className="absolute top-1 left-1 px-1.5 py-0.5 bg-blue-500 text-white text-xs rounded">Ana</span>
+                    <span className="absolute top-1 left-1 px-1.5 py-0.5 bg-gray-800 text-white text-xs rounded">Ana</span>
                   )}
                   <button
                     type="button"
                     onClick={() => handleDeleteImage(image.id)}
-                    className="absolute -top-1 -right-1 p-1 bg-red-500 text-white rounded-full"
+                    className="absolute -top-1 -right-1 p-1 bg-gray-800 text-white rounded-full"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
@@ -351,7 +360,7 @@ export default function EditVehiclePage() {
 
         {/* Yeni Fotoğraf Ekle */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Yeni Fotoğraf Ekle</label>
+          <label className="block text-base font-bold text-gray-800 mb-2">Yeni Fotoğraf Ekle</label>
           <input
             type="file"
             accept="image/*"
@@ -368,14 +377,14 @@ export default function EditVehiclePage() {
         <div className="flex items-center gap-3 pt-4">
           <Link
             href="/panel/vehicle-rental/vehicles"
-            className="flex-1 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-center"
+            className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-800 font-bold rounded-lg hover:bg-gray-50 text-center"
           >
             İptal
           </Link>
           <button
             type="submit"
             disabled={saving}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 text-white font-bold rounded-lg hover:bg-gray-800 disabled:opacity-50"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             Kaydet

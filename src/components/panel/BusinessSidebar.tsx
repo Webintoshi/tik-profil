@@ -35,6 +35,7 @@ import {
     Stethoscope,
     FileText,
     CreditCard,
+    Car,
 } from "lucide-react";
 import clsx from "clsx";
 import { useTheme } from "./ThemeProvider";
@@ -381,6 +382,40 @@ const CLINIC_NAV_ITEMS = [
     },
 ];
 
+// Vehicle Rental module menu items (Araç Kiralama)
+const VEHICLE_RENTAL_NAV_ITEMS = [
+    {
+        id: "vehicle-dashboard",
+        label: "Dashboard",
+        href: "/panel/vehicle-rental",
+        icon: BarChart3,
+    },
+    {
+        id: "vehicle-list",
+        label: "Araçlarım",
+        href: "/panel/vehicle-rental/vehicles",
+        icon: Car,
+    },
+    {
+        id: "vehicle-reservations",
+        label: "Rezervasyonlar",
+        href: "/panel/vehicle-rental/reservations",
+        icon: Calendar,
+    },
+    {
+        id: "vehicle-calendar",
+        label: "Takvim",
+        href: "/panel/vehicle-rental/calendar",
+        icon: Calendar,
+    },
+    {
+        id: "vehicle-categories",
+        label: "Kategoriler",
+        href: "/panel/vehicle-rental/categories",
+        icon: LayoutGrid,
+    },
+];
+
 interface BusinessSidebarProps {
     businessName?: string;
     businessLogo?: string;
@@ -475,6 +510,13 @@ export function BusinessSidebar({
         enabledModules.includes("nutrition") ||
         enabledModules.includes("laboratory");
 
+    // Check if vehicle rental module is enabled
+    const hasVehicleRentalModule = enabledModules.includes("vehicle-rental") ||
+        enabledModules.includes("rentacar") ||
+        enabledModules.includes("arac-kiralama") ||
+        enabledModules.includes("oto-kiralama") ||
+        enabledModules.includes("rent-a-car");
+
     // Permission check helper
     const canAccessRoute = (href: string): boolean => {
         // Owner has access to everything
@@ -496,6 +538,7 @@ export function BusinessSidebar({
     const filteredBeautyNavItems = BEAUTY_NAV_ITEMS.filter(item => canAccessRoute(item.href));
     const filteredEcommerceNavItems = ECOMMERCE_NAV_ITEMS.filter(item => canAccessRoute(item.href));
     const filteredClinicNavItems = CLINIC_NAV_ITEMS.filter(item => canAccessRoute(item.href));
+    const filteredVehicleRentalNavItems = VEHICLE_RENTAL_NAV_ITEMS.filter(item => canAccessRoute(item.href));
 
     const handleLogout = async () => {
         setIsLoggingOut(true);
@@ -889,6 +932,47 @@ export function BusinessSidebar({
                                 >
                                     <div className="pt-1 space-y-0.5">
                                         {filteredClinicNavItems.map((item) => (
+                                            <NavItem key={item.id} item={item} isNested />
+                                        ))}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                )}
+
+                {/* Vehicle Rental Module Group */}
+                {hasVehicleRentalModule && (
+                    <div className="pt-3">
+                        <button
+                            onClick={() => toggleGroup("vehicle-rental")}
+                            className={clsx(
+                                "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-colors",
+                                hoverBg
+                            )}
+                        >
+                            <Car className={clsx("h-4 w-4", "text-cyan-500")} />
+                            <span className={clsx("font-medium text-sm flex-1 text-left", textSecondary)}>
+                                Araç Kiralama
+                            </span>
+                            <ChevronDown className={clsx(
+                                "h-4 w-4 transition-transform",
+                                textMuted,
+                                expandedGroups.includes("vehicle-rental") && "rotate-180"
+                            )} />
+                        </button>
+
+                        <AnimatePresence>
+                            {expandedGroups.includes("vehicle-rental") && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="overflow-hidden"
+                                >
+                                    <div className="pt-1 space-y-0.5">
+                                        {filteredVehicleRentalNavItems.map((item) => (
                                             <NavItem key={item.id} item={item} isNested />
                                         ))}
                                     </div>

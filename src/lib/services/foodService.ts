@@ -246,7 +246,7 @@ export async function getCategories(businessId: string): Promise<FBCategory[]> {
             .from(CATEGORIES_COLLECTION)
             .select('*')
             .eq('business_id', businessId)
-            .order('sort_order', { ascending: true });
+            .order('created_at', { ascending: true });
 
         if (error) throw error;
 
@@ -334,7 +334,7 @@ export async function getProducts(businessId: string): Promise<FBProduct[]> {
             .from(PRODUCTS_COLLECTION)
             .select('*')
             .eq('business_id', businessId)
-            .order('sort_order', { ascending: true });
+            .order('created_at', { ascending: true });
 
         if (error) throw error;
 
@@ -359,7 +359,7 @@ export async function getProductsByCategory(categoryId: string): Promise<FBProdu
             .from(PRODUCTS_COLLECTION)
             .select('*')
             .eq('category_id', categoryId)
-            .order('sort_order', { ascending: true });
+            .order('created_at', { ascending: true });
 
         if (error) throw error;
 

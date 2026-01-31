@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Car, Calendar, Users, DollarSign, Plus, TrendingUp, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { VehicleRentalGuard } from '@/components/panel/VehicleRentalGuard';
 
 interface DashboardStats {
   totalVehicles: number;
@@ -17,6 +18,14 @@ interface DashboardStats {
 }
 
 export default function VehicleRentalDashboard() {
+  return (
+    <VehicleRentalGuard>
+      <DashboardContent />
+    </VehicleRentalGuard>
+  );
+}
+
+function DashboardContent() {
   const [stats, setStats] = useState<DashboardStats>({
     totalVehicles: 0,
     availableVehicles: 0,
@@ -29,9 +38,34 @@ export default function VehicleRentalDashboard() {
   });
   const [loading, setLoading] = useState(true);
 
+  // Module authorization check
   useEffect(() => {
-    loadStats();
-  }, []);
+    const checkModuleAccess = async () => {
+      try {
+        const res = await fetch('/api/panel/profile');
+        const data = await res.json();
+        
+        if (data.success && data.profile) {
+          const modules = data.profile.modules || [];
+          const hasAccess = modules.some((m: string) => VEHICLE_RENTAL_MODULES.includes(m.toLowerCase()));
+          
+          if (!hasAccess) {
+            router.push('/panel');
+            return;
+          }
+          setIsAuthorized(true);
+          loadStats();
+        } else {
+          router.push('/panel');
+        }
+      } catch (error) {
+        console.error('Module check error:', error);
+        router.push('/panel');
+      }
+    };
+    
+    checkModuleAccess();
+  }, [router]);
 
   const loadStats = async () => {
     try {
@@ -76,20 +110,20 @@ export default function VehicleRentalDashboard() {
   };
 
   const statCards = [
-    { label: 'Toplam Araç', value: stats.totalVehicles, icon: Car, color: 'blue', link: '/panel/vehicle-rental/vehicles' },
-    { label: 'Müsait', value: stats.availableVehicles, icon: Car, color: 'green', link: '/panel/vehicle-rental/vehicles' },
-    { label: 'Kirada', value: stats.rentedVehicles, icon: Car, color: 'orange', link: '/panel/vehicle-rental/vehicles' },
-    { label: 'Bakımda', value: stats.maintenanceVehicles, icon: AlertCircle, color: 'red', link: '/panel/vehicle-rental/vehicles' },
-    { label: 'Bugün Alınacak', value: stats.todayPickups, icon: Calendar, color: 'purple', link: '/panel/vehicle-rental/calendar' },
-    { label: 'Bugün Teslim', value: stats.todayReturns, icon: Calendar, color: 'pink', link: '/panel/vehicle-rental/calendar' },
-    { label: 'Aktif Rezervasyon', value: stats.activeReservations, icon: Users, color: 'indigo', link: '/panel/vehicle-rental/reservations' },
-    { label: 'Aylık Gelir', value: `₺${stats.monthlyRevenue.toLocaleString()}`, icon: DollarSign, color: 'emerald', link: '/panel/vehicle-rental/reservations' },
+    { label: 'Toplam Araç', value: stats.totalVehicles, icon: Car, link: '/panel/vehicle-rental/vehicles' },
+    { label: 'Müsait', value: stats.availableVehicles, icon: Car, link: '/panel/vehicle-rental/vehicles' },
+    { label: 'Kirada', value: stats.rentedVehicles, icon: Car, link: '/panel/vehicle-rental/vehicles' },
+    { label: 'Bakımda', value: stats.maintenanceVehicles, icon: AlertCircle, link: '/panel/vehicle-rental/vehicles' },
+    { label: 'Bugün Alınacak', value: stats.todayPickups, icon: Calendar, link: '/panel/vehicle-rental/calendar' },
+    { label: 'Bugün Teslim', value: stats.todayReturns, icon: Calendar, link: '/panel/vehicle-rental/calendar' },
+    { label: 'Aktif Rezervasyon', value: stats.activeReservations, icon: Users, link: '/panel/vehicle-rental/reservations' },
+    { label: 'Aylık Gelir', value: `₺${stats.monthlyRevenue.toLocaleString()}`, icon: DollarSign, link: '/panel/vehicle-rental/reservations' },
   ];
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-gray-400 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -99,12 +133,12 @@ export default function VehicleRentalDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Araç Kiralama</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Tüm araçlarınızı ve rezervasyonlarınızı yönetin</p>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Araç Kiralama</h1>
+          <p className="text-base text-gray-600 mt-2 font-medium">Tüm araçlarınızı ve rezervasyonlarınızı yönetin</p>
         </div>
         <Link
           href="/panel/vehicle-rental/vehicles/new"
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
         >
           <Plus className="w-4 h-4" />
           Yeni Araç
@@ -121,14 +155,14 @@ export default function VehicleRentalDashboard() {
             transition={{ delay: index * 0.05 }}
           >
             <Link href={stat.link}>
-              <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+              <div className="p-4 bg-white rounded-xl border border-gray-200 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3">
-                  <div className={`p-2 bg-${stat.color}-100 dark:bg-${stat.color}-900/30 rounded-lg`}>
-                    <stat.icon className={`w-5 h-5 text-${stat.color}-600`} />
+                  <div className="p-2 bg-gray-100 rounded-lg">
+                    <stat.icon className="w-5 h-5 text-gray-600" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{stat.label}</p>
+                    <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                    <p className="text-xs text-gray-500">{stat.label}</p>
                   </div>
                 </div>
               </div>
@@ -140,26 +174,32 @@ export default function VehicleRentalDashboard() {
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Link href="/panel/vehicle-rental/vehicles">
-          <div className="p-6 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl text-white hover:shadow-lg transition-shadow">
-            <Car className="w-8 h-8 mb-3" />
-            <h3 className="font-bold text-lg">Araçları Yönet</h3>
-            <p className="text-blue-100 text-sm">Tüm araçlarınızı görüntüleyin ve düzenleyin</p>
+          <div className="p-6 bg-white border border-gray-200 rounded-xl hover:shadow-lg transition-shadow">
+            <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center mb-4">
+              <Car className="w-7 h-7 text-gray-800" />
+            </div>
+            <h3 className="font-bold text-xl text-gray-900">Araçları Yönet</h3>
+            <p className="text-gray-600 text-base font-medium mt-1">Tüm araçlarınızı görüntüleyin ve düzenleyin</p>
           </div>
         </Link>
         
         <Link href="/panel/vehicle-rental/reservations">
-          <div className="p-6 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl text-white hover:shadow-lg transition-shadow">
-            <Calendar className="w-8 h-8 mb-3" />
-            <h3 className="font-bold text-lg">Rezervasyonlar</h3>
-            <p className="text-purple-100 text-sm">Rezervasyonları görüntüleyin ve yönetin</p>
+          <div className="p-6 bg-white border border-gray-200 rounded-xl hover:shadow-lg transition-shadow">
+            <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center mb-4">
+              <Calendar className="w-7 h-7 text-gray-800" />
+            </div>
+            <h3 className="font-bold text-xl text-gray-900">Rezervasyonlar</h3>
+            <p className="text-gray-600 text-base font-medium mt-1">Rezervasyonları görüntüleyin ve yönetin</p>
           </div>
         </Link>
         
         <Link href="/panel/vehicle-rental/calendar">
-          <div className="p-6 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl text-white hover:shadow-lg transition-shadow">
-            <TrendingUp className="w-8 h-8 mb-3" />
-            <h3 className="font-bold text-lg">Takvim</h3>
-            <p className="text-emerald-100 text-sm">Müsaitlik takvimini görüntüleyin</p>
+          <div className="p-6 bg-white border border-gray-200 rounded-xl hover:shadow-lg transition-shadow">
+            <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center mb-4">
+              <TrendingUp className="w-7 h-7 text-gray-800" />
+            </div>
+            <h3 className="font-bold text-xl text-gray-900">Takvim</h3>
+            <p className="text-gray-600 text-base font-medium mt-1">Müsaitlik takvimini görüntüleyin</p>
           </div>
         </Link>
       </div>

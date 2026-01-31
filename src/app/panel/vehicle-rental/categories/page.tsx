@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Edit2, Trash2, Tag, Loader2, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { VehicleRentalGuard } from '@/components/panel/VehicleRentalGuard';
 
 interface Category {
   id: string;
@@ -15,6 +16,14 @@ interface Category {
 }
 
 export default function CategoriesPage() {
+  return (
+    <VehicleRentalGuard>
+      <CategoriesPageContent />
+    </VehicleRentalGuard>
+  );
+}
+
+function CategoriesPageContent() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -114,7 +123,7 @@ export default function CategoriesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
   }
@@ -123,30 +132,30 @@ export default function CategoriesPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Araç Kategorileri</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Araç gruplarını yönetin</p>
+        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Araç Kategorileri</h1>
+        <p className="text-base text-gray-600 mt-2 font-semibold">Araç gruplarını yönetin</p>
       </div>
 
       {/* Add New Category */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <h3 className="font-medium text-gray-900 dark:text-white mb-3">Yeni Kategori Ekle</h3>
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <h3 className="font-bold text-lg text-gray-900 mb-4">Yeni Kategori Ekle</h3>
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs text-gray-500 mb-1">Kategori Adı</label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Kategori Adı</label>
             <input
               type="text"
               value={newCategory.name}
               onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
               placeholder="Örn: SUV, Ekonomi, Lüks"
-              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-base font-medium"
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Renk</label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Renk</label>
             <select
               value={newCategory.color}
               onChange={(e) => setNewCategory({ ...newCategory, color: e.target.value })}
-              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg"
+              className="px-4 py-2.5 border border-gray-200 rounded-lg text-base font-medium"
             >
               {colorOptions.map((c) => (
                 <option key={c.value} value={c.value}>{c.label}</option>
@@ -155,7 +164,7 @@ export default function CategoriesPage() {
           </div>
           <button
             onClick={handleAdd}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
           >
             <Plus className="w-4 h-4" />
             Ekle
@@ -164,8 +173,8 @@ export default function CategoriesPage() {
       </div>
 
       {/* Categories List */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="grid grid-cols-12 gap-4 p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-sm font-medium text-gray-500">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="grid grid-cols-12 gap-4 p-4 border-b border-gray-200 bg-gray-50 text-base font-bold text-gray-700">
           <div className="col-span-1">#</div>
           <div className="col-span-4">Kategori Adı</div>
           <div className="col-span-3">Renk</div>
@@ -174,9 +183,9 @@ export default function CategoriesPage() {
         </div>
 
         {categories.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            <Tag className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-            <p>Henüz kategori eklenmemiş</p>
+          <div className="p-8 text-center">
+            <Tag className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <p className="text-lg font-bold text-gray-700">Henüz kategori eklenmemiş</p>
           </div>
         ) : (
           categories.map((category, index) => (
@@ -184,7 +193,7 @@ export default function CategoriesPage() {
               key={category.id}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="grid grid-cols-12 gap-4 p-4 border-b border-gray-100 dark:border-gray-700 items-center hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              className="grid grid-cols-12 gap-4 p-4 border-b border-gray-100 items-center hover:bg-gray-50"
             >
               {editingId === category.id ? (
                 // Edit Mode
@@ -216,7 +225,7 @@ export default function CategoriesPage() {
                   <div className="col-span-2 flex items-center justify-end gap-2">
                     <button
                       onClick={() => handleUpdate(category.id)}
-                      className="p-1.5 bg-green-100 text-green-600 rounded-lg hover:bg-green-200"
+                      className="p-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
                     >
                       <Check className="w-4 h-4" />
                     </button>
@@ -231,29 +240,29 @@ export default function CategoriesPage() {
               ) : (
                 // View Mode
                 <>
-                  <div className="col-span-1 text-sm text-gray-400">{index + 1}</div>
-                  <div className="col-span-4 font-medium text-gray-900 dark:text-white">
+                  <div className="col-span-1 text-base font-bold text-gray-500">{index + 1}</div>
+                  <div className="col-span-4 font-bold text-lg text-gray-900">
                     {category.name}
                   </div>
                   <div className="col-span-3">
-                    <span className={`inline-block w-4 h-4 rounded-full ${colorOptions.find(c => c.value === category.color)?.className}`} />
-                    <span className="ml-2 text-sm text-gray-500 capitalize">{category.color}</span>
+                    <span className={`inline-block w-5 h-5 rounded-full ${colorOptions.find(c => c.value === category.color)?.className}`} />
+                    <span className="ml-2 text-base font-semibold text-gray-600 capitalize">{category.color}</span>
                   </div>
                   <div className="col-span-2">
-                    <span className={`px-2 py-1 rounded-full text-xs ${category.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                    <span className={`px-3 py-1.5 rounded-full text-sm font-bold ${category.is_active ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-500'}`}>
                       {category.is_active ? 'Aktif' : 'Pasif'}
                     </span>
                   </div>
                   <div className="col-span-2 flex items-center justify-end gap-2">
                     <button
                       onClick={() => startEditing(category)}
-                      className="p-1.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200"
+                      className="p-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(category.id)}
-                      className="p-1.5 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
+                      className="p-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

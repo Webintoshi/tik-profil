@@ -4,15 +4,28 @@ import { jwtVerify } from 'jose';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getSessionSecretBytes } from '@/lib/env';
 
-// Get business ID from session
+// Get business ID from session (supports both owner and staff)
 async function getBusinessId(): Promise<string | null> {
     try {
         const cookieStore = await cookies();
-        const token = cookieStore.get("tikprofil_owner_session")?.value;
-        if (!token) return null;
-        const { payload } = await jwtVerify(token, new TextEncoder().encode(getSessionSecretBytes()));
-        return payload.businessId as string || null;
-    } catch {
+        
+        // Try owner session first
+        const ownerToken = cookieStore.get("tikprofil_owner_session")?.value;
+        if (ownerToken) {
+            const { payload } = await jwtVerify(ownerToken, getSessionSecretBytes());
+            return payload.businessId as string || null;
+        }
+        
+        // Try staff session
+        const staffToken = cookieStore.get("tikprofil_staff_session")?.value;
+        if (staffToken) {
+            const { payload } = await jwtVerify(staffToken, getSessionSecretBytes());
+            return payload.businessId as string || null;
+        }
+        
+        return null;
+    } catch (error) {
+        console.error('[Vehicle Rental] Auth error:', error);
         return null;
     }
 }

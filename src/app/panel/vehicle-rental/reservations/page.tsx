@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Calendar, Users, Search, Filter, CheckCircle, XCircle, Clock, Car, Edit2 } from 'lucide-react';
 import { toast } from 'sonner';
 import EditReservationModal from '@/components/vehicle-rental/EditReservationModal';
+import { VehicleRentalGuard } from '@/components/panel/VehicleRentalGuard';
 
 interface Reservation {
   id: string;
@@ -24,6 +25,14 @@ interface Reservation {
 }
 
 export default function ReservationsPage() {
+  return (
+    <VehicleRentalGuard>
+      <ReservationsPageContent />
+    </VehicleRentalGuard>
+  );
+}
+
+function ReservationsPageContent() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -71,10 +80,10 @@ export default function ReservationsPage() {
 
   const getStatusBadge = (status: string) => {
     const badges = {
-      pending: { label: 'Bekliyor', className: 'bg-yellow-100 text-yellow-700' },
-      confirmed: { label: 'Onaylandı', className: 'bg-green-100 text-green-700' },
-      completed: { label: 'Tamamlandı', className: 'bg-blue-100 text-blue-700' },
-      cancelled: { label: 'İptal', className: 'bg-red-100 text-red-700' },
+      pending: { label: 'Bekliyor', className: 'bg-gray-100 text-gray-700' },
+      confirmed: { label: 'Onaylandı', className: 'bg-gray-200 text-gray-800' },
+      completed: { label: 'Tamamlandı', className: 'bg-gray-300 text-gray-900' },
+      cancelled: { label: 'İptal', className: 'bg-gray-400 text-white' },
     };
     return badges[status as keyof typeof badges] || badges.pending;
   };
@@ -82,7 +91,7 @@ export default function ReservationsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-gray-400 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -92,13 +101,13 @@ export default function ReservationsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Rezervasyonlar</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{reservations.length} rezervasyon</p>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Rezervasyonlar</h1>
+          <p className="text-base text-gray-600 mt-2 font-semibold">{reservations.length} rezervasyon</p>
         </div>
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm"
+          className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm"
         >
           <option value="all">Tümü</option>
           <option value="pending">Bekliyor</option>
@@ -112,8 +121,8 @@ export default function ReservationsPage() {
       <div className="space-y-3">
         {filteredReservations.length === 0 && (
           <div className="text-center py-16">
-            <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">Rezervasyon bulunamadı</p>
+            <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-lg font-bold text-gray-700">Rezervasyon bulunamadı</p>
           </div>
         )}
 
@@ -123,37 +132,37 @@ export default function ReservationsPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
-            className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4"
+            className="bg-white rounded-xl border border-gray-200 p-4"
           >
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               {/* Vehicle & Customer Info */}
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-                  <Car className="w-6 h-6 text-blue-600" />
+                <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center">
+                  <Car className="w-7 h-7 text-gray-700" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                  <h3 className="font-bold text-lg text-gray-900">
                     {reservation.vehicle.brand} {reservation.vehicle.model}
                   </h3>
-                  <p className="text-sm text-gray-500">{reservation.vehicle.plate}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    {reservation.customer_name} • {reservation.customer_phone}
+                  <p className="text-base font-semibold text-gray-600">{reservation.vehicle.plate}</p>
+                  <p className="text-base font-bold text-gray-800 mt-2">
+                    {reservation.customer_name} • <span className="font-semibold text-gray-600">{reservation.customer_phone}</span>
                   </p>
                 </div>
               </div>
 
               {/* Dates & Price */}
               <div className="text-center md:text-right">
-                <p className="text-sm text-gray-500">
+                <p className="text-base font-semibold text-gray-700">
                   {reservation.start_date} - {reservation.end_date}
                 </p>
-                <p className="text-sm text-gray-500">{reservation.total_days} gün</p>
-                <p className="font-bold text-lg text-blue-600">₺{reservation.total_amount}</p>
+                <p className="text-sm font-bold text-gray-500 mt-1">{reservation.total_days} gün</p>
+                <p className="font-extrabold text-2xl text-gray-900 mt-2">₺{reservation.total_amount}</p>
               </div>
 
               {/* Status & Actions */}
               <div className="flex items-center gap-3">
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(reservation.status).className}`}>
+                <span className={`px-4 py-2 rounded-full text-sm font-bold ${getStatusBadge(reservation.status).className}`}>
                   {getStatusBadge(reservation.status).label}
                 </span>
 

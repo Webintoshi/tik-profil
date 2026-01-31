@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Car } from 'lucide-react';
+import { VehicleRentalGuard } from '@/components/panel/VehicleRentalGuard';
 
 interface Reservation {
   id: string;
@@ -18,6 +19,14 @@ interface Reservation {
 }
 
 export default function CalendarPage() {
+  return (
+    <VehicleRentalGuard>
+      <CalendarPageContent />
+    </VehicleRentalGuard>
+  );
+}
+
+function CalendarPageContent() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [reservations, setReservations] = useState<Reservation[]>([]);
 
@@ -67,13 +76,13 @@ export default function CalendarPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Müsaitlik Takvimi</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Araç rezervasyon takvimi</p>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Müsaitlik Takvimi</h1>
+          <p className="text-base text-gray-600 mt-2 font-semibold">Araç rezervasyon takvimi</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+            className="p-2 hover:bg-gray-100 rounded-lg"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -88,11 +97,11 @@ export default function CalendarPage() {
       </div>
 
       {/* Calendar */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {/* Weekday Headers */}
-        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
+        <div className="grid grid-cols-7 border-b border-gray-200">
           {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((day) => (
-            <div key={day} className="p-3 text-center text-sm font-medium text-gray-500">
+            <div key={day} className="p-4 text-center text-base font-bold text-gray-700">
               {day}
             </div>
           ))}
@@ -102,7 +111,7 @@ export default function CalendarPage() {
         <div className="grid grid-cols-7">
           {days.map((day, index) => {
             if (day === null) {
-              return <div key={`empty-${index}`} className="min-h-[100px] border-b border-r border-gray-100 dark:border-gray-700" />;
+              return <div key={`empty-${index}`} className="min-h-[100px] border-b border-r border-gray-100" />;
             }
 
             const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -112,11 +121,11 @@ export default function CalendarPage() {
             return (
               <div
                 key={day}
-                className={`min-h-[100px] p-2 border-b border-r border-gray-100 dark:border-gray-700 ${
-                  isToday ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                className={`min-h-[100px] p-2 border-b border-r border-gray-100 ${
+                  isToday ? 'bg-gray-50' : ''
                 }`}
               >
-                <span className={`text-sm font-medium ${isToday ? 'text-blue-600' : 'text-gray-700 dark:text-gray-300'}`}>
+                <span className={`text-base font-extrabold ${isToday ? 'text-gray-900' : 'text-gray-800'}`}>
                   {day}
                 </span>
                 
@@ -125,13 +134,13 @@ export default function CalendarPage() {
                     {dayReservations.slice(0, 3).map((res) => (
                       <div
                         key={res.id}
-                        className="text-xs p-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded truncate"
+                        className="text-xs font-bold p-1.5 bg-gray-200 text-gray-800 rounded truncate"
                       >
                         {res.vehicle.plate}
                       </div>
                     ))}
                     {dayReservations.length > 3 && (
-                      <div className="text-xs text-gray-500">+{dayReservations.length - 3} daha</div>
+                      <div className="text-xs font-bold text-gray-600">+{dayReservations.length - 3} daha</div>
                     )}
                   </div>
                 )}
@@ -142,18 +151,18 @@ export default function CalendarPage() {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-6 text-sm">
+      <div className="flex items-center gap-6 text-base font-semibold">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-blue-100 dark:bg-blue-900/30 rounded" />
-          <span className="text-gray-600 dark:text-gray-400">Bugün</span>
+          <div className="w-4 h-4 bg-gray-100 rounded" />
+          <span className="text-gray-700">Bugün</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-orange-100 dark:bg-orange-900/30 rounded" />
-          <span className="text-gray-600 dark:text-gray-400">Dolu</span>
+          <div className="w-4 h-4 bg-gray-200 rounded" />
+          <span className="text-gray-700">Dolu</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-white dark:bg-gray-800 border border-gray-200 rounded" />
-          <span className="text-gray-600 dark:text-gray-400">Boş</span>
+          <div className="w-4 h-4 bg-white border border-gray-200 rounded" />
+          <span className="text-gray-700">Boş</span>
         </div>
       </div>
     </div>

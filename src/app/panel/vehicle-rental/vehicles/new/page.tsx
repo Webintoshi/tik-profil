@@ -7,8 +7,17 @@ import { Car, ChevronLeft, Upload, X, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { VEHICLE_BRANDS, VEHICLE_COLORS, FUEL_TYPES, TRANSMISSION_TYPES } from '@/lib/vehicleData';
+import { VehicleRentalGuard } from '@/components/panel/VehicleRentalGuard';
 
 export default function NewVehiclePage() {
+  return (
+    <VehicleRentalGuard>
+      <NewVehiclePageContent />
+    </VehicleRentalGuard>
+  );
+}
+
+function NewVehiclePageContent() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState('');
@@ -104,13 +113,13 @@ export default function NewVehiclePage() {
       <div className="flex items-center gap-4 mb-6">
         <Link
           href="/panel/vehicle-rental/vehicles"
-          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ChevronLeft className="w-5 h-5" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Yeni Araç Ekle</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Araç bilgilerini girin</p>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Yeni Araç Ekle</h1>
+          <p className="text-base text-gray-600 font-semibold">Araç bilgilerini girin</p>
         </div>
       </div>
 
@@ -118,11 +127,11 @@ export default function NewVehiclePage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         onSubmit={handleSubmit}
-        className="space-y-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6"
+        className="space-y-6 bg-white rounded-xl border border-gray-200 p-6"
       >
         {/* 1. Marka */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-base font-bold text-gray-800 mb-2">
             Marka <span className="text-red-500">*</span>
           </label>
           <select
@@ -132,7 +141,7 @@ export default function NewVehiclePage() {
               setSelectedBrand(e.target.value);
               setFormData({ ...formData, brand: e.target.value, model: '' });
             }}
-            className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg"
+            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg"
           >
             <option value="">Marka seçin</option>
             {VEHICLE_BRANDS.map((b) => (
@@ -143,7 +152,7 @@ export default function NewVehiclePage() {
 
         {/* 2. Model */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-base font-bold text-gray-800 mb-2">
             Model <span className="text-red-500">*</span>
           </label>
           <select
@@ -151,7 +160,7 @@ export default function NewVehiclePage() {
             value={formData.model}
             onChange={(e) => setFormData({ ...formData, model: e.target.value })}
             disabled={!selectedBrand}
-            className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg disabled:opacity-50"
+            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg disabled:opacity-50"
           >
             <option value="">Model seçin</option>
             {selectedBrandData?.models.map((model) => (
@@ -162,14 +171,14 @@ export default function NewVehiclePage() {
 
         {/* 3. Yıl */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-base font-bold text-gray-800 mb-2">
             Yıl <span className="text-red-500">*</span>
           </label>
           <select
             required
             value={formData.year}
             onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
-            className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg"
+            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg"
           >
             {Array.from({ length: 25 }, (_, i) => new Date().getFullYear() - i).map((year) => (
               <option key={year} value={year}>{year}</option>
@@ -179,7 +188,7 @@ export default function NewVehiclePage() {
 
         {/* 4. Plaka */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-base font-bold text-gray-800 mb-2">
             Plaka <span className="text-red-500">*</span>
           </label>
           <input
@@ -188,13 +197,13 @@ export default function NewVehiclePage() {
             placeholder="34 ABC 123"
             value={formData.plate}
             onChange={(e) => setFormData({ ...formData, plate: e.target.value.toUpperCase() })}
-            className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg uppercase"
+            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg uppercase"
           />
         </div>
 
         {/* 5. Günlük Fiyat */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-base font-bold text-gray-800 mb-2">
             Günlük Fiyat (₺) <span className="text-red-500">*</span>
           </label>
           <input
@@ -204,18 +213,18 @@ export default function NewVehiclePage() {
             placeholder="750"
             value={formData.dailyPrice}
             onChange={(e) => setFormData({ ...formData, dailyPrice: e.target.value })}
-            className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg"
+            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg"
           />
         </div>
 
         {/* Ek Bilgiler (Opsiyonel) */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Yakıt</label>
+            <label className="block text-base font-bold text-gray-800 mb-2">Yakıt</label>
             <select
               value={formData.fuelType}
               onChange={(e) => setFormData({ ...formData, fuelType: e.target.value })}
-              className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg"
+              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg"
             >
               {FUEL_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
@@ -223,11 +232,11 @@ export default function NewVehiclePage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Vites</label>
+            <label className="block text-base font-bold text-gray-800 mb-2">Vites</label>
             <select
               value={formData.transmission}
               onChange={(e) => setFormData({ ...formData, transmission: e.target.value })}
-              className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg"
+              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg"
             >
               {TRANSMISSION_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
@@ -238,8 +247,8 @@ export default function NewVehiclePage() {
 
         {/* 6. Fotoğraflar */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Fotoğraflar</label>
-          <div className="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <label className="block text-base font-bold text-gray-800 mb-2">Fotoğraflar</label>
+          <div className="border-2 border-dashed border-gray-200 rounded-lg p-4">
             <input
               type="file"
               accept="image/*"
@@ -253,7 +262,7 @@ export default function NewVehiclePage() {
               className="flex flex-col items-center justify-center cursor-pointer py-4"
             >
               <Upload className="w-8 h-8 text-gray-400 mb-2" />
-              <span className="text-sm text-gray-500">Fotoğraf yüklemek için tıklayın</span>
+              <span className="text-base font-semibold text-gray-600">Fotoğraf yüklemek için tıklayın</span>
             </label>
           </div>
           
@@ -268,7 +277,7 @@ export default function NewVehiclePage() {
                   <button
                     type="button"
                     onClick={() => removeImage(index)}
-                    className="absolute -top-1 -right-1 p-1 bg-red-500 text-white rounded-full"
+                    className="absolute -top-1 -right-1 p-1 bg-gray-800 text-white rounded-full"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -282,22 +291,22 @@ export default function NewVehiclePage() {
         <div className="flex items-center gap-3 pt-4">
           <Link
             href="/panel/vehicle-rental/vehicles"
-            className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-center"
+            className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-800 font-bold rounded-lg hover:bg-gray-50 transition-colors text-center"
           >
             İptal
           </Link>
           <button
             type="submit"
             disabled={loading}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 text-white font-bold rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
           >
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Kaydediliyor...
+                <span className="font-bold">Kaydediliyor...</span>
               </>
             ) : (
-              'Kaydet'
+              <span className="font-bold">Kaydet</span>
             )}
           </button>
         </div>
