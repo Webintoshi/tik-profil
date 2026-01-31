@@ -196,31 +196,6 @@ export interface ServiceCategory {
     imageUrl?: string;
 }
 
-// Extended interfaces (for backward compatibility)
-export interface ExtendedCustomer extends Customer {
-    // All fields already included in Customer
-}
-
-export interface ExtendedService extends Service {
-    // All fields already included in Service
-}
-
-export interface ExtendedStaff extends Staff {
-    // All fields already included in Staff
-}
-
-export interface ExtendedAppointment extends Appointment {
-    // All fields already included in Appointment
-}
-
-export interface ExtendedServiceCategory extends ServiceCategory {
-    // All fields already included in ServiceCategory
-}
-
-export interface ExtendedBeautySettings extends BeautySettings {
-    // All fields already included in BeautySettings
-}
-
 // Helper functions
 export const formatPrice = (price: number): string => {
     return `${price.toLocaleString('tr-TR')} ₺`;

@@ -224,22 +224,8 @@ export interface EcommerceSettings {
     };
 }
 
-// Extended Order interface (for backward compatibility)
-export interface ExtendedOrder extends Order {
-    // All fields already included in Order
-}
-
-// Extended Product interface (for backward compatibility)
-export interface ExtendedProduct extends Product {
-    // All fields already included in Product
-}
-
-// Extended Category interface (for backward compatibility)
-export interface ExtendedCategory extends Category {
-    // All fields already included in Category
-}
-
-// Extended Coupon interface (for backward compatibility)
-export interface ExtendedCoupon extends Coupon {
-    // All fields already included in Coupon
-}
+// Re-export types for backward compatibility
+export type { Order as ExtendedOrder };
+export type { Product as ExtendedProduct };
+export type { Category as ExtendedCategory };
+export type { Coupon as ExtendedCoupon };
