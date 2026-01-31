@@ -116,15 +116,22 @@ export interface Staff {
 
 export interface Appointment {
     id: string;
+    businessId: string;
     serviceId: string;
+    serviceName: string;
+    serviceDuration: number;
     staffId: string;
+    staffName?: string;
     customerName: string;
     customerPhone: string;
     customerEmail?: string;
     date: string;
     time: string;
+    endTime?: string;
     notes?: string;
+    note?: string;
     status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+    createdAt?: string;
 }
 
 export interface Customer {
