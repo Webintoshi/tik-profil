@@ -23,14 +23,14 @@ export const CATEGORY_ICONS = [
 ];
 
 // Working Hours
-export const DEFAULT_WORKING_HOURS: Record<string, { start: string; end: string; isActive: boolean }> = {
-    monday: { start: '09:00', end: '18:00', isActive: true },
-    tuesday: { start: '09:00', end: '18:00', isActive: true },
-    wednesday: { start: '09:00', end: '18:00', isActive: true },
-    thursday: { start: '09:00', end: '18:00', isActive: true },
-    friday: { start: '09:00', end: '18:00', isActive: true },
-    saturday: { start: '09:00', end: '18:00', isActive: true },
-    sunday: { start: '09:00', end: '18:00', isActive: false },
+export const DEFAULT_WORKING_HOURS: Record<string, DayHours> = {
+    monday: { start: '09:00', end: '18:00', isActive: true, isOpen: true },
+    tuesday: { start: '09:00', end: '18:00', isActive: true, isOpen: true },
+    wednesday: { start: '09:00', end: '18:00', isActive: true, isOpen: true },
+    thursday: { start: '09:00', end: '18:00', isActive: true, isOpen: true },
+    friday: { start: '09:00', end: '18:00', isActive: true, isOpen: true },
+    saturday: { start: '09:00', end: '18:00', isActive: true, isOpen: true },
+    sunday: { start: '09:00', end: '18:00', isActive: false, isOpen: false },
 };
 
 // Appointment Schema
@@ -97,6 +97,7 @@ export interface DayHours {
     start: string;
     end: string;
     isActive: boolean;
+    isOpen?: boolean;
 }
 
 export interface WorkingHours {
