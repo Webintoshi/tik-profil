@@ -31,8 +31,8 @@ export async function GET(request: NextRequest) {
 
         // Sort by date and time (descending - newest first if no date filter, ascending if date filter)
         appointments.sort((a: any, b: any) => {
-            const dateA = new Date(`${a.date}T${a.startTime}`);
-            const dateB = new Date(`${b.date}T${b.startTime}`);
+            const dateA = new Date(`${a.date}T${a.time}`);
+            const dateB = new Date(`${b.date}T${b.time}`);
             return dateB.getTime() - dateA.getTime();
         });
 
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Calculate end time
-        const startDateTime = new Date(`${validData.date}T${validData.startTime}`);
+        const startDateTime = new Date(`${validData.date}T${validData.time}`);
         const serviceDuration = Number(service.duration);
         const endDateTime = new Date(startDateTime.getTime() + serviceDuration * 60000);
         const endTime = endDateTime.toTimeString().slice(0, 5); // HH:mm
@@ -96,10 +96,10 @@ export async function POST(request: NextRequest) {
             );
 
             const hasConflict = existingApps.some((app: any) => {
-                const appStart = app.startTime;
+                const appStart = app.time;
                 const appEnd = app.endTime;
                 // Check overlap: (StartA < EndB) and (EndA > StartB)
-                return (validData.startTime < appEnd) && (endTime > appStart);
+                return (validData.time < appEnd) && (endTime > appStart);
             });
 
             if (hasConflict) {
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
             customerName: validData.customerName,
             customerPhone: validData.customerPhone,
             date: validData.date,
-            startTime: validData.startTime,
+            time: validData.time,
             endTime: endTime,
             status: 'pending', // Default status
             note: validData.note || "",
