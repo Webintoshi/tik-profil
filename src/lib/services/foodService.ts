@@ -468,10 +468,10 @@ export function getTableQRUrl(businessSlug: string, tableId: string): string {
     return `https://tikprofil.com/${businessSlug}?table=${tableId}`;
 }
 
-export function formatPrice(price: number): string {
+export function formatPrice(price: number, currency?: string): string {
     return new Intl.NumberFormat('tr-TR', {
         style: 'currency',
-        currency: 'TRY',
+        currency: currency || 'TRY',
         minimumFractionDigits: 0,
         maximumFractionDigits: 2
     }).format(price);

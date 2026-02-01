@@ -178,9 +178,9 @@ export async function getDocumentREST(
 
 // Get all documents from a collection (with pagination support)
 // NOTE: This function requires server-side environment. Returns empty array on client-side.
-export async function getCollectionREST(
+export async function getCollectionREST<T = Record<string, unknown>>(
     collection: string
-): Promise<Record<string, unknown>[]> {
+): Promise<T[]> {
     // Client-side guard: Return empty array to prevent SUPABASE_SERVICE_ROLE_KEY errors
     if (typeof window !== 'undefined') {
         console.warn(`[getCollectionREST] Called on client-side for "${collection}". Returning empty array.`);
@@ -223,7 +223,7 @@ export async function getCollectionREST(
         offset += PAGE_SIZE;
     }
 
-    return allDocuments;
+    return allDocuments as T[];
 }
 
 // Update a document (PARTIAL UPDATE - preserves other fields)

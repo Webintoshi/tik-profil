@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
         const lowStockThreshold = 5;
         const lowStockProducts = allProducts.filter(p => {
-            const stock = p.stock ?? p.stockQuantity;
+            const stock = p.stock ?? p.stockQuantity ?? 0;
             return p.status === 'active' && stock <= lowStockThreshold;
         }).length;
 

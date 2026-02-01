@@ -52,7 +52,7 @@ export default function BeautyStaffPage() {
             setForm({
                 name: member.name,
                 title: member.title || "",
-                phone: member.phone,
+                phone: member.phone || '',
                 photoUrl: member.photoUrl || "",
             });
         } else {

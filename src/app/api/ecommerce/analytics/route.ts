@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
                 ? periodOrders.reduce((sum, o) => sum + o.total, 0) / periodOrders.length
                 : 0,
             totalCustomers: allCustomers.length,
-            newCustomers: allCustomers.filter(c => new Date(c.createdAt) >= startDate).length,
+            newCustomers: allCustomers.filter(c => c.createdAt && new Date(c.createdAt) >= startDate).length,
         };
 
         // Order status distribution
@@ -88,8 +88,8 @@ export async function GET(request: NextRequest) {
                         revenue: 0,
                     };
                 }
-                productSales[item.productId].quantity += item.quantity;
-                productSales[item.productId].revenue += item.total;
+                productSales[item.productId].quantity += item.quantity || 0;
+                productSales[item.productId].revenue += item.total || 0;
             });
         });
 
@@ -100,11 +100,11 @@ export async function GET(request: NextRequest) {
 
         // Low stock products
         const lowStockProducts = allProducts
-            .filter(p => p.status === 'active' && (p.stock ?? p.stockQuantity) <= 5)
+            .filter(p => p.status === 'active' && ((p.stock ?? p.stockQuantity ?? 0) <= 5))
             .map(p => ({
                 id: p.id,
                 name: p.name,
-                stock: p.stock ?? p.stockQuantity,
+                stock: p.stock ?? p.stockQuantity ?? 0,
                 image: p.images?.[0],
             }))
             .slice(0, 5);

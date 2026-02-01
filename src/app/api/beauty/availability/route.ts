@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
         const dayName = getDayName(date);
         const hours: DayHours = workingHours[dayName];
 
-        if (!hours.isOpen) {
+        if (!hours.isOpen || !hours.open || !hours.close) {
             return NextResponse.json({ success: true, slots: [], message: "Closed on this day" });
         }
 

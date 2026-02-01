@@ -71,7 +71,7 @@ export default function BeautyCategoriesPage() {
             const payload = {
                 ...(editingId && { id: editingId }),
                 name: form.name.trim(),
-                icon: form.icon || CATEGORY_ICONS[form.name] || CATEGORY_ICONS['default'],
+                icon: form.icon || CATEGORY_ICONS.find(c => c.value === form.name)?.icon || '✨',
                 order: editingId ? undefined : categories.length,
             };
 
@@ -140,7 +140,7 @@ export default function BeautyCategoriesPage() {
         isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-200 text-gray-900"
     );
 
-    const iconOptions = Object.entries(CATEGORY_ICONS).filter(([key]) => key !== 'default');
+    const iconOptions = CATEGORY_ICONS.map(c => [c.value, c.icon]);
 
     return (
         <div className="p-6 space-y-6">

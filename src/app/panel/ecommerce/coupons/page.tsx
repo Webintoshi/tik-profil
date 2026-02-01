@@ -353,8 +353,8 @@ function CouponModal({
             minOrderAmount: minOrderAmount ? parseFloat(minOrderAmount) : undefined,
             maxDiscount: type === 'percentage' && maxDiscount ? parseFloat(maxDiscount) : undefined,
             usageLimit: usageLimit ? parseInt(usageLimit) : undefined,
-            startDate: startDate ? new Date(startDate) : undefined,
-            endDate: endDate ? new Date(endDate) : undefined,
+            startDate: startDate || undefined,
+            endDate: endDate || undefined,
             status: coupon?.status || 'active',
         });
         setIsSaving(false);

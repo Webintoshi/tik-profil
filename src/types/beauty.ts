@@ -119,7 +119,7 @@ export interface WorkingHours {
 }
 
 // Appointment Status
-export type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
+export type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'rejected';
 
 // Beauty Settings
 export interface BeautySettings {
@@ -206,8 +206,9 @@ export interface ServiceCategory {
 }
 
 // Helper functions
-export const formatPrice = (price: number): string => {
-    return `${price.toLocaleString('tr-TR')} ₺`;
+export const formatPrice = (price: number, currency?: string): string => {
+    const symbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₺';
+    return `${price.toLocaleString('tr-TR')} ${symbol}`;
 };
 
 export const formatDuration = (duration: number): string => {

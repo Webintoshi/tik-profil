@@ -49,6 +49,7 @@ export const productSchema = z.object({
 // Settings Schema
 export const settingsSchema = z.object({
     storeName: z.string().optional(),
+    storeDescription: z.string().optional(),
     storeEmail: z.string().email().optional(),
     storePhone: z.string().optional(),
     storeAddress: z.string().optional(),
@@ -56,6 +57,12 @@ export const settingsSchema = z.object({
     taxRate: z.number().default(0),
     freeShippingThreshold: z.number().optional(),
     shippingFee: z.number().default(0),
+    minOrderAmount: z.number().optional(),
+    shippingOptions: z.array(z.any()).optional(),
+    paymentMethods: z.record(z.boolean()).optional(),
+    orderNotifications: z.record(z.boolean()).optional(),
+    stockSettings: z.record(z.any()).optional(),
+    checkoutSettings: z.record(z.any()).optional(),
 });
 
 // Order Status
@@ -83,6 +90,7 @@ export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | '
 // Order Item
 export interface OrderItem {
     productId: string;
+    variantId?: string;
     name: string;
     quantity: number;
     price: number;
@@ -117,6 +125,7 @@ export interface Customer {
     email?: string;
     phone: string;
     address?: string;
+    notes?: string;
     businessId?: string;
     createdAt?: string;
     updatedAt?: string;
@@ -206,6 +215,7 @@ export interface Order {
     total: number;
     paymentMethod: string;
     paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
+    shippingMethod?: string;
     status: OrderStatus;
     customerNote?: string;
     notes?: string;

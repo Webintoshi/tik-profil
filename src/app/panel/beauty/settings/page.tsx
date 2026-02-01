@@ -29,13 +29,13 @@ const SLOT_OPTIONS = [
 
 // Default working hours
 const DEFAULT_HOURS: WorkingHours = {
-    monday: { open: '09:00', close: '18:00', isOpen: true },
-    tuesday: { open: '09:00', close: '18:00', isOpen: true },
-    wednesday: { open: '09:00', close: '18:00', isOpen: true },
-    thursday: { open: '09:00', close: '18:00', isOpen: true },
-    friday: { open: '09:00', close: '18:00', isOpen: true },
-    saturday: { open: '10:00', close: '16:00', isOpen: true },
-    sunday: { open: '10:00', close: '16:00', isOpen: false },
+    monday: { start: '09:00', end: '18:00', isActive: true, open: '09:00', close: '18:00', isOpen: true },
+    tuesday: { start: '09:00', end: '18:00', isActive: true, open: '09:00', close: '18:00', isOpen: true },
+    wednesday: { start: '09:00', end: '18:00', isActive: true, open: '09:00', close: '18:00', isOpen: true },
+    thursday: { start: '09:00', end: '18:00', isActive: true, open: '09:00', close: '18:00', isOpen: true },
+    friday: { start: '09:00', end: '18:00', isActive: true, open: '09:00', close: '18:00', isOpen: true },
+    saturday: { start: '10:00', end: '16:00', isActive: true, open: '10:00', close: '16:00', isOpen: true },
+    sunday: { start: '10:00', end: '16:00', isActive: false, open: '10:00', close: '16:00', isOpen: false },
 };
 
 export default function BeautySettingsPage() {

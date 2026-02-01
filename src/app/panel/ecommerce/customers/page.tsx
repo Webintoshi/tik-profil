@@ -65,7 +65,7 @@ export default function EcommerceCustomersPage() {
         const query = searchQuery.toLowerCase();
         return (
             customer.name.toLowerCase().includes(query) ||
-            customer.email.toLowerCase().includes(query) ||
+            customer.email?.toLowerCase().includes(query) ||
             customer.phone.includes(searchQuery)
         );
     });
@@ -350,7 +350,7 @@ function CustomerModal({
             phone: phone.trim(),
             email: email.trim() || undefined,
             notes: notes.trim() || undefined,
-            addresses: customer?.addresses || [],
+            address: customer?.address || undefined,
         });
         setIsSaving(false);
     };

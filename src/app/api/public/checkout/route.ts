@@ -32,7 +32,7 @@ async function sendWhatsAppNotification(
     try {
         // Format order items
         const itemsList = items
-            .map((item, i) => `${i + 1}. ${item.name} x${item.quantity} - ${item.total.toLocaleString('tr-TR')}₺`)
+            .map((item, i) => `${i + 1}. ${item.name} x${item.quantity} - ${(item.total ?? 0).toLocaleString('tr-TR')}₺`)
             .join('\n');
 
         // Create WhatsApp message
@@ -102,7 +102,7 @@ function validateCoupon(
     }
 
     // Check usage limit
-    if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) {
+    if (coupon.usageLimit && (coupon.usageCount ?? 0) >= coupon.usageLimit) {
         return { valid: false, discount: 0, reason: 'Kupon kullanım limiti dolmuş' };
     }
 
@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
             }
 
             // Check stock (if tracking enabled)
-            const stock = product.stock ?? product.stockQuantity;
+            const stock = product.stock ?? product.stockQuantity ?? 0;
             if (product.trackStock && stock < item.quantity) {
                 return NextResponse.json({
                     error: `Yetersiz stok: ${product.name}`
@@ -243,12 +243,19 @@ export async function POST(request: NextRequest) {
         const orderNumber = generateOrderNumber();
 
         // Create order
-        const newOrder: Omit<Order, 'id'> = {
+        const newOrder = {
             businessId,
             orderNumber,
+            customer: {
+                name: customerInfo.name,
+                email: customerInfo.email || '',
+                phone: customerInfo.phone,
+                address: customerInfo.address || '',
+            },
             customerInfo,
             items: orderItems,
             subtotal,
+            deliveryFee: shippingCost || 0,
             shippingCost: shippingCost || 0,
             discount,
             total,
@@ -257,8 +264,8 @@ export async function POST(request: NextRequest) {
             paymentStatus: 'pending',
             paymentMethod: paymentMethod || 'cash',
             shippingMethod,
-            createdAt: new Date().toISOString() as unknown as Date,
-            updatedAt: new Date().toISOString() as unknown as Date,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
         };
 
         const orderId = await createDocumentREST(ORDERS_COLLECTION, newOrder);
@@ -276,7 +283,7 @@ export async function POST(request: NextRequest) {
         for (const item of items) {
             const product = productById.get(item.productId);
             if (product && product.trackStock) {
-                const currentStock = product.stock ?? product.stockQuantity;
+                const currentStock = product.stock ?? product.stockQuantity ?? 0;
                 await updateDocumentREST(PRODUCTS_COLLECTION, item.productId, {
                     stock: Math.max(0, currentStock - item.quantity),
                     stockQuantity: Math.max(0, currentStock - item.quantity),

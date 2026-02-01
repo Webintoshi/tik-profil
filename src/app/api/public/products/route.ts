@@ -103,10 +103,12 @@ export async function GET(request: NextRequest) {
         const products = (productRows || [])
             .map((r: any) => ({ id: r.id, ...(r.data as Record<string, unknown>) } as unknown as Product))
             .sort((a, b) => {
-                if (a.sortOrder !== b.sortOrder) {
-                    return a.sortOrder - b.sortOrder;
+                const orderA = a.sortOrder ?? 0;
+                const orderB = b.sortOrder ?? 0;
+                if (orderA !== orderB) {
+                    return orderA - orderB;
                 }
-                return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
             });
 
         // Add category name to each product
