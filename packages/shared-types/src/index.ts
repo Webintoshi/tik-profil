@@ -5,6 +5,9 @@ export interface Business {
   coverImage: string | null;
   logoUrl: string | null;
   category: string;
+  subCategory: string | null;
+  description: string | null;
+  isVerified: boolean;
   district: string | null;
   city: string | null;
   lat: number | null;
@@ -12,13 +15,18 @@ export interface Business {
   rating: number | null;
   reviewCount: number | null;
   distance: number | null;
+  phone: string | null;
+  whatsapp: string | null;
+  address: string | null;
   createdAt: string | null;
 }
+
 
 export interface BusinessData {
   name?: string;
   coverImage?: string;
   category?: string;
+  subCategory?: string;
   moduleType?: string;
   district?: string;
   city?: string;
@@ -31,11 +39,13 @@ export interface BusinessData {
   rating?: number;
   reviewCount?: number;
   description?: string;
+  isVerified?: boolean;
   phone?: string;
   whatsapp?: string;
   address?: string;
   createdAt?: string;
 }
+
 
 export interface User {
   id: string;

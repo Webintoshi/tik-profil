@@ -20,6 +20,7 @@ import clsx from "clsx";
 import { toast } from "sonner";
 import { useTheme } from "@/components/panel/ThemeProvider";
 import { useBusinessContext } from "@/components/panel/BusinessSessionContext";
+import { createClient } from '@supabase/supabase-js';
 import {
     playNotificationSound,
     requestNotificationPermission,
@@ -32,6 +33,12 @@ import {
     vibrateDevice,
     stopRingtone
 } from "@/lib/notification-sounds";
+
+// Supabase client for real-time subscriptions
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 interface OrderItem {
     productName: string;

@@ -64,6 +64,52 @@ const CATEGORY_EMOJIS: Record<string, string> = {
     "other": "📍",
 };
 
+// Normalize industry label to consistent format
+function normalizeIndustryLabel(label: string | null): string {
+    if (!label) return "Diğer";
+    
+    const normalized = label.toLowerCase()
+        .replace(/ş/g, "s")
+        .replace(/ğ/g, "g")
+        .replace(/ü/g, "u")
+        .replace(/ö/g, "o")
+        .replace(/ç/g, "c")
+        .replace(/ı/g, "i")
+        .replace(/\s+/g, "")
+        .replace(/-/g, "");
+    
+    // Map normalized values to display labels
+    const labelMap: Record<string, string> = {
+        "fastfood": "FastFood",
+        "fastfoodrestaurant": "FastFood",
+        "fastfoodrestoran": "FastFood",
+        "restoran": "Restoran",
+        "restaurant": "Restoran",
+        "kafe": "Kafe",
+        "cafe": "Kafe",
+        "otel": "Otel",
+        "hotel": "Hotel",
+        "guzellik": "Güzellik Merkezi",
+        "beauty": "Güzellik Merkezi",
+        "kuafor": "Kuaför/Salon",
+        "salon": "Kuaför/Salon",
+        "emlak": "Emlak",
+        "realestate": "Emlak",
+        "gayrimenkul": "Emlak",
+        "ecommerce": "E-ticaret",
+        "eticaret": "E-ticaret",
+        "clinic": "Klinik",
+        "klinik": "Klinik",
+        "saglik": "Sağlık",
+        "health": "Sağlık",
+        "vehicle": "Araç Kiralama",
+        "arackiralama": "Araç Kiralama",
+        "rentacar": "Araç Kiralama",
+    };
+    
+    return labelMap[normalized] || label;
+}
+
 // Get emoji for a category (case-insensitive search)
 function getCategoryEmoji(category: string): string {
     const lower = category.toLowerCase();
@@ -112,7 +158,8 @@ export async function GET(request: Request) {
 
         activeBusinesses.forEach((business: any) => {
             // Priority: industry_label > moduleType > industry_id
-            const label = (business.industry_label || business.moduleType || business.industry_id || "Diğer") as string;
+            const rawLabel = (business.industry_label || business.moduleType || business.industry_id || "Diğer") as string;
+            const label = normalizeIndustryLabel(rawLabel);
             const key = label.toLowerCase().replace(/\s+/g, "_");
 
             if (!categoryCounts[key]) {

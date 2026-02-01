@@ -583,10 +583,12 @@ function getIndustryLabel(industryId: string): string {
         // Cafe variants
         "cafe": "Kafe",
         "kafe": "Kafe",
-        // Fast Food
-        "fastfood": "Fast Food",
-        "fast-food": "Fast Food",
-        // Hotel variants - ADDED
+        // Fast Food variants
+        "fastfood": "FastFood",
+        "fast-food": "FastFood",
+        "fast food": "FastFood",
+        "fastfoodrestaurant": "FastFood",
+        // Hotel variants
         "hotel": "Otel",
         "otel": "Otel",
         "hostel": "Hostel",
@@ -594,18 +596,28 @@ function getIndustryLabel(industryId: string): string {
         "aparthotel": "Apart Otel",
         // Other industries
         "e-commerce": "E-ticaret",
+        "ecommerce": "E-ticaret",
         "health": "Sağlık",
-        "beauty": "Güzellik",
+        "beauty": "Güzellik Merkezi",
+        "guzellik": "Güzellik Merkezi",
         "clinic": "Klinik",
         "salon": "Kuaför/Salon",
+        "kuafor": "Kuaför/Salon",
         "retail": "Perakende",
         "service": "Hizmet",
         "spa": "SPA",
         "gym": "Spor Salonu",
+        "emlak": "Emlak",
+        "realestate": "Emlak",
+        "real-estate": "Emlak",
+        "gayrimenkul": "Emlak",
+        "vehicle-rental": "Araç Kiralama",
+        "arac-kiralama": "Araç Kiralama",
+        "rentacar": "Araç Kiralama",
         "default": "İşletme"
     };
-    // Normalize the industry ID (lowercase, trim)
-    const normalizedId = industryId?.toLowerCase().trim() || "default";
+    // Normalize the industry ID (lowercase, trim, remove spaces/hyphens)
+    const normalizedId = industryId?.toLowerCase().trim().replace(/\s+/g, "").replace(/-/g, "") || "default";
     return labels[normalizedId] || labels["default"];
 }
 

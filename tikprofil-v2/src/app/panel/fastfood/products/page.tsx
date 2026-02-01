@@ -60,6 +60,9 @@ interface Product {
     tags?: TagId[];
     calories?: number;
     spicyLevel?: 1 | 2 | 3 | 4 | 5;
+    // Stock management fields
+    trackStock?: boolean;
+    stock?: number;
 }
 
 interface ExtraGroup {
@@ -99,7 +102,10 @@ export default function FastFoodProductsPage() {
         discountUntil: "",
         tags: [] as TagId[],
         calories: "",
-        spicyLevel: "" as string
+        spicyLevel: "" as string,
+        // Stock management fields
+        trackStock: false,
+        stock: "999"
     });
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
@@ -264,7 +270,10 @@ export default function FastFoodProductsPage() {
                 discountUntil: product.discountUntil || "",
                 tags: product.tags || [],
                 calories: product.calories?.toString() || "",
-                spicyLevel: product.spicyLevel?.toString() || ""
+                spicyLevel: product.spicyLevel?.toString() || "",
+                // Stock management fields
+                trackStock: product.trackStock || false,
+                stock: product.stock?.toString() || "999"
             });
         } else {
             setEditingProduct(null);
@@ -286,7 +295,10 @@ export default function FastFoodProductsPage() {
                 discountUntil: "",
                 tags: [],
                 calories: "",
-                spicyLevel: ""
+                spicyLevel: "",
+                // Stock management fields
+                trackStock: false,
+                stock: "999"
             });
         }
         setShowModal(true);
@@ -341,6 +353,9 @@ export default function FastFoodProductsPage() {
                 tags: formData.tags.length > 0 ? formData.tags : null,
                 calories: formData.calories ? parseInt(formData.calories) : null,
                 spicyLevel: formData.spicyLevel ? parseInt(formData.spicyLevel) : null,
+                // Stock management fields
+                trackStock: formData.trackStock,
+                stock: formData.trackStock ? parseInt(formData.stock) || 0 : 999
             };
 
             const res = await fetch(url, {
@@ -1266,7 +1281,72 @@ export default function FastFoodProductsPage() {
 
                                     {/* === END NEW SECTIONS === */}
 
-                                    {/* Toggles */}
+                                    {/* Stock Management */}
+                                    <div className={clsx("p-4 rounded-2xl border", isDark ? "bg-[#2C2C2E] border-[#3A3A3C]" : "bg-gray-50 border-gray-200")}>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <label className={clsx("block text-sm font-bold", textSecondary)}>
+                                                📦 STOK YÖNETİMİ
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData(prev => ({ 
+                                                    ...prev, 
+                                                    trackStock: !prev.trackStock,
+                                                    stock: !prev.trackStock ? (prev.inStock ? "999" : "0") : "999"
+                                                }))}
+                                                className={clsx(
+                                                    "w-12 h-7 rounded-full transition-colors relative",
+                                                    formData.trackStock ? "bg-blue-500" : (isDark ? "bg-[#3A3A3C]" : "bg-gray-300")
+                                                )}
+                                                title={formData.trackStock ? "Stok takibini kapat" : "Stok takibini aç"}
+                                            >
+                                                <span className={clsx(
+                                                    "absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform",
+                                                    formData.trackStock ? "left-6" : "left-1"
+                                                )} />
+                                            </button>
+                                        </div>
+                                        
+                                        <p className={clsx("text-xs mb-3", textSecondary)}>
+                                            {formData.trackStock 
+                                                ? "Stok takibi aktif. Her siparişte stok otomatik azalır."
+                                                : "Stok takibi kapalı. Ürün sınırsız stoklu (999) olarak işaretlenir."
+                                            }
+                                        </p>
+                                        
+                                        {formData.trackStock && (
+                                            <div>
+                                                <label className={clsx("block text-xs font-medium ml-1 mb-1", textSecondary)}>
+                                                    Mevcut Stok Miktarı
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="9999"
+                                                    placeholder="999"
+                                                    value={formData.stock}
+                                                    onChange={e => {
+                                                        const value = e.target.value;
+                                                        const numValue = parseInt(value) || 0;
+                                                        setFormData(prev => ({ 
+                                                            ...prev, 
+                                                            stock: value,
+                                                            inStock: numValue > 0
+                                                        }));
+                                                    }}
+                                                    className={clsx(
+                                                        "w-full px-4 py-3 rounded-xl text-base font-medium outline-none border focus:border-blue-500 transition-all",
+                                                        inputBg, isDark ? "border-transparent" : "border-transparent"
+                                                    )}
+                                                />
+                                                <p className={clsx("text-xs mt-1", textSecondary)}>
+                                                    0 = Stokta yok, 999 = Sınırsız stok
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Toggles -->
                                     <div className="flex gap-6 pt-2">
                                         <div className="flex items-center gap-3">
                                             <span className="font-semibold text-sm">Aktif</span>

@@ -43,7 +43,7 @@ export async function getBusinesses(options: {
   const businesses: Business[] = (data || []).map((row: any) => {
     const payload = (row.data || {}) as BusinessData;
     const location = payload.location;
-    
+
     return {
       id: row.id,
       slug: row.slug || row.id,
@@ -51,6 +51,9 @@ export async function getBusinesses(options: {
       coverImage: payload.coverImage || row.cover || row.logo || null,
       logoUrl: row.logo || null,
       category: payload.category || payload.moduleType || 'other',
+      subCategory: payload.subCategory || null,
+      description: payload.description || null,
+      isVerified: payload.isVerified || false,
       district: payload.district || null,
       city: payload.city || null,
       lat: location?.lat || payload.lat || null,
@@ -58,6 +61,9 @@ export async function getBusinesses(options: {
       rating: payload.rating || null,
       reviewCount: payload.reviewCount || null,
       distance: null,
+      phone: payload.phone || null,
+      whatsapp: payload.whatsapp || null,
+      address: payload.address || null,
       createdAt: payload.createdAt || row.created_at || null,
     };
   });
@@ -99,6 +105,9 @@ export async function getBusinessBySlug(slug: string): Promise<Business | null> 
     coverImage: payload.coverImage || data.cover || data.logo || null,
     logoUrl: data.logo || null,
     category: payload.category || payload.moduleType || 'other',
+    subCategory: payload.subCategory || null,
+    description: payload.description || null,
+    isVerified: payload.isVerified || false,
     district: payload.district || null,
     city: payload.city || null,
     lat: location?.lat || payload.lat || null,
@@ -106,6 +115,9 @@ export async function getBusinessBySlug(slug: string): Promise<Business | null> 
     rating: payload.rating || null,
     reviewCount: payload.reviewCount || null,
     distance: null,
+    phone: payload.phone || null,
+    whatsapp: payload.whatsapp || null,
+    address: payload.address || null,
     createdAt: payload.createdAt || data.created_at || null,
   };
 }
@@ -129,7 +141,7 @@ export async function searchBusinesses(query: string, options?: { lat?: number; 
   const businesses: Business[] = (data || []).map((row: any) => {
     const payload = (row.data || {}) as BusinessData;
     const location = payload.location;
-    
+
     return {
       id: row.id,
       slug: row.slug || row.id,
@@ -137,6 +149,9 @@ export async function searchBusinesses(query: string, options?: { lat?: number; 
       coverImage: payload.coverImage || row.cover || row.logo || null,
       logoUrl: row.logo || null,
       category: payload.category || payload.moduleType || 'other',
+      subCategory: payload.subCategory || null,
+      description: payload.description || null,
+      isVerified: payload.isVerified || false,
       district: payload.district || null,
       city: payload.city || null,
       lat: location?.lat || payload.lat || null,
@@ -144,6 +159,9 @@ export async function searchBusinesses(query: string, options?: { lat?: number; 
       rating: payload.rating || null,
       reviewCount: payload.reviewCount || null,
       distance: null,
+      phone: payload.phone || null,
+      whatsapp: payload.whatsapp || null,
+      address: payload.address || null,
       createdAt: payload.createdAt || row.created_at || null,
     };
   });
