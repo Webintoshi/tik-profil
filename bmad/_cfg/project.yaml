@@ -80,6 +80,7 @@ workflows:
   - bug-import
   - tech-spec
   - dev-story
+  - bug-fix
 
 agents:
   core:

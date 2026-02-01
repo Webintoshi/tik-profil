@@ -12,6 +12,7 @@ Tüm workflow'ların detaylı referansı.
 | `*bug-import` | - | - | bug.md entegrasyonu |
 | `*tech-spec` | 2-4 | - | Teknik spesifikasyon |
 | `*dev-story` | - | - | Story implementasyonu |
+| `*bug-fix` | 0-1 | 1s-4s | Bug çözümü workflow'u |
 
 ---
 
@@ -20,6 +21,7 @@ Tüm workflow'ların detaylı referansı.
 **Açıklama:** Proje analizi ve başlangıç workflow'u
 
 **Kullanım:**
+
 ```
 *workflow-init
 ```
@@ -27,11 +29,13 @@ Tüm workflow'ların detaylı referansı.
 **Ajan:** BMad Master
 
 **Çıktı:**
+
 - Proje yapısı analizi
 - Workflow önerisi
 - Sonraki adımlar
 
 **Akış:**
+
 1. Proje yapısını göster
 2. Kullanıcıdan hedef al
 3. Uygun workflow'u öner
@@ -44,6 +48,7 @@ Tüm workflow'ların detaylı referansı.
 **Açıklama:** Hızlı bug fix ve küçük feature'lar
 
 **Kullanım:**
+
 ```
 *quick-spec
 *quick-spec --bug-id=5
@@ -57,11 +62,13 @@ Tüm workflow'ların detaylı referansı.
 **Süre:** 1 saat - 2 gün
 
 **Çıktı:**
+
 - Kod implementasyonu
 - Test
 - bug.md güncellemesi (varsa)
 
 **Akış:**
+
 1. Hedef belirleme (bug/feature)
 2. Hızlı analiz
 3. Implementation
@@ -69,6 +76,7 @@ Tüm workflow'ların detaylı referansı.
 5. Tamamlama
 
 **Ne zaman kullanılır:**
+
 - Bug fix'ler
 - Küçük UI değişiklikleri
 - Basit feature'lar
@@ -81,12 +89,14 @@ Tüm workflow'ların detaylı referansı.
 **Açıklama:** Orta ve büyük feature'lar için detaylı planning
 
 **Kullanım:**
+
 ```
 *feature-plan
 *feature-plan --name="premium-analytics"
 ```
 
 **Ajanlar:**
+
 - TikProfil PM (PRD, Stories)
 - Web Architect (Web tech spec)
 - Mobile Architect (Mobile tech spec)
@@ -97,18 +107,21 @@ Tüm workflow'ların detaylı referansı.
 **Süre:** 1-4 hafta
 
 **Çıktı:**
+
 - PRD
 - Tech Spec (Level 2+)
 - Story'ler
 - Implementation plan
 
 **Akış:**
+
 1. **Phase 1:** Analysis (opsiyonel)
 2. **Phase 2:** Planning (PRD)
 3. **Phase 3:** Solutioning (tech spec)
 4. **Phase 4:** Story Creation
 
 **Ne zaman kullanılır:**
+
 - Ödeme sistemi
 - Yeni dashboard
 - Büyük entegrasyonlar
@@ -121,6 +134,7 @@ Tüm workflow'ların detaylı referansı.
 **Açıklama:** Mevcut bug.md'yi BMad'e aktar
 
 **Kullanım:**
+
 ```
 *bug-import
 *bug-import --all
@@ -129,11 +143,13 @@ Tüm workflow'ların detaylı referansı.
 **Ajan:** BMad Master
 
 **Çıktı:**
+
 - Bug analizi
 - Story'ler (`bmad/stories/bugs/`)
 - Çözüm planı
 
 **Akış:**
+
 1. bug.md analizi
 2. Bug listesi göster
 3. Aktarım seçimi
@@ -141,6 +157,7 @@ Tüm workflow'ların detaylı referansı.
 5. Çözüm planı
 
 **Ne zaman kullanılır:**
+
 - Mevcut bug'ları BMad'e aktarmak için
 - Eski bug'ları organize etmek için
 
@@ -151,6 +168,7 @@ Tüm workflow'ların detaylı referansı.
 **Açıklama:** Teknik spesifikasyon yazma
 
 **Kullanım:**
+
 ```
 *tech-spec
 *tech-spec --platform=web
@@ -159,16 +177,19 @@ Tüm workflow'ların detaylı referansı.
 ```
 
 **Ajanlar:**
+
 - Web Architect (Web)
 - Mobile Architect (Mobile)
 - Supabase Expert (DB)
 
 **Çıktı:**
+
 - Tech spec dokümanı
 - Mimari kararlar
 - Implementation guide
 
 **Ne zaman kullanılır:**
+
 - Level 2+ feature'lar
 - Mimari kararlar
 - Tech stack seçimi
@@ -180,6 +201,7 @@ Tüm workflow'ların detaylı referansı.
 **Açıklama:** Story implementasyonu
 
 **Kullanım:**
+
 ```
 *dev-story --id=STORY-001
 *dev-story --id=1
@@ -188,17 +210,20 @@ Tüm workflow'ların detaylı referansı.
 **Ajan:** Full-Stack Dev
 
 **Çıktı:**
+
 - Kod implementasyonu
 - Test'ler
 - Story güncellemesi
 
 **Akış:**
+
 1. Story analizi
 2. Implementation
 3. Test yazma
 4. Code review hazırlığı
 
 **Ne zaman kullanılır:**
+
 - Story geliştirme
 - PR oluşturma öncesi
 
@@ -235,6 +260,7 @@ Yapmak istediğiniz iş → Önerilen Workflow
 ## Workflow Kombinasyonları
 
 ### Yeni Feature (Ödeme Sistemi Örneği)
+
 ```
 1. *workflow-init
    └─ Seviye: Level 2
@@ -253,6 +279,7 @@ Yapmak istediğiniz iş → Önerilen Workflow
 ```
 
 ### Bug Çözümü
+
 ```
 1. *bug-import (eğer bug.md'de varsa)
    └─ Story'ye dönüştür
@@ -264,12 +291,14 @@ Yapmak istediğiniz iş → Önerilen Workflow
 ## Workflow Çıktıları
 
 ### PRD Çıktısı
+
 ```
 bmad/stories/
 └── prd-[feature-name].md
 ```
 
 ### Story Çıktısı
+
 ```
 bmad/stories/
 ├── story-[XXX]-[title].md
@@ -278,6 +307,7 @@ bmad/stories/
 ```
 
 ### Tech Spec Çıktısı
+
 ```
 bmad/stories/
 ├── tech-spec-[feature]-web.md
@@ -290,6 +320,7 @@ bmad/stories/
 Workflow'ları `_cfg/workflows/` dizinindeki dosyalardan özelleştirebilirsiniz.
 
 Yeni workflow eklemek için:
+
 1. `_cfg/workflows/my-workflow.md` oluştur
 2. Front matter'a trigger ekle
 3. Akışı tanımla
