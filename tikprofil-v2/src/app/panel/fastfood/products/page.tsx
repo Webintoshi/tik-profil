@@ -1289,8 +1289,8 @@ export default function FastFoodProductsPage() {
                                             </label>
                                             <button
                                                 type="button"
-                                                onClick={() => setFormData(prev => ({ 
-                                                    ...prev, 
+                                                onClick={() => setFormData(prev => ({
+                                                    ...prev,
                                                     trackStock: !prev.trackStock,
                                                     stock: !prev.trackStock ? (prev.inStock ? "999" : "0") : "999"
                                                 }))}
@@ -1306,14 +1306,14 @@ export default function FastFoodProductsPage() {
                                                 )} />
                                             </button>
                                         </div>
-                                        
+
                                         <p className={clsx("text-xs mb-3", textSecondary)}>
-                                            {formData.trackStock 
+                                            {formData.trackStock
                                                 ? "Stok takibi aktif. Her siparişte stok otomatik azalır."
                                                 : "Stok takibi kapalı. Ürün sınırsız stoklu (999) olarak işaretlenir."
                                             }
                                         </p>
-                                        
+
                                         {formData.trackStock && (
                                             <div>
                                                 <label className={clsx("block text-xs font-medium ml-1 mb-1", textSecondary)}>
@@ -1328,8 +1328,8 @@ export default function FastFoodProductsPage() {
                                                     onChange={e => {
                                                         const value = e.target.value;
                                                         const numValue = parseInt(value) || 0;
-                                                        setFormData(prev => ({ 
-                                                            ...prev, 
+                                                        setFormData(prev => ({
+                                                            ...prev,
                                                             stock: value,
                                                             inStock: numValue > 0
                                                         }));
@@ -1346,7 +1346,7 @@ export default function FastFoodProductsPage() {
                                         )}
                                     </div>
 
-                                    {/* Toggles -->
+                                    {/* Toggles */}
                                     <div className="flex gap-6 pt-2">
                                         <div className="flex items-center gap-3">
                                             <span className="font-semibold text-sm">Aktif</span>
