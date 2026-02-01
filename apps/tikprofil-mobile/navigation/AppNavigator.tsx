@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -15,12 +15,28 @@ import { QRScreen } from '@/screens/QRScreen';
 import { OrdersScreen } from '@/screens/OrdersScreen';
 import { ProfileScreen } from '@/screens/ProfileScreen';
 import { BusinessDetailScreen } from '@/screens/BusinessDetailScreen';
+import { LoginScreen } from '@/screens/LoginScreen';
+import { RegisterScreen } from '@/screens/RegisterScreen';
 
 // Types
-import type { RootStackParamList, MainTabParamList } from '@/types/navigation';
+import type { RootStackParamList, MainTabParamList, AuthStackParamList } from '@/types/navigation';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Stack = createStackNavigator<RootStackParamList>();
+const AuthStack = createStackNavigator<AuthStackParamList>();
+
+function AuthNavigator() {
+  return (
+    <AuthStack.Navigator
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <AuthStack.Screen name="Login" component={LoginScreen} />
+      <AuthStack.Screen name="Register" component={RegisterScreen} />
+    </AuthStack.Navigator>
+  );
+}
 
 function MainTabs() {
   return (
@@ -98,7 +114,12 @@ export function AppNavigator() {
   }, []);
 
   if (isLoading) {
-    return null;
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f172a' }}>
+        <Text style={{ color: '#10B981', fontSize: 32, fontWeight: '800', marginBottom: 16 }}>TikProfil</Text>
+        <Text style={{ color: '#9CA3AF', fontSize: 14 }}>Yükleniyor...</Text>
+      </View>
+    );
   }
 
   return (
@@ -108,7 +129,9 @@ export function AppNavigator() {
           headerShown: false,
         }}
       >
+        {/* Always show Main first - skip auth requirement */}
         <Stack.Screen name="Main" component={MainTabs} />
+        <Stack.Screen name="Auth" component={AuthNavigator} />
         <Stack.Screen
           name="BusinessDetail"
           component={BusinessDetailScreen}

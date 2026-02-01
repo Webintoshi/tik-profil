@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
@@ -15,6 +16,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import type { Business } from '@tikprofil/shared-types';
+import { BlurView } from 'expo-blur';
 
 interface BusinessCardProps {
   business: Business;
@@ -22,8 +24,7 @@ interface BusinessCardProps {
   onFavoritePress?: (business: Business) => void;
 }
 
-const AnimatedTouchableOpacity =
-  Animated.createAnimatedComponent(TouchableOpacity);
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
 const CATEGORY_NAMES: Record<string, string> = {
   all: 'Tümü',
@@ -44,30 +45,23 @@ const getCategoryDisplayName = (business: Business): string => {
 };
 
 const getDescriptionText = (business: Business): string => {
-  if (business.description) {
-    return business.description;
-  }
-
-  const categoryName = getCategoryDisplayName(business);
-  if (business.category === 'other' && business.subCategory) {
-    return `${business.subCategory} sektöründe kaliteli hizmet.`;
-  }
+  if (business.description) return business.description;
 
   const descriptions: Record<string, string> = {
-    restaurant: 'Lezzetli yemekler ve eşsiz bir deneyim.',
-    cafe: 'Keyifli vakit geçirebileceğiniz mekan.',
-    fastfood: 'Hızlı ve lezzetli atıştırmalıklar.',
-    beauty: 'Profesyonel bakım hizmetleri.',
-    shopping: 'Kaliteli ürünler ve uygun fiyatlar.',
-    service: 'Güvenilir ve kaliteli hizmet.',
+    restaurant: 'Premium yemek deneyimi, şefin özel menüsü ve unutulmaz lezzetler.',
+    cafe: 'Keyifli vakit geçirebileceğiniz, özel kahve çeşitleri sunan mekan.',
+    fastfood: 'Burger, Coffee & Beats',
+    beauty: 'Kendinizi özel hissedeceğiniz profesyonel bakım hizmetleri.',
+    shopping: 'En trend ürünler ve keyifli alışveriş deneyimi.',
+    service: 'Güvenilir, hızlı ve profesyonel hizmet çözümleri.',
+    other: 'Kaliteli hizmet ve müşteri memnuniyeti odaklı işletme.',
   };
 
-  return descriptions[business.category] || `${categoryName} sektöründe kaliteli hizmet.`;
+  return descriptions[business.category] || descriptions.other;
 };
 
 const getSafeImageURL = (url: string | undefined, fallback: string): string => {
   if (!url) return fallback;
-
   const blockedDomains = ['via.placeholder.com', 'placeholder.com'];
   try {
     const urlObj = new URL(url);
@@ -77,15 +71,10 @@ const getSafeImageURL = (url: string | undefined, fallback: string): string => {
   } catch {
     return fallback;
   }
-
   return url;
 };
 
-export function BusinessCard({
-  business,
-  onPress,
-  onFavoritePress,
-}: BusinessCardProps) {
+export function BusinessCard({ business, onPress, onFavoritePress }: BusinessCardProps) {
   const [isLiked, setIsLiked] = useState(false);
   const scale = useSharedValue(1);
 
@@ -111,12 +100,12 @@ export function BusinessCard({
 
   const coverImageURL = getSafeImageURL(
     business.coverImage,
-    'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI0YzRjRGNiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjE4IiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZmlsbD0iIzlDQTNBRiI+T8SZTGV0bWV5aW4gWW9rPC90ZXh0Pjwvc3ZnPg=='
+    'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI0YzRjRGNiIvPjwvc3ZnPg=='
   );
 
   const logoImageURL = getSafeImageURL(
     business.logoUrl,
-    'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI0U1RTdFQiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjE0IiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZmlsbD0iIzdCNzI4MCI+TG9nbzwvdGV4dD48L3N2Zz4='
+    'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI0U1RTdFQiIvPjwvc3ZnPg=='
   );
 
   return (
@@ -126,93 +115,85 @@ export function BusinessCard({
       activeOpacity={0.9}
     >
       <View style={styles.cardInner}>
+        {/* Cover Image Section */}
         <View style={styles.coverContainer}>
-          <Image
-            source={{ uri: coverImageURL }}
-            style={styles.coverImage}
-            resizeMode="cover"
-          />
+          <Image source={{ uri: coverImageURL }} style={styles.coverImage} resizeMode="cover" />
           <View style={styles.coverGradient} />
 
-          {business.rating && business.rating >= 4.8 && (
-            <View style={styles.recommendedBadge}>
+          {/* Recommended Badge (Top Right) */}
+          {business.rating && business.rating >= 4.0 && (
+            <BlurView intensity={20} tint="dark" style={styles.recommendedBadge}>
               <View style={styles.pingDot} />
-              <View style={styles.staticDot} />
-              <Text style={styles.recommendedText}>Önerilen</Text>
-            </View>
+              <Text style={styles.recommendedText}>ÖNERİLEN</Text>
+            </BlurView>
           )}
 
-          <View style={styles.bottomSection}>
+          {/* Logo & Title Overlay (Bottom Glass) */}
+          <BlurView intensity={80} tint="dark" style={styles.overlayContent}>
             <View style={styles.logoContainer}>
-              <Image
-                source={{ uri: logoImageURL }}
-                style={styles.logoImage}
-              />
+              <Image source={{ uri: logoImageURL }} style={styles.logoImage} />
             </View>
-
-            <View style={styles.titleSection}>
-              <Text style={styles.businessName} numberOfLines={1}>
-                {business.name}
-              </Text>
-              <Text style={styles.businessCategory} numberOfLines={1}>
-                {categoryDisplayName}
-                {business.district ? ` • ${business.district}` : ''}
-              </Text>
+            <View style={styles.titleContainer}>
+              <View style={styles.nameRow}>
+                <Text style={styles.businessName} numberOfLines={1}>{business.name}</Text>
+                {/* Verified Badge Integration */}
+                <Ionicons name="checkmark-circle" size={16} color="#3B82F6" style={styles.verifiedIcon} />
+              </View>
+              {/* Category Pill Integration */}
+              <View style={styles.categoryPill}>
+                <Text style={styles.categoryPillText}>{categoryDisplayName.toUpperCase()}</Text>
+              </View>
             </View>
-          </View>
+          </BlurView>
         </View>
 
+        {/* Content Section */}
         <View style={styles.contentSection}>
+          {/* Metrics Row */}
           <View style={styles.metricsRow}>
-            {business.rating && (
-              <View style={styles.metric}>
-                <Ionicons name="star" size={14} color="#F59E0B" />
-                <Text style={styles.metricValue}>{business.rating}</Text>
-                {business.reviewCount && (
-                  <Text style={styles.metricLabel}>
-                    ({business.reviewCount})
-                  </Text>
-                )}
-              </View>
-            )}
-
-            <View style={styles.metric}>
-              <Ionicons name="time-outline" size={14} color="#9CA3AF" />
-              <Text style={styles.metricLabel}>15-20 dk</Text>
+            <View style={styles.metricItem}>
+              <Ionicons name="star" size={14} color="#F59E0B" style={styles.metricIcon} />
+              <Text style={styles.ratingValue}>{business.rating?.toFixed(1) || '0.0'}</Text>
+              <Text style={styles.reviewCount}>({business.reviewCount || 0})</Text>
             </View>
 
-            {business.distance && (
-              <View style={styles.metric}>
-                <Ionicons name="location" size={14} color="#9CA3AF" />
-                <Text style={styles.metricLabel}>
-                  {business.distance < 1
-                    ? `${Math.round(business.distance * 1000)} m`
-                    : `${business.distance.toFixed(1)} km`}
-                </Text>
-              </View>
-            )}
-          </View>
+            <View style={styles.separator} />
 
-          <View style={styles.footerRow}>
-            <View style={styles.footerLeft}>
-              <Text style={styles.description} numberOfLines={2}>
-                {descriptionText}
+            <View style={styles.metricItem}>
+              <Ionicons name="time-outline" size={14} color="#9CA3AF" style={styles.metricIcon} />
+              <Text style={styles.metricText}>15-20 dk</Text>
+            </View>
+
+            <View style={styles.separator} />
+
+            <View style={styles.metricItem}>
+              <Ionicons name="location-outline" size={14} color="#9CA3AF" style={styles.metricIcon} />
+              <Text style={styles.metricText}>
+                {business.distance
+                  ? (business.distance < 1 ? `${Math.round(business.distance * 1000)} m` : `${business.distance.toFixed(1)} km`)
+                  : '0 km'}
               </Text>
             </View>
+          </View>
 
-            <AnimatedTouchableOpacity
-              style={[
-                styles.likeButton,
-                isLiked && styles.likeButtonLiked,
-              ]}
-              onPress={handleLikePress}
-              activeOpacity={0.8}
-            >
+          {/* Description */}
+          <Text style={styles.description} numberOfLines={2}>
+            {descriptionText}
+          </Text>
+
+          {/* Footer: Tags & Like Button */}
+          <View style={styles.footerRow}>
+            <View style={styles.tagsRow}>
+              <Text style={styles.tag}>#Premium</Text>
+              <Text style={styles.tag}>#Rezervasyon</Text>
+            </View>
+
+            <AnimatedTouchableOpacity onPress={handleLikePress}>
               <Animated.View style={animatedStyle}>
                 <Ionicons
-                  name="heart"
+                  name={isLiked ? "heart" : "heart-outline"}
                   size={22}
-                  color={isLiked ? '#EF4444' : '#D1D5DB'}
+                  color={isLiked ? "#EF4444" : "#D1D5DB"}
                 />
               </Animated.View>
             </AnimatedTouchableOpacity>
@@ -225,24 +206,24 @@ export function BusinessCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    marginHorizontal: 16,
     marginBottom: 16,
+    marginHorizontal: 16,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 5,
-    overflow: 'hidden',
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 4,
   },
   cardInner: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 24,
     overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
   },
   coverContainer: {
     height: 180,
+    width: '100%',
     position: 'relative',
   },
   coverImage: {
@@ -251,142 +232,174 @@ const styles = StyleSheet.create({
   },
   coverGradient: {
     position: 'absolute',
-    top: 0,
+    bottom: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    height: '50%',
+    backgroundColor: 'transparent',
   },
   recommendedBadge: {
     position: 'absolute',
     top: 12,
     right: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(59, 130, 246, 0.9)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 6,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
   },
   pingDot: {
-    position: 'absolute',
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: '#3B82F6',
-  },
-  staticDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 4,
-    elevation: 3,
+    marginRight: 6,
   },
   recommendedText: {
+    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '700',
-    color: '#FFFFFF',
-    textTransform: 'uppercase',
-    marginLeft: 8,
+    letterSpacing: 0.5,
   },
-  bottomSection: {
+  overlayContent: {
     position: 'absolute',
-    bottom: 16,
-    left: 16,
-    right: 16,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    paddingBottom: 12,
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    overflow: 'hidden',
   },
   logoContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    padding: 2,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
     marginRight: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
   },
   logoImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
   },
-  titleSection: {
+  titleContainer: {
     flex: 1,
+    justifyContent: 'center',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
   },
   businessName: {
+    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 2,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    marginRight: 4,
+    textShadowColor: 'rgba(0,0,0,0.3)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
-  businessCategory: {
+  verifiedIcon: {
+    marginTop: 2,
+    marginLeft: 4,
+  },
+  typeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 8,
+  },
+  categoryPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  categoryPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  subCategoryText: {
     fontSize: 12,
+    color: 'rgba(255,255,255,0.9)',
     fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.9)',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    flex: 1,
   },
   contentSection: {
     padding: 16,
+    paddingTop: 14,
   },
   metricsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    gap: 12,
+    marginBottom: 10,
   },
-  metric: {
+  metricItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
   },
-  metricValue: {
-    fontSize: 14,
-    fontWeight: '700',
+  metricIcon: {
+    marginRight: 4,
+  },
+  ratingValue: {
+    fontSize: 13,
+    fontWeight: '800',
     color: '#111827',
   },
-  metricLabel: {
-    fontSize: 12,
-    fontWeight: '500',
+  reviewCount: {
+    fontSize: 13,
     color: '#6B7280',
+    marginLeft: 2,
+  },
+  separator: {
+    width: 1,
+    height: 12,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 12,
+  },
+  metricText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  description: {
+    fontSize: 13,
+    color: '#4B5563',
+    lineHeight: 18,
+    marginBottom: 14,
   },
   footerRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
     justifyContent: 'space-between',
-  },
-  footerLeft: {
-    flex: 1,
-    marginRight: 12,
-  },
-  description: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#6B7280',
-    lineHeight: 16,
-    marginBottom: 6,
-  },
-  likeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  likeButtonLiked: {
-    backgroundColor: '#FEF2F2',
+  tagsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  tag: {
+    fontSize: 11,
+    color: '#4B5563',
+    fontWeight: '600',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
 });

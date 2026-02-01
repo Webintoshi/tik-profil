@@ -108,16 +108,16 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    gap: 16,
+    gap: 14,
   },
   storyItem: {
     alignItems: 'center',
-    width: 64,
+    width: 72,
   },
   storyRing: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     borderWidth: 2,
     borderColor: '#E5E7EB',
     padding: 2,
@@ -125,19 +125,19 @@ const styles = StyleSheet.create({
   },
   storyRingUnseen: {
     borderColor: '#3B82F6',
-    borderWidth: 2.5,
+    borderWidth: 3,
   },
   storyInnerRing: {
     width: '100%',
     height: '100%',
-    borderRadius: 24,
+    borderRadius: 30,
     backgroundColor: '#FFFFFF',
     padding: 2,
   },
   storyImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 22,
+    borderRadius: 28,
     backgroundColor: '#F3F4F6',
   },
   liveBadge: {

@@ -14,10 +14,10 @@ export function ProfileScreen() {
 
     const initAuth = async () => {
       console.log('[ProfileScreen] Initializing auth...');
-      
+
       // AuthService initialize tamamlanmasını bekle
       await authService.initialize();
-      
+
       if (isMounted) {
         const state = authService.getState();
         console.log('[ProfileScreen] Auth initialized:', state);
@@ -26,9 +26,9 @@ export function ProfileScreen() {
         setIsLoading(false);
       }
     };
-    
+
     initAuth();
-    
+
     // Subscribe to auth state changes
     const unsubscribe = authService.subscribe((state) => {
       if (isMounted) {
@@ -87,15 +87,15 @@ export function ProfileScreen() {
         {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.avatarContainer}>
-            <Image 
-              source={{ uri: user?.avatar || `https://ui-avatars.com/api/?name=${user?.fullName || 'User'}&background=10B981&color=fff&size=128` }} 
-              style={styles.avatar} 
+            <Image
+              source={{ uri: user?.avatar || `https://ui-avatars.com/api/?name=${user?.fullName || 'User'}&background=3B82F6&color=fff&size=128` }}
+              style={styles.avatar}
             />
             <TouchableOpacity style={styles.editButton}>
               <Ionicons name="pencil" size={16} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
-          
+
           <Text style={styles.name}>{user?.fullName || 'Misafir Kullanıcı'}</Text>
           <Text style={styles.email}>{user?.email || 'Giriş yapılmadı'}</Text>
 

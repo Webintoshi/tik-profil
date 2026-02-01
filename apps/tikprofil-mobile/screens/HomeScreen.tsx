@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/types/navigation';
 import { getBusinesses } from '@tikprofil/shared-api';
+import { useLocation } from '@/hooks/useLocation';
 import { StoriesBar } from '@/components/home/StoriesBar';
 import { BusinessTypesBar, BusinessCategory } from '@/components/home/BusinessTypesBar';
 import { CityGuideCard } from '@/components/home/CityGuideCard';
@@ -51,6 +52,9 @@ interface CityData {
 export function HomeScreen() {
   const navigation = useNavigation<HomeScreenNavigationProp>();
 
+  // Location hook - real GPS location
+  const location = useLocation();
+
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -60,7 +64,6 @@ export function HomeScreen() {
   const [selectedCategory, setSelectedCategory] = useState<BusinessCategory>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [showLocation, setShowLocation] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState('İstanbul');
 
   const [stories, setStories] = useState<Story[]>([]);
   const [storiesLoading, setStoriesLoading] = useState(true);
@@ -74,13 +77,27 @@ export function HomeScreen() {
     minRating: 0,
   });
 
+  // Use location city or fallback
+  const currentLocation = location.city || 'Konum alınıyor...';
+
   const fetchBusinesses = async (category: BusinessCategory = 'all') => {
     try {
-      console.log('Fetching businesses...', { category });
+      console.log('Fetching businesses...', {
+        category,
+        lat: location.coords?.latitude,
+        lng: location.coords?.longitude
+      });
+
       const data = await getBusinesses({
         limit: 30,
         ...(category !== 'all' && { category }),
+        // Pass real coordinates for distance calculation
+        ...(location.coords && {
+          lat: location.coords.latitude,
+          lng: location.coords.longitude,
+        }),
       });
+
       console.log('Businesses fetched:', data.length);
       setBusinesses(data);
       setError(null);
@@ -119,7 +136,7 @@ export function HomeScreen() {
       // );
       // const data = await response.json();
       // setCityData(data);
-      
+
       // Mock City Data (API hazır olana kadar)
       setCityData({
         id: 'istanbul',
@@ -166,6 +183,14 @@ export function HomeScreen() {
       fetchCityData(currentLocation);
     }
   }, [currentLocation]);
+
+  // Refetch businesses when location coordinates change
+  useEffect(() => {
+    if (location.coords && !loading) {
+      console.log('[HomeScreen] Location changed, refetching businesses...');
+      fetchBusinesses(selectedCategory);
+    }
+  }, [location.coords?.latitude, location.coords?.longitude]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -294,7 +319,7 @@ export function HomeScreen() {
       <LocationModal
         visible={showLocation}
         onClose={() => setShowLocation(false)}
-        onLocationSelect={(location) => setCurrentLocation(location)}
+        onLocationSelect={() => location.refresh()}
         currentLocation={currentLocation}
       />
 
@@ -315,8 +340,8 @@ export function HomeScreen() {
               {businesses.length === 0 ? 'İşletme Bulunamadı' : 'Sonuç bulunamadı'}
             </Text>
             <Text style={styles.emptyText}>
-              {businesses.length === 0 
-                ? 'Sistemde kayıtlı aktif işletme görünmüyor.' 
+              {businesses.length === 0
+                ? 'Sistemde kayıtlı aktif işletme görünmüyor.'
                 : 'Farklı arama kriterleri deneyin'}
             </Text>
             <TouchableOpacity
