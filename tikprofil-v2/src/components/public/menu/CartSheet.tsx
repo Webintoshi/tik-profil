@@ -1,0 +1,261 @@
+"use client";
+
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronLeft, Minus, Plus, Trash2, MessageSquare, ChevronRight } from "lucide-react";
+import Image from "next/image";
+import { useCart, calculateItemTotal, formatWhatsAppOrder } from "@/contexts/CartContext";
+import { toR2ProxyUrl } from "@/lib/publicImage";
+
+interface CartSheetProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onCheckout?: () => void;
+    theme?: "modern" | "classic";
+}
+
+export function CartSheet({ isOpen, onClose, onCheckout, theme = "modern" }: CartSheetProps) {
+    const cart = useCart();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const isDark = theme === "modern";
+
+    const handleCheckout = () => {
+        if (cart.items.length === 0) return;
+
+        if (onCheckout) {
+            onCheckout();
+            return;
+        }
+
+        setIsSubmitting(true);
+
+        const message = formatWhatsAppOrder(cart);
+        const encodedMessage = encodeURIComponent(message);
+        const whatsappUrl = `https://wa.me/${cart.whatsappNumber}?text=${encodedMessage}`;
+
+        window.open(whatsappUrl, "_blank");
+
+        // Clear cart after sending
+        setTimeout(() => {
+            cart.clearCart();
+            onClose();
+            setIsSubmitting(false);
+        }, 1000);
+    };
+
+    return (
+        <AnimatePresence>
+            {isOpen && (
+                <>
+                    {/* Backdrop */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={onClose}
+                        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+                    />
+
+                    {/* Sheet */}
+                    <motion.div
+                        initial={{ y: "100%" }}
+                        animate={{ y: 0 }}
+                        exit={{ y: "100%" }}
+                        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                        className={`fixed inset-x-0 bottom-0 z-50 rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col ${isDark
+                                ? "bg-[#1c1c1e] border-t border-white/5"
+                                : "bg-white"
+                            }`}
+                    >
+                        {/* Handle */}
+                        <div className="flex justify-center pt-3 pb-2">
+                            <div className={`w-12 h-1.5 rounded-full ${isDark ? "bg-white/10" : "bg-gray-300"}`} />
+                        </div>
+
+                        {/* Header */}
+                        <div className={`flex items-center justify-between px-4 pb-3 border-b ${isDark ? "border-white/5" : "border-gray-100"
+                            }`}>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={onClose}
+                                    className={`p-2 -ml-2 rounded-full transition-colors ${isDark ? "hover:bg-white/10" : "hover:bg-gray-100"
+                                        }`}
+                                >
+                                    <ChevronLeft className={`w-6 h-6 ${isDark ? "text-white" : "text-gray-700"}`} />
+                                </button>
+                                <h2 className={`text-lg font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>Sepetim</h2>
+                            </div>
+                            <span className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>{cart.itemCount} ürün</span>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                            {cart.items.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-center">
+                                    <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${isDark ? "bg-[#0d0d0d]" : "bg-gray-100"
+                                        }`}>
+                                        <span className="text-4xl">🛒</span>
+                                    </div>
+                                    <h3 className={`font-semibold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>Sepetiniz boş</h3>
+                                    <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>Menüden ürün ekleyerek başlayın</p>
+                                </div>
+                            ) : (
+                                <>
+                                    {cart.items.map((item) => (
+                                        <div
+                                            key={item.id}
+                                            className={`flex gap-3 p-3 rounded-2xl ${isDark ? "bg-[#0d0d0d] border border-white/5" : "bg-gray-50"
+                                                }`}
+                                        >
+                                            {/* Image */}
+                                            <div className="relative w-16 h-16 flex-shrink-0">
+                                                {item.image ? (
+                                                    <Image
+                                                        src={toR2ProxyUrl(item.image)}
+                                                        alt={item.name}
+                                                        fill
+                                                        className="object-cover rounded-xl"
+
+                                                    />
+                                                ) : (
+                                                    <div className={`w-full h-full rounded-xl flex items-center justify-center ${isDark ? "bg-white/5" : "bg-gray-200"
+                                                        }`}>
+                                                        <span className="text-2xl">🍔</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Info */}
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className={`font-semibold truncate ${isDark ? "text-white" : "text-gray-900"
+                                                    }`}>{item.name}</h4>
+
+                                                {/* Details */}
+                                                <div className={`text-xs mt-0.5 ${isDark ? "text-gray-400" : "text-gray-500"
+                                                    }`}>
+                                                    {item.selectedSize && (
+                                                        <span>{item.selectedSize.name}</span>
+                                                    )}
+                                                    {item.selectedExtras.length > 0 && (
+                                                        <span>{item.selectedSize ? ", " : ""}{item.selectedExtras.map(e => e.name).join(", ")}</span>
+                                                    )}
+                                                </div>
+
+                                                {/* Price & Quantity */}
+                                                <div className="flex items-center justify-between mt-2">
+                                                    <span className={`font-bold ${isDark ? "text-blue-400" : "text-violet-600"
+                                                        }`}>
+                                                        ₺{calculateItemTotal(item).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                                                    </span>
+
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => cart.updateQuantity(item.id, item.quantity - 1)}
+                                                            className={`w-7 h-7 flex items-center justify-center border rounded-lg transition-colors ${isDark
+                                                                    ? "bg-white/5 border-white/10 hover:bg-white/10"
+                                                                    : "bg-white border-gray-200 hover:bg-gray-100"
+                                                                }`}
+                                                        >
+                                                            <Minus className={`w-4 h-4 ${isDark ? "text-gray-300" : "text-gray-600"}`} />
+                                                        </button>
+                                                        <span className={`w-6 text-center font-medium ${isDark ? "text-white" : "text-gray-900"
+                                                            }`}>{item.quantity}</span>
+                                                        <button
+                                                            onClick={() => cart.updateQuantity(item.id, item.quantity + 1)}
+                                                            className={`w-7 h-7 flex items-center justify-center border rounded-lg transition-colors ${isDark
+                                                                    ? "bg-white/5 border-white/10 hover:bg-white/10"
+                                                                    : "bg-white border-gray-200 hover:bg-gray-100"
+                                                                }`}
+                                                        >
+                                                            <Plus className={`w-4 h-4 ${isDark ? "text-gray-300" : "text-gray-600"}`} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => cart.removeItem(item.id)}
+                                                            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ml-1 ${isDark
+                                                                    ? "text-red-400 hover:bg-red-500/10"
+                                                                    : "text-red-500 hover:bg-red-50"
+                                                                }`}
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {/* Order Note */}
+                                    <div className={`pt-4 border-t ${isDark ? "border-white/5" : "border-gray-100"}`}>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <MessageSquare className={`w-4 h-4 ${isDark ? "text-gray-400" : "text-gray-400"}`} />
+                                            <span className={`text-sm font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}>Sipariş Notu</span>
+                                        </div>
+                                        <textarea
+                                            value={cart.orderNote}
+                                            onChange={(e) => cart.setOrderNote(e.target.value)}
+                                            placeholder="Kapıda zil çalın, adres tarifi..."
+                                            className={`w-full p-3 border rounded-xl placeholder-gray-400 resize-none focus:outline-none focus:ring-1 text-sm ${isDark
+                                                    ? "bg-[#0d0d0d] border-white/10 text-white focus:border-blue-500 focus:ring-blue-500"
+                                                    : "bg-gray-50 border-gray-200 text-gray-900 focus:border-violet-500 focus:ring-violet-500"
+                                                }`}
+                                            rows={2}
+                                        />
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        {cart.items.length > 0 && (
+                            <div className={`border-t p-4 space-y-4 ${isDark ? "border-white/5 bg-[#1c1c1e]" : "border-gray-100 bg-white"
+                                }`}>
+                                {/* Summary */}
+                                <div className="space-y-2">
+                                    <div className={`flex justify-between ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                                        <span>Ara Toplam</span>
+                                        <span>₺{cart.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className={`flex justify-between text-lg font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
+                                        <span>Toplam</span>
+                                        <span>₺{cart.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                </div>
+
+                                {/* Checkout Buttons */}
+                                <div className="space-y-2">
+                                    <motion.button
+                                        whileTap={{ scale: 0.98 }}
+                                        onClick={handleCheckout}
+                                        disabled={isSubmitting || cart.items.length === 0}
+                                        className={`w-full flex items-center justify-center gap-2 py-4 font-bold rounded-2xl shadow-lg disabled:opacity-50 ${isDark
+                                                ? "bg-gradient-to-r from-[#0A84FF] to-[#BF5AF2] text-white shadow-blue-500/25"
+                                                : "bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-violet-500/25"
+                                            }`}
+                                    >
+                                        <span>Siparişi Tamamla</span>
+                                        <ChevronRight className="w-5 h-5" />
+                                    </motion.button>
+                                    <motion.button
+                                        whileTap={{ scale: 0.98 }}
+                                        onClick={() => {
+                                            const message = formatWhatsAppOrder(cart);
+                                            const encodedMessage = encodeURIComponent(message);
+                                            const whatsappUrl = `https://wa.me/${cart.whatsappNumber}?text=${encodedMessage}`;
+                                            window.open(whatsappUrl, "_blank");
+                                        }}
+                                        disabled={cart.items.length === 0}
+                                        className="w-full flex items-center justify-center gap-2 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white font-semibold rounded-2xl shadow-lg disabled:opacity-50 transition-colors"
+                                    >
+                                        <span>WhatsApp ile Sipariş Ver</span>
+                                        <ChevronRight className="w-5 h-5" />
+                                    </motion.button>
+                                </div>
+                            </div>
+                        )}
+                    </motion.div>
+                </>
+            )}
+        </AnimatePresence>
+    );
+}
+

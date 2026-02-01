@@ -1,0 +1,665 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import {
+    ArrowLeft,
+    Save,
+    Loader2,
+    Image as ImageIcon,
+    MapPin,
+    Home,
+    Building2,
+    Trees,
+    Grid3X3
+} from "lucide-react";
+import { toast } from "sonner";
+import { useTheme } from "@/components/panel/ThemeProvider";
+import { useRouter } from "next/navigation";
+import clsx from "clsx";
+import {
+    Consultant,
+    PROPERTY_TYPE_LABELS,
+    PROPERTY_SUB_TYPE_LABELS,
+    HEATING_LABELS
+} from "@/types/emlak";
+import { ImageGalleryUploader, GalleryImage } from "@/components/panel/ImageGalleryUploader";
+import { PremiumSelect } from "@/components/panel/PremiumSelect";
+
+interface FormData {
+    title: string;
+    description: string;
+    listingType: string;
+    propertyType: string;
+    propertySubType: string;
+    city: string;
+    district: string;
+    neighborhood: string;
+    address: string;
+    grossArea: string;
+    netArea: string;
+    roomCount: string;
+    floor: string;
+    totalFloors: string;
+    buildingAge: string;
+    heating: string;
+    bathrooms: string;
+    balcony: boolean;
+    parking: boolean;
+    furnished: boolean;
+    price: string;
+    currency: string;
+    consultantId: string;
+    status: string;
+}
+
+export default function NewListingPage() {
+    const { isDark } = useTheme();
+    const router = useRouter();
+
+    const [loading, setLoading] = useState(false);
+    const [consultants, setConsultants] = useState<Consultant[]>([]);
+    const [images, setImages] = useState<GalleryImage[]>([]);
+
+    const [form, setForm] = useState<FormData>({
+        title: "",
+        description: "",
+        listingType: "sale",
+        propertyType: "residential",
+        propertySubType: "apartment",
+        city: "",
+        district: "",
+        neighborhood: "",
+        address: "",
+        grossArea: "",
+        netArea: "",
+        roomCount: "",
+        floor: "",
+        totalFloors: "",
+        buildingAge: "",
+        heating: "natural_gas",
+        bathrooms: "",
+        balcony: false,
+        parking: false,
+        furnished: false,
+        price: "",
+        currency: "TRY",
+        consultantId: "",
+        status: "active",
+    });
+
+    useEffect(() => {
+        loadConsultants();
+    }, []);
+
+    const loadConsultants = async () => {
+        try {
+            const res = await fetch('/api/emlak/consultants');
+            const data = await res.json();
+            if (data.success) {
+                setConsultants(data.consultants || []);
+            }
+        } catch (error) {
+            console.error('Consultants load error:', error);
+        }
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+        const { name, value, type } = e.target;
+        if (type === 'checkbox') {
+            setForm(prev => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }));
+        } else {
+            setForm(prev => ({ ...prev, [name]: value }));
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        // Validation
+        if (!form.title.trim()) {
+            toast.error('Başlık zorunlu');
+            return;
+        }
+        if (!form.city.trim() || !form.district.trim()) {
+            toast.error('İl ve ilçe zorunlu');
+            return;
+        }
+        if (!form.grossArea || Number(form.grossArea) <= 0) {
+            toast.error('Brüt m² zorunlu');
+            return;
+        }
+        if (!form.price || Number(form.price) <= 0) {
+            toast.error('Fiyat zorunlu');
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const payload = {
+                title: form.title.trim(),
+                description: form.description.trim(),
+                listingType: form.listingType,
+                propertyType: form.propertyType,
+                propertySubType: form.propertySubType,
+                location: {
+                    city: form.city.trim(),
+                    district: form.district.trim(),
+                    neighborhood: form.neighborhood.trim(),
+                    address: form.address.trim(),
+                },
+                features: {
+                    grossArea: Number(form.grossArea),
+                    netArea: form.netArea ? Number(form.netArea) : undefined,
+                    roomCount: form.roomCount || undefined,
+                    floor: form.floor ? Number(form.floor) : undefined,
+                    totalFloors: form.totalFloors ? Number(form.totalFloors) : undefined,
+                    buildingAge: form.buildingAge ? Number(form.buildingAge) : undefined,
+                    heating: form.heating || undefined,
+                    bathrooms: form.bathrooms ? Number(form.bathrooms) : undefined,
+                    balcony: form.balcony,
+                    parking: form.parking,
+                    furnished: form.furnished,
+                },
+                price: Number(form.price),
+                currency: form.currency,
+                images: images.map(img => ({
+                    url: img.url,
+                    order: img.order,
+                    isMain: img.isMain,
+                })),
+                consultantId: form.consultantId || undefined,
+                status: form.status,
+            };
+
+            const res = await fetch('/api/emlak/listings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                toast.success('İlan başarıyla eklendi');
+                router.push('/panel/emlak/listings');
+            } else {
+                toast.error(data.error || 'Kayıt başarısız');
+                if (data.details) {
+                    data.details.forEach((d: string) => toast.error(d));
+                }
+            }
+        } catch (error) {
+            console.error('Submit error:', error);
+            toast.error('Kayıt sırasında hata oluştu');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const propertySubTypes = form.propertyType === 'residential'
+        ? ['apartment', 'villa', 'detached', 'residence']
+        : form.propertyType === 'commercial'
+            ? ['shop', 'office', 'warehouse']
+            : ['land', 'field'];
+
+    const inputClass = clsx(
+        "w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all",
+        isDark ? "bg-gray-800 border-gray-700 text-white" : "bg-white border-gray-200 text-gray-900"
+    );
+
+    const labelClass = clsx(
+        "block text-sm font-medium mb-1.5",
+        isDark ? "text-gray-300" : "text-gray-700"
+    );
+
+    return (
+        <div className="p-6 max-w-4xl mx-auto">
+            {/* Header */}
+            <div className="flex items-center gap-4 mb-6">
+                <button
+                    onClick={() => router.back()}
+                    className={clsx(
+                        "p-2 rounded-xl transition-colors",
+                        isDark ? "hover:bg-gray-800" : "hover:bg-gray-100"
+                    )}
+                >
+                    <ArrowLeft className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`} />
+                </button>
+                <div>
+                    <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        Yeni İlan
+                    </h1>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        İlan bilgilerini girin
+                    </p>
+                </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-8">
+                {/* Basic Info */}
+                <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}
+                >
+                    <h2 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        <Home className="w-5 h-5 text-purple-500" />
+                        Temel Bilgiler
+                    </h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
+                            <label className={labelClass}>Başlık *</label>
+                            <input
+                                type="text"
+                                name="title"
+                                value={form.title}
+                                onChange={handleChange}
+                                placeholder="3+1 Ara Kat Daire"
+                                className={inputClass}
+                                maxLength={200}
+                            />
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <label className={labelClass}>Açıklama</label>
+                            <textarea
+                                name="description"
+                                value={form.description}
+                                onChange={handleChange}
+                                rows={3}
+                                placeholder="İlan açıklaması..."
+                                className={inputClass}
+                            />
+                        </div>
+
+                        <div>
+                            <label className={labelClass}>Emlak Türü *</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                {Object.entries(PROPERTY_TYPE_LABELS).map(([value, label]) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setForm(prev => ({
+                                            ...prev,
+                                            propertyType: value,
+                                            propertySubType: value === 'residential' ? 'apartment' : value === 'commercial' ? 'shop' : 'land'
+                                        }))}
+                                        className={clsx(
+                                            "py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2 transition-all",
+                                            form.propertyType === value
+                                                ? "bg-purple-600 text-white"
+                                                : isDark ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
+                                        )}
+                                    >
+                                        {value === 'residential' && <Home className="w-4 h-4" />}
+                                        {value === 'commercial' && <Building2 className="w-4 h-4" />}
+                                        {value === 'land' && <Trees className="w-4 h-4" />}
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className={labelClass}>Alt Tür</label>
+                            <select
+                                name="propertySubType"
+                                value={form.propertySubType}
+                                onChange={handleChange}
+                                className={inputClass}
+                            >
+                                {propertySubTypes.map(type => (
+                                    <option key={type} value={type}>
+                                        {PROPERTY_SUB_TYPE_LABELS[type] || type}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                </motion.section>
+
+                {/* Location */}
+                <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}
+                >
+                    <h2 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        <MapPin className="w-5 h-5 text-purple-500" />
+                        Konum
+                    </h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className={labelClass}>İl *</label>
+                            <input
+                                type="text"
+                                name="city"
+                                value={form.city}
+                                onChange={handleChange}
+                                placeholder="Ordu"
+                                className={inputClass}
+                            />
+                        </div>
+
+                        <div>
+                            <label className={labelClass}>İlçe *</label>
+                            <input
+                                type="text"
+                                name="district"
+                                value={form.district}
+                                onChange={handleChange}
+                                placeholder="Altınordu"
+                                className={inputClass}
+                            />
+                        </div>
+
+                        <div>
+                            <label className={labelClass}>Mahalle</label>
+                            <input
+                                type="text"
+                                name="neighborhood"
+                                value={form.neighborhood}
+                                onChange={handleChange}
+                                placeholder="Merkez Mahallesi"
+                                className={inputClass}
+                            />
+                        </div>
+
+                        <div>
+                            <label className={labelClass}>Adres</label>
+                            <input
+                                type="text"
+                                name="address"
+                                value={form.address}
+                                onChange={handleChange}
+                                placeholder="Atatürk Cad. No: 15"
+                                className={inputClass}
+                            />
+                        </div>
+                    </div>
+                </motion.section>
+
+                {/* Features */}
+                <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}
+                >
+                    <h2 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        <Grid3X3 className="w-5 h-5 text-purple-500" />
+                        Özellikler
+                    </h2>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <label className={labelClass}>Brüt m² *</label>
+                            <input
+                                type="number"
+                                name="grossArea"
+                                value={form.grossArea}
+                                onChange={handleChange}
+                                placeholder="120"
+                                className={inputClass}
+                                min="1"
+                            />
+                        </div>
+
+                        <div>
+                            <label className={labelClass}>Net m²</label>
+                            <input
+                                type="number"
+                                name="netArea"
+                                value={form.netArea}
+                                onChange={handleChange}
+                                placeholder="105"
+                                className={inputClass}
+                            />
+                        </div>
+
+                        <div>
+                            <label className={labelClass}>Oda Sayısı</label>
+                            <select
+                                name="roomCount"
+                                value={form.roomCount}
+                                onChange={handleChange}
+                                className={inputClass}
+                            >
+                                <option value="">Seçin</option>
+                                {['1+0', '1+1', '2+0', '2+1', '3+1', '3+2', '4+1', '4+2', '5+1', '5+2', '6+'].map(room => (
+                                    <option key={room} value={room}>{room}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className={labelClass}>Banyo</label>
+                            <input
+                                type="number"
+                                name="bathrooms"
+                                value={form.bathrooms}
+                                onChange={handleChange}
+                                placeholder="2"
+                                className={inputClass}
+                                min="0"
+                            />
+                        </div>
+
+                        <div>
+                            <label className={labelClass}>Bulunduğu Kat</label>
+                            <input
+                                type="number"
+                                name="floor"
+                                value={form.floor}
+                                onChange={handleChange}
+                                placeholder="3"
+                                className={inputClass}
+                            />
+                        </div>
+
+                        <div>
+                            <label className={labelClass}>Toplam Kat</label>
+                            <input
+                                type="number"
+                                name="totalFloors"
+                                value={form.totalFloors}
+                                onChange={handleChange}
+                                placeholder="8"
+                                className={inputClass}
+                            />
+                        </div>
+
+                        <div>
+                            <label className={labelClass}>Bina Yaşı</label>
+                            <input
+                                type="number"
+                                name="buildingAge"
+                                value={form.buildingAge}
+                                onChange={handleChange}
+                                placeholder="5"
+                                className={inputClass}
+                                min="0"
+                            />
+                        </div>
+
+                        <div>
+                            <label className={labelClass}>Isıtma</label>
+                            <PremiumSelect
+                                value={form.heating}
+                                onChange={(v) => setForm(prev => ({ ...prev, heating: v }))}
+                                options={Object.entries(HEATING_LABELS).map(([value, label]) => ({ value, label }))}
+                                isDark={isDark}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Checkboxes */}
+                    <div className="flex flex-wrap gap-4 mt-4">
+                        {[
+                            { name: 'balcony', label: 'Balkon' },
+                            { name: 'parking', label: 'Otopark' },
+                            { name: 'furnished', label: 'Eşyalı' },
+                        ].map(item => (
+                            <label
+                                key={item.name}
+                                className={clsx(
+                                    "flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer transition-all",
+                                    form[item.name as keyof FormData]
+                                        ? "bg-purple-600 text-white"
+                                        : isDark ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
+                                )}
+                            >
+                                <input
+                                    type="checkbox"
+                                    name={item.name}
+                                    checked={form[item.name as keyof FormData] as boolean}
+                                    onChange={handleChange}
+                                    className="sr-only"
+                                />
+                                {item.label}
+                            </label>
+                        ))}
+                    </div>
+                </motion.section>
+
+                {/* Price */}
+                <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}
+                >
+                    <h2 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        💰 Fiyat
+                    </h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="md:col-span-2">
+                            <label className={labelClass}>Fiyat *</label>
+                            <input
+                                type="number"
+                                name="price"
+                                value={form.price}
+                                onChange={handleChange}
+                                placeholder="2850000"
+                                className={inputClass}
+                                min="0"
+                            />
+                        </div>
+
+                        <div>
+                            <label className={labelClass}>Para Birimi</label>
+                            <PremiumSelect
+                                value={form.currency}
+                                onChange={(v) => setForm(prev => ({ ...prev, currency: v }))}
+                                options={[
+                                    { value: "TRY", label: "₺ TL" },
+                                    { value: "USD", label: "$ USD" },
+                                    { value: "EUR", label: "€ EUR" },
+                                ]}
+                                isDark={isDark}
+                            />
+                        </div>
+                    </div>
+                </motion.section>
+
+                {/* Images */}
+                <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}
+                >
+                    <h2 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        <ImageIcon className="w-5 h-5 text-purple-500" />
+                        Fotoğraflar
+                    </h2>
+
+                    <ImageGalleryUploader
+                        images={images}
+                        onChange={setImages}
+                        maxImages={10}
+                        isDark={isDark}
+                    />
+                </motion.section>
+
+                {/* Consultant */}
+                <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}
+                >
+                    <h2 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        👤 Danışman & Durum
+                    </h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className={labelClass}>Danışman</label>
+                            <PremiumSelect
+                                value={form.consultantId}
+                                onChange={(v) => setForm(prev => ({ ...prev, consultantId: v }))}
+                                options={[
+                                    { value: "", label: "Danışman seçin (opsiyonel)" },
+                                    ...consultants.map(c => ({ value: c.id!, label: c.name }))
+                                ]}
+                                isDark={isDark}
+                            />
+                        </div>
+
+                        <div>
+                            <label className={labelClass}>Durum</label>
+                            <PremiumSelect
+                                value={form.status}
+                                onChange={(v) => setForm(prev => ({ ...prev, status: v }))}
+                                options={[
+                                    { value: "active", label: "Aktif" },
+                                    { value: "sold", label: "Satıldı" },
+                                    { value: "inactive", label: "Pasif" },
+                                ]}
+                                isDark={isDark}
+                            />
+                        </div>
+                    </div>
+                </motion.section>
+
+                {/* Submit */}
+                <div className="flex justify-end gap-3 pt-4">
+                    <button
+                        type="button"
+                        onClick={() => router.back()}
+                        className={clsx(
+                            "px-6 py-3 rounded-xl font-medium transition-colors",
+                            isDark ? "bg-gray-700 text-white hover:bg-gray-600" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        )}
+                    >
+                        İptal
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="px-6 py-3 bg-gradient-to-r from-violet-500 to-purple-600 text-white font-medium rounded-xl hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+                    >
+                        {loading ? (
+                            <>
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                Kaydediliyor...
+                            </>
+                        ) : (
+                            <>
+                                <Save className="w-5 h-5" />
+                                İlanı Kaydet
+                            </>
+                        )}
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+}
