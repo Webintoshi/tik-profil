@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react";
-import { motion } from "framer-motion";
+import { motion, MotionProps } from "framer-motion";
 import {
     Download,
     Copy,
@@ -25,6 +25,8 @@ import { logActivity } from "@/lib/services/auditService";
 import { useTheme } from "@/components/panel/ThemeProvider";
 import { GlassCard } from "@/components/panel/GlassCard";
 import jsPDF from "jspdf";
+import { DownloadFAB } from "@/components/qr/DownloadFAB";
+import { MobileQRControls } from "@/components/qr/MobileQRControls";
 
 // ============================================
 // TYPES
@@ -79,10 +81,10 @@ const SIZE_PRESETS: SizePreset[] = [
 type ErrorCorrectionLevel = 'L' | 'M' | 'Q' | 'H';
 
 const ERROR_LEVELS: { value: ErrorCorrectionLevel; label: string; description: string; correction: string }[] = [
-    { value: 'L', label: 'Low', description: 'Minimum koruma', correction: '%7' },
-    { value: 'M', label: 'Medium', description: 'Orta koruma', correction: '%15' },
-    { value: 'Q', label: 'Quartile', description: 'Yüksek koruma', correction: '%25' },
-    { value: 'H', label: 'High', description: 'Maksimum koruma (Önerilen)', correction: '%30' },
+    { value: 'L', label: 'Düşük', description: 'Küçük hasarlara dayanıklı', correction: '%7' },
+    { value: 'M', label: 'Orta', description: 'Orta hasarlara dayanıklı', correction: '%15' },
+    { value: 'Q', label: 'Yüksek', description: 'Çok hasarlara dayanıklı', correction: '%25' },
+    { value: 'H', label: 'Maksimum', description: 'En fazla dayanıklı (Önerilen)', correction: '%30' },
 ];
 
 // ============================================
@@ -125,6 +127,20 @@ function getContrastRatio(color1: string, color2: string): number {
 // ============================================
 export function QRStudio({ businessId, businessName, profileUrl, logoUrl, businessSlug }: QRStudioProps) {
     const { isDark } = useTheme();
+
+    // Mobile detection
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 1024);
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     // State
     const [selectedColor, setSelectedColor] = useState<ColorPreset>(COLOR_PRESETS[0]);
@@ -340,10 +356,54 @@ export function QRStudio({ businessId, businessName, profileUrl, logoUrl, busine
     }, [businessName, profileUrl]);
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-full">
+        <>
+            {/* Mobile: FAB */}
+            {isMobile && <DownloadFAB
+                onDownloadSVG={handleDownloadSVG}
+                onDownloadPNG={handleDownloadPNG}
+                onDownloadPDF={handleDownloadPDF}
+                isDownloading={isDownloading}
+            />}
+
+            {/* Mobile: Bottom Sheet Controls */}
+            {isMobile && <MobileQRControls
+                colors={COLOR_PRESETS}
+                selectedColor={selectedColor}
+                onColorChange={setSelectedColor}
+                customFgColor={customFgColor}
+                customBgColor={customBgColor}
+                onCustomFgChange={setCustomFgColor}
+                onCustomBgChange={setCustomBgColor}
+                sizes={SIZE_PRESETS}
+                selectedSize={selectedSize}
+                onSizeChange={setSelectedSize}
+                errorLevels={ERROR_LEVELS}
+                errorLevel={errorLevel}
+                onErrorLevelChange={setErrorLevel}
+                showLogo={showLogo}
+                onLogoToggle={() => setShowLogo(!showLogo)}
+                useDeepLink={useDeepLink}
+                onDeepLinkToggle={() => setUseDeepLink(!useDeepLink)}
+                onShare={handleShare}
+                handleDownloadSVG={handleDownloadSVG}
+                handleDownloadPNG={handleDownloadPNG}
+                handleDownloadPDF={handleDownloadPDF}
+                isDownloading={isDownloading}
+                hasGoodContrast={hasGoodContrast}
+                contrastRatio={contrastRatio}
+                isDark={isDark}
+                textPrimary={textPrimary}
+                textSecondary={textSecondary}
+            />}
+
+            <div className={clsx(
+                "flex flex-col lg:grid lg:grid-cols-12",
+                isMobile ? "gap-4 pb-80" : "gap-6 lg:h-full"
+            )}>
             {/* LEFT COLUMN: THE STAGE (Span 7) */}
             <div className={clsx(
-                "lg:col-span-7 rounded-[24px] border relative flex flex-col items-center justify-center p-6 lg:p-8 overflow-hidden min-h-[400px] lg:min-h-0",
+                "lg:col-span-7 rounded-[24px] lg:rounded-[24px] rounded-t-[24px] border relative flex flex-col items-center justify-center p-6 lg:p-8 overflow-hidden",
+                isMobile ? "min-h-[280px]" : "min-h-[400px] lg:min-h-0",
                 stageBg
             )}>
                 {/* Dot Pattern Background */}
@@ -446,11 +506,12 @@ export function QRStudio({ businessId, businessName, profileUrl, logoUrl, busine
                             </label>
                             <div className="flex flex-wrap gap-3">
                                 {COLOR_PRESETS.map((preset) => (
-                                    <button
+                                    <motion.button
                                         key={preset.id}
+                                        whileTap={{ scale: 0.95 }}
                                         onClick={() => setSelectedColor(preset)}
                                         className={clsx(
-                                            "w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all shadow-sm",
+                                            "w-10 h-10 lg:w-10 lg:h-10 min-h-[44px] min-w-[44px] rounded-full border-2 flex items-center justify-center transition-all shadow-sm",
                                             selectedColor.id === preset.id
                                                 ? "ring-2 ring-offset-2 ring-blue-500 scale-110 border-transparent"
                                                 : isDark ? "ring-offset-black border-white/10 hover:border-white/30" : "border-gray-200 hover:border-gray-300"
@@ -463,7 +524,7 @@ export function QRStudio({ businessId, businessName, profileUrl, logoUrl, busine
                                         ) : selectedColor.id === preset.id && (
                                             <Check className="h-4 w-4 text-white mix-blend-difference" />
                                         )}
-                                    </button>
+                                    </motion.button>
                                 ))}
                             </div>
                             
@@ -546,26 +607,27 @@ export function QRStudio({ businessId, businessName, profileUrl, logoUrl, busine
                         <div>
                             <label className={clsx("flex items-center gap-2 text-sm font-semibold mb-3", textPrimary)}>
                                 <Info className="h-4 w-4 text-amber-500" />
-                                Error Correction
+                                Dayanıklılık
                             </label>
                             <div className="grid grid-cols-4 gap-2">
                                 {ERROR_LEVELS.map((level) => (
-                                    <button
+                                    <motion.button
                                         key={level.value}
+                                        whileTap={{ scale: 0.95 }}
                                         onClick={() => setErrorLevel(level.value)}
                                         className={clsx(
-                                            "px-2 py-2 rounded-lg text-xs font-medium transition-all border",
+                                            "px-2 py-2 min-h-[44px] rounded-lg text-xs font-medium transition-all border",
                                             errorLevel === level.value
                                                 ? "bg-blue-500 text-white border-blue-500"
-                                                : isDark 
-                                                    ? "bg-white/5 border-white/10 text-white/70 hover:bg-white/10" 
+                                                : isDark
+                                                    ? "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
                                                     : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
                                         )}
                                         title={level.description}
                                     >
                                         <div className="font-bold">{level.value}</div>
                                         <div className="text-[10px] opacity-80">{level.correction}</div>
-                                    </button>
+                                    </motion.button>
                                 ))}
                             </div>
                         </div>
@@ -627,38 +689,41 @@ export function QRStudio({ businessId, businessName, profileUrl, logoUrl, busine
                                 Paylaş
                             </label>
                             <div className="grid grid-cols-3 gap-2">
-                                <button
+                                <motion.button
+                                    whileTap={{ scale: 0.95 }}
                                     onClick={() => handleShare('whatsapp')}
                                     className={clsx(
-                                        "flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all",
+                                        "flex items-center justify-center gap-2 py-2.5 min-h-[44px] rounded-xl text-sm font-medium transition-all",
                                         "bg-green-500 hover:bg-green-600 text-white"
                                     )}
                                 >
                                     <MessageCircle className="w-4 h-4" />
                                     WhatsApp
-                                </button>
-                                <button
+                                </motion.button>
+                                <motion.button
+                                    whileTap={{ scale: 0.95 }}
                                     onClick={() => handleShare('email')}
                                     className={clsx(
-                                        "flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all",
-                                        isDark 
-                                            ? "bg-white/10 hover:bg-white/20 text-white border border-white/10" 
+                                        "flex items-center justify-center gap-2 py-2.5 min-h-[44px] rounded-xl text-sm font-medium transition-all",
+                                        isDark
+                                            ? "bg-white/10 hover:bg-white/20 text-white border border-white/10"
                                             : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200"
                                     )}
                                 >
                                     <Mail className="w-4 h-4" />
                                     E-posta
-                                </button>
-                                <button
+                                </motion.button>
+                                <motion.button
+                                    whileTap={{ scale: 0.95 }}
                                     onClick={() => handleShare('twitter')}
                                     className={clsx(
-                                        "flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all",
+                                        "flex items-center justify-center gap-2 py-2.5 min-h-[44px] rounded-xl text-sm font-medium transition-all",
                                         "bg-sky-500 hover:bg-sky-600 text-white"
                                     )}
                                 >
                                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                                     X
-                                </button>
+                                </motion.button>
                             </div>
                         </div>
 
@@ -668,10 +733,11 @@ export function QRStudio({ businessId, businessName, profileUrl, logoUrl, busine
                     <div className="mt-auto pt-6 border-t border-dashed border-gray-200 dark:border-white/10">
                         <label className={clsx("block text-sm font-semibold mb-4", textPrimary)}>İndirme Seçenekleri</label>
                         <div className="grid grid-cols-3 gap-3">
-                            <button
+                            <motion.button
+                                whileTap={{ scale: 0.95 }}
                                 onClick={handleDownloadSVG}
                                 disabled={isDownloading.svg}
-                                className="h-11 rounded-[14px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold shadow-lg shadow-emerald-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm"
+                                className="h-11 min-h-[44px] rounded-[14px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 text-sm"
                             >
                                 {isDownloading.svg ? (
                                     <div className="animate-spin text-lg">◌</div>
@@ -679,12 +745,13 @@ export function QRStudio({ businessId, businessName, profileUrl, logoUrl, busine
                                     <Image className="h-4 w-4" />
                                 )}
                                 SVG
-                            </button>
-                            <button
+                            </motion.button>
+                            <motion.button
+                                whileTap={{ scale: 0.95 }}
                                 onClick={handleDownloadPNG}
                                 disabled={isDownloading.png}
                                 className={clsx(
-                                    "h-11 rounded-[14px] font-semibold border active:scale-95 transition-all flex items-center justify-center gap-2 text-sm",
+                                    "h-11 min-h-[44px] rounded-[14px] font-semibold border transition-all flex items-center justify-center gap-2 text-sm",
                                     isDark
                                         ? "bg-white/10 border-white/10 text-white hover:bg-white/20"
                                         : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm"
@@ -696,11 +763,12 @@ export function QRStudio({ businessId, businessName, profileUrl, logoUrl, busine
                                     <Image className="h-4 w-4" />
                                 )}
                                 PNG
-                            </button>
-                            <button
+                            </motion.button>
+                            <motion.button
+                                whileTap={{ scale: 0.95 }}
                                 onClick={handleDownloadPDF}
                                 disabled={isDownloading.pdf}
-                                className="h-11 rounded-[14px] bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-semibold shadow-lg shadow-red-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm"
+                                className="h-11 min-h-[44px] rounded-[14px] bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-semibold shadow-lg shadow-red-500/20 transition-all flex items-center justify-center gap-2 text-sm"
                             >
                                 {isDownloading.pdf ? (
                                     <div className="animate-spin text-lg">◌</div>
@@ -708,12 +776,13 @@ export function QRStudio({ businessId, businessName, profileUrl, logoUrl, busine
                                     <FileText className="h-4 w-4" />
                                 )}
                                 PDF
-                            </button>
+                            </motion.button>
                         </div>
                     </div>
 
                 </GlassCard>
             </div>
         </div>
+        </>
     );
 }
