@@ -124,23 +124,16 @@ function MenuContent() {
             setBusinessId(data.data.businessId || null);
             setCategories(data.data.categories || []);
             setProducts(data.data.products || []);
-            setTableName(data.data.tableName || "");
+            setTableName(data.data.tableName || "Masa 1");
+
+            // Settings are already in the main API response
+            if (data.data.settings) {
+                setMenuTheme(data.data.settings.menuTheme || "modern");
+                setWifiPassword(data.data.settings.wifiPassword || "");
+            }
 
             if (data.data.categories && data.data.categories.length > 0) {
                 setActiveCategory(data.data.categories[0].id);
-            }
-
-            // Fetch settings for theme and table features
-            try {
-                const settingsRes = await fetch(`/api/fastfood/public-settings?businessSlug=${slug}`);
-                const settingsData = await settingsRes.json();
-                console.log('[Menu] Settings Response:', settingsData);
-                if (settingsData.success && settingsData.settings) {
-                    setMenuTheme(settingsData.settings.menuTheme || "modern");
-                    setWifiPassword(settingsData.settings.wifiPassword || "");
-                }
-            } catch (err) {
-                console.error("Failed to load settings", err);
             }
 
             setError(null);
@@ -156,7 +149,7 @@ function MenuContent() {
         } finally {
             if (showLoading) setLoading(false);
         }
-    }, [slug]);
+    }, [slug, tableId]);
 
     useEffect(() => {
         refreshMenu(true);
