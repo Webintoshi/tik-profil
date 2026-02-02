@@ -99,7 +99,7 @@ export default function FastFoodOrdersPage() {
     const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [showNewOrderFlash, setShowNewOrderFlash] = useState(false);
-    
+
     // Pagination state
     const [pagination, setPagination] = useState({
         hasMore: false,
@@ -187,7 +187,7 @@ export default function FastFoodOrdersPage() {
 
         const fetchOrders = async (isInitial = false, cursor?: string) => {
             if (!isMounted) return;
-            
+
             if (isInitial) {
                 setLoading(true);
             } else if (cursor) {
@@ -202,7 +202,7 @@ export default function FastFoodOrdersPage() {
                 if (cursor) {
                     url += `&cursor=${cursor}`;
                 }
-                
+
                 const res = await fetch(url);
                 const data = await res.json();
 
@@ -212,7 +212,7 @@ export default function FastFoodOrdersPage() {
                 }
 
                 const newOrders = (data.orders || []) as Order[];
-                
+
                 // Update pagination info
                 if (data.pagination) {
                     setPagination(prev => ({
@@ -257,7 +257,7 @@ export default function FastFoodOrdersPage() {
                 }
             }
         };
-        
+
         // Load more function
         const loadMore = () => {
             if (pagination.hasMore && pagination.nextCursor && !pagination.isLoadingMore) {
@@ -617,9 +617,9 @@ export default function FastFoodOrdersPage() {
                                 const statusList = activeTab === 'delivered'
                                     ? ['delivered', 'cancelled']
                                     : [activeTab];
-                                
+
                                 setPagination(prev => ({ ...prev, isLoadingMore: true }));
-                                
+
                                 fetch(`/api/fastfood/orders?status=${statusList.join(',')}&limit=${pagination.limit}&cursor=${pagination.nextCursor}`)
                                     .then(res => res.json())
                                     .then(data => {
@@ -652,8 +652,8 @@ export default function FastFoodOrdersPage() {
                             pagination.isLoadingMore
                                 ? "opacity-50 cursor-not-allowed"
                                 : "hover:scale-105 active:scale-95",
-                            isDark 
-                                ? "bg-[#2C2C2E] text-white hover:bg-[#3A3A3C]" 
+                            isDark
+                                ? "bg-[#2C2C2E] text-white hover:bg-[#3A3A3C]"
                                 : "bg-white text-gray-900 shadow-sm hover:bg-gray-50"
                         )}
                     >
@@ -680,7 +680,7 @@ export default function FastFoodOrdersPage() {
                 </p>
             )}
 
-            {/* Detail Modal -->
+            {/* Detail Modal */}
             {selectedOrder && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6">
                     <div
