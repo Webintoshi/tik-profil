@@ -124,7 +124,7 @@ function MenuContent() {
             setBusinessId(data.data.businessId || null);
             setCategories(data.data.categories || []);
             setProducts(data.data.products || []);
-            setTableName(data.data.tableName || "Masa 1");
+            setTableName(data.data.tableName || "");
 
             // Settings are already in the main API response
             if (data.data.settings) {

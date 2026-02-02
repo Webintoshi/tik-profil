@@ -33,7 +33,7 @@ export function MenuHeader({ businessSlug, title = "Menü", logoUrl, tableName, 
     };
 
     const hasWifi = !!wifiPassword && wifiPassword.length > 0;
-    const displayTableName = tableName || "Masa 1";
+    const displayTableName = tableName;
 
     return (
         <header className="sticky top-0 z-50 bg-gradient-to-b from-white via-white to-gray-50/50 backdrop-blur-md border-b-2 border-gray-200 shadow-sm">
@@ -87,22 +87,26 @@ export function MenuHeader({ businessSlug, title = "Menü", logoUrl, tableName, 
 
             {/* Info Bar - Table + WiFi */}
             <div className="max-w-2xl mx-auto px-4 pb-3">
-                <div className="flex items-center justify-between gap-3 p-2.5 bg-gray-50 rounded-2xl border border-gray-100">
-                    {/* Table Info */}
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#fe1e50] to-rose-500 flex items-center justify-center shadow-md">
-                            <Utensils className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                            <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Masa</p>
-                            <p className="text-base font-bold text-gray-900 leading-tight">
-                                {displayTableName}
-                            </p>
-                        </div>
-                    </div>
+                <div className={`flex items-center gap-3 p-2.5 bg-gray-50 rounded-2xl border border-gray-100 ${!tableName ? 'justify-end' : 'justify-between'}`}>
+                    {/* Table Info - Only show if tableName exists */}
+                    {tableName && (
+                        <>
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#fe1e50] to-rose-500 flex items-center justify-center shadow-md">
+                                    <Utensils className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Masa</p>
+                                    <p className="text-base font-bold text-gray-900 leading-tight">
+                                        {displayTableName}
+                                    </p>
+                                </div>
+                            </div>
 
-                    {/* Divider */}
-                    <div className="w-px h-8 bg-gray-200" />
+                            {/* Divider */}
+                            <div className="w-px h-8 bg-gray-200" />
+                        </>
+                    )}
 
                     {/* WiFi - Always Show */}
                     <motion.button
