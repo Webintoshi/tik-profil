@@ -3,6 +3,8 @@ import { createDocumentREST, getCollectionREST, updateDocumentREST, getDocumentR
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { checkRateLimit } from '@/lib/rateLimit';
 import { z } from 'zod';
+import { addBreadcrumb, captureCheckoutEvent, captureException, startCheckoutTimer, finishCheckoutTimer } from '@/lib/error-tracking';
+import { handleError, AppError, ErrorCode } from '@/lib/error-handler';
 
 // Environment check for error details
 const isDev = process.env.NODE_ENV === 'development';
@@ -402,13 +404,51 @@ export async function POST(request: Request) {
     const clientIP = getClientIP(request);
     let verifiedItems: CartItem[] = [];
     let stockDecremented = false;
+    let checkoutTransaction: ReturnType<typeof startCheckoutTimer> = null;
 
     try {
         // ========================================
+        // START CHECKOUT TRANSACTION
+        // ========================================
+        checkoutTransaction = startCheckoutTimer('unknown', 'pending');
+
+        // ========================================
         // RATE LIMITING CHECK
         // ========================================
+        addBreadcrumb({
+            category: 'checkout',
+            message: 'Rate limit check started',
+            level: 'info',
+            data: { clientIP }
+        });
+
         const rateLimitKey = `fastfood_checkout_${clientIP}`;
         const rateLimitResult = checkRateLimit(clientIP, 'fastfood_checkout');
+
+        if (!rateLimitResult.allowed) {
+            addBreadcrumb({
+                category: 'checkout',
+                message: 'Rate limit exceeded',
+                level: 'warning',
+                data: { clientIP }
+            });
+
+            return NextResponse.json({
+                success: false,
+                error: rateLimitResult.message || 'Çok fazla istek. Lütfen bekleyin.'
+            }, {
+                status: 429,
+                headers: {
+                    'Retry-After': String(rateLimitResult.retryAfter || 60)
+                }
+            });
+        }
+
+        addBreadcrumb({
+            category: 'checkout',
+            message: 'Rate limit check passed',
+            level: 'info'
+        });
 
         if (!rateLimitResult.allowed) {
             return NextResponse.json({
@@ -425,22 +465,60 @@ export async function POST(request: Request) {
         // ========================================
         // PARSE REQUEST BODY
         // ========================================
+        addBreadcrumb({
+            category: 'checkout',
+            message: 'Parsing request body',
+            level: 'info'
+        });
+
         let body: CheckoutRequest;
         try {
             body = await request.json();
-        } catch {
+        } catch (parseError) {
+            captureException(parseError, 'checkout_parse', { clientIP });
             return NextResponse.json({
                 success: false,
                 error: 'Geçersiz istek formatı'
             }, { status: 400 });
         }
 
+        addBreadcrumb({
+            category: 'checkout',
+            message: 'Request body parsed',
+            level: 'info',
+            data: {
+                businessSlug: body.businessSlug,
+                itemsCount: body.items?.length,
+                total: body.total,
+                deliveryType: body.delivery?.type,
+                paymentMethod: body.payment?.method
+            }
+        });
+
         // ========================================
         // ENHANCED VALIDATION
         // ========================================
+        addBreadcrumb({
+            category: 'checkout',
+            message: 'Validating request data',
+            level: 'info'
+        });
+
         const validation = CheckoutSchema.safeParse(body);
         if (!validation.success) {
             const errorMessage = validation.error.issues[0]?.message || 'Doğrulama hatası';
+
+            // Capture validation error
+            captureException(
+                validation.error,
+                'checkout_validation',
+                {
+                    businessSlug: body.businessSlug,
+                    clientIP,
+                    validationErrors: validation.error.issues.map(i => `${i.path.join('.')}: ${i.message}`)
+                }
+            );
+
             return NextResponse.json({
                 success: false,
                 error: errorMessage
@@ -449,9 +527,22 @@ export async function POST(request: Request) {
 
         const data = validation.data;
 
+        addBreadcrumb({
+            category: 'checkout',
+            message: 'Validation passed',
+            level: 'info'
+        });
+
         // ========================================
         // BUSINESS VALIDATION
         // ========================================
+        addBreadcrumb({
+            category: 'checkout',
+            message: 'Looking up business',
+            level: 'info',
+            data: { businessSlug: data.businessSlug }
+        });
+
         const businesses = await getCollectionREST<Record<string, unknown>>('businesses');
         const business = businesses.find((b) => {
             const slug = (b as { slug?: string }).slug;
@@ -459,6 +550,12 @@ export async function POST(request: Request) {
         });
 
         if (!business) {
+            captureException(
+                AppError.notFound('İşletme', { businessSlug: data.businessSlug, clientIP }),
+                'checkout_business_not_found',
+                { businessSlug: data.businessSlug, clientIP }
+            );
+
             return NextResponse.json({
                 success: false,
                 error: 'İşletme bulunamadı'
@@ -467,10 +564,22 @@ export async function POST(request: Request) {
 
         const businessId = (business as { id?: string }).id;
         if (!businessId) {
+            captureException(
+                AppError.badRequest('İşletme kimliği bulunamadı', { businessSlug: data.businessSlug }),
+                'checkout_business_no_id',
+                { businessSlug: data.businessSlug }
+            );
+
             return NextResponse.json({
                 success: false,
                 error: "İşletme kimliği bulunamadı"
             }, { status: 404 });
+        }
+
+        // Update transaction with business info
+        if (checkoutTransaction) {
+            checkoutTransaction.setData('businessId', businessId);
+            checkoutTransaction.setData('businessName', (business as { name?: string }).name);
         }
 
         // ========================================
@@ -503,10 +612,26 @@ export async function POST(request: Request) {
         // SERVER-SIDE PRICE VERIFICATION
         // CRITICAL: Prevents price manipulation attacks
         // ========================================
+        captureCheckoutEvent('price_verification_started', {
+            businessId,
+            items: data.items.length
+        });
+
         const { verifiedItems: verified, verificationErrors } = await verifyProductPrices(data.items, businessId);
         verifiedItems = verified;
 
         if (verificationErrors.length > 0) {
+            captureException(
+                AppError.priceVerificationError('Fiyat doğrulama hatası', verificationErrors, { businessId, clientIP }),
+                'checkout_price_verification_failed',
+                {
+                    businessId,
+                    clientIP,
+                    verificationErrors,
+                    itemsCount: data.items.length
+                }
+            );
+
             return NextResponse.json({
                 success: false,
                 error: 'Fiyat doğrulama hatası',
@@ -515,18 +640,44 @@ export async function POST(request: Request) {
         }
 
         if (verifiedItems.length === 0) {
+            captureException(
+                AppError.badRequest('Geçerli ürün bulunamadı', { businessId }),
+                'checkout_no_valid_products',
+                { businessId }
+            );
+
             return NextResponse.json({
                 success: false,
                 error: 'Geçerli ürün bulunamadı'
             }, { status: 400 });
         }
 
+        captureCheckoutEvent('price_verification_passed', {
+            businessId,
+            items: verifiedItems.length
+        });
+
         // ========================================
         // STOCK CHECK AND DECREMENT
         // CRITICAL: Prevents overselling
         // ========================================
+        captureCheckoutEvent('stock_check_started', {
+            businessId,
+            items: verifiedItems.length
+        });
+
         const stockCheck = await checkAndDecrementStock(verifiedItems, businessId);
         if (!stockCheck.success) {
+            captureException(
+                AppError.stockError('Stok hatası', stockCheck.errors, { businessId, clientIP }),
+                'checkout_stock_failed',
+                {
+                    businessId,
+                    clientIP,
+                    stockErrors: stockCheck.errors
+                }
+            );
+
             return NextResponse.json({
                 success: false,
                 error: 'Stok hatası',
@@ -534,6 +685,11 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
         stockDecremented = true;
+
+        captureCheckoutEvent('stock_decremented', {
+            businessId,
+            items: verifiedItems.length
+        });
 
         // ========================================
         // COUPON VALIDATION
@@ -664,6 +820,13 @@ export async function POST(request: Request) {
         // ========================================
         // CREATE ORDER
         // ========================================
+        captureCheckoutEvent('creating_order', {
+            businessId,
+            businessName: business.name as string,
+            items: verifiedItems.length,
+            total: calculatedTotal
+        });
+
         const orderId = await createDocumentREST('ff_orders', {
             businessId,
             businessName: business.name as string,
@@ -696,6 +859,17 @@ export async function POST(request: Request) {
             status: 'pending',
             qrCode: `${business.slug}-${Date.now()}`,
             createdAt: new Date().toISOString()
+        });
+
+        // Update transaction with order ID
+        if (checkoutTransaction) {
+            checkoutTransaction.setData('orderId', orderId);
+        }
+
+        captureCheckoutEvent('order_created', {
+            businessId,
+            orderId,
+            total: calculatedTotal
         });
 
         // Update coupon usage with order ID
@@ -742,6 +916,19 @@ export async function POST(request: Request) {
         // ========================================
         // SUCCESS RESPONSE
         // ========================================
+        captureCheckoutEvent('checkout_completed', {
+            businessId,
+            orderId,
+            items: verifiedItems.length,
+            total: calculatedTotal,
+            paymentMethod: data.payment.method,
+            deliveryType: data.delivery.type,
+            customerPhone: data.customer.phone,
+            clientIP
+        });
+
+        finishCheckoutTimer(checkoutTransaction, 'ok');
+
         return NextResponse.json({
             success: true,
             orderId,
@@ -756,6 +943,18 @@ export async function POST(request: Request) {
         });
 
     } catch (error) {
+        // Capture the exception in Sentry
+        captureException(
+            error,
+            'checkout_unhandled',
+            {
+                clientIP,
+                stockDecremented,
+                verifiedItemsCount: verifiedItems.length,
+                userAgent: request.headers.get('user-agent')
+            }
+        );
+
         console.error('[FastFood Checkout] Error:', error);
 
         // Restore stock if it was decremented
@@ -763,9 +962,21 @@ export async function POST(request: Request) {
             try {
                 // We need businessId here - extract from error context or log
                 console.log('[Stock Restore] Attempting to restore stock after error');
+                addBreadcrumb({
+                    category: 'checkout',
+                    message: 'Stock restoration attempted after error',
+                    level: 'warning',
+                    data: { itemsCount: verifiedItems.length }
+                });
             } catch (restoreError) {
                 console.error('[Stock Restore] Failed:', restoreError);
+                captureException(restoreError, 'checkout_stock_restore_failed');
             }
+        }
+
+        // Finish transaction with error status
+        if (checkoutTransaction) {
+            finishCheckoutTimer(checkoutTransaction, 'internal_error');
         }
 
         // Return generic error message (don't expose internal details)

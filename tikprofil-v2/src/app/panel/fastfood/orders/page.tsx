@@ -15,6 +15,7 @@ import {
     Bell,
     Printer,
     Utensils,
+    ChevronDown,
 } from "lucide-react";
 import clsx from "clsx";
 import { toast } from "sonner";
@@ -98,6 +99,14 @@ export default function FastFoodOrdersPage() {
     const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [showNewOrderFlash, setShowNewOrderFlash] = useState(false);
+    
+    // Pagination state
+    const [pagination, setPagination] = useState({
+        hasMore: false,
+        nextCursor: null as string | null,
+        limit: 20,
+        isLoadingMore: false
+    });
 
     // Track known order IDs to detect new orders
     const knownOrderIds = useRef<Set<string>>(new Set());
@@ -176,12 +185,25 @@ export default function FastFoodOrdersPage() {
         let isMounted = true;
         isFirstLoad.current = true;
 
-        const fetchOrders = async (isInitial = false) => {
+        const fetchOrders = async (isInitial = false, cursor?: string) => {
             if (!isMounted) return;
-            if (!isInitial) setIsRefreshing(true);
+            
+            if (isInitial) {
+                setLoading(true);
+            } else if (cursor) {
+                setPagination(prev => ({ ...prev, isLoadingMore: true }));
+            } else {
+                setIsRefreshing(true);
+            }
 
             try {
-                const res = await fetch(`/api/fastfood/orders?status=${statusList.join(',')}`);
+                // Build URL with pagination params
+                let url = `/api/fastfood/orders?status=${statusList.join(',')}&limit=${pagination.limit}`;
+                if (cursor) {
+                    url += `&cursor=${cursor}`;
+                }
+                
+                const res = await fetch(url);
                 const data = await res.json();
 
                 if (!data.success) {
@@ -190,28 +212,56 @@ export default function FastFoodOrdersPage() {
                 }
 
                 const newOrders = (data.orders || []) as Order[];
+                
+                // Update pagination info
+                if (data.pagination) {
+                    setPagination(prev => ({
+                        ...prev,
+                        hasMore: data.pagination.hasMore,
+                        nextCursor: data.pagination.nextCursor
+                    }));
+                }
 
-                if (activeTab === 'pending' && !isFirstLoad.current) {
+                if (activeTab === 'pending' && !isFirstLoad.current && !cursor) {
                     const newOrderCount = newOrders.filter(order => !knownOrderIds.current.has(order.id)).length;
                     if (newOrderCount > 0) {
                         handleNewOrderArrival(newOrderCount);
                     }
                 }
 
-                knownOrderIds.current = new Set(newOrders.map(order => order.id));
-                isFirstLoad.current = false;
-
-                setOrders(newOrders);
-                setLoading(false);
+                if (cursor) {
+                    // Append to existing orders (Load More)
+                    setOrders(prev => {
+                        const existingIds = new Set(prev.map(o => o.id));
+                        const uniqueNewOrders = newOrders.filter(o => !existingIds.has(o.id));
+                        return [...prev, ...uniqueNewOrders];
+                    });
+                } else {
+                    // Replace orders (Initial load or refresh)
+                    knownOrderIds.current = new Set(newOrders.map(order => order.id));
+                    isFirstLoad.current = false;
+                    setOrders(newOrders);
+                }
 
                 if (activeTab === 'pending') {
-                    updatePageTitle(newOrders.length);
+                    updatePageTitle(orders.length + (cursor ? newOrders.length : 0));
                 }
             } catch (error) {
                 console.error('Orders polling error:', error);
                 toast.error('Sipariş güncellemeleri alınamadı');
             } finally {
-                if (isMounted) setIsRefreshing(false);
+                if (isMounted) {
+                    setLoading(false);
+                    setIsRefreshing(false);
+                    setPagination(prev => ({ ...prev, isLoadingMore: false }));
+                }
+            }
+        };
+        
+        // Load more function
+        const loadMore = () => {
+            if (pagination.hasMore && pagination.nextCursor && !pagination.isLoadingMore) {
+                fetchOrders(false, pagination.nextCursor);
             }
         };
 
@@ -557,7 +607,80 @@ export default function FastFoodOrdersPage() {
                 </div>
             )}
 
-            {/* Detail Modal */}
+            {/* Load More Button */}
+            {!loading && pagination.hasMore && (
+                <div className="flex justify-center py-6">
+                    <button
+                        onClick={() => {
+                            if (pagination.nextCursor && !pagination.isLoadingMore) {
+                                // Call fetchOrders with cursor
+                                const statusList = activeTab === 'delivered'
+                                    ? ['delivered', 'cancelled']
+                                    : [activeTab];
+                                
+                                setPagination(prev => ({ ...prev, isLoadingMore: true }));
+                                
+                                fetch(`/api/fastfood/orders?status=${statusList.join(',')}&limit=${pagination.limit}&cursor=${pagination.nextCursor}`)
+                                    .then(res => res.json())
+                                    .then(data => {
+                                        if (data.success) {
+                                            const newOrders = (data.orders || []) as Order[];
+                                            setOrders(prev => {
+                                                const existingIds = new Set(prev.map(o => o.id));
+                                                const uniqueNewOrders = newOrders.filter(o => !existingIds.has(o.id));
+                                                return [...prev, ...uniqueNewOrders];
+                                            });
+                                            setPagination({
+                                                hasMore: data.pagination?.hasMore || false,
+                                                nextCursor: data.pagination?.nextCursor || null,
+                                                limit: pagination.limit,
+                                                isLoadingMore: false
+                                            });
+                                        }
+                                    })
+                                    .catch(err => {
+                                        console.error('Load more error:', err);
+                                        toast.error('Daha fazla sipariş yüklenemedi');
+                                        setPagination(prev => ({ ...prev, isLoadingMore: false }));
+                                    });
+                            }
+                        }}
+                        disabled={pagination.isLoadingMore}
+                        className={clsx(
+                            "px-8 py-3 rounded-2xl font-semibold transition-all",
+                            "flex items-center gap-2",
+                            pagination.isLoadingMore
+                                ? "opacity-50 cursor-not-allowed"
+                                : "hover:scale-105 active:scale-95",
+                            isDark 
+                                ? "bg-[#2C2C2E] text-white hover:bg-[#3A3A3C]" 
+                                : "bg-white text-gray-900 shadow-sm hover:bg-gray-50"
+                        )}
+                    >
+                        {pagination.isLoadingMore ? (
+                            <>
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                Yükleniyor...
+                            </>
+                        ) : (
+                            <>
+                                Daha Fazla Göster
+                                <ChevronDown className="w-5 h-5" />
+                            </>
+                        )}
+                    </button>
+                </div>
+            )}
+
+            {/* Pagination Info */}
+            {!loading && orders.length > 0 && (
+                <p className={clsx("text-center text-sm pb-4", textSecondary)}>
+                    {orders.length} sipariş gösteriliyor
+                    {pagination.hasMore && " (daha fazla var)"}
+                </p>
+            )}
+
+            {/* Detail Modal -->
             {selectedOrder && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6">
                     <div

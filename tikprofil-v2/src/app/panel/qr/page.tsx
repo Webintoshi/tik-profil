@@ -41,8 +41,8 @@ export default function QRManagementPage() {
     }
 
     const profileUrl = businessSlug
-        ? `https://tikprofil-v2.vercel.app/${businessSlug}`
-        : "https://tikprofil-v2.vercel.app/";
+        ? `https://tikprofil.com/${businessSlug}`
+        : "https://tikprofil.com/";
 
     return (
         <div className="w-full max-w-[1600px] mx-auto p-4 md:p-6 lg:p-8 lg:h-[calc(100vh-80px)]">
@@ -51,6 +51,7 @@ export default function QRManagementPage() {
                 businessName={session?.businessName || "İşletme"}
                 profileUrl={profileUrl}
                 logoUrl={logoUrl}
+                businessSlug={businessSlug}
             />
         </div>
     );

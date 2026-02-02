@@ -63,6 +63,7 @@ function generateOrderNumber(): string {
 }
 
 // GET - List orders (for panel - requires auth)
+// Supports cursor-based pagination for performance
 export async function GET(request: Request) {
     try {
         const authResult = await requireAuth();
@@ -73,17 +74,41 @@ export async function GET(request: Request) {
         const businessId = authResult.user.businessId;
         const { searchParams } = new URL(request.url);
         const status = searchParams.get('status');
+        
+        // Pagination params
+        const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100); // Max 100
+        const cursor = searchParams.get('cursor'); // last order ID from previous page
 
         const supabase = getSupabaseAdmin();
+        
+        // Build query with limit + 1 to check if there's more
         let query = supabase
             .from(TABLE)
             .select('*')
             .eq('business_id', businessId)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .limit(limit + 1);
 
+        // Apply status filter
         if (status && status !== 'all') {
             const statusList = status.split(',').map(s => s.trim());
             query = query.in('status', statusList);
+        }
+
+        // Apply cursor-based pagination
+        // We need to find the created_at of the cursor order first
+        if (cursor) {
+            // Get the created_at timestamp of the cursor order
+            const { data: cursorOrder } = await supabase
+                .from(TABLE)
+                .select('created_at')
+                .eq('id', cursor)
+                .eq('business_id', businessId)
+                .maybeSingle();
+            
+            if (cursorOrder?.created_at) {
+                query = query.lt('created_at', cursorOrder.created_at);
+            }
         }
 
         const { data, error } = await query;
@@ -91,9 +116,23 @@ export async function GET(request: Request) {
             throw error;
         }
 
-        const orders = (data || []).map(mapOrder);
+        // Check if there's more data
+        const hasMore = data && data.length > limit;
+        const paginatedData = hasMore ? data.slice(0, -1) : (data || []);
+        
+        const orders = paginatedData.map(mapOrder);
 
-        return Response.json({ success: true, orders });
+        // Return with pagination info
+        return Response.json({ 
+            success: true, 
+            orders,
+            pagination: {
+                hasMore,
+                nextCursor: hasMore ? orders[orders.length - 1]?.id : null,
+                limit,
+                totalFetched: orders.length
+            }
+        });
     } catch (error) {
         return AppError.toResponse(error, 'FF Orders GET');
     }
