@@ -45,9 +45,10 @@ interface ProductDetailProps {
     product: Product | null;
     isOpen: boolean;
     onClose: () => void;
+    onCallWaiter?: () => void;
 }
 
-export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) {
+export function ProductDetail({ product, isOpen, onClose, onCallWaiter }: ProductDetailProps) {
     const [isFavorited, setIsFavorited] = useState(false);
     const [selectedSize, setSelectedSize] = useState<Size | null>(null);
 
@@ -301,6 +302,23 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
                                 )}
                             </div>
                         </div>
+
+                        {/* Bottom Action Bar - Garson Çağır */}
+                        {onCallWaiter && (
+                            <div className="flex-shrink-0 p-4 border-t border-gray-100 bg-white">
+                                <motion.button
+                                    whileTap={{ scale: 0.97 }}
+                                    onClick={() => {
+                                        onCallWaiter();
+                                        onClose();
+                                    }}
+                                    className="w-full py-4 bg-gradient-to-r from-[#fe1e50] to-rose-600 text-white font-bold rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-[#fe1e50]/30"
+                                >
+                                    <span className="text-xl">📞</span>
+                                    <span>Garson Çağır</span>
+                                </motion.button>
+                            </div>
+                        )}
                     </motion.div>
                 </>
             )}

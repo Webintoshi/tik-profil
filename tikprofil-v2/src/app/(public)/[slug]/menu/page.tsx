@@ -3,10 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { MenuHeader } from "@/components/public/menu/MenuHeader";
 import { CategoryPills } from "@/components/public/menu/CategoryPills";
 import { ProductCard } from "@/components/public/menu/ProductCard";
 import { ProductDetail } from "@/components/public/menu/ProductDetail";
+import { SearchBar } from "@/components/public/menu/SearchBar";
 import { useFastfoodMenuSubscription } from "@/hooks/useMenuRealtime";
 
 // Types
@@ -71,6 +73,7 @@ function MenuContent() {
     }, [searchParams]);
 
     const [activeCategory, setActiveCategory] = useState<string>("");
+    const [searchQuery, setSearchQuery] = useState<string>("");
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [isProductDetailOpen, setIsProductDetailOpen] = useState(false);
     const [isCartOpen, setIsCartOpen] = useState(false);
@@ -217,11 +220,21 @@ function MenuContent() {
         setIsProductDetailOpen(true);
     };
 
+    // Handle call waiter
+    const handleCallWaiter = () => {
+        toast.success("Garson çağrıldı!");
+    };
+
     // Group products by category
     const productsByCategory = categories.map(cat => ({
         ...cat,
         products: products
-            .filter(p => p.categoryId === cat.id)
+            .filter(p => {
+                const matchesCategory = p.categoryId === cat.id;
+                const matchesSearch = searchQuery === "" ||
+                    p.name.toLowerCase().includes(searchQuery.toLowerCase());
+                return matchesCategory && matchesSearch;
+            })
             .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
     })).filter(cat => cat.products.length > 0);
 
@@ -270,6 +283,13 @@ function MenuContent() {
                 logoUrl={business?.logoUrl}
                 tableName={tableName || tableId || undefined}
                 wifiPassword={wifiPassword}
+            />
+
+            {/* Search Bar */}
+            <SearchBar
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Ürün ara..."
             />
 
             {/* Category Pills */}
@@ -339,6 +359,7 @@ function MenuContent() {
                     setIsProductDetailOpen(false);
                     setSelectedProduct(null);
                 }}
+                onCallWaiter={handleCallWaiter}
             />
         </div>
     );
