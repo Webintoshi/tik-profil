@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, Wifi, Check, Utensils, Sparkles } from "lucide-react";
+import { ChevronLeft, Wifi, Check, Utensils, Copy } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { toR2ProxyUrl } from "@/lib/publicImage";
@@ -29,111 +29,90 @@ export function MenuHeader({ businessSlug, title = "Menü", logoUrl, tableName, 
     };
 
     return (
-        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-gray-200/50 h-[56px]">
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center px-4 h-full max-w-2xl mx-auto">
-                {/* Left: Back Button */}
-                <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="flex justify-start"
-                >
-                    <Link
-                        href={`/${businessSlug}`}
-                        className="flex items-center justify-center w-11 h-11 rounded-2xl bg-white shadow-md shadow-gray-200/50 border border-gray-100 transition-all duration-300 hover:shadow-lg hover:shadow-[#fe1e50]/10 hover:scale-105 active:scale-95 text-gray-700 hover:text-[#fe1e50]"
-                    >
-                        <motion.div whileHover={{ x: -2 }} transition={{ duration: 0.2 }}>
-                            <ChevronLeft className="w-6 h-6" />
-                        </motion.div>
-                    </Link>
-                </motion.div>
-
-                {/* Center: Logo & Table Name */}
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9, y: -10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                    className="flex flex-col items-center justify-center gap-2 w-full"
-                >
-                    <AnimatePresence mode="wait">
-                        {logoUrl ? (
-                            <motion.div
-                                key="logo"
-                                initial={{ opacity: 0, rotate: -10 }}
-                                animate={{ opacity: 1, rotate: 0 }}
-                                exit={{ opacity: 0, rotate: 10 }}
-                                transition={{ duration: 0.4 }}
-                                className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-lg shadow-[#fe1e50]/15 border-2 border-white group hover:scale-105 transition-transform"
-                            >
-                                <motion.div
-                                    className="absolute inset-0 bg-gradient-to-tr from-[#fe1e50]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                                />
-                                <Image
-                                    src={toR2ProxyUrl(logoUrl)}
-                                    alt="Logo"
-                                    fill
-                                    className="object-cover transition-transform duration-500 group-hover:scale-110 group-hover:rotate-2"
-                                />
-                                <motion.div
-                                    animate={{ rotate: [0, 360] }}
-                                    transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                                    className="absolute -top-6 -right-6 w-8 h-8 rounded-full bg-gradient-to-br from-[#fe1e50]/30 to-transparent blur-md"
-                                />
-                            </motion.div>
-                        ) : (
-                            <motion.div
-                                key="fallback"
-                                initial={{ opacity: 0, scale: 0.5 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#fe1e50] via-[#fe1e50] to-rose-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-[#fe1e50]/15 border-2 border-white hover:scale-105 transition-transform"
-                            >
-                                <motion.span
-                                    animate={{ scale: [1, 1.1, 1] }}
-                                    transition={{ duration: 2, repeat: Infinity }}
-                                >
-                                    {title ? title.substring(0, 2).toUpperCase() : "M"}
-                                </motion.span>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </motion.div>
-
-                {/* Right: Table Name & WiFi Button */}
-                <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="flex flex-col items-end gap-2"
-                >
-                    {/* Table Name */}
+        <header className="sticky top-0 z-50 bg-gradient-to-b from-white via-white to-gray-50/50 backdrop-blur-md border-b-2 border-gray-200 shadow-sm">
+            {/* Main Header */}
+            <div className="max-w-2xl mx-auto px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                    {/* Left: Back Button */}
                     <motion.div
-                        initial={{ opacity: 0, y: -5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.05 }}
-                        className="flex flex-col items-end"
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
                     >
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200">
-                            <Utensils className="w-3.5 h-3.5 text-[#fe1e50]" />
-                            <span className="text-xs font-bold text-gray-700 uppercase tracking-wide truncate max-w-[100px]">
-                                {tableName || "Masa 1"}
-                            </span>
+                        <Link
+                            href={`/${businessSlug}`}
+                            className="flex items-center justify-center w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-all duration-200 active:scale-95"
+                        >
+                            <ChevronLeft className="w-5 h-5 text-gray-700" />
+                        </Link>
+                    </motion.div>
+
+                    {/* Center: Logo */}
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="flex-1 flex justify-center"
+                    >
+                        <div className="relative">
+                            {logoUrl ? (
+                                <div className="w-14 h-14 rounded-2xl overflow-hidden shadow-lg border-2 border-white bg-white">
+                                    <Image
+                                        src={toR2ProxyUrl(logoUrl)}
+                                        alt="Logo"
+                                        width={56}
+                                        height={56}
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                            ) : (
+                                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#fe1e50] to-rose-500 flex items-center justify-center text-white text-xl font-bold shadow-lg">
+                                    {title ? title.substring(0, 2).toUpperCase() : "M"}
+                                </div>
+                            )}
+                            {/* Pulsing indicator */}
+                            <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
                         </div>
                     </motion.div>
 
-                    {/* WiFi Button */}
-                    <AnimatePresence>
-                        {wifiPassword && (
-                            <motion.button
-                                initial={{ opacity: 0, scale: 0 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0 }}
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={handleCopyWifi}
-                                className={`flex items-center justify-center w-11 h-11 rounded-xl shadow-sm border transition-all duration-300 ${
-                                    copied 
-                                        ? 'bg-green-50 border-green-200 text-green-600' 
-                                        : 'bg-white border-gray-200 text-gray-700 hover:bg-green-50 hover:border-green-200 hover:text-green-600'
-                                }`}
-                            >
+                    {/* Right: Empty for balance */}
+                    <div className="w-10" />
+                </div>
+            </div>
+
+            {/* Info Bar - Table + WiFi */}
+            <div className="max-w-2xl mx-auto px-4 pb-3">
+                <div className="flex items-center justify-between gap-3 p-2.5 bg-gray-50 rounded-2xl border border-gray-100">
+                    {/* Table Info */}
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#fe1e50] to-rose-500 flex items-center justify-center shadow-md">
+                            <Utensils className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Masa</p>
+                            <p className="text-sm font-bold text-gray-900 leading-tight">
+                                {tableName || "Masa 1"}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="w-px h-8 bg-gray-200" />
+
+                    {/* WiFi */}
+                    {wifiPassword && (
+                        <motion.button
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            whileTap={{ scale: 0.97 }}
+                            onClick={handleCopyWifi}
+                            className={`flex items-center gap-2.5 px-3 py-1.5 rounded-xl transition-all duration-200 ${
+                                copied
+                                    ? 'bg-green-100 text-green-700 border border-green-200'
+                                    : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200'
+                            }`}
+                        >
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                                copied ? 'bg-green-500' : 'bg-gray-100'
+                            }`}>
                                 <AnimatePresence mode="wait">
                                     {copied ? (
                                         <motion.div
@@ -142,7 +121,7 @@ export function MenuHeader({ businessSlug, title = "Menü", logoUrl, tableName, 
                                             animate={{ scale: 1, rotate: 0 }}
                                             exit={{ scale: 0, rotate: 180 }}
                                         >
-                                            <Check className="w-5 h-5" />
+                                            <Check className="w-4 h-4 text-white" />
                                         </motion.div>
                                     ) : (
                                         <motion.div
@@ -151,24 +130,21 @@ export function MenuHeader({ businessSlug, title = "Menü", logoUrl, tableName, 
                                             animate={{ scale: 1 }}
                                             exit={{ scale: 0 }}
                                         >
-                                            <motion.div
-                                                animate={{ 
-                                                    scale: [1, 1.1, 1],
-                                                    opacity: [0.7, 1, 0.7]
-                                                }}
-                                                transition={{ duration: 1.5, repeat: Infinity }}
-                                            >
-                                                <Wifi className="w-5 h-5" />
-                                            </motion.div>
+                                            <Wifi className="w-4 h-4 text-gray-600" />
                                         </motion.div>
                                     )}
                                 </AnimatePresence>
-                            </motion.button>
-                        )}
-                    </AnimatePresence>
-                </motion.div>
+                            </div>
+                            <div className="text-left">
+                                <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">WiFi</p>
+                                <p className="text-sm font-bold leading-tight">
+                                    {copied ? 'Kopyalandı!' : 'Şifre'}
+                                </p>
+                            </div>
+                        </motion.button>
+                    )}
+                </div>
             </div>
         </header>
     );
 }
-

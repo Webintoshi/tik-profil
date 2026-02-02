@@ -44,7 +44,7 @@ export function CategoryPills({ categories, activeId, onSelect, theme = "modern"
     }, [activeId]);
 
     return (
-        <div className="sticky top-[108px] z-40 backdrop-blur-xl border-b bg-white/95 border-gray-100/50">
+        <div className="sticky top-[170px] z-40 backdrop-blur-xl border-b bg-white/95 border-gray-100/50">
             <div
                 ref={scrollRef}
                 className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide"
