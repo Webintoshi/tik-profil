@@ -220,11 +220,6 @@ function MenuContent() {
         setIsProductDetailOpen(true);
     };
 
-    // Handle call waiter
-    const handleCallWaiter = () => {
-        toast.success("Garson çağrıldı!");
-    };
-
     // Group products by category
     const productsByCategory = categories.map(cat => ({
         ...cat,
@@ -359,7 +354,6 @@ function MenuContent() {
                     setIsProductDetailOpen(false);
                     setSelectedProduct(null);
                 }}
-                onCallWaiter={handleCallWaiter}
             />
         </div>
     );

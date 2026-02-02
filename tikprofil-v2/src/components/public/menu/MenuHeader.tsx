@@ -29,8 +29,8 @@ export function MenuHeader({ businessSlug, title = "Menü", logoUrl, tableName, 
     };
 
     return (
-        <header className="sticky top-0 z-50 bg-gradient-to-b from-white to-gray-50/95 backdrop-blur-sm border-b border-gray-100/70 shadow-lg shadow-gray-200/50 transition-all duration-300">
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center px-4 py-4 max-w-2xl mx-auto min-h-[90px]">
+        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-gray-200/50 h-[56px]">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center px-4 h-full max-w-2xl mx-auto">
                 {/* Left: Back Button */}
                 <motion.div
                     initial={{ opacity: 0, x: -20 }}
@@ -62,7 +62,7 @@ export function MenuHeader({ businessSlug, title = "Menü", logoUrl, tableName, 
                                 animate={{ opacity: 1, rotate: 0 }}
                                 exit={{ opacity: 0, rotate: 10 }}
                                 transition={{ duration: 0.4 }}
-                                className="relative w-20 h-20 rounded-2xl overflow-hidden shadow-xl shadow-[#fe1e50]/20 border-2 border-white group"
+                                className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-lg shadow-[#fe1e50]/15 border-2 border-white group hover:scale-105 transition-transform"
                             >
                                 <motion.div
                                     className="absolute inset-0 bg-gradient-to-tr from-[#fe1e50]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
@@ -84,7 +84,7 @@ export function MenuHeader({ businessSlug, title = "Menü", logoUrl, tableName, 
                                 key="fallback"
                                 initial={{ opacity: 0, scale: 0.5 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#fe1e50] via-[#fe1e50] to-rose-600 flex items-center justify-center text-white text-2xl font-bold shadow-xl shadow-[#fe1e50]/30 border-2 border-white"
+                                className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#fe1e50] via-[#fe1e50] to-rose-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-[#fe1e50]/15 border-2 border-white hover:scale-105 transition-transform"
                             >
                                 <motion.span
                                     animate={{ scale: [1, 1.1, 1] }}
@@ -108,12 +108,11 @@ export function MenuHeader({ businessSlug, title = "Menü", logoUrl, tableName, 
                         initial={{ opacity: 0, y: -5 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.05 }}
-                        className="flex flex-col items-end gap-0.5"
+                        className="flex flex-col items-end"
                     >
-                        <span className="text-[9px] font-semibold text-gray-400 tracking-wider uppercase">Masa Adı</span>
-                        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 shadow-sm">
-                            <Utensils className="w-3 h-3 text-[#fe1e50]" />
-                            <span className="text-xs font-bold text-gray-700 tracking-wide uppercase truncate max-w-[120px]">
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200">
+                            <Utensils className="w-3.5 h-3.5 text-[#fe1e50]" />
+                            <span className="text-xs font-bold text-gray-700 uppercase tracking-wide truncate max-w-[100px]">
                                 {tableName || "Masa 1"}
                             </span>
                         </div>
@@ -129,10 +128,10 @@ export function MenuHeader({ businessSlug, title = "Menü", logoUrl, tableName, 
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
                                 onClick={handleCopyWifi}
-                                className={`flex items-center justify-center w-11 h-11 rounded-2xl shadow-md shadow-gray-200/50 border transition-all duration-300 ${
+                                className={`flex items-center justify-center w-11 h-11 rounded-xl shadow-sm border transition-all duration-300 ${
                                     copied 
                                         ? 'bg-green-50 border-green-200 text-green-600' 
-                                        : 'bg-white border-gray-100 text-gray-700 hover:shadow-lg hover:shadow-[#fe1e50]/10 hover:text-[#fe1e50]'
+                                        : 'bg-white border-gray-200 text-gray-700 hover:bg-green-50 hover:border-green-200 hover:text-green-600'
                                 }`}
                             >
                                 <AnimatePresence mode="wait">
@@ -167,9 +166,6 @@ export function MenuHeader({ businessSlug, title = "Menü", logoUrl, tableName, 
                             </motion.button>
                         )}
                     </AnimatePresence>
-                    {wifiPassword && (
-                        <span className="text-[9px] font-semibold text-gray-400 tracking-wider uppercase">WiFi Şifresi</span>
-                    )}
                 </motion.div>
             </div>
         </header>
