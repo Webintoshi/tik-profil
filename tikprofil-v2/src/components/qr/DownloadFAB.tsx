@@ -25,7 +25,9 @@ export function DownloadFAB({
             id: 'svg',
             label: 'SVG',
             icon: ImageIcon,
-            color: 'bg-emerald-500',
+            color: 'bg-emerald-600',
+            hoverColor: 'bg-emerald-700',
+            darkColor: 'bg-emerald-500',
             handler: onDownloadSVG,
             loading: isDownloading.svg
         },
@@ -33,7 +35,9 @@ export function DownloadFAB({
             id: 'png',
             label: 'PNG',
             icon: FileImage,
-            color: 'bg-blue-500',
+            color: 'bg-blue-600',
+            hoverColor: 'bg-blue-700',
+            darkColor: 'bg-blue-500',
             handler: onDownloadPNG,
             loading: isDownloading.png
         },
@@ -41,7 +45,9 @@ export function DownloadFAB({
             id: 'pdf',
             label: 'PDF',
             icon: FileText,
-            color: 'bg-red-500',
+            color: 'bg-red-600',
+            hoverColor: 'bg-red-700',
+            darkColor: 'bg-red-500',
             handler: onDownloadPDF,
             loading: isDownloading.pdf
         },
@@ -64,19 +70,21 @@ export function DownloadFAB({
                         }}
                         disabled={action.loading}
                         className={clsx(
-                            "flex items-center gap-3 mb-3 min-h-[44px] min-w-[44px] rounded-full shadow-lg",
-                            action.color,
-                            "text-white disabled:opacity-50"
+                            "flex items-center justify-center gap-3 mb-3 min-h-[56px] min-w-[56px] rounded-full shadow-xl",
+                            "bg-gray-900 text-white px-3 py-1 rounded-lg",
+                            "dark:bg-white dark:text-gray-900 dark:px-3 dark:py-1 dark:rounded-lg"
                         )}
                     >
                         {action.loading ? (
-                            <div className="animate-spin text-lg mx-auto">◌</div>
+                            <div className="flex items-center justify-center">
+                                <div className="animate-spin w-6 h-6">⟳</div>
+                            </div>
                         ) : (
                             <>
                                 <span className="absolute right-full mr-3 whitespace-nowrap text-sm font-medium">
                                     {action.label}
                                 </span>
-                                <action.icon className="w-6 h-6" />
+                                <action.icon className="w-6 h-6 flex-shrink-0" />
                             </>
                         )}
                     </motion.button>
@@ -86,8 +94,9 @@ export function DownloadFAB({
             {/* Main FAB */}
             <motion.button
                 animate={{ rotate: isOpen ? 45 : 0 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-14 h-14 rounded-full bg-blue-500 text-white shadow-2xl shadow-blue-500/40 flex items-center justify-center"
+                className="w-14 h-14 rounded-full bg-blue-600 dark:bg-blue-500 text-white shadow-2xl shadow-blue-600/40 dark:shadow-blue-500/40 flex items-center justify-center"
             >
                 {isOpen ? <X className="w-8 h-8" /> : <Download className="w-8 h-8" />}
             </motion.button>

@@ -231,7 +231,7 @@ export default function FastFoodTablesPage() {
 
             {/* Add Table Form */}
             <div className={clsx("rounded-2xl border p-4 mb-6", cardBg, borderColor)}>
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                     <input
                         type="text"
                         value={newTableName}
@@ -239,7 +239,7 @@ export default function FastFoodTablesPage() {
                         onKeyDown={(e) => e.key === "Enter" && handleAddTable()}
                         placeholder="Yeni masa adı (ör: Bahçe 5, Teras 1, VIP)"
                         className={clsx(
-                            "flex-1 px-4 py-3 rounded-xl border-2 transition-colors focus:outline-none focus:border-orange-500",
+                            "flex-1 min-w-0 px-4 py-3 rounded-xl border-2 transition-colors focus:outline-none focus:border-orange-500",
                             inputBg, textPrimary
                         )}
                         disabled={isAdding}
@@ -247,14 +247,15 @@ export default function FastFoodTablesPage() {
                     <button
                         onClick={handleAddTable}
                         disabled={isAdding}
-                        className="px-6 py-3 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-medium rounded-xl transition-colors flex items-center gap-2"
+                        className="shrink-0 px-6 py-3 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-medium rounded-xl transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
                     >
                         {isAdding ? (
                             <Loader2 className="w-5 h-5 animate-spin" />
                         ) : (
                             <Plus className="w-5 h-5" />
                         )}
-                        Masa Ekle
+                        <span className="hidden sm:inline">Masa Ekle</span>
+                        <span className="sm:hidden">Ekle</span>
                     </button>
                 </div>
             </div>
