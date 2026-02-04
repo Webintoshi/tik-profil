@@ -37,6 +37,7 @@ export default function CityEditPage() {
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<TabType>('general');
     const [unsavedChanges, setUnsavedChanges] = useState(false);
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
     const [data, setData] = useState<CityData>({
         id: '',
@@ -63,8 +64,23 @@ export default function CityEditPage() {
         fetch("/api/cities")
             .then((res) => res.json())
             .then((cities) => {
+                // cities array kontrolü
+                if (!Array.isArray(cities)) {
+                    console.error("Cities API did not return an array:", cities);
+                    setLoading(false);
+                    return;
+                }
+
                 const city = cities.find((c: any) => c.id === id);
                 if (city) {
+                    // Null güvenli places mapping
+                    const cityPlaces = (city.places || []).map((p: any, i: number) => ({
+                        ...p,
+                        id: p.id || Date.now().toString() + i,
+                        images: (p.images || [p.image]).filter(Boolean),
+                        order: p.order || i
+                    }));
+
                     setData({
                         ...data,
                         ...city,
@@ -72,15 +88,14 @@ export default function CityEditPage() {
                         seoDescription: city.seoDescription || `${city.name} şehri için kapsamlı gezi rehberi. Gezilecek yerler, restoranlar ve daha fazlası.`,
                         tags: city.tags || [],
                         gallery: city.gallery || [],
-                        places: city.places?.map((p: any, i: number) => ({ 
-                            ...p, 
-                            id: p.id || Date.now().toString() + i,
-                            images: p.images || [p.image],
-                            order: p.order || i 
-                        })) || [],
+                        places: cityPlaces,
                         status: city.status || 'draft',
                     });
                 }
+                setLoading(false);
+            })
+            .catch((error) => {
+                console.error("Failed to load city data:", error);
                 setLoading(false);
             });
     }, [id]);
@@ -96,6 +111,7 @@ export default function CityEditPage() {
 
     const handleSave = async () => {
         setSaving(true);
+        setSaveStatus('saving');
         try {
             const res = await fetch("/api/cities", {
                 method: "POST",
@@ -105,18 +121,54 @@ export default function CityEditPage() {
 
             if (res.ok) {
                 setUnsavedChanges(false);
+                setSaveStatus('saved');
                 localStorage.removeItem(`city_draft_${id}`);
+            } else {
+                setSaveStatus('error');
             }
         } catch (error) {
             console.error(error);
+            setSaveStatus('error');
         } finally {
             setSaving(false);
+            // 3 saniye sonra status'u resetle
+            setTimeout(() => setSaveStatus('idle'), 3000);
+        }
+    };
+
+    // Görsel için otomatik kaydetme
+    const autoSaveImage = async (key: keyof CityData, value: string) => {
+        setSaveStatus('saving');
+        try {
+            const res = await fetch("/api/cities", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...data, [key]: value })
+            });
+
+            if (res.ok) {
+                setSaveStatus('saved');
+                setUnsavedChanges(false);
+            } else {
+                setSaveStatus('error');
+            }
+        } catch (error) {
+            console.error("Auto-save failed:", error);
+            setSaveStatus('error');
+        } finally {
+            // 3 saniye sonra status'u resetle
+            setTimeout(() => setSaveStatus('idle'), 3000);
         }
     };
 
     const updateData = (key: keyof CityData, value: any) => {
         setData(prev => ({ ...prev, [key]: value }));
         setUnsavedChanges(true);
+
+        // Görsel yüklenirse otomatik kaydet
+        if ((key === 'coverImage' || key === 'coverImageAlt') && typeof value === 'string' && value.startsWith('https://')) {
+            autoSaveImage(key, value);
+        }
     };
 
     // Place Management
@@ -129,31 +181,52 @@ export default function CityEditPage() {
             shortDesc: '',
             content: '',
             rating: 5,
-            order: data.places.length,
+            order: (data.places || []).length,
         };
-        updateData('places', [...data.places, newPlace]);
+        updateData('places', [...(data.places || []), newPlace]);
     };
 
     const updatePlace = (placeId: string, key: keyof Place, value: any) => {
-        updateData('places', data.places.map(p => 
+        const updatedPlaces = (data.places || []).map(p =>
             p.id === placeId ? { ...p, [key]: value } : p
-        ));
+        );
+        updateData('places', updatedPlaces);
+
+        // Place görseli yüklenirse otomatik kaydet
+        if (key === 'images' && Array.isArray(value) && value.length > 0 && value[0]?.startsWith('https://')) {
+            // Tüm city datasını güncelle ve kaydet
+            const updatedCity = { ...data, places: updatedPlaces };
+            setSaveStatus('saving');
+            fetch("/api/cities", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(updatedCity)
+            })
+            .then(res => res.json())
+            .then(() => {
+                setSaveStatus('saved');
+                setUnsavedChanges(false);
+            })
+            .catch(() => setSaveStatus('error'))
+            .finally(() => setTimeout(() => setSaveStatus('idle'), 3000));
+        }
     };
 
     const removePlace = (placeId: string) => {
-        updateData('places', data.places.filter(p => p.id !== placeId));
+        updateData('places', (data.places || []).filter(p => p.id !== placeId));
     };
 
     // Tag Management
     const addTag = () => {
-        if (newTag && !data.tags.includes(newTag)) {
-            updateData('tags', [...data.tags, newTag]);
+        const currentTags = data.tags || [];
+        if (newTag && !currentTags.includes(newTag)) {
+            updateData('tags', [...currentTags, newTag]);
             setNewTag('');
         }
     };
 
     const removeTag = (tag: string) => {
-        updateData('tags', data.tags.filter(t => t !== tag));
+        updateData('tags', (data.tags || []).filter(t => t !== tag));
     };
 
     const seoScore = calculateSEOScore(data);
@@ -208,13 +281,32 @@ export default function CityEditPage() {
                         <div className="flex items-center gap-3">
                             <div className={`
                                 flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium
-                                ${seoScore >= 80 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 
-                                  seoScore >= 50 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 
+                                ${seoScore >= 80 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                  seoScore >= 50 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
                                   'bg-red-500/10 text-red-400 border border-red-500/20'}
                             `}>
                                 <TrendingUp className="w-4 h-4" />
                                 SEO: {seoScore}/100
                             </div>
+
+                            {/* Auto-save Status Indicator */}
+                            {saveStatus !== 'idle' && (
+                                <div className={`
+                                    flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium
+                                    ${saveStatus === 'saved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                      saveStatus === 'saving' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                                      'bg-red-500/10 text-red-400 border border-red-500/20'}
+                                `}>
+                                    {saveStatus === 'saved' && <CheckCircle className="w-3.5 h-3.5" />}
+                                    {saveStatus === 'saving' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                    {saveStatus === 'error' && <AlertCircle className="w-3.5 h-3.5" />}
+                                    <span className="text-xs">
+                                        {saveStatus === 'saved' ? 'Kaydedildi' :
+                                         saveStatus === 'saving' ? 'Kaydediliyor...' :
+                                         'Hata'}
+                                    </span>
+                                </div>
+                            )}
 
                             <button className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white/[0.05] hover:bg-white/[0.1] text-white/80 rounded-xl transition-colors text-sm font-medium">
                                 <Eye className="w-4 h-4" />
@@ -467,10 +559,10 @@ function TabGeneral({
                         <h3 className="font-bold text-white text-lg mb-4">İçerik Durumu</h3>
                         <div className="space-y-3">
                             {[
-                                { label: 'Gezilecek Yer', value: data.places.length },
-                                { label: 'Galeri', value: `${data.gallery.length} fotoğraf` },
-                                { label: 'Etiket', value: data.tags.length },
-                                { label: 'Kelime Sayısı', value: data.content.length },
+                                { label: 'Gezilecek Yer', value: (data.places || []).length },
+                                { label: 'Galeri', value: `${(data.gallery || []).length} fotoğraf` },
+                                { label: 'Etiket', value: (data.tags || []).length },
+                                { label: 'Kelime Sayısı', value: (data.content || '').length },
                             ].map((stat, i) => (
                                 <div key={i} className="flex items-center justify-between py-2 border-b border-white/[0.05] last:border-0">
                                     <span className="text-white/60">{stat.label}</span>
@@ -515,7 +607,7 @@ function TabContent({ data, updateData }: { data: CityData; updateData: (key: ke
                         </div>
 
                         <textarea
-                            value={data.content}
+                            value={data.content || ''}
                             onChange={(e) => updateData('content', e.target.value)}
                             rows={20}
                             className="w-full px-4 py-4 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50 transition-all resize-none font-mono text-sm leading-relaxed"
@@ -524,10 +616,10 @@ function TabContent({ data, updateData }: { data: CityData; updateData: (key: ke
 
                         <div className="flex items-center justify-between text-sm">
                             <span className="text-white/40">
-                                {data.content.length} karakter | ~{Math.ceil(data.content.length / 200)} dk okuma
+                                {(data.content || '').length} karakter | ~{Math.ceil((data.content || '').length / 200)} dk okuma
                             </span>
-                            <span className={data.content.length < 500 ? 'text-amber-400' : 'text-emerald-400'}>
-                                {data.content.length < 500 ? '⚠️ İçerik kısa' : '✓ İçerik iyi'}
+                            <span className={(data.content || '').length < 500 ? 'text-amber-400' : 'text-emerald-400'}>
+                                {(data.content || '').length < 500 ? '⚠️ İçerik kısa' : '✓ İçerik iyi'}
                             </span>
                         </div>
                     </div>
@@ -559,7 +651,7 @@ function TabPlaces({
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-xl font-bold text-white">Gezilecek Yerler</h2>
-                    <p className="text-white/40 text-sm">{data.places.length} mekan eklendi</p>
+                    <p className="text-white/40 text-sm">{(data.places || []).length} mekan eklendi</p>
                 </div>
                 <button onClick={addPlace} className="flex items-center gap-2 px-5 py-2.5 bg-[#fe1e50] hover:bg-[#fe1e50]/90 text-white rounded-xl transition-all font-bold shadow-lg shadow-[#fe1e50]/20">
                     <Plus className="w-5 h-5" />
@@ -568,7 +660,7 @@ function TabPlaces({
             </div>
 
             <div className="space-y-4">
-                {data.places.map((place, index) => (
+                {(data.places || []).map((place, index) => (
                     <LiquidMetalCard key={place.id} delay={index * 0.05}>
                         <div className="p-6">
                             <div className="flex items-start gap-4">

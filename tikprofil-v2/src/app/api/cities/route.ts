@@ -27,6 +27,40 @@ function toSnakeCase(obj: any): any {
     return result;
 }
 
+// Normalize city data - ensure all arrays are arrays, strings are strings
+function normalizeCityData(city: any): any {
+    if (!city || typeof city !== 'object') return city;
+
+    return {
+        ...city,
+        // Ensure arrays are never null
+        tags: Array.isArray(city.tags) ? city.tags : [],
+        gallery: Array.isArray(city.gallery) ? city.gallery : [],
+        places: Array.isArray(city.places) ? city.places : [],
+        // Ensure strings are never null
+        coverImage: city.coverImage || '',
+        coverImageAlt: city.coverImageAlt || '',
+        tagline: city.tagline || '',
+        shortDescription: city.shortDescription || '',
+        content: city.content ?? '',
+        seoTitle: city.seoTitle || '',
+        seoDescription: city.seoDescription || '',
+        canonicalUrl: city.canonicalUrl || '',
+        slug: city.slug || '',
+    };
+}
+
+// Input validation
+function validateCityData(data: any): { valid: boolean; error?: string } {
+    if (!data.id || typeof data.id !== 'string') {
+        return { valid: false, error: 'Invalid city id' };
+    }
+    if (!data.name || typeof data.name !== 'string') {
+        return { valid: false, error: 'Invalid city name' };
+    }
+    return { valid: true };
+}
+
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -46,7 +80,7 @@ export async function GET(request: Request) {
                 console.error('City API Error (by id):', error);
                 return NextResponse.json(null);
             }
-            return NextResponse.json(toCamelCase(data));
+            return NextResponse.json(toCamelCase(normalizeCityData(data)));
         }
 
         if (name) {
@@ -60,7 +94,7 @@ export async function GET(request: Request) {
                 console.error('City API Error (by name):', error);
                 return NextResponse.json(null);
             }
-            return NextResponse.json(toCamelCase(data));
+            return NextResponse.json(toCamelCase(normalizeCityData(data)));
         }
 
         // Tüm şehirleri dön
@@ -74,7 +108,7 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Failed to load city data' }, { status: 500 });
         }
 
-        return NextResponse.json((data || []).map(toCamelCase));
+        return NextResponse.json((data || []).map(normalizeCityData).map(toCamelCase));
     } catch (error) {
         console.error('City API Error:', error);
         return NextResponse.json({ error: 'Failed to load city data' }, { status: 500 });
@@ -85,8 +119,10 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
 
-        if (!body.id) {
-            return NextResponse.json({ error: 'Missing city id' }, { status: 400 });
+        // Validation
+        const validation = validateCityData(body);
+        if (!validation.valid) {
+            return NextResponse.json({ error: validation.error }, { status: 400 });
         }
 
         const supabase = getSupabaseAdmin();
@@ -111,7 +147,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Failed to save city data', details: error.message }, { status: 500 });
         }
 
-        return NextResponse.json({ success: true, data: toCamelCase(data) });
+        return NextResponse.json({ success: true, data: toCamelCase(normalizeCityData(data)) });
     } catch (error) {
         console.error('City API POST Error:', error);
         return NextResponse.json({ error: 'Failed to save city data' }, { status: 500 });
