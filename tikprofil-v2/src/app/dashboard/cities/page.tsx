@@ -80,12 +80,21 @@ export default function CitiesPage() {
         fetch("/api/cities")
             .then((res) => res.json())
             .then((data) => {
+                if (!Array.isArray(data)) {
+                    console.error("Cities API did not return an array:", data);
+                    setLoading(false);
+                    return;
+                }
                 setCities(data);
                 // Calculate stats
                 const total = data.length;
                 const active = data.filter((c: City) => c.description).length;
                 const empty = total - active;
                 setStats({ total, active, empty });
+                setLoading(false);
+            })
+            .catch((error) => {
+                console.error("Failed to fetch cities:", error);
                 setLoading(false);
             });
     }, []);
