@@ -136,23 +136,20 @@ export default function CityEditPage() {
         }
     };
 
-    // Görsel için otomatik kaydetme
-    const autoSaveImage = async (key: keyof CityData, value: string) => {
+    // Görsel için otomatik kaydetme - complete payload'ı al
+    const autoSaveImage = async (completeData: CityData) => {
         setSaveStatus('saving');
         try {
-            const payload = { ...data, [key]: value };
             console.log('[Auto-save] Sending:', {
-                id: payload.id,
-                name: payload.name,
-                key,
-                valueLength: value?.length,
-                valuePreview: value?.substring(0, 60) + '...'
+                id: completeData.id,
+                name: completeData.name,
+                coverImage: completeData.coverImage?.substring(0, 60) + '...'
             });
 
             const res = await fetch("/api/cities", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(completeData)
             });
 
             const result = await res.json();
@@ -175,12 +172,15 @@ export default function CityEditPage() {
     };
 
     const updateData = (key: keyof CityData, value: any) => {
-        setData(prev => ({ ...prev, [key]: value }));
+        // Önce yeni veriyi hesapla
+        const updatedData = { ...data, [key]: value };
+        // State'i güncelle
+        setData(updatedData);
         setUnsavedChanges(true);
 
-        // Görsel yüklenirse otomatik kaydet
+        // Görsel yüklenirse otomatik kaydet - güncel veriyi kullan
         if ((key === 'coverImage' || key === 'coverImageAlt') && typeof value === 'string' && value.startsWith('https://')) {
-            autoSaveImage(key, value);
+            autoSaveImage(updatedData);
         }
     };
 
@@ -203,25 +203,12 @@ export default function CityEditPage() {
         const updatedPlaces = (data.places || []).map(p =>
             p.id === placeId ? { ...p, [key]: value } : p
         );
+        const updatedCity = { ...data, places: updatedPlaces };
         updateData('places', updatedPlaces);
 
-        // Place görseli yüklenirse otomatik kaydet
+        // Place görseli yüklenirse otomatik kaydet - güncel veriyi kullan
         if (key === 'images' && Array.isArray(value) && value.length > 0 && value[0]?.startsWith('https://')) {
-            // Tüm city datasını güncelle ve kaydet
-            const updatedCity = { ...data, places: updatedPlaces };
-            setSaveStatus('saving');
-            fetch("/api/cities", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(updatedCity)
-            })
-            .then(res => res.json())
-            .then(() => {
-                setSaveStatus('saved');
-                setUnsavedChanges(false);
-            })
-            .catch(() => setSaveStatus('error'))
-            .finally(() => setTimeout(() => setSaveStatus('idle'), 3000));
+            autoSaveImage(updatedCity);
         }
     };
 
