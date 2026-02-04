@@ -119,9 +119,17 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
 
+        console.log('[Cities API POST] Received data:', {
+            id: body.id,
+            name: body.name,
+            coverImage: body.coverImage?.substring(0, 50) + '...',
+            hasData: !!body
+        });
+
         // Validation
         const validation = validateCityData(body);
         if (!validation.valid) {
+            console.error('[Cities API POST] Validation failed:', validation.error);
             return NextResponse.json({ error: validation.error }, { status: 400 });
         }
 
@@ -143,9 +151,12 @@ export async function POST(request: Request) {
             .single();
 
         if (error) {
-            console.error('City API POST Error:', error);
+            console.error('[Cities API POST] Supabase upsert error:', error);
+            console.error('[Cities API POST] dbData:', dbData);
             return NextResponse.json({ error: 'Failed to save city data', details: error.message }, { status: 500 });
         }
+
+        console.log('[Cities API POST] Success! Saved city:', data.id, 'coverImage:', data.cover_image?.substring(0, 50) + '...');
 
         return NextResponse.json({ success: true, data: toCamelCase(normalizeCityData(data)) });
     } catch (error) {

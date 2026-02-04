@@ -12,7 +12,7 @@ let r2Client: S3Client | undefined;
 function assertEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
+    throw new Error(`Missing required environment variable: ${name}. Please check your .env.local file.`);
   }
   return value;
 }
@@ -20,20 +20,25 @@ function assertEnv(name: string): string {
 function getR2Client(): S3Client {
   if (r2Client) return r2Client;
 
-  const accountId = assertEnv('CLOUDFLARE_R2_ACCOUNT_ID');
-  const accessKeyId = assertEnv('CLOUDFLARE_R2_ACCESS_KEY_ID');
-  const secretAccessKey = assertEnv('CLOUDFLARE_R2_SECRET_ACCESS_KEY');
+  try {
+    const accountId = assertEnv('CLOUDFLARE_R2_ACCOUNT_ID');
+    const accessKeyId = assertEnv('CLOUDFLARE_R2_ACCESS_KEY_ID');
+    const secretAccessKey = assertEnv('CLOUDFLARE_R2_SECRET_ACCESS_KEY');
 
-  r2Client = new S3Client({
-    region: 'auto',
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId,
-      secretAccessKey,
-    },
-  });
+    r2Client = new S3Client({
+      region: 'auto',
+      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+    });
 
-  return r2Client;
+    return r2Client;
+  } catch (error) {
+    console.error('[R2Storage] Failed to initialize R2 client:', error);
+    throw error;
+  }
 }
 
 function getBucketName(): string {
@@ -130,13 +135,18 @@ export async function getPresignedUploadUrl(params: {
   contentType: string;
   expiresIn?: number;
 }): Promise<string> {
-  const command = new PutObjectCommand({
-    Bucket: getBucketName(),
-    Key: params.key,
-    ContentType: params.contentType,
-  });
+  try {
+    const command = new PutObjectCommand({
+      Bucket: getBucketName(),
+      Key: params.key,
+      ContentType: params.contentType,
+    });
 
-  return await getSignedUrl(getR2Client(), command, { expiresIn: params.expiresIn ?? 900 });
+    return await getSignedUrl(getR2Client(), command, { expiresIn: params.expiresIn ?? 900 });
+  } catch (error) {
+    console.error('[R2Storage] getPresignedUploadUrl error:', error);
+    throw error;
+  }
 }
 
 export function getPublicUrlForKey(key: string): string {

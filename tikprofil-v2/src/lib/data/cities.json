@@ -1,74 +1,416 @@
 [
   {
-    "id": "ordu",
-    "name": "Ordu",
-    "plate": 52,
-    "tagline": "Mavinin ve yeşilin buluştuğu oksijen diyarı.",
-    "description": "Karadeniz'in incisi Ordu, fındık bahçeleriyle kaplı yemyeşil dağların masmavi denizle kucaklaştığı eşsiz bir coğrafyadır. Tarihi M.Ö. 7. yüzyıla dayanan Kotyora (Cotyora) antik kenti üzerine kurulmuştur. Boztepe'den şehri kuşbakışı izlemek, Yason Burnu'nda gün batımına tanıklık etmek ve yaylalarında huzuru bulmak Ordu deneyiminin vazgeçilmezleridir.",
-    "coverImage": "https://images.unsplash.com/photo-1625903995874-9f20c4228964?q=80&w=2000&auto=format&fit=crop",
-    "places": [
-      {
-        "id": "p1",
-        "name": "Boztepe",
-        "image": "https://images.unsplash.com/photo-1688152787884-6997b7188706?q=80&w=800&auto=format&fit=crop",
-        "category": "Manzara"
-      },
-      {
-        "id": "p2",
-        "name": "Yason Burnu",
-        "image": "https://images.unsplash.com/photo-1629833596856-291771146744?q=80&w=800&auto=format&fit=crop",
-        "category": "Tarihi Yarımada"
-      },
-      {
-        "id": "p3",
-        "name": "Çambaşı Yaylası",
-        "image": "https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?q=80&w=800&auto=format&fit=crop",
-        "category": "Doğa"
-      },
-      {
-        "id": "p4",
-        "name": "Perşembe Yaylası",
-        "image": "https://images.unsplash.com/photo-1587595431973-160d0d94add1?q=80&w=800&auto=format&fit=crop",
-        "category": "Menderesler"
-      }
-    ]
+    "id": "adana",
+    "name": "Adana",
+    "plate": "01"
   },
   {
-    "id": "istanbul",
-    "name": "İstanbul",
-    "plate": 34,
-    "tagline": "İki kıtayı birleştiren dünya başkenti.",
-    "description": "Tarih boyunca üç büyük imparatorluğa başkentlik yapmış, Asya ve Avrupa'yı birbirine bağlayan eşsiz şehir. Ayasofya'nın ihtişamı, Boğaz'ın büyüsü ve Kapalıçarşı'nın gizemiyle İstanbul, her köşesinde ayrı bir hikaye barındırır.",
-    "coverImage": "https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?q=80&w=2000&auto=format&fit=crop",
-    "places": [
-      {
-        "id": "ist1",
-        "name": "Ayasofya",
-        "image": "https://images.unsplash.com/photo-1568045936848-18e00d796792?q=80&w=800&auto=format&fit=crop",
-        "category": "Tarihi"
-      },
-      {
-        "id": "ist2",
-        "name": "Galata Kulesi",
-        "image": "https://images.unsplash.com/photo-1565538283430-804130006900?q=80&w=800&auto=format&fit=crop",
-        "category": "Simge"
-      }
-    ]
+    "id": "adiyaman",
+    "name": "Adıyaman",
+    "plate": "02"
+  },
+  {
+    "id": "afyonkarahisar",
+    "name": "Afyonkarahisar",
+    "plate": "03"
+  },
+  {
+    "id": "agri",
+    "name": "Ağrı",
+    "plate": "04"
+  },
+  {
+    "id": "amasya",
+    "name": "Amasya",
+    "plate": "05"
   },
   {
     "id": "ankara",
     "name": "Ankara",
-    "plate": 6,
+    "plate": "06",
     "tagline": "Türkiye Cumhuriyeti'nin kalbi.",
     "description": "Anadolu'nun ortasında yükselen modern başkent. Anıtkabir'in vakur duruşu, Anadolu Medeniyetleri Müzesi'nin derinliği ve Tunalı Hilmi'nin canlılığı ile Ankara, köklü tarihini modern yüzüyle birleştirir.",
-    "coverImage": "https://images.unsplash.com/photo-1594975713915-18860714972e?q=80&w=2000&auto=format&fit=crop",
-    "places": [
-      {
-        "id": "ank1",
-        "name": "Anıtkabir",
-        "image": "https://images.unsplash.com/photo-1590492804587-f823295c5240?q=80&w=800&auto=format&fit=crop",
-        "category": "Anıt"
-      }
-    ]
+    "coverImage": "https://images.unsplash.com/photo-1594975713915-18860714972e?q=80&w=2000&auto=format&fit=crop"
+  },
+  {
+    "id": "antalya",
+    "name": "Antalya",
+    "plate": "07"
+  },
+  {
+    "id": "artvin",
+    "name": "Artvin",
+    "plate": "08"
+  },
+  {
+    "id": "aydin",
+    "name": "Aydın",
+    "plate": "09"
+  },
+  {
+    "id": "balikesir",
+    "name": "Balıkesir",
+    "plate": "10"
+  },
+  {
+    "id": "bilecik",
+    "name": "Bilecik",
+    "plate": "11"
+  },
+  {
+    "id": "bingol",
+    "name": "Bingöl",
+    "plate": "12"
+  },
+  {
+    "id": "bitlis",
+    "name": "Bitlis",
+    "plate": "13"
+  },
+  {
+    "id": "bolu",
+    "name": "Bolu",
+    "plate": "14"
+  },
+  {
+    "id": "burdur",
+    "name": "Burdur",
+    "plate": "15"
+  },
+  {
+    "id": "bursa",
+    "name": "Bursa",
+    "plate": "16"
+  },
+  {
+    "id": "canakkale",
+    "name": "Çanakkale",
+    "plate": "17"
+  },
+  {
+    "id": "cankiri",
+    "name": "Çankırı",
+    "plate": "18"
+  },
+  {
+    "id": "corum",
+    "name": "Çorum",
+    "plate": "19"
+  },
+  {
+    "id": "denizli",
+    "name": "Denizli",
+    "plate": "20"
+  },
+  {
+    "id": "diyarbakir",
+    "name": "Diyarbakır",
+    "plate": "21"
+  },
+  {
+    "id": "edirne",
+    "name": "Edirne",
+    "plate": "22"
+  },
+  {
+    "id": "elazig",
+    "name": "Elazığ",
+    "plate": "23"
+  },
+  {
+    "id": "erzincan",
+    "name": "Erzincan",
+    "plate": "24"
+  },
+  {
+    "id": "erzurum",
+    "name": "Erzurum",
+    "plate": "25"
+  },
+  {
+    "id": "eskisehir",
+    "name": "Eskişehir",
+    "plate": "26"
+  },
+  {
+    "id": "gaziantep",
+    "name": "Gaziantep",
+    "plate": "27"
+  },
+  {
+    "id": "giresun",
+    "name": "Giresun",
+    "plate": "28"
+  },
+  {
+    "id": "gumushane",
+    "name": "Gümüşhane",
+    "plate": "29"
+  },
+  {
+    "id": "hakkari",
+    "name": "Hakkari",
+    "plate": "30"
+  },
+  {
+    "id": "hatay",
+    "name": "Hatay",
+    "plate": "31"
+  },
+  {
+    "id": "isparta",
+    "name": "Isparta",
+    "plate": "32"
+  },
+  {
+    "id": "mersin",
+    "name": "Mersin",
+    "plate": "33"
+  },
+  {
+    "id": "istanbul",
+    "name": "İstanbul",
+    "plate": "34",
+    "tagline": "İki kıtayı birleştiren dünya başkenti.",
+    "description": "Tarih boyunca üç büyük imparatorluğa başkentlik yapmış, Asya ve Avrupa'yı birbirine bağlayan eşsiz şehir. Ayasofya'nın ihtişamı, Boğaz'ın büyüsü ve Kapalıçarşı'nın gizemiyle İstanbul, her köşesinde ayrı bir hikaye barındırır.",
+    "coverImage": "https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?q=80&w=2000&auto=format&fit=crop"
+  },
+  {
+    "id": "izmir",
+    "name": "İzmir",
+    "plate": "35"
+  },
+  {
+    "id": "kars",
+    "name": "Kars",
+    "plate": "36"
+  },
+  {
+    "id": "kastamonu",
+    "name": "Kastamonu",
+    "plate": "37"
+  },
+  {
+    "id": "kayseri",
+    "name": "Kayseri",
+    "plate": "38"
+  },
+  {
+    "id": "kirklareli",
+    "name": "Kırklareli",
+    "plate": "39"
+  },
+  {
+    "id": "kirsehir",
+    "name": "Kırşehir",
+    "plate": "40"
+  },
+  {
+    "id": "kocaeli",
+    "name": "Kocaeli",
+    "plate": "41"
+  },
+  {
+    "id": "konya",
+    "name": "Konya",
+    "plate": "42"
+  },
+  {
+    "id": "kutahya",
+    "name": "Kütahya",
+    "plate": "43"
+  },
+  {
+    "id": "malatya",
+    "name": "Malatya",
+    "plate": "44"
+  },
+  {
+    "id": "manisa",
+    "name": "Manisa",
+    "plate": "45"
+  },
+  {
+    "id": "kahramanmaras",
+    "name": "Kahramanmaraş",
+    "plate": "46"
+  },
+  {
+    "id": "mardin",
+    "name": "Mardin",
+    "plate": "47"
+  },
+  {
+    "id": "mugla",
+    "name": "Muğla",
+    "plate": "48"
+  },
+  {
+    "id": "mus",
+    "name": "Muş",
+    "plate": "49"
+  },
+  {
+    "id": "nevsehir",
+    "name": "Nevşehir",
+    "plate": "50"
+  },
+  {
+    "id": "nigde",
+    "name": "Niğde",
+    "plate": "51"
+  },
+  {
+    "id": "ordu",
+    "name": "Ordu",
+    "plate": "52",
+    "tagline": "Mavinin ve yeşilin buluştuğu oksijen diyarı.",
+    "description": "Karadeniz'in incisi Ordu, fındık bahçeleriyle kaplı yemyeşil dağların masmavi denizle kucaklaştığı eşsiz bir coğrafyadır. Tarihi M.Ö. 7. yüzyıla dayanan Kotyora (Cotyora) antik kenti üzerine kurulmuştur.",
+    "coverImage": "https://images.unsplash.com/photo-1625903995874-9f20c4228964?q=80&w=2000&auto=format&fit=crop"
+  },
+  {
+    "id": "rize",
+    "name": "Rize",
+    "plate": "53"
+  },
+  {
+    "id": "sakarya",
+    "name": "Sakarya",
+    "plate": "54"
+  },
+  {
+    "id": "samsun",
+    "name": "Samsun",
+    "plate": "55"
+  },
+  {
+    "id": "siirt",
+    "name": "Siirt",
+    "plate": "56"
+  },
+  {
+    "id": "sinop",
+    "name": "Sinop",
+    "plate": "57"
+  },
+  {
+    "id": "sivas",
+    "name": "Sivas",
+    "plate": "58"
+  },
+  {
+    "id": "tekirdag",
+    "name": "Tekirdağ",
+    "plate": "59"
+  },
+  {
+    "id": "tokat",
+    "name": "Tokat",
+    "plate": "60"
+  },
+  {
+    "id": "trabzon",
+    "name": "Trabzon",
+    "plate": "61"
+  },
+  {
+    "id": "tunceli",
+    "name": "Tunceli",
+    "plate": "62"
+  },
+  {
+    "id": "sanliurfa",
+    "name": "Şanlıurfa",
+    "plate": "63"
+  },
+  {
+    "id": "usak",
+    "name": "Uşak",
+    "plate": "64"
+  },
+  {
+    "id": "van",
+    "name": "Van",
+    "plate": "65"
+  },
+  {
+    "id": "yozgat",
+    "name": "Yozgat",
+    "plate": "66"
+  },
+  {
+    "id": "zonguldak",
+    "name": "Zonguldak",
+    "plate": "67"
+  },
+  {
+    "id": "aksaray",
+    "name": "Aksaray",
+    "plate": "68"
+  },
+  {
+    "id": "bayburt",
+    "name": "Bayburt",
+    "plate": "69"
+  },
+  {
+    "id": "karaman",
+    "name": "Karaman",
+    "plate": "70"
+  },
+  {
+    "id": "kirikkale",
+    "name": "Kırıkkale",
+    "plate": "71"
+  },
+  {
+    "id": "batman",
+    "name": "Batman",
+    "plate": "72"
+  },
+  {
+    "id": "sirnak",
+    "name": "Şırnak",
+    "plate": "73"
+  },
+  {
+    "id": "bartin",
+    "name": "Bartın",
+    "plate": "74"
+  },
+  {
+    "id": "ardahan",
+    "name": "Ardahan",
+    "plate": "75"
+  },
+  {
+    "id": "igdir",
+    "name": "Iğdır",
+    "plate": "76"
+  },
+  {
+    "id": "yalova",
+    "name": "Yalova",
+    "plate": "77"
+  },
+  {
+    "id": "karabuk",
+    "name": "Karabük",
+    "plate": "78"
+  },
+  {
+    "id": "kilis",
+    "name": "Kilis",
+    "plate": "79"
+  },
+  {
+    "id": "osmaniye",
+    "name": "Osmaniye",
+    "plate": "80"
+  },
+  {
+    "id": "duzce",
+    "name": "Düzce",
+    "plate": "81"
   }
 ]

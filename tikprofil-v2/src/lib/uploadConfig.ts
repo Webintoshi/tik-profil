@@ -13,7 +13,8 @@ export type UploadModule =
   | "restaurant"
   | "events"
   | "logos"
-  | "covers";
+  | "covers"
+  | "cities";
 
 export const UPLOAD_LIMITS: Record<UploadModule, number> = {
   fastfood: 5 * 1024 * 1024,
@@ -23,6 +24,7 @@ export const UPLOAD_LIMITS: Record<UploadModule, number> = {
   events: 5 * 1024 * 1024,
   logos: 2 * 1024 * 1024,
   covers: 5 * 1024 * 1024,
+  cities: 10 * 1024 * 1024, // Şehir görselleri için 10MB limit
 };
 
 export function isAllowedMimeType(type: string): boolean {

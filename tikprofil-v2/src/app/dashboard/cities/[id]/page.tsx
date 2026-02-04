@@ -140,20 +140,33 @@ export default function CityEditPage() {
     const autoSaveImage = async (key: keyof CityData, value: string) => {
         setSaveStatus('saving');
         try {
+            const payload = { ...data, [key]: value };
+            console.log('[Auto-save] Sending:', {
+                id: payload.id,
+                name: payload.name,
+                key,
+                valueLength: value?.length,
+                valuePreview: value?.substring(0, 60) + '...'
+            });
+
             const res = await fetch("/api/cities", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...data, [key]: value })
+                body: JSON.stringify(payload)
             });
+
+            const result = await res.json();
+            console.log('[Auto-save] Response:', result);
 
             if (res.ok) {
                 setSaveStatus('saved');
                 setUnsavedChanges(false);
             } else {
+                console.error('[Auto-save] Failed response:', result);
                 setSaveStatus('error');
             }
         } catch (error) {
-            console.error("Auto-save failed:", error);
+            console.error("[Auto-save] Exception:", error);
             setSaveStatus('error');
         } finally {
             // 3 saniye sonra status'u resetle
