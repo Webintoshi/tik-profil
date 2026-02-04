@@ -1,34 +1,80 @@
 import { NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
-// JSON dosyasının yolu
-const dataFilePath = path.join(process.cwd(), 'src/lib/data/cities.json');
+// Snake case to camel case converter for DB response
+function toCamelCase(obj: any): any {
+    if (!obj || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(toCamelCase);
+
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+        const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+        result[camelKey] = toCamelCase(value);
+    }
+    return result;
+}
+
+// Camel case to snake case converter for DB update
+function toSnakeCase(obj: any): any {
+    if (!obj || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(toSnakeCase);
+
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+        const snakeKey = key.replace(/[A-Z]/g, c => `_${c.toLowerCase()}`);
+        result[snakeKey] = toSnakeCase(value);
+    }
+    return result;
+}
 
 export async function GET(request: Request) {
     try {
-        // URL parametrelerini al
         const { searchParams } = new URL(request.url);
         const name = searchParams.get('name');
+        const id = searchParams.get('id');
 
-        // Dosyayı oku
-        const fileContents = await fs.readFile(dataFilePath, 'utf8');
-        const cities = JSON.parse(fileContents);
+        const supabase = getSupabaseAdmin();
 
-        if (name) {
-            // İsim parametresi varsa o şehri bul (case-insensitive)
-            const city = cities.find((c: any) => c.name.toLowerCase() === name.toLowerCase());
-            
-            if (city) {
-                return NextResponse.json(city);
-            } else {
-                // Şehir bulunamazsa 404 yerine null dön (frontend'de gracefully handle etmek için)
+        if (id) {
+            const { data, error } = await supabase
+                .from('cities')
+                .select('*')
+                .eq('id', id)
+                .single();
+
+            if (error) {
+                console.error('City API Error (by id):', error);
                 return NextResponse.json(null);
             }
+            return NextResponse.json(toCamelCase(data));
         }
 
-        // Parametre yoksa tüm şehirleri dön
-        return NextResponse.json(cities);
+        if (name) {
+            const { data, error } = await supabase
+                .from('cities')
+                .select('*')
+                .ilike('name', name)
+                .single();
+
+            if (error) {
+                console.error('City API Error (by name):', error);
+                return NextResponse.json(null);
+            }
+            return NextResponse.json(toCamelCase(data));
+        }
+
+        // Tüm şehirleri dön
+        const { data, error } = await supabase
+            .from('cities')
+            .select('*')
+            .order('name');
+
+        if (error) {
+            console.error('City API Error (all):', error);
+            return NextResponse.json({ error: 'Failed to load city data' }, { status: 500 });
+        }
+
+        return NextResponse.json((data || []).map(toCamelCase));
     } catch (error) {
         console.error('City API Error:', error);
         return NextResponse.json({ error: 'Failed to load city data' }, { status: 500 });
@@ -38,24 +84,36 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const fileContents = await fs.readFile(dataFilePath, 'utf8');
-        const cities = JSON.parse(fileContents);
 
-        // Mevcut şehri güncelle veya yeni ekle
-        const index = cities.findIndex((c: any) => c.id === body.id);
-        
-        if (index !== -1) {
-            cities[index] = { ...cities[index], ...body };
-        } else {
-            cities.push(body);
+        if (!body.id) {
+            return NextResponse.json({ error: 'Missing city id' }, { status: 400 });
         }
 
-        // Dosyayı kaydet
-        await fs.writeFile(dataFilePath, JSON.stringify(cities, null, 2));
+        const supabase = getSupabaseAdmin();
 
-        return NextResponse.json({ success: true });
+        // Convert camelCase to snake_case for DB
+        const dbData = toSnakeCase({
+            ...body,
+            updated_at: new Date().toISOString(),
+        });
+
+        const { data, error } = await supabase
+            .from('cities')
+            .upsert(dbData, {
+                onConflict: 'id',
+                ignoreDuplicates: false,
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('City API POST Error:', error);
+            return NextResponse.json({ error: 'Failed to save city data', details: error.message }, { status: 500 });
+        }
+
+        return NextResponse.json({ success: true, data: toCamelCase(data) });
     } catch (error) {
-        console.error('City API Error:', error);
+        console.error('City API POST Error:', error);
         return NextResponse.json({ error: 'Failed to save city data' }, { status: 500 });
     }
 }
