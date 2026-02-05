@@ -127,6 +127,21 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
+        // Environment check
+        const supabaseUrl = process.env.SUPABASE_URL;
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+        if (!supabaseUrl || !supabaseKey) {
+            console.error('[Cities API POST] Missing environment variables:', {
+                hasUrl: !!supabaseUrl,
+                hasKey: !!supabaseKey
+            });
+            return NextResponse.json({
+                error: 'Server configuration error',
+                details: 'Missing database credentials'
+            }, { status: 500 });
+        }
+
         const body = await request.json();
 
         console.log('[Cities API POST] Received data:', {
@@ -151,6 +166,8 @@ export async function POST(request: Request) {
             updated_at: new Date().toISOString(),
         });
 
+        console.log('[Cities API POST] Attempting upsert with id:', dbData.id);
+
         const { data, error } = await supabase
             .from('cities')
             .upsert(dbData, {
@@ -162,8 +179,14 @@ export async function POST(request: Request) {
 
         if (error) {
             console.error('[Cities API POST] Supabase upsert error:', error);
-            console.error('[Cities API POST] dbData:', dbData);
-            return NextResponse.json({ error: 'Failed to save city data', details: error.message }, { status: 500 });
+            console.error('[Cities API POST] Error code:', error.code);
+            console.error('[Cities API POST] Error message:', error.message);
+            console.error('[Cities API POST] Error details:', error.details);
+            return NextResponse.json({
+                error: 'Failed to save city data',
+                details: error.message,
+                code: error.code
+            }, { status: 500 });
         }
 
         console.log('[Cities API POST] Success! Saved city:', data.id, 'coverImage:', data.cover_image?.substring(0, 50) + '...');
@@ -171,6 +194,12 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, data: normalizeCityData(toCamelCase(data)) });
     } catch (error) {
         console.error('City API POST Error:', error);
-        return NextResponse.json({ error: 'Failed to save city data' }, { status: 500 });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorStack = error instanceof Error ? error.stack : undefined;
+        console.error('City API POST Stack:', errorStack);
+        return NextResponse.json({
+            error: 'Failed to save city data',
+            details: errorMessage
+        }, { status: 500 });
     }
 }
