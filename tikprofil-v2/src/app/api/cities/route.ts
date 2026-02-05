@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
+// Disable caching for this route - critical for data freshness
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Snake case to camel case converter for DB response
 function toCamelCase(obj: any): any {
     if (!obj || typeof obj !== 'object') return obj;
@@ -80,7 +84,9 @@ export async function GET(request: Request) {
                 console.error('City API Error (by id):', error);
                 return NextResponse.json(null);
             }
-            return NextResponse.json(normalizeCityData(toCamelCase(data)));
+            const response = NextResponse.json(normalizeCityData(toCamelCase(data)));
+            response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+            return response;
         }
 
         if (name) {
@@ -94,7 +100,9 @@ export async function GET(request: Request) {
                 console.error('City API Error (by name):', error);
                 return NextResponse.json(null);
             }
-            return NextResponse.json(normalizeCityData(toCamelCase(data)));
+            const response = NextResponse.json(normalizeCityData(toCamelCase(data)));
+            response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+            return response;
         }
 
         // Tüm şehirleri dön
@@ -108,7 +116,9 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Failed to load city data' }, { status: 500 });
         }
 
-        return NextResponse.json((data || []).map(toCamelCase).map(normalizeCityData));
+        const response = NextResponse.json((data || []).map(toCamelCase).map(normalizeCityData));
+        response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        return response;
     } catch (error) {
         console.error('City API Error:', error);
         return NextResponse.json({ error: 'Failed to load city data' }, { status: 500 });
