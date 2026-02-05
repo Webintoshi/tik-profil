@@ -160,11 +160,16 @@ export async function POST(request: Request) {
 
         const supabase = getSupabaseAdmin();
 
-        // Convert camelCase to snake_case for DB
-        const dbData = toSnakeCase({
+        // Prepare body - convert empty slug to null to avoid unique constraint issues
+        const preparedBody = {
             ...body,
+            // Empty string slug causes unique constraint violation, use null instead
+            slug: body.slug && body.slug.trim() !== '' ? body.slug.trim() : null,
             updated_at: new Date().toISOString(),
-        });
+        };
+
+        // Convert camelCase to snake_case for DB
+        const dbData = toSnakeCase(preparedBody);
 
         console.log('[Cities API POST] Attempting upsert with id:', dbData.id);
 
