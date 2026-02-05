@@ -80,7 +80,7 @@ export async function GET(request: Request) {
                 console.error('City API Error (by id):', error);
                 return NextResponse.json(null);
             }
-            return NextResponse.json(toCamelCase(normalizeCityData(data)));
+            return NextResponse.json(normalizeCityData(toCamelCase(data)));
         }
 
         if (name) {
@@ -94,7 +94,7 @@ export async function GET(request: Request) {
                 console.error('City API Error (by name):', error);
                 return NextResponse.json(null);
             }
-            return NextResponse.json(toCamelCase(normalizeCityData(data)));
+            return NextResponse.json(normalizeCityData(toCamelCase(data)));
         }
 
         // Tüm şehirleri dön
@@ -108,7 +108,7 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Failed to load city data' }, { status: 500 });
         }
 
-        return NextResponse.json((data || []).map(normalizeCityData).map(toCamelCase));
+        return NextResponse.json((data || []).map(toCamelCase).map(normalizeCityData));
     } catch (error) {
         console.error('City API Error:', error);
         return NextResponse.json({ error: 'Failed to load city data' }, { status: 500 });
@@ -158,7 +158,7 @@ export async function POST(request: Request) {
 
         console.log('[Cities API POST] Success! Saved city:', data.id, 'coverImage:', data.cover_image?.substring(0, 50) + '...');
 
-        return NextResponse.json({ success: true, data: toCamelCase(normalizeCityData(data)) });
+        return NextResponse.json({ success: true, data: normalizeCityData(toCamelCase(data)) });
     } catch (error) {
         console.error('City API POST Error:', error);
         return NextResponse.json({ error: 'Failed to save city data' }, { status: 500 });
