@@ -73,6 +73,8 @@ export default function CityEditPage() {
 
                 const city = cities.find((c: any) => c.id === id);
                 if (city) {
+                    console.log('[Cities Page] Loaded city from API:', city);
+
                     // Null güvenli places mapping
                     const cityPlaces = (city.places || []).map((p: any, i: number) => ({
                         ...p,
@@ -81,16 +83,29 @@ export default function CityEditPage() {
                         order: p.order || i
                     }));
 
-                    setData({
-                        ...data,
-                        ...city,
+                    const newData = {
+                        id: city.id,
+                        name: city.name,
+                        plate: city.plate,
+                        slug: city.slug || '',
+                        description: city.description || '',
+                        coverImage: city.coverImage || '',
+                        coverImageAlt: city.coverImageAlt || '',
+                        tagline: city.tagline || '',
+                        shortDescription: city.shortDescription || '',
+                        content: city.content || '',
                         seoTitle: city.seoTitle || `${city.name} Gezi Rehberi | En İyi Mekanlar`,
                         seoDescription: city.seoDescription || `${city.name} şehri için kapsamlı gezi rehberi. Gezilecek yerler, restoranlar ve daha fazlası.`,
+                        canonicalUrl: city.canonicalUrl || '',
                         tags: city.tags || [],
                         gallery: city.gallery || [],
                         places: cityPlaces,
                         status: city.status || 'draft',
-                    });
+                    };
+
+                    console.log('[Cities Page] Setting data:', newData.coverImage?.substring(0, 60) + '...');
+
+                    setData(newData);
                 }
                 setLoading(false);
             })
