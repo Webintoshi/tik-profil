@@ -36,6 +36,7 @@ import {
     FileText,
     CreditCard,
     Car,
+    Coffee,
 } from "lucide-react";
 import clsx from "clsx";
 import { useTheme } from "./ThemeProvider";
@@ -416,6 +417,52 @@ const VEHICLE_RENTAL_NAV_ITEMS = [
     },
 ];
 
+// Coffee Shop module menu items (Kahve Dükkanı)
+const COFFEE_NAV_ITEMS = [
+    {
+        id: "coffee-dashboard",
+        label: "Dashboard",
+        href: "/panel/coffee",
+        icon: BarChart3,
+    },
+    {
+        id: "coffee-categories",
+        label: "Kategoriler",
+        href: "/panel/coffee/categories",
+        icon: LayoutGrid,
+    },
+    {
+        id: "coffee-sizes",
+        label: "Boyutlar",
+        href: "/panel/coffee/sizes",
+        icon: Plus,
+    },
+    {
+        id: "coffee-extras",
+        label: "Ekstralar",
+        href: "/panel/coffee/extras",
+        icon: Plus,
+    },
+    {
+        id: "coffee-products",
+        label: "Ürünler",
+        href: "/panel/coffee/products",
+        icon: ClipboardList,
+    },
+    {
+        id: "coffee-orders",
+        label: "Siparişler",
+        href: "/panel/coffee/orders",
+        icon: ShoppingCart,
+    },
+    {
+        id: "coffee-settings",
+        label: "Ayarlar",
+        href: "/panel/coffee/settings",
+        icon: Settings,
+    },
+];
+
 interface BusinessSidebarProps {
     businessName?: string;
     businessLogo?: string;
@@ -445,6 +492,13 @@ const PERMISSION_ROUTES: Record<string, string> = {
     "clinic.billing": "/panel/clinic/billing",
     "clinic.analytics": "/panel/clinic/analytics",
     "clinic.settings": "/panel/clinic/settings",
+    "coffee.dashboard": "/panel/coffee",
+    "coffee.categories": "/panel/coffee/categories",
+    "coffee.sizes": "/panel/coffee/sizes",
+    "coffee.extras": "/panel/coffee/extras",
+    "coffee.products": "/panel/coffee/products",
+    "coffee.orders": "/panel/coffee/orders",
+    "coffee.settings": "/panel/coffee/settings",
 };
 
 export function BusinessSidebar({
@@ -458,7 +512,7 @@ export function BusinessSidebar({
     const router = useRouter();
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
-    const [expandedGroups, setExpandedGroups] = useState<string[]>(["hotel", "restaurant", "clinic"]);
+    const [expandedGroups, setExpandedGroups] = useState<string[]>(["hotel", "restaurant", "clinic", "coffee"]);
     const { isDark } = useTheme();
 
     // Check if restaurant module is enabled
@@ -517,6 +571,12 @@ export function BusinessSidebar({
         enabledModules.includes("oto-kiralama") ||
         enabledModules.includes("rent-a-car");
 
+    // Check if coffee shop module is enabled
+    const hasCoffeeModule = enabledModules.includes("coffee") ||
+        enabledModules.includes("cafe") ||
+        enabledModules.includes("kahve") ||
+        enabledModules.includes("kafeterya");
+
     // Permission check helper
     const canAccessRoute = (href: string): boolean => {
         // Owner has access to everything
@@ -539,6 +599,7 @@ export function BusinessSidebar({
     const filteredEcommerceNavItems = ECOMMERCE_NAV_ITEMS.filter(item => canAccessRoute(item.href));
     const filteredClinicNavItems = CLINIC_NAV_ITEMS.filter(item => canAccessRoute(item.href));
     const filteredVehicleRentalNavItems = VEHICLE_RENTAL_NAV_ITEMS.filter(item => canAccessRoute(item.href));
+    const filteredCoffeeNavItems = COFFEE_NAV_ITEMS.filter(item => canAccessRoute(item.href));
 
     const handleLogout = async () => {
         setIsLoggingOut(true);
@@ -973,6 +1034,47 @@ export function BusinessSidebar({
                                 >
                                     <div className="pt-1 space-y-0.5">
                                         {filteredVehicleRentalNavItems.map((item) => (
+                                            <NavItem key={item.id} item={item} isNested />
+                                        ))}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                )}
+
+                {/* Coffee Shop Module Group */}
+                {hasCoffeeModule && (
+                    <div className="pt-3">
+                        <button
+                            onClick={() => toggleGroup("coffee")}
+                            className={clsx(
+                                "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-colors",
+                                hoverBg
+                            )}
+                        >
+                            <Coffee className={clsx("h-4 w-4", "text-amber-600")} />
+                            <span className={clsx("font-medium text-sm flex-1 text-left", textSecondary)}>
+                                Kahve Dükkanı
+                            </span>
+                            <ChevronDown className={clsx(
+                                "h-4 w-4 transition-transform",
+                                textMuted,
+                                expandedGroups.includes("coffee") && "rotate-180"
+                            )} />
+                        </button>
+
+                        <AnimatePresence>
+                            {expandedGroups.includes("coffee") && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="overflow-hidden"
+                                >
+                                    <div className="pt-1 space-y-0.5">
+                                        {filteredCoffeeNavItems.map((item) => (
                                             <NavItem key={item.id} item={item} isNested />
                                         ))}
                                     </div>

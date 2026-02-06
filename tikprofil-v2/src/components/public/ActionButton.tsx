@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Utensils, Phone, Scissors, Stethoscope, Calendar, BedDouble, ChevronDown, Home, BookOpen, ShoppingBag, Car } from "lucide-react";
+import { Utensils, Phone, Scissors, Stethoscope, Calendar, BedDouble, ChevronDown, Home, BookOpen, ShoppingBag, Car, Coffee } from "lucide-react";
 import { ReservationModal } from "./ReservationModal";
 import { EmlakListingsSheet } from "./EmlakListingsSheet";
 import BeautyServicesSheet from "./BeautyServicesSheet";
@@ -9,6 +9,7 @@ import ClinicServicesSheet from "./ClinicServicesSheet";
 import EcommerceSheet from "./EcommerceSheet";
 import { HotelInlineMenu } from "./HotelInlineMenu";
 import { VehicleRentalInlineMenu } from "./VehicleRentalInlineMenu";
+import { CoffeeInlineMenu } from "./CoffeeInlineMenu";
 import { prefetchMenuData } from "@/lib/menuCache";
 import { prefetchBeautyData } from "@/lib/beautyCache";
 import Link from "next/link";
@@ -25,7 +26,7 @@ interface ActionButtonProps {
 }
 
 // Industry action configurations
-const INDUSTRY_ACTIONS: Record<string, { label: string; icon: string; type: "reservation" | "call" | "link" | "inline-menu" | "emlak-menu" | "beauty-menu" | "fastfood-menu" | "restaurant-menu" | "ecommerce-menu" | "hotel-menu" | "vehicle-rental" | "clinic-menu"; linkPath?: string }> = {
+const INDUSTRY_ACTIONS: Record<string, { label: string; icon: string; type: "reservation" | "call" | "link" | "inline-menu" | "emlak-menu" | "beauty-menu" | "fastfood-menu" | "restaurant-menu" | "ecommerce-menu" | "hotel-menu" | "vehicle-rental" | "coffee-menu" | "clinic-menu"; linkPath?: string }> = {
     "e-commerce": { label: "Sipariş Ver", icon: "cart", type: "ecommerce-menu" },
     "ecommerce": { label: "Sipariş Ver", icon: "cart", type: "ecommerce-menu" },
     "online-magaza": { label: "Sipariş Ver", icon: "cart", type: "ecommerce-menu" },
@@ -34,6 +35,12 @@ const INDUSTRY_ACTIONS: Record<string, { label: string; icon: string; type: "res
     "restoran": { label: "Menü", icon: "book", type: "restaurant-menu" },
     "cafe": { label: "Menü", icon: "book", type: "restaurant-menu" },
     "kafe": { label: "Menü", icon: "book", type: "restaurant-menu" },
+    // Coffee types - inline menu for coffee shops
+    "coffee": { label: "Sipariş Ver", icon: "coffee", type: "coffee-menu" },
+    "kahve": { label: "Sipariş Ver", icon: "coffee", type: "coffee-menu" },
+    "coffeeshop": { label: "Sipariş Ver", icon: "coffee", type: "coffee-menu" },
+    "kahvedukkani": { label: "Sipariş Ver", icon: "coffee", type: "coffee-menu" },
+    "coffee-shop": { label: "Sipariş Ver", icon: "coffee", type: "coffee-menu" },
     "fastfood": { label: "Sipariş Ver", icon: "utensils", type: "fastfood-menu" },
     "fast-food": { label: "Sipariş Ver", icon: "utensils", type: "fastfood-menu" },
     // Hotel types - inline menu for room types
@@ -88,6 +95,7 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
     const [showEcommerceSheet, setShowEcommerceSheet] = useState(false);
     const [showHotelMenu, setShowHotelMenu] = useState(false);
     const [showVehicleRental, setShowVehicleRental] = useState(false);
+    const [showCoffeeMenu, setShowCoffeeMenu] = useState(false);
     const [menuDataLoaded, setMenuDataLoaded] = useState(false);
     const [beautyDataLoaded, setBeautyDataLoaded] = useState(false);
 
@@ -137,6 +145,8 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
                 return <Home className="w-6 h-6" />;
             case "book":
                 return <BookOpen className="w-6 h-6" />;
+            case "coffee":
+                return <Coffee className="w-6 h-6" />;
             case "car":
                 return <Car className="w-6 h-6" />;
             case "phone":
@@ -165,6 +175,8 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
             setShowHotelMenu(!showHotelMenu);
         } else if (action.type === "vehicle-rental") {
             setShowVehicleRental(!showVehicleRental);
+        } else if (action.type === "coffee-menu") {
+            setShowCoffeeMenu(!showCoffeeMenu);
         } else if (action.type === "call" && whatsappNumber) {
             const cleanNumber = whatsappNumber.replace(/[\s\-\(\)]/g, "");
             window.open(`tel:${cleanNumber}`, "_self");
@@ -386,6 +398,43 @@ export function ActionButton({ industry, whatsappNumber, businessName, businessS
                         businessName={businessName}
                         whatsappNumber={whatsappNumber}
                         onClose={() => setShowVehicleRental(false)}
+                    />
+                )}
+            </>
+        );
+    }
+
+    // For coffee-menu type, render button + inline menu
+    if (action.type === "coffee-menu") {
+        return (
+            <>
+                {/* Button */}
+                <button
+                    onClick={handleClick}
+                    className="
+                        h-14 rounded-2xl flex items-center justify-center gap-2 font-bold text-white text-sm md:text-base
+                        bg-purple-600 shadow-lg shadow-purple-500/25
+                        transition-transform active:scale-95 hover:bg-purple-700
+                    "
+                >
+                    {renderIcon()}
+                    {action.label}
+                    <ChevronDown className={clsx(
+                        "w-4 h-4 transition-transform",
+                        showCoffeeMenu && "rotate-180"
+                    )} />
+                </button>
+
+                {/* Coffee Inline Menu */}
+                {businessSlug && (
+                    <CoffeeInlineMenu
+                        isOpen={showCoffeeMenu}
+                        businessSlug={businessSlug}
+                        businessName={businessName}
+                        businessId={businessId}
+                        businessLogo={businessLogo}
+                        businessPhone={businessPhone}
+                        onClose={() => setShowCoffeeMenu(false)}
                     />
                 )}
             </>
