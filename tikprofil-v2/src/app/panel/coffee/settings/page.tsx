@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Wifi, Gift, CreditCard, Clock, Percent, Coffee } from "lucide-react";
-import { LiquidMetalCard } from "@/components/cities/LiquidMetalCard";
+import { clsx } from "clsx";
+import { useTheme } from "@/components/panel/ThemeProvider";
 import { useBusinessSession } from "@/hooks/useBusinessSession";
 
 interface Settings {
@@ -53,6 +54,11 @@ export default function CoffeeSettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<"general" | "loyalty" | "payment">("general");
+    
+    const { isDark } = useTheme();
+    const cardBg = isDark ? "bg-gray-800" : "bg-white";
+    const textPrimary = isDark ? "text-white" : "text-gray-900";
+    const textSecondary = isDark ? "text-gray-400" : "text-gray-500";
 
     useEffect(() => {
         if (!sessionLoading && !session) {
@@ -116,8 +122,8 @@ export default function CoffeeSettingsPage() {
     return (
         <div className="p-6 max-w-4xl mx-auto">
             <div className="mb-8">
-                <h1 className="text-3xl font-bold text-white">İşletme Ayarları</h1>
-                <p className="text-white/50 mt-1">Kahve dükkanınızın ayarlarını yönetin</p>
+                <h1 className={clsx("text-3xl font-bold", textPrimary)}>İşletme Ayarları</h1>
+                <p className={clsx("mt-1", textSecondary)}>Kahve dükkanınızın ayarlarını yönetin</p>
             </div>
 
             {/* Tabs */}
@@ -129,11 +135,14 @@ export default function CoffeeSettingsPage() {
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium transition-all whitespace-nowrap ${
+                            className={clsx(
+                                "flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium transition-all whitespace-nowrap",
                                 isActive 
                                     ? "bg-[#fe1e50] text-white shadow-lg shadow-[#fe1e50]/25" 
-                                    : "bg-white/[0.05] text-white/60 hover:bg-white/[0.1]"
-                            }`}
+                                    : isDark 
+                                        ? "bg-white/[0.05] text-white/60 hover:bg-white/[0.1]"
+                                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            )}
                         >
                             <Icon className="w-4 h-4" />
                             {tab.label}
@@ -145,60 +154,80 @@ export default function CoffeeSettingsPage() {
             {/* General Tab */}
             {activeTab === "general" && (
                 <div className="space-y-6">
-                    <LiquidMetalCard>
+                    <div className={clsx("rounded-2xl shadow-sm border", cardBg, isDark ? "border-white/[0.1]" : "border-gray-200")}>
                         <div className="p-6">
-                            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                            <h3 className={clsx("text-lg font-bold mb-4 flex items-center gap-2", textPrimary)}>
                                 <Wifi className="w-5 h-5 text-[#fe1e50]" />
                                 WiFi Bilgileri
                             </h3>
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-white/60 mb-2">WiFi Adı</label>
+                                    <label className={clsx("block text-sm mb-2", textSecondary)}>WiFi Adı</label>
                                     <input
                                         type="text"
                                         value={settings.wifi_name}
                                         onChange={(e) => updateSetting("wifi_name", e.target.value)}
-                                        className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                                        className={clsx(
+                                            "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
+                                            isDark 
+                                                ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                                : "bg-white border-gray-300 text-gray-900"
+                                        )}
                                         placeholder="KahveDükkanı-WiFi"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm text-white/60 mb-2">WiFi Şifresi</label>
+                                    <label className={clsx("block text-sm mb-2", textSecondary)}>WiFi Şifresi</label>
                                     <input
                                         type="text"
                                         value={settings.wifi_password}
                                         onChange={(e) => updateSetting("wifi_password", e.target.value)}
-                                        className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                                        className={clsx(
+                                            "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
+                                            isDark 
+                                                ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                                : "bg-white border-gray-300 text-gray-900"
+                                        )}
                                         placeholder="••••••••"
                                     />
                                 </div>
                             </div>
                         </div>
-                    </LiquidMetalCard>
+                    </div>
 
-                    <LiquidMetalCard>
+                    <div className={clsx("rounded-2xl shadow-sm border", cardBg, isDark ? "border-white/[0.1]" : "border-gray-200")}>
                         <div className="p-6">
-                            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                            <h3 className={clsx("text-lg font-bold mb-4 flex items-center gap-2", textPrimary)}>
                                 <Clock className="w-5 h-5 text-[#fe1e50]" />
                                 Sipariş Ayarları
                             </h3>
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-white/60 mb-2">Varsayılan Hazırlık Süresi (dakika)</label>
+                                    <label className={clsx("block text-sm mb-2", textSecondary)}>Varsayılan Hazırlık Süresi (dakika)</label>
                                     <input
                                         type="number"
                                         value={settings.preparation_time_default}
                                         onChange={(e) => updateSetting("preparation_time_default", parseInt(e.target.value))}
-                                        className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                                        className={clsx(
+                                            "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
+                                            isDark 
+                                                ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                                : "bg-white border-gray-300 text-gray-900"
+                                        )}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm text-white/60 mb-2">KDV Oranı (%)</label>
+                                    <label className={clsx("block text-sm mb-2", textSecondary)}>KDV Oranı (%)</label>
                                     <input
                                         type="number"
                                         value={settings.tax_rate}
                                         onChange={(e) => updateSetting("tax_rate", parseFloat(e.target.value))}
-                                        className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                                        className={clsx(
+                                            "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
+                                            isDark 
+                                                ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                                : "bg-white border-gray-300 text-gray-900"
+                                        )}
                                     />
                                 </div>
                             </div>
@@ -208,78 +237,104 @@ export default function CoffeeSettingsPage() {
                                     id="pickup_enabled"
                                     checked={settings.pickup_enabled}
                                     onChange={(e) => updateSetting("pickup_enabled", e.target.checked)}
-                                    className="rounded bg-white/[0.05] border-white/[0.1]"
+                                    className={clsx(
+                                        "rounded",
+                                        isDark 
+                                            ? "bg-white/[0.05] border-white/[0.1]" 
+                                            : "bg-white border-gray-300"
+                                    )}
                                 />
-                                <label htmlFor="pickup_enabled" className="text-white/60">Önden sipariş (Pickup) aktif</label>
+                                <label htmlFor="pickup_enabled" className={textSecondary}>Önden sipariş (Pickup) aktif</label>
                             </div>
                         </div>
-                    </LiquidMetalCard>
+                    </div>
                 </div>
             )}
 
             {/* Loyalty Tab */}
             {activeTab === "loyalty" && (
                 <div className="space-y-6">
-                    <LiquidMetalCard>
+                    <div className={clsx("rounded-2xl shadow-sm border", cardBg, isDark ? "border-white/[0.1]" : "border-gray-200")}>
                         <div className="p-6">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                <h3 className={clsx("text-lg font-bold flex items-center gap-2", textPrimary)}>
                                     <Gift className="w-5 h-5 text-[#fe1e50]" />
                                     Sadakat Sistemi
                                 </h3>
                                 <button
                                     onClick={() => updateSetting("loyalty_enabled", !settings.loyalty_enabled)}
-                                    className={`relative w-12 h-6 rounded-full transition-colors ${settings.loyalty_enabled ? "bg-[#fe1e50]" : "bg-white/20"}`}
+                                    className={clsx(
+                                        "relative w-12 h-6 rounded-full transition-colors",
+                                        settings.loyalty_enabled ? "bg-[#fe1e50]" : isDark ? "bg-white/20" : "bg-gray-300"
+                                    )}
                                 >
-                                    <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${settings.loyalty_enabled ? "translate-x-7" : "translate-x-1"}`} />
+                                    <span className={clsx(
+                                        "absolute top-1 w-4 h-4 bg-white rounded-full transition-transform",
+                                        settings.loyalty_enabled ? "translate-x-7" : "translate-x-1"
+                                    )} />
                                 </button>
                             </div>
 
                             {settings.loyalty_enabled && (
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="block text-sm text-white/60 mb-2">Sistem Tipi</label>
+                                        <label className={clsx("block text-sm mb-2", textSecondary)}>Sistem Tipi</label>
                                         <select
                                             value={settings.loyalty_type}
                                             onChange={(e) => updateSetting("loyalty_type", e.target.value)}
-                                            className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                                            className={clsx(
+                                                "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
+                                                isDark 
+                                                    ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                                    : "bg-white border-gray-300 text-gray-900"
+                                            )}
                                         >
-                                            <option value="stamps" className="bg-[#1a1a2e]">Damga Sistemi (10 al 1 bedava)</option>
-                                            <option value="points" className="bg-[#1a1a2e]">Puan Sistemi</option>
+                                            <option value="stamps" className={isDark ? "bg-[#1a1a2e]" : "bg-white"}>Damga Sistemi (10 al 1 bedava)</option>
+                                            <option value="points" className={isDark ? "bg-[#1a1a2e]" : "bg-white"}>Puan Sistemi</option>
                                         </select>
                                     </div>
                                     <div className="grid md:grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm text-white/60 mb-2">Bedava İçecek İçin Damga</label>
+                                            <label className={clsx("block text-sm mb-2", textSecondary)}>Bedava İçecek İçin Damga</label>
                                             <input
                                                 type="number"
                                                 value={settings.stamps_for_free_drink}
                                                 onChange={(e) => updateSetting("stamps_for_free_drink", parseInt(e.target.value))}
-                                                className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                                                className={clsx(
+                                                    "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
+                                                    isDark 
+                                                        ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                                        : "bg-white border-gray-300 text-gray-900"
+                                                )}
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-sm text-white/60 mb-2">Her 1 ₺ için Kazanılan Puan</label>
+                                            <label className={clsx("block text-sm mb-2", textSecondary)}>Her 1 ₺ için Kazanılan Puan</label>
                                             <input
                                                 type="number"
                                                 value={settings.points_per_currency}
                                                 onChange={(e) => updateSetting("points_per_currency", parseInt(e.target.value))}
-                                                className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                                                className={clsx(
+                                                    "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
+                                                    isDark 
+                                                        ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                                        : "bg-white border-gray-300 text-gray-900"
+                                                )}
                                             />
                                         </div>
                                     </div>
                                 </div>
                             )}
                         </div>
-                    </LiquidMetalCard>
+                    </div>
                 </div>
             )}
 
             {/* Payment Tab */}
             {activeTab === "payment" && (
-                <LiquidMetalCard>
+                <div className={clsx("rounded-2xl shadow-sm border", cardBg, isDark ? "border-white/[0.1]" : "border-gray-200")}>
                     <div className="p-6">
-                        <h3 className="text-lg font-bold text-white mb-4">Kabul Edilen Ödeme Yöntemleri</h3>
+                        <h3 className={clsx("text-lg font-bold mb-4", textPrimary)}>Kabul Edilen Ödeme Yöntemleri</h3>
                         <div className="space-y-3">
                             {[
                                 { key: "payment_cash", label: "Nakit", desc: "Kasa ile ödeme" },
@@ -288,36 +343,49 @@ export default function CoffeeSettingsPage() {
                             ].map(({ key, label, desc }) => (
                                 <label
                                     key={key}
-                                    className={`flex items-center justify-between p-4 rounded-xl cursor-pointer transition ${
+                                    className={clsx(
+                                        "flex items-center justify-between p-4 rounded-xl cursor-pointer transition",
                                         settings[key as keyof Settings] 
                                             ? "bg-[#fe1e50]/10 border border-[#fe1e50]/30" 
-                                            : "bg-white/[0.03] border border-white/[0.08]"
-                                    }`}
+                                            : isDark
+                                                ? "bg-white/[0.03] border border-white/[0.08]"
+                                                : "bg-gray-50 border border-gray-200"
+                                    )}
                                 >
                                     <div className="flex items-center gap-3">
                                         <input
                                             type="checkbox"
                                             checked={settings[key as keyof Settings] as boolean}
                                             onChange={(e) => updateSetting(key as keyof Settings, e.target.checked as any)}
-                                            className="rounded bg-white/[0.05] border-white/[0.1]"
+                                            className={clsx(
+                                                "rounded",
+                                                isDark 
+                                                    ? "bg-white/[0.05] border-white/[0.1]" 
+                                                    : "bg-white border-gray-300"
+                                            )}
                                         />
                                         <div>
-                                            <p className="text-white font-medium">{label}</p>
-                                            <p className="text-white/40 text-sm">{desc}</p>
+                                            <p className={clsx("font-medium", textPrimary)}>{label}</p>
+                                            <p className={clsx("text-sm", textSecondary)}>{desc}</p>
                                         </div>
                                     </div>
                                 </label>
                             ))}
                         </div>
                     </div>
-                </LiquidMetalCard>
+                </div>
             )}
 
             {/* Save Button */}
             <div className="mt-8 flex justify-end gap-3">
                 <button
                     onClick={fetchSettings}
-                    className="px-6 py-3 bg-white/[0.05] text-white rounded-xl hover:bg-white/[0.1] transition"
+                    className={clsx(
+                        "px-6 py-3 rounded-xl transition",
+                        isDark 
+                            ? "bg-white/[0.05] text-white hover:bg-white/[0.1]" 
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    )}
                 >
                     Sıfırla
                 </button>

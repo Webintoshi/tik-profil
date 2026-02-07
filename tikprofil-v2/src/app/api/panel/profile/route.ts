@@ -50,10 +50,10 @@ export async function PUT(request: Request) {
 
         const supabase = getSupabaseAdmin();
 
-        // Fetch existing data to merge
+        // Fetch existing data to merge (include logo and cover columns)
         const { data: existing, error: fetchError } = await supabase
             .from('businesses')
-            .select('data')
+            .select('data, logo, cover')
             .eq('id', businessId)
             .single();
 
@@ -78,15 +78,19 @@ export async function PUT(request: Request) {
             socialLinks: body.socialLinks || existingData.socialLinks || {},
             showHours: body.showHours ?? existingData.showHours ?? true,
             workingHours: body.workingHours || existingData.workingHours || [],
+            logo: existing?.logo || existingData.logo || null,
+            cover: existing?.cover || existingData.cover || null,
             updatedAt: new Date().toISOString(),
         };
 
-        // Build update data
+        // Build update data (preserve logo and cover)
         const updateData: Record<string, unknown> = {
             name: body.name,
             slogan: body.slogan || null,
             about: body.about || null,
             phone: body.phone || null,
+            logo: existing?.logo || existingData.logo || null,
+            cover: existing?.cover || existingData.cover || null,
             data: mergedData,
             updated_at: new Date().toISOString(),
         };

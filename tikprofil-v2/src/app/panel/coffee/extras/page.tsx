@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Plus, Trash2, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
-import { LiquidMetalCard } from "@/components/cities/LiquidMetalCard";
+import { clsx } from "clsx";
+import { useTheme } from "@/components/panel/ThemeProvider";
 import { useBusinessSession } from "@/hooks/useBusinessSession";
 
 interface Extra {
@@ -30,6 +31,11 @@ interface ExtraGroup {
 export default function CoffeeExtrasPage() {
     const router = useRouter();
     const { session, loading: sessionLoading } = useBusinessSession();
+    const { isDark } = useTheme();
+    const cardBg = isDark ? "bg-gray-800" : "bg-white";
+    const textPrimary = isDark ? "text-white" : "text-gray-900";
+    const textSecondary = isDark ? "text-gray-400" : "text-gray-500";
+    const textMuted = isDark ? "text-gray-500" : "text-gray-400";
     const [groups, setGroups] = useState<ExtraGroup[]>([]);
     const [loading, setLoading] = useState(true);
     const [showGroupModal, setShowGroupModal] = useState(false);
@@ -135,7 +141,7 @@ export default function CoffeeExtrasPage() {
     if (sessionLoading || loading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
-                <div className="w-12 h-12 border-4 border-white/10 border-t-[#fe1e50] rounded-full animate-spin" />
+                <div className={clsx("w-12 h-12 border-4 rounded-full animate-spin", isDark ? "border-white/10" : "border-gray-200", "border-t-[#fe1e50]")} />
             </div>
         );
     }
@@ -144,8 +150,8 @@ export default function CoffeeExtrasPage() {
         <div className="p-6 max-w-7xl mx-auto">
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Ekstralar</h1>
-                    <p className="text-white/50 mt-1">Süt, şurup ve ekstra seçenekleri</p>
+                    <h1 className={clsx("text-3xl font-bold", textPrimary)}>Ekstralar</h1>
+                    <p className={clsx("mt-1", textSecondary)}>Süt, şurup ve ekstra seçenekleri</p>
                 </div>
                 <button
                     onClick={() => setShowGroupModal(true)}
@@ -158,24 +164,24 @@ export default function CoffeeExtrasPage() {
 
             <div className="space-y-4">
                 {groups.map((group) => (
-                    <LiquidMetalCard key={group.id} className={!group.is_active ? 'opacity-60' : ''}>
+                    <div key={group.id} className={clsx(cardBg, "rounded-2xl shadow-sm border", isDark ? "border-white/[0.08]" : "border-gray-200", !group.is_active ? 'opacity-60' : '')}>
                         <div 
                             className="p-4 flex items-center justify-between cursor-pointer"
                             onClick={() => toggleExpanded(group.id)}
                         >
                             <div className="flex items-center gap-3">
-                                <GripVertical className="w-5 h-5 text-white/30" />
+                                <GripVertical className={clsx("w-5 h-5", textMuted)} />
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <h3 className="font-bold text-white">{group.name}</h3>
+                                        <h3 className={clsx("font-bold", textPrimary)}>{group.name}</h3>
                                         {group.is_required && (
-                                            <span className="px-2 py-0.5 text-xs bg-red-500/20 text-red-400 rounded-full">Zorunlu</span>
+                                            <span className="px-2 py-0.5 text-xs bg-red-500/20 text-red-500 rounded-full">Zorunlu</span>
                                         )}
-                                        <span className={`px-2 py-0.5 text-xs rounded-full ${group.is_active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-white/50'}`}>
+                                        <span className={clsx("px-2 py-0.5 text-xs rounded-full", group.is_active ? "bg-emerald-500/20 text-emerald-600" : isDark ? "bg-white/10 text-white/50" : "bg-gray-100 text-gray-500")}>
                                             {group.is_active ? 'Aktif' : 'Pasif'}
                                         </span>
                                     </div>
-                                    <p className="text-sm text-white/40">
+                                    <p className={clsx("text-sm", textMuted)}>
                                         {group.selection_type === 'single' ? 'Tekli seçim' : 'Çoklu seçim'}
                                     </p>
                                 </div>
@@ -194,27 +200,27 @@ export default function CoffeeExtrasPage() {
                                     <Trash2 className="w-4 h-4" />
                                 </button>
                                 {expandedGroups.has(group.id) ? (
-                                    <ChevronUp className="w-5 h-5 text-white/40" />
+                                    <ChevronUp className={clsx("w-5 h-5", textMuted)} />
                                 ) : (
-                                    <ChevronDown className="w-5 h-5 text-white/40" />
+                                    <ChevronDown className={clsx("w-5 h-5", textMuted)} />
                                 )}
                             </div>
                         </div>
 
                         {expandedGroups.has(group.id) && (
-                            <div className="border-t border-white/[0.08] divide-y divide-white/[0.05]">
+                            <div className={clsx("border-t divide-y", isDark ? "border-white/[0.08] divide-white/[0.05]" : "border-gray-100 divide-gray-100")}>
                                 {group.extras?.map((extra) => (
                                     <div key={extra.id} className="px-4 py-3 flex justify-between items-center">
                                         <div className="flex items-center gap-3">
-                                            <GripVertical className="w-4 h-4 text-white/20" />
-                                            <span className="text-white">{extra.name}</span>
-                                            <span className={`text-sm ${extra.price_modifier > 0 ? 'text-emerald-400' : 'text-white/40'}`}>
+                                            <GripVertical className={clsx("w-4 h-4", isDark ? "text-white/20" : "text-gray-300")} />
+                                            <span className={textPrimary}>{extra.name}</span>
+                                            <span className={clsx("text-sm", extra.price_modifier > 0 ? "text-emerald-600" : textMuted)}>
                                                 {extra.price_modifier !== 0 ? `${extra.price_modifier > 0 ? '+' : ''}₺${extra.price_modifier}` : 'Ücretsiz'}
                                             </span>
                                         </div>
                                         <button
                                             onClick={() => handleDeleteExtra(extra.id)}
-                                            className="p-1.5 text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded transition"
+                                            className={clsx("p-1.5 rounded transition", isDark ? "text-white/30 hover:text-red-400 hover:bg-red-500/10" : "text-gray-400 hover:text-red-500 hover:bg-red-50")}
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>
@@ -222,37 +228,37 @@ export default function CoffeeExtrasPage() {
                                 ))}
                             </div>
                         )}
-                    </LiquidMetalCard>
+                    </div>
                 ))}
             </div>
 
             {/* Group Modal */}
             {showGroupModal && (
-                <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className={clsx("fixed inset-0 z-50 flex items-center justify-center p-4", isDark ? "bg-black/50" : "bg-black/30", "backdrop-blur-sm")}>
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="bg-[#1a1a2e] rounded-2xl p-6 w-full max-w-md border border-white/[0.1]"
+                        className={clsx("rounded-2xl p-6 w-full max-w-md border", isDark ? "bg-[#1a1a2e] border-white/[0.1]" : "bg-white border-gray-200")}
                     >
-                        <h2 className="text-xl font-bold text-white mb-4">Yeni Ekstra Grubu</h2>
+                        <h2 className={clsx("text-xl font-bold mb-4", textPrimary)}>Yeni Ekstra Grubu</h2>
                         <form onSubmit={handleCreateGroup} className="space-y-4">
                             <div>
-                                <label className="block text-sm text-white/60 mb-2">Grup Adı</label>
+                                <label className={clsx("block text-sm mb-2", textSecondary)}>Grup Adı</label>
                                 <input
                                     type="text"
                                     value={groupForm.name}
                                     onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
-                                    className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                                    className={clsx("w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50", isDark ? "bg-white/[0.05] border border-white/[0.1] text-white" : "bg-gray-50 border border-gray-200 text-gray-900")}
                                     placeholder="Süt Seçimi, Şurup, Ekstralar"
                                     required
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm text-white/60 mb-2">Seçim Tipi</label>
+                                <label className={clsx("block text-sm mb-2", textSecondary)}>Seçim Tipi</label>
                                 <select
                                     value={groupForm.selection_type}
                                     onChange={(e) => setGroupForm({ ...groupForm, selection_type: e.target.value as 'single' | 'multiple' })}
-                                    className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                                    className={clsx("w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50", isDark ? "bg-white/[0.05] border border-white/[0.1] text-white" : "bg-gray-50 border border-gray-200 text-gray-900")}
                                 >
                                     <option value="single">Tekli Seçim</option>
                                     <option value="multiple">Çoklu Seçim</option>
@@ -264,15 +270,15 @@ export default function CoffeeExtrasPage() {
                                     id="required"
                                     checked={groupForm.is_required}
                                     onChange={(e) => setGroupForm({ ...groupForm, is_required: e.target.checked })}
-                                    className="rounded bg-white/[0.05] border-white/[0.1]"
+                                    className={clsx("rounded", isDark ? "bg-white/[0.05] border-white/[0.1]" : "bg-gray-50 border-gray-200")}
                                 />
-                                <label htmlFor="required" className="text-white/60">Zorunlu seçim</label>
+                                <label htmlFor="required" className={textSecondary}>Zorunlu seçim</label>
                             </div>
                             <div className="flex gap-2 justify-end pt-4">
                                 <button
                                     type="button"
                                     onClick={() => setShowGroupModal(false)}
-                                    className="px-4 py-2 bg-white/[0.05] text-white rounded-xl hover:bg-white/[0.1]"
+                                    className={clsx("px-4 py-2 rounded-xl", isDark ? "bg-white/[0.05] text-white hover:bg-white/[0.1]" : "bg-gray-100 text-gray-700 hover:bg-gray-200")}
                                 >
                                     İptal
                                 </button>
@@ -290,34 +296,34 @@ export default function CoffeeExtrasPage() {
 
             {/* Extra Modal */}
             {showExtraModal && selectedGroup && (
-                <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className={clsx("fixed inset-0 z-50 flex items-center justify-center p-4", isDark ? "bg-black/50" : "bg-black/30", "backdrop-blur-sm")}>
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="bg-[#1a1a2e] rounded-2xl p-6 w-full max-w-md border border-white/[0.1]"
+                        className={clsx("rounded-2xl p-6 w-full max-w-md border", isDark ? "bg-[#1a1a2e] border-white/[0.1]" : "bg-white border-gray-200")}
                     >
-                        <h2 className="text-xl font-bold text-white mb-1">Yeni Seçenek</h2>
-                        <p className="text-white/40 text-sm mb-4">{selectedGroup.name}</p>
+                        <h2 className={clsx("text-xl font-bold mb-1", textPrimary)}>Yeni Seçenek</h2>
+                        <p className={clsx("text-sm mb-4", textMuted)}>{selectedGroup.name}</p>
                         <form onSubmit={handleCreateExtra} className="space-y-4">
                             <div>
-                                <label className="block text-sm text-white/60 mb-2">Seçenek Adı</label>
+                                <label className={clsx("block text-sm mb-2", textSecondary)}>Seçenek Adı</label>
                                 <input
                                     type="text"
                                     value={extraForm.name}
                                     onChange={(e) => setExtraForm({ ...extraForm, name: e.target.value })}
-                                    className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                                    className={clsx("w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50", isDark ? "bg-white/[0.05] border border-white/[0.1] text-white" : "bg-gray-50 border border-gray-200 text-gray-900")}
                                     placeholder="Yulaf Sütü, Vanilya Şurupu"
                                     required
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm text-white/60 mb-2">Fiyat Farkı (₺)</label>
+                                <label className={clsx("block text-sm mb-2", textSecondary)}>Fiyat Farkı (₺)</label>
                                 <input
                                     type="number"
                                     step="0.01"
                                     value={extraForm.price_modifier}
                                     onChange={(e) => setExtraForm({ ...extraForm, price_modifier: parseFloat(e.target.value) })}
-                                    className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                                    className={clsx("w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50", isDark ? "bg-white/[0.05] border border-white/[0.1] text-white" : "bg-gray-50 border border-gray-200 text-gray-900")}
                                     placeholder="0"
                                 />
                             </div>
@@ -325,7 +331,7 @@ export default function CoffeeExtrasPage() {
                                 <button
                                     type="button"
                                     onClick={() => setShowExtraModal(false)}
-                                    className="px-4 py-2 bg-white/[0.05] text-white rounded-xl hover:bg-white/[0.1]"
+                                    className={clsx("px-4 py-2 rounded-xl", isDark ? "bg-white/[0.05] text-white hover:bg-white/[0.1]" : "bg-gray-100 text-gray-700 hover:bg-gray-200")}
                                 >
                                     İptal
                                 </button>

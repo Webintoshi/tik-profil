@@ -9,8 +9,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { LiquidMetalCard } from "@/components/cities/LiquidMetalCard";
 import { useBusinessSession } from "@/hooks/useBusinessSession";
+import { useTheme } from "@/components/panel/ThemeProvider";
+import clsx from "clsx";
 
 interface Product {
     id: string;
@@ -32,6 +33,11 @@ export default function CoffeeProductsPage() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [filterCategory, setFilterCategory] = useState("");
+
+    const { isDark } = useTheme();
+    const cardBg = isDark ? "bg-gray-800" : "bg-white";
+    const textPrimary = isDark ? "text-white" : "text-gray-900";
+    const textSecondary = isDark ? "text-gray-400" : "text-gray-500";
 
     useEffect(() => {
         if (!sessionLoading && !session) {
@@ -107,8 +113,8 @@ export default function CoffeeProductsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Ürünler</h1>
-                    <p className="text-white/50 mt-1">{products.length} ürün listeleniyor</p>
+                    <h1 className={clsx("text-3xl font-bold", textPrimary)}>Ürünler</h1>
+                    <p className={clsx("mt-1", textSecondary)}>{products.length} ürün listeleniyor</p>
                 </div>
                 <Link
                     href="/panel/coffee/products/new"
@@ -120,22 +126,32 @@ export default function CoffeeProductsPage() {
             </div>
 
             {/* Filters */}
-            <LiquidMetalCard className="mb-6">
+            <div className={clsx("mb-6 rounded-2xl shadow-sm", cardBg)}>
                 <div className="p-4 flex flex-col md:flex-row gap-4">
                     <div className="relative flex-1">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                        <Search className={clsx("absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5", textSecondary)} />
                         <input
                             type="text"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Ürün ara..."
-                            className="w-full pl-12 pr-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                            className={clsx(
+                                "w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
+                                isDark 
+                                    ? "bg-white/[0.05] border-white/[0.1] text-white placeholder-white/30" 
+                                    : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400"
+                            )}
                         />
                     </div>
                     <select
                         value={filterCategory}
                         onChange={(e) => setFilterCategory(e.target.value)}
-                        className="px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                        className={clsx(
+                            "px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
+                            isDark 
+                                ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                : "bg-gray-50 border-gray-200 text-gray-900"
+                        )}
                     >
                         <option value="">Tüm Kategoriler</option>
                         {categories.map(cat => (
@@ -143,7 +159,7 @@ export default function CoffeeProductsPage() {
                         ))}
                     </select>
                 </div>
-            </LiquidMetalCard>
+            </div>
 
             {/* Products Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -154,7 +170,7 @@ export default function CoffeeProductsPage() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
                     >
-                        <LiquidMetalCard>
+                        <div className={clsx("rounded-2xl shadow-sm overflow-hidden", cardBg)}>
                             <div className="relative aspect-square">
                                 {product.image_url ? (
                                     <Image
@@ -164,8 +180,8 @@ export default function CoffeeProductsPage() {
                                         className="object-cover rounded-t-3xl"
                                     />
                                 ) : (
-                                    <div className="w-full h-full bg-white/[0.05] flex items-center justify-center rounded-t-3xl">
-                                        <span className="text-white/30">Görsel yok</span>
+                                    <div className={clsx("w-full h-full flex items-center justify-center rounded-t-3xl", isDark ? "bg-white/[0.05]" : "bg-gray-100")}>
+                                        <span className={textSecondary}>Görsel yok</span>
                                     </div>
                                 )}
                                 {product.is_featured && (
@@ -177,11 +193,12 @@ export default function CoffeeProductsPage() {
                                 <div className="absolute top-3 right-3 flex gap-2">
                                     <button
                                         onClick={() => toggleAvailability(product.id, product.is_available)}
-                                        className={`p-2 rounded-lg backdrop-blur-sm transition-colors ${
+                                        className={clsx(
+                                            "p-2 rounded-lg backdrop-blur-sm transition-colors",
                                             product.is_available 
                                                 ? 'bg-emerald-500/80 text-white' 
                                                 : 'bg-red-500/80 text-white'
-                                        }`}
+                                        )}
                                     >
                                         {product.is_available ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                     </button>
@@ -190,22 +207,25 @@ export default function CoffeeProductsPage() {
                             <div className="p-4">
                                 <div className="flex items-start justify-between mb-2">
                                     <div>
-                                        <h3 className="text-white font-bold text-lg">{product.name}</h3>
-                                        <p className="text-white/40 text-sm">
+                                        <h3 className={clsx("font-bold text-lg", textPrimary)}>{product.name}</h3>
+                                        <p className={clsx("text-sm", textSecondary)}>
                                             {categories.find(c => c.id === product.category_id)?.name || "Kategori yok"}
                                         </p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-white font-bold text-xl">₺{product.base_price}</p>
+                                        <p className={clsx("font-bold text-xl", textPrimary)}>₺{product.base_price}</p>
                                         {product.discount_price && (
                                             <p className="text-emerald-400 text-sm">₺{product.discount_price}</p>
                                         )}
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/[0.08]">
+                                <div className={clsx("flex items-center gap-2 mt-4 pt-4 border-t", isDark ? "border-white/[0.08]" : "border-gray-100")}>
                                     <Link
                                         href={`/panel/coffee/products/${product.id}`}
-                                        className="flex-1 flex items-center justify-center gap-2 py-2 bg-white/[0.05] hover:bg-white/[0.1] text-white rounded-lg transition-colors"
+                                        className={clsx(
+                                            "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg transition-colors",
+                                            isDark ? "bg-white/[0.05] hover:bg-white/[0.1] text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-900"
+                                        )}
                                     >
                                         <Edit className="w-4 h-4" />
                                         Düzenle
@@ -218,18 +238,18 @@ export default function CoffeeProductsPage() {
                                     </button>
                                 </div>
                             </div>
-                        </LiquidMetalCard>
+                        </div>
                     </motion.div>
                 ))}
             </div>
 
             {filteredProducts.length === 0 && (
                 <div className="text-center py-16">
-                    <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-white/[0.05] flex items-center justify-center">
-                        <Search className="w-10 h-10 text-white/20" />
+                    <div className={clsx("w-20 h-20 mx-auto mb-4 rounded-2xl flex items-center justify-center", isDark ? "bg-white/[0.05]" : "bg-gray-100")}>
+                        <Search className={clsx("w-10 h-10", textSecondary)} />
                     </div>
-                    <h3 className="text-lg font-semibold text-white mb-2">Ürün Bulunamadı</h3>
-                    <p className="text-white/40 mb-6">Arama kriterlerinize uygun ürün yok</p>
+                    <h3 className={clsx("text-lg font-semibold mb-2", textPrimary)}>Ürün Bulunamadı</h3>
+                    <p className={clsx("mb-6", textSecondary)}>Arama kriterlerinize uygun ürün yok</p>
                     <Link
                         href="/panel/coffee/products/new"
                         className="inline-flex items-center gap-2 px-6 py-3 bg-[#fe1e50] hover:bg-[#fe1e50]/90 text-white rounded-xl transition-all font-bold"

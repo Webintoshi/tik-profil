@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Plus, Edit, Trash2, GripVertical, Search } from "lucide-react";
-import { LiquidMetalCard } from "@/components/cities/LiquidMetalCard";
+import { clsx } from "clsx";
+import { useTheme } from "@/components/panel/ThemeProvider";
 import { useBusinessSession } from "@/hooks/useBusinessSession";
 
 interface Size {
@@ -19,6 +20,10 @@ interface Size {
 export default function CoffeeSizesPage() {
     const router = useRouter();
     const { session, loading: sessionLoading } = useBusinessSession();
+    const { isDark } = useTheme();
+    const cardBg = isDark ? "bg-gray-800" : "bg-white";
+    const textPrimary = isDark ? "text-white" : "text-gray-900";
+    const textSecondary = isDark ? "text-gray-400" : "text-gray-500";
     const [sizes, setSizes] = useState<Size[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -123,8 +128,8 @@ export default function CoffeeSizesPage() {
         <div className="p-6 max-w-7xl mx-auto">
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Boyutlar</h1>
-                    <p className="text-white/50 mt-1">{sizes.length} boyut</p>
+                    <h1 className={clsx("text-3xl font-bold", textPrimary)}>Boyutlar</h1>
+                    <p className={clsx("mt-1", textSecondary)}>{sizes.length} boyut</p>
                 </div>
                 <button
                     onClick={() => setShowModal(true)}
@@ -135,32 +140,32 @@ export default function CoffeeSizesPage() {
                 </button>
             </div>
 
-            <LiquidMetalCard>
+            <div className={clsx("rounded-2xl border shadow-sm", cardBg, isDark ? "border-white/[0.08]" : "border-gray-200")}>
                 <div className="overflow-x-auto">
                     <table className="w-full">
-                        <thead className="border-b border-white/[0.08]">
+                        <thead className={isDark ? "border-b border-white/[0.08]" : "border-b border-gray-200"}>
                             <tr>
-                                <th className="px-6 py-4 text-left text-sm font-medium text-white/50">Sıra</th>
-                                <th className="px-6 py-4 text-left text-sm font-medium text-white/50">Boyut Adı</th>
-                                <th className="px-6 py-4 text-left text-sm font-medium text-white/50">Hacim</th>
-                                <th className="px-6 py-4 text-left text-sm font-medium text-white/50">Fiyat Farkı</th>
-                                <th className="px-6 py-4 text-left text-sm font-medium text-white/50">Durum</th>
-                                <th className="px-6 py-4 text-right text-sm font-medium text-white/50">İşlemler</th>
+                                <th className={clsx("px-6 py-4 text-left text-sm font-medium", textSecondary)}>Sıra</th>
+                                <th className={clsx("px-6 py-4 text-left text-sm font-medium", textSecondary)}>Boyut Adı</th>
+                                <th className={clsx("px-6 py-4 text-left text-sm font-medium", textSecondary)}>Hacim</th>
+                                <th className={clsx("px-6 py-4 text-left text-sm font-medium", textSecondary)}>Fiyat Farkı</th>
+                                <th className={clsx("px-6 py-4 text-left text-sm font-medium", textSecondary)}>Durum</th>
+                                <th className={clsx("px-6 py-4 text-right text-sm font-medium", textSecondary)}>İşlemler</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/[0.05]">
+                        <tbody className={isDark ? "divide-y divide-white/[0.05]" : "divide-y divide-gray-100"}>
                             {sizes.map((size) => (
-                                <tr key={size.id} className="hover:bg-white/[0.02]">
+                                <tr key={size.id} className={isDark ? "hover:bg-white/[0.02]" : "hover:bg-gray-50"}>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">
-                                            <GripVertical className="w-4 h-4 text-white/30" />
-                                            <span className="text-white">{size.sort_order}</span>
+                                            <GripVertical className={clsx("w-4 h-4", isDark ? "text-white/30" : "text-gray-400")} />
+                                            <span className={textPrimary}>{size.sort_order}</span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-white font-medium">{size.name}</td>
-                                    <td className="px-6 py-4 text-white/60">{size.volume_ml} ml</td>
+                                    <td className={clsx("px-6 py-4 font-medium", textPrimary)}>{size.name}</td>
+                                    <td className={clsx("px-6 py-4", textSecondary)}>{size.volume_ml} ml</td>
                                     <td className="px-6 py-4">
-                                        <span className={`font-medium ${size.price_modifier > 0 ? 'text-emerald-400' : size.price_modifier < 0 ? 'text-red-400' : 'text-white/60'}`}>
+                                        <span className={`font-medium ${size.price_modifier > 0 ? 'text-emerald-400' : size.price_modifier < 0 ? 'text-red-400' : isDark ? 'text-white/60' : 'text-gray-500'}`}>
                                             {size.price_modifier > 0 ? '+' : ''}₺{size.price_modifier}
                                         </span>
                                     </td>
@@ -195,65 +200,90 @@ export default function CoffeeSizesPage() {
                         </tbody>
                     </table>
                 </div>
-            </LiquidMetalCard>
+            </div>
 
             {showModal && (
                 <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="bg-[#1a1a2e] rounded-2xl p-6 w-full max-w-md border border-white/[0.1]"
+                        className={clsx("rounded-2xl p-6 w-full max-w-md border", cardBg, isDark ? "border-white/[0.1]" : "border-gray-200")}
                     >
-                        <h2 className="text-xl font-bold text-white mb-4">
+                        <h2 className={clsx("text-xl font-bold mb-4", textPrimary)}>
                             {editing ? "Boyut Düzenle" : "Yeni Boyut"}
                         </h2>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
-                                <label className="block text-sm text-white/60 mb-2">Boyut Adı</label>
+                                <label className={clsx("block text-sm mb-2", textSecondary)}>Boyut Adı</label>
                                 <input
                                     type="text"
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                                    className={clsx(
+                                        "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
+                                        isDark
+                                            ? "bg-white/[0.05] border-white/[0.1] text-white"
+                                            : "bg-white border-gray-200 text-gray-900"
+                                    )}
                                     placeholder="Short, Tall, Grande, Venti"
                                     required
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-white/60 mb-2">Hacim (ml)</label>
+                                    <label className={clsx("block text-sm mb-2", textSecondary)}>Hacim (ml)</label>
                                     <input
                                         type="number"
                                         value={formData.volume_ml}
                                         onChange={(e) => setFormData({ ...formData, volume_ml: parseInt(e.target.value) })}
-                                        className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                                        className={clsx(
+                                            "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
+                                            isDark
+                                                ? "bg-white/[0.05] border-white/[0.1] text-white"
+                                                : "bg-white border-gray-200 text-gray-900"
+                                        )}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm text-white/60 mb-2">Fiyat Farkı (₺)</label>
+                                    <label className={clsx("block text-sm mb-2", textSecondary)}>Fiyat Farkı (₺)</label>
                                     <input
                                         type="number"
                                         step="0.01"
                                         value={formData.price_modifier}
                                         onChange={(e) => setFormData({ ...formData, price_modifier: parseFloat(e.target.value) })}
-                                        className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                                        className={clsx(
+                                            "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
+                                            isDark
+                                                ? "bg-white/[0.05] border-white/[0.1] text-white"
+                                                : "bg-white border-gray-200 text-gray-900"
+                                        )}
                                     />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm text-white/60 mb-2">Sıra No</label>
+                                <label className={clsx("block text-sm mb-2", textSecondary)}>Sıra No</label>
                                 <input
                                     type="number"
                                     value={formData.sort_order}
                                     onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) })}
-                                    className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50"
+                                    className={clsx(
+                                        "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
+                                        isDark
+                                            ? "bg-white/[0.05] border-white/[0.1] text-white"
+                                            : "bg-white border-gray-200 text-gray-900"
+                                    )}
                                 />
                             </div>
                             <div className="flex gap-2 justify-end pt-4">
                                 <button
                                     type="button"
                                     onClick={() => { setShowModal(false); setEditing(null); }}
-                                    className="px-4 py-2 bg-white/[0.05] text-white rounded-xl hover:bg-white/[0.1]"
+                                    className={clsx(
+                                        "px-4 py-2 rounded-xl transition",
+                                        isDark
+                                            ? "bg-white/[0.05] text-white hover:bg-white/[0.1]"
+                                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                    )}
                                 >
                                     İptal
                                 </button>
