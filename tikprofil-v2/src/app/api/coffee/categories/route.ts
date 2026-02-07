@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const validated = categorySchema.parse(body.data);
+        const validated = categorySchema.parse(body);
         const businessId = body.business_id;
 
         if (!businessId) {
@@ -63,7 +63,12 @@ export async function POST(request: NextRequest) {
             .from("coffee_categories")
             .insert({
                 business_id: businessId,
-                ...validated
+                name: validated.name,
+                slug: validated.slug,
+                icon: validated.icon || "coffee",
+                description: validated.description,
+                sort_order: validated.sort_order ?? 0,
+                is_active: true
             })
             .select()
             .single();

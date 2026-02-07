@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const validated = extraGroupSchema.parse(body.data);
+        const validated = extraGroupSchema.parse(body);
         const businessId = body.business_id;
 
         if (!businessId) {
@@ -77,7 +77,14 @@ export async function POST(request: NextRequest) {
             .from("coffee_extra_groups")
             .insert({
                 business_id: businessId,
-                ...validated
+                name: validated.name,
+                slug: validated.slug,
+                selection_type: validated.selection_type,
+                min_selection: validated.min_selection,
+                max_selection: validated.max_selection,
+                is_required: validated.is_required,
+                sort_order: validated.sort_order ?? 0,
+                is_active: true
             })
             .select()
             .single();
@@ -104,7 +111,7 @@ export async function POST(request: NextRequest) {
 export async function POST_ITEM(request: NextRequest) {
     try {
         const body = await request.json();
-        const validated = extraSchema.parse(body.data);
+        const validated = extraSchema.parse(body);
         const businessId = body.business_id;
 
         if (!businessId) {
@@ -120,7 +127,13 @@ export async function POST_ITEM(request: NextRequest) {
             .from("coffee_extras")
             .insert({
                 business_id: businessId,
-                ...validated
+                extra_group_id: validated.extra_group_id,
+                name: validated.name,
+                name_en: validated.name_en,
+                price_modifier: validated.price_modifier ?? 0,
+                calories: validated.calories,
+                sort_order: validated.sort_order ?? 0,
+                is_active: true
             })
             .select()
             .single();

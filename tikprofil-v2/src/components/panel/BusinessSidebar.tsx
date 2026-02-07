@@ -574,6 +574,7 @@ export function BusinessSidebar({
     // Check if coffee shop module is enabled
     const hasCoffeeModule = enabledModules.includes("coffee") ||
         enabledModules.includes("cafe") ||
+        enabledModules.includes("kafe") ||
         enabledModules.includes("kahve") ||
         enabledModules.includes("kafeterya");
 

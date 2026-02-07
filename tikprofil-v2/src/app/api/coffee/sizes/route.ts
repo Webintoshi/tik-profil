@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const validated = sizeSchema.parse(body.data);
+        const validated = sizeSchema.parse(body);
         const businessId = body.business_id;
 
         if (!businessId) {
@@ -65,7 +65,13 @@ export async function POST(request: NextRequest) {
             .from("coffee_sizes")
             .insert({
                 business_id: businessId,
-                ...validated
+                name: validated.name,
+                name_en: validated.name_en,
+                volume_ml: validated.volume_ml,
+                volume_oz: validated.volume_oz,
+                price_modifier: validated.price_modifier ?? 0,
+                sort_order: validated.sort_order ?? 0,
+                is_active: true
             })
             .select()
             .single();

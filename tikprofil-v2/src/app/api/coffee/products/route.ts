@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const validated = productSchema.parse(body.data);
+        const validated = productSchema.parse(body);
         const businessId = body.business_id;
 
         if (!businessId) {
@@ -88,7 +88,26 @@ export async function POST(request: NextRequest) {
             .from("coffee_products")
             .insert({
                 business_id: businessId,
-                ...productData
+                name: productData.name,
+                name_en: productData.name_en,
+                description: productData.description,
+                description_en: productData.description_en,
+                category_id: productData.category_id,
+                image_url: productData.image_url,
+                temperature: productData.temperature,
+                coffee_type: productData.coffee_type,
+                caffeine_level: productData.caffeine_level,
+                base_shots: productData.base_shots,
+                has_milk: productData.has_milk,
+                base_price: productData.base_price,
+                discount_price: productData.discount_price,
+                discount_percent: productData.discount_percent,
+                calories: productData.calories,
+                preparation_time: productData.preparation_time,
+                is_featured: productData.is_featured,
+                is_available: productData.is_available ?? true,
+                sort_order: productData.sort_order ?? 0,
+                is_active: true
             })
             .select()
             .single();
@@ -96,7 +115,7 @@ export async function POST(request: NextRequest) {
         if (error) throw error;
 
         // Create product-extra relations
-        if (extra_group_ids.length > 0 && product) {
+        if (extra_group_ids && extra_group_ids.length > 0 && product) {
             const relations = extra_group_ids.map((groupId: string, index: number) => ({
                 product_id: product.id,
                 extra_group_id: groupId,
