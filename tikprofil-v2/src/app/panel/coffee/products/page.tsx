@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
     Plus, Search, Filter, MoreVertical, Edit, Trash2,
     Star, Eye, EyeOff
 } from "lucide-react";
-import Link from "next/link";
+
 import Image from "next/image";
 import { useBusinessSession } from "@/hooks/useBusinessSession";
 import { useTheme } from "@/components/panel/ThemeProvider";
@@ -103,7 +104,7 @@ export default function CoffeeProductsPage() {
     if (sessionLoading || loading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
-                <div className="w-12 h-12 border-4 border-white/10 border-t-[#fe1e50] rounded-full animate-spin" />
+                <div className={clsx("w-12 h-12 border-4 rounded-full animate-spin border-t-[#fe1e50]", isDark ? "border-white/10" : "border-gray-200")} />
             </div>
         );
     }
@@ -116,17 +117,17 @@ export default function CoffeeProductsPage() {
                     <h1 className={clsx("text-3xl font-bold", textPrimary)}>Ürünler</h1>
                     <p className={clsx("mt-1", textSecondary)}>{products.length} ürün listeleniyor</p>
                 </div>
-                <Link
-                    href="/panel/coffee/products/new"
+                <button
+                    onClick={() => router.push("/panel/coffee/products/new")}
                     className="flex items-center gap-2 px-5 py-2.5 bg-[#fe1e50] hover:bg-[#fe1e50]/90 text-white rounded-xl transition-all font-bold shadow-lg shadow-[#fe1e50]/20"
                 >
                     <Plus className="w-5 h-5" />
                     Yeni Ürün
-                </Link>
+                </button>
             </div>
 
             {/* Filters */}
-            <div className={clsx("mb-6 rounded-2xl shadow-sm", cardBg)}>
+            <div className={clsx("mb-6 rounded-2xl shadow-sm border", cardBg, isDark ? "border-white/10" : "border-gray-100")}>
                 <div className="p-4 flex flex-col md:flex-row gap-4">
                     <div className="relative flex-1">
                         <Search className={clsx("absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5", textSecondary)} />
@@ -137,8 +138,8 @@ export default function CoffeeProductsPage() {
                             placeholder="Ürün ara..."
                             className={clsx(
                                 "w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
-                                isDark 
-                                    ? "bg-white/[0.05] border-white/[0.1] text-white placeholder-white/30" 
+                                isDark
+                                    ? "bg-white/[0.05] border-white/[0.1] text-white placeholder-white/30"
                                     : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400"
                             )}
                         />
@@ -148,8 +149,8 @@ export default function CoffeeProductsPage() {
                         onChange={(e) => setFilterCategory(e.target.value)}
                         className={clsx(
                             "px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
-                            isDark 
-                                ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                            isDark
+                                ? "bg-white/[0.05] border-white/[0.1] text-white"
                                 : "bg-gray-50 border-gray-200 text-gray-900"
                         )}
                     >
@@ -170,7 +171,7 @@ export default function CoffeeProductsPage() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
                     >
-                        <div className={clsx("rounded-2xl shadow-sm overflow-hidden", cardBg)}>
+                        <div className={clsx("rounded-2xl shadow-sm overflow-hidden border", cardBg, isDark ? "border-white/10" : "border-gray-100")}>
                             <div className="relative aspect-square">
                                 {product.image_url ? (
                                     <Image
@@ -195,8 +196,8 @@ export default function CoffeeProductsPage() {
                                         onClick={() => toggleAvailability(product.id, product.is_available)}
                                         className={clsx(
                                             "p-2 rounded-lg backdrop-blur-sm transition-colors",
-                                            product.is_available 
-                                                ? 'bg-emerald-500/80 text-white' 
+                                            product.is_available
+                                                ? 'bg-emerald-500/80 text-white'
                                                 : 'bg-red-500/80 text-white'
                                         )}
                                     >
@@ -250,13 +251,13 @@ export default function CoffeeProductsPage() {
                     </div>
                     <h3 className={clsx("text-lg font-semibold mb-2", textPrimary)}>Ürün Bulunamadı</h3>
                     <p className={clsx("mb-6", textSecondary)}>Arama kriterlerinize uygun ürün yok</p>
-                    <Link
-                        href="/panel/coffee/products/new"
+                    <button
+                        onClick={() => router.push("/panel/coffee/products/new")}
                         className="inline-flex items-center gap-2 px-6 py-3 bg-[#fe1e50] hover:bg-[#fe1e50]/90 text-white rounded-xl transition-all font-bold"
                     >
                         <Plus className="w-5 h-5" />
                         İlk Ürünü Ekle
-                    </Link>
+                    </button>
                 </div>
             )}
         </div>
