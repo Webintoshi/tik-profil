@@ -276,8 +276,20 @@ export function getModulesForIndustry(industryId: string | null): string[] {
         // Yeme & İçme
         "restaurant": ["restaurant"],
         "restoran": ["restaurant"],
-        "cafe": ["restaurant"],
-        "kafe": ["restaurant"],
+        // Coffee Shop / Kahve Dükkanı - TÜM VARYASYONLAR
+        "coffee": ["coffee"],
+        "kahve": ["coffee"],
+        "cafe": ["coffee"],
+        "kafe": ["coffee"],
+        "coffeeshop": ["coffee"],
+        "coffee-shop": ["coffee"],
+        "kahvedukkani": ["coffee"],
+        "kahve-dukkani": ["coffee"],
+        "kahvedükkanı": ["coffee"],
+        "kahve-dukkani": ["coffee"],
+        "kafeterya": ["coffee"],
+        "cafeteria": ["coffee"],
+        // Fast Food
         "fastfood": ["fastfood"],
         "fast-food": ["fastfood"],
         "bakery": ["restaurant"],
