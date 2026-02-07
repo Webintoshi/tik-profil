@@ -250,7 +250,16 @@ export async function updateDocumentREST(
             throw new Error(`Document not found: ${collection}/${documentId}`);
         }
 
-        const merged = { ...existing, ...dataWithTimestamp, id: documentId };
+        // Deep merge to preserve nested data
+        const merged = { ...existing };
+        for (const key of Object.keys(dataWithTimestamp)) {
+            const value = dataWithTimestamp[key];
+            if (value !== undefined && value !== null) {
+                (merged as Record<string, unknown>)[key] = value;
+            }
+        }
+        merged.id = documentId;
+
         const row = mapBusinessToRow(merged);
 
         const { error } = await supabase
