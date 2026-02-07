@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getSessionSecretBytes } from '@/lib/env';
+import { revalidatePath } from 'next/cache';
 
 const getJwtSecret = () => getSessionSecretBytes();
 
@@ -50,12 +51,20 @@ export async function PUT(request: Request) {
 
         const supabase = getSupabaseAdmin();
 
-        // Fetch existing data to merge (include logo and cover columns)
+        // Fetch existing data to merge (include logo and cover columns) - no cache
         const { data: existing, error: fetchError } = await supabase
             .from('businesses')
             .select('data, logo, cover')
             .eq('id', businessId)
             .single();
+
+        // Debug log to check existing data
+        console.log('[Profile PUT] Existing logo/cover:', {
+            logo: existing?.logo,
+            cover: existing?.cover,
+            dataLogo: (existing?.data as Record<string, unknown>)?.logo,
+            dataCover: (existing?.data as Record<string, unknown>)?.cover
+        });
 
         if (fetchError) {
             console.error('Fetch error:', fetchError);
@@ -96,10 +105,12 @@ export async function PUT(request: Request) {
         };
 
         // Update the business record
-        const { error: updateError } = await supabase
+        const { error: updateError, data: updatedBusiness } = await supabase
             .from('businesses')
             .update(updateData)
-            .eq('id', businessId);
+            .eq('id', businessId)
+            .select('slug')
+            .single();
 
         if (updateError) {
             console.error('Update error:', updateError);
@@ -107,6 +118,11 @@ export async function PUT(request: Request) {
                 { success: false, error: 'Güncelleme hatası: ' + updateError.message },
                 { status: 500 }
             );
+        }
+
+        // Revalidate public profile cache
+        if (updatedBusiness?.slug) {
+            revalidatePath(`/${updatedBusiness.slug}`);
         }
 
         return NextResponse.json({
@@ -151,6 +167,31 @@ export async function GET() {
         }
 
         // Extract data from both columns and data field
+        const businessData = (business.data as Record<string, unknown>) || {};
+
+        const profile = {
+            id: business.id,
+            name: business.name || '',
+            slogan: business.slogan || businessData.slogan || '',
+            about: business.about || businessData.about || '',
+            logo: business.logo || businessData.logo || '',
+            cover: business.cover || businessData.cover || '',
+            phone: business.phone || businessData.phone || '',
+            address: businessData.address || '',
+            mapsUrl: businessData.mapsUrl || '',
+            socialLinks: businessData.socialLinks || {},
+            showHours: businessData.showHours ?? true,
+            workingHours: businessData.workingHours || [],
+        };
+
+        return NextResponse.json({
+            success: true,
+            profile
+        }, {
+            headers: {
+                'Cache-Control': 'no-store, no-cache, must-revalidate',
+            }
+        });
         const businessData = (business.data as Record<string, unknown>) || {};
 
         const profile = {

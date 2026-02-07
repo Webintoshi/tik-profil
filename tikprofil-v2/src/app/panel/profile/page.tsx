@@ -221,6 +221,9 @@ export default function ProfilePage() {
                 await updateDocumentREST('businesses', businessId, { logo: result.url });
 
                 toast.success('Logo başarıyla yüklendi');
+
+                // Reload profile from server to ensure sync
+                await loadProfileFromServer();
             } else {
                 toast.error(result.error || 'Logo yüklenemedi');
             }
@@ -253,6 +256,9 @@ export default function ProfilePage() {
                 await updateDocumentREST('businesses', businessId, { cover: result.url });
 
                 toast.success('Kapak fotoğrafı başarıyla yüklendi');
+
+                // Reload profile from server to ensure sync
+                await loadProfileFromServer();
             } else {
                 toast.error(result.error || 'Kapak fotoğrafı yüklenemedi');
             }
@@ -276,6 +282,36 @@ export default function ProfilePage() {
 
         setBusinessId(session.businessId);
         setBusinessSlug(session.businessSlug);
+
+        const loadProfileFromServer = async () => {
+            try {
+                const response = await fetch('/api/panel/profile', {
+                    method: 'GET',
+                    credentials: 'include',
+                    cache: 'no-store',
+                });
+                const data = await response.json();
+
+                if (data.success && data.profile) {
+                    const p = data.profile;
+                    setProfile({
+                        name: p.name || session.businessName || "",
+                        slogan: p.slogan || "",
+                        about: p.about || "",
+                        logo: p.logo || undefined,
+                        cover: p.cover || undefined,
+                        phone: p.phone || "",
+                        address: p.address || "",
+                        mapsUrl: p.mapsUrl || "",
+                        socialLinks: p.socialLinks || DEFAULT_SOCIAL_LINKS,
+                        showHours: p.showHours ?? true,
+                        workingHours: p.workingHours?.length ? p.workingHours : DEFAULT_WORKING_HOURS,
+                    });
+                }
+            } catch (error) {
+                console.error("Failed to reload profile:", error);
+            }
+        };
 
         const loadProfile = async () => {
             try {
