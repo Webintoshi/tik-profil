@@ -119,7 +119,7 @@ export default function CoffeeSizesPage() {
     if (sessionLoading || loading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
-                <div className="w-12 h-12 border-4 border-white/10 border-t-[#fe1e50] rounded-full animate-spin" />
+                <div className={clsx("w-12 h-12 border-4 rounded-full animate-spin border-t-[#fe1e50]", isDark ? "border-white/10" : "border-gray-200")} />
             </div>
         );
     }
@@ -172,11 +172,10 @@ export default function CoffeeSizesPage() {
                                     <td className="px-6 py-4">
                                         <button
                                             onClick={() => toggleActive(size)}
-                                            className={`px-3 py-1 text-xs rounded-full transition ${
-                                                size.is_active 
-                                                    ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' 
+                                            className={`px-3 py-1 text-xs rounded-full transition ${size.is_active
+                                                    ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
                                                     : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                                            }`}
+                                                }`}
                                         >
                                             {size.is_active ? 'Aktif' : 'Pasif'}
                                         </button>

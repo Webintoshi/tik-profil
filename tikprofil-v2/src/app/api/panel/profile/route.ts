@@ -184,6 +184,8 @@ export async function GET() {
             workingHours: businessData.workingHours || [],
         };
 
+        console.log('[Profile GET] Returning logo/cover:', { logo: profile.logo, cover: profile.cover });
+
         return NextResponse.json({
             success: true,
             profile
@@ -191,27 +193,6 @@ export async function GET() {
             headers: {
                 'Cache-Control': 'no-store, no-cache, must-revalidate',
             }
-        });
-        const businessData = (business.data as Record<string, unknown>) || {};
-
-        const profile = {
-            id: business.id,
-            name: business.name || '',
-            slogan: business.slogan || businessData.slogan || '',
-            about: business.about || businessData.about || '',
-            logo: business.logo || '',
-            cover: business.cover || '',
-            phone: business.phone || businessData.phone || '',
-            address: businessData.address || '',
-            mapsUrl: businessData.mapsUrl || '',
-            socialLinks: businessData.socialLinks || {},
-            showHours: businessData.showHours ?? true,
-            workingHours: businessData.workingHours || [],
-        };
-
-        return NextResponse.json({
-            success: true,
-            profile
         });
 
     } catch (error) {

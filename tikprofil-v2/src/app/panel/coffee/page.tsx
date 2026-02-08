@@ -132,7 +132,11 @@ export default function CoffeeDashboardPage() {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: index * 0.1 }}
-                            className={clsx("p-5 rounded-2xl", cardBg)}
+                            className={clsx(
+                                "p-5 rounded-2xl border shadow-sm",
+                                cardBg,
+                                isDark ? "border-white/10" : "border-gray-100"
+                            )}
                         >
                             <div className="flex items-center justify-between">
                                 <div>
@@ -155,7 +159,11 @@ export default function CoffeeDashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Menu Navigation */}
                 <div className="lg:col-span-2">
-                    <div className={clsx("rounded-2xl p-6", cardBg)}>
+                    <div className={clsx(
+                        "rounded-2xl p-6 border shadow-sm",
+                        cardBg,
+                        isDark ? "border-white/10" : "border-gray-100"
+                    )}>
                         <h2 className={clsx("text-lg font-semibold mb-4", textPrimary)}>
                             Yönetim Menüsü
                         </h2>
@@ -173,8 +181,8 @@ export default function CoffeeDashboardPage() {
                                             href={item.href}
                                             className={clsx(
                                                 "flex flex-col items-center p-5 rounded-xl transition-all group border",
-                                                isDark 
-                                                    ? "border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10" 
+                                                isDark
+                                                    ? "border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10"
                                                     : "border-gray-200 hover:border-gray-300 bg-gray-50 hover:bg-gray-100"
                                             )}
                                         >
@@ -193,7 +201,11 @@ export default function CoffeeDashboardPage() {
 
                 {/* Recent Orders */}
                 <div>
-                    <div className={clsx("rounded-2xl p-6", cardBg)}>
+                    <div className={clsx(
+                        "rounded-2xl p-6 border shadow-sm",
+                        cardBg,
+                        isDark ? "border-white/10" : "border-gray-100"
+                    )}>
                         <div className="flex items-center justify-between mb-4">
                             <h2 className={clsx("text-lg font-semibold", textPrimary)}>
                                 Son Siparişler

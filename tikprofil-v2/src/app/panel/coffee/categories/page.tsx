@@ -101,7 +101,7 @@ export default function CoffeeCategoriesPage() {
     if (sessionLoading || loading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
-                <div className="w-12 h-12 border-4 border-white/10 border-t-[#fe1e50] rounded-full animate-spin" />
+                <div className={clsx("w-12 h-12 border-4 rounded-full animate-spin border-t-[#fe1e50]", isDark ? "border-white/10" : "border-gray-200")} />
             </div>
         );
     }
@@ -143,9 +143,12 @@ export default function CoffeeCategoriesPage() {
                                     <td className={clsx("px-6 py-4 font-medium", textPrimary)}>{cat.name}</td>
                                     <td className={clsx("px-6 py-4", textSecondary)}>{cat.slug}</td>
                                     <td className="px-6 py-4">
-                                        <span className={`px-2 py-1 text-xs rounded-full ${
-                                            cat.is_active ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
-                                        }`}>
+                                        <span className={clsx(
+                                            "px-2 py-1 text-xs rounded-full",
+                                            cat.is_active
+                                                ? (isDark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-700")
+                                                : (isDark ? "bg-red-500/20 text-red-400" : "bg-red-100 text-red-700")
+                                        )}>
                                             {cat.is_active ? "Aktif" : "Pasif"}
                                         </span>
                                     </td>
@@ -190,8 +193,8 @@ export default function CoffeeCategoriesPage() {
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     className={clsx(
                                         "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
-                                        isDark 
-                                            ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                        isDark
+                                            ? "bg-white/[0.05] border-white/[0.1] text-white"
                                             : "bg-white border-gray-300 text-gray-900"
                                     )}
                                     required
@@ -205,8 +208,8 @@ export default function CoffeeCategoriesPage() {
                                     onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
                                     className={clsx(
                                         "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
-                                        isDark 
-                                            ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                        isDark
+                                            ? "bg-white/[0.05] border-white/[0.1] text-white"
                                             : "bg-white border-gray-300 text-gray-900"
                                     )}
                                     placeholder="coffee, glass-water, cake"
@@ -220,8 +223,8 @@ export default function CoffeeCategoriesPage() {
                                     onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) })}
                                     className={clsx(
                                         "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
-                                        isDark 
-                                            ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                        isDark
+                                            ? "bg-white/[0.05] border-white/[0.1] text-white"
                                             : "bg-white border-gray-300 text-gray-900"
                                     )}
                                 />
@@ -232,8 +235,8 @@ export default function CoffeeCategoriesPage() {
                                     onClick={() => { setShowModal(false); setEditing(null); }}
                                     className={clsx(
                                         "px-4 py-2 rounded-xl",
-                                        isDark 
-                                            ? "bg-white/[0.05] text-white hover:bg-white/[0.1]" 
+                                        isDark
+                                            ? "bg-white/[0.05] text-white hover:bg-white/[0.1]"
                                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                                     )}
                                 >

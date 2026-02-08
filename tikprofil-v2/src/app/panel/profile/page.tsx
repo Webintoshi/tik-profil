@@ -213,17 +213,21 @@ export default function ProfilePage() {
             const result = await uploadLogo(businessId, file);
 
             if (result.success && result.url) {
-                // Update local state
-                setProfile(prev => ({ ...prev, logo: result.url }));
+                // Direct API call to update database
+                const updateRes = await fetch('/api/panel/profile/update-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ logo: result.url }),
+                });
 
-                // Save to document store immediately
-                const { updateDocumentREST } = await import('@/lib/documentStore');
-                await updateDocumentREST('businesses', businessId, { logo: result.url });
-
-                toast.success('Logo başarıyla yüklendi');
-
-                // Reload profile from server to ensure sync
-                await loadProfileFromServer();
+                if (updateRes.ok) {
+                    // Update local state
+                    setProfile(prev => ({ ...prev, logo: result.url }));
+                    toast.success('Logo başarıyla yüklendi');
+                } else {
+                    toast.error('Logo kaydedilemedi');
+                }
             } else {
                 toast.error(result.error || 'Logo yüklenemedi');
             }
@@ -248,17 +252,21 @@ export default function ProfilePage() {
             const result = await uploadCover(businessId, file);
 
             if (result.success && result.url) {
-                // Update local state
-                setProfile(prev => ({ ...prev, cover: result.url }));
+                // Direct API call to update database
+                const updateRes = await fetch('/api/panel/profile/update-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ cover: result.url }),
+                });
 
-                // Save to document store immediately
-                const { updateDocumentREST } = await import('@/lib/documentStore');
-                await updateDocumentREST('businesses', businessId, { cover: result.url });
-
-                toast.success('Kapak fotoğrafı başarıyla yüklendi');
-
-                // Reload profile from server to ensure sync
-                await loadProfileFromServer();
+                if (updateRes.ok) {
+                    // Update local state
+                    setProfile(prev => ({ ...prev, cover: result.url }));
+                    toast.success('Kapak fotoğrafı başarıyla yüklendi');
+                } else {
+                    toast.error('Kapak fotoğrafı kaydedilemedi');
+                }
             } else {
                 toast.error(result.error || 'Kapak fotoğrafı yüklenemedi');
             }

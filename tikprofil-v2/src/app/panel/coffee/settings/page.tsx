@@ -54,7 +54,7 @@ export default function CoffeeSettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<"general" | "loyalty" | "payment">("general");
-    
+
     const { isDark } = useTheme();
     const cardBg = isDark ? "bg-gray-800" : "bg-white";
     const textPrimary = isDark ? "text-white" : "text-gray-900";
@@ -108,7 +108,7 @@ export default function CoffeeSettingsPage() {
     if (sessionLoading || loading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
-                <div className="w-12 h-12 border-4 border-white/10 border-t-[#fe1e50] rounded-full animate-spin" />
+                <div className={clsx("w-12 h-12 border-4 rounded-full animate-spin border-t-[#fe1e50]", isDark ? "border-white/10" : "border-gray-200")} />
             </div>
         );
     }
@@ -137,9 +137,9 @@ export default function CoffeeSettingsPage() {
                             onClick={() => setActiveTab(tab.id)}
                             className={clsx(
                                 "flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium transition-all whitespace-nowrap",
-                                isActive 
-                                    ? "bg-[#fe1e50] text-white shadow-lg shadow-[#fe1e50]/25" 
-                                    : isDark 
+                                isActive
+                                    ? "bg-[#fe1e50] text-white shadow-lg shadow-[#fe1e50]/25"
+                                    : isDark
                                         ? "bg-white/[0.05] text-white/60 hover:bg-white/[0.1]"
                                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                             )}
@@ -169,8 +169,8 @@ export default function CoffeeSettingsPage() {
                                         onChange={(e) => updateSetting("wifi_name", e.target.value)}
                                         className={clsx(
                                             "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
-                                            isDark 
-                                                ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                            isDark
+                                                ? "bg-white/[0.05] border-white/[0.1] text-white"
                                                 : "bg-white border-gray-300 text-gray-900"
                                         )}
                                         placeholder="KahveDükkanı-WiFi"
@@ -184,8 +184,8 @@ export default function CoffeeSettingsPage() {
                                         onChange={(e) => updateSetting("wifi_password", e.target.value)}
                                         className={clsx(
                                             "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
-                                            isDark 
-                                                ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                            isDark
+                                                ? "bg-white/[0.05] border-white/[0.1] text-white"
                                                 : "bg-white border-gray-300 text-gray-900"
                                         )}
                                         placeholder="••••••••"
@@ -210,8 +210,8 @@ export default function CoffeeSettingsPage() {
                                         onChange={(e) => updateSetting("preparation_time_default", parseInt(e.target.value))}
                                         className={clsx(
                                             "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
-                                            isDark 
-                                                ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                            isDark
+                                                ? "bg-white/[0.05] border-white/[0.1] text-white"
                                                 : "bg-white border-gray-300 text-gray-900"
                                         )}
                                     />
@@ -224,8 +224,8 @@ export default function CoffeeSettingsPage() {
                                         onChange={(e) => updateSetting("tax_rate", parseFloat(e.target.value))}
                                         className={clsx(
                                             "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
-                                            isDark 
-                                                ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                            isDark
+                                                ? "bg-white/[0.05] border-white/[0.1] text-white"
                                                 : "bg-white border-gray-300 text-gray-900"
                                         )}
                                     />
@@ -239,8 +239,8 @@ export default function CoffeeSettingsPage() {
                                     onChange={(e) => updateSetting("pickup_enabled", e.target.checked)}
                                     className={clsx(
                                         "rounded",
-                                        isDark 
-                                            ? "bg-white/[0.05] border-white/[0.1]" 
+                                        isDark
+                                            ? "bg-white/[0.05] border-white/[0.1]"
                                             : "bg-white border-gray-300"
                                     )}
                                 />
@@ -284,8 +284,8 @@ export default function CoffeeSettingsPage() {
                                             onChange={(e) => updateSetting("loyalty_type", e.target.value)}
                                             className={clsx(
                                                 "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
-                                                isDark 
-                                                    ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                                isDark
+                                                    ? "bg-white/[0.05] border-white/[0.1] text-white"
                                                     : "bg-white border-gray-300 text-gray-900"
                                             )}
                                         >
@@ -302,8 +302,8 @@ export default function CoffeeSettingsPage() {
                                                 onChange={(e) => updateSetting("stamps_for_free_drink", parseInt(e.target.value))}
                                                 className={clsx(
                                                     "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
-                                                    isDark 
-                                                        ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                                    isDark
+                                                        ? "bg-white/[0.05] border-white/[0.1] text-white"
                                                         : "bg-white border-gray-300 text-gray-900"
                                                 )}
                                             />
@@ -316,8 +316,8 @@ export default function CoffeeSettingsPage() {
                                                 onChange={(e) => updateSetting("points_per_currency", parseInt(e.target.value))}
                                                 className={clsx(
                                                     "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
-                                                    isDark 
-                                                        ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                                                    isDark
+                                                        ? "bg-white/[0.05] border-white/[0.1] text-white"
                                                         : "bg-white border-gray-300 text-gray-900"
                                                 )}
                                             />
@@ -345,8 +345,8 @@ export default function CoffeeSettingsPage() {
                                     key={key}
                                     className={clsx(
                                         "flex items-center justify-between p-4 rounded-xl cursor-pointer transition",
-                                        settings[key as keyof Settings] 
-                                            ? "bg-[#fe1e50]/10 border border-[#fe1e50]/30" 
+                                        settings[key as keyof Settings]
+                                            ? "bg-[#fe1e50]/10 border border-[#fe1e50]/30"
                                             : isDark
                                                 ? "bg-white/[0.03] border border-white/[0.08]"
                                                 : "bg-gray-50 border border-gray-200"
@@ -359,8 +359,8 @@ export default function CoffeeSettingsPage() {
                                             onChange={(e) => updateSetting(key as keyof Settings, e.target.checked as any)}
                                             className={clsx(
                                                 "rounded",
-                                                isDark 
-                                                    ? "bg-white/[0.05] border-white/[0.1]" 
+                                                isDark
+                                                    ? "bg-white/[0.05] border-white/[0.1]"
                                                     : "bg-white border-gray-300"
                                             )}
                                         />
@@ -382,8 +382,8 @@ export default function CoffeeSettingsPage() {
                     onClick={fetchSettings}
                     className={clsx(
                         "px-6 py-3 rounded-xl transition",
-                        isDark 
-                            ? "bg-white/[0.05] text-white hover:bg-white/[0.1]" 
+                        isDark
+                            ? "bg-white/[0.05] text-white hover:bg-white/[0.1]"
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     )}
                 >

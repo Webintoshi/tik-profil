@@ -87,7 +87,7 @@ export default function CoffeeOrdersPage() {
     if (sessionLoading || loading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
-                <div className="w-12 h-12 border-4 border-white/10 border-t-[#fe1e50] rounded-full animate-spin" />
+                <div className={clsx("w-12 h-12 border-4 rounded-full animate-spin border-t-[#fe1e50]", isDark ? "border-white/10" : "border-gray-200")} />
             </div>
         );
     }
@@ -110,8 +110,8 @@ export default function CoffeeOrdersPage() {
                     onChange={(e) => setStatusFilter(e.target.value)}
                     className={clsx(
                         "px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#fe1e50]/50",
-                        isDark 
-                            ? "bg-white/[0.05] border-white/[0.1] text-white" 
+                        isDark
+                            ? "bg-white/[0.05] border-white/[0.1] text-white"
                             : "bg-white border-gray-200 text-gray-900"
                     )}
                 >
@@ -141,7 +141,7 @@ export default function CoffeeOrdersPage() {
                             {orders.map((order) => {
                                 const config = statusConfig[order.status] || statusConfig.pending;
                                 const Icon = config.icon;
-                                
+
                                 return (
                                     <tr key={order.id} className={isDark ? "hover:bg-white/[0.02]" : "hover:bg-gray-50"}>
                                         <td className="px-6 py-4">
