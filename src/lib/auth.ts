@@ -223,7 +223,9 @@ export async function verifySessionToken(token: string): Promise<object | null> 
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 
-const JWT_SECRET = getSessionSecretBytes();
+function getJwtSecret(): Uint8Array {
+    return getSessionSecretBytes();
+}
 const COOKIE_NAME = "tikprofil_session";
 const ADMIN_SALT_ROUNDS = 12;
 
@@ -299,7 +301,7 @@ export async function createSession(payload: Partial<SessionPayload>): Promise<s
         .setProtectedHeader({ alg: "HS256" })
         .setIssuedAt()
         .setExpirationTime("24h")
-        .sign(JWT_SECRET);
+        .sign(getJwtSecret());
     return token;
 }
 
@@ -327,7 +329,7 @@ export async function getSession(): Promise<SessionPayload | null> {
 
         if (!token) return null;
 
-        const { payload } = await jwtVerify(token, JWT_SECRET);
+        const { payload } = await jwtVerify(token, getJwtSecret());
         return payload as unknown as SessionPayload;
     } catch {
         return null;

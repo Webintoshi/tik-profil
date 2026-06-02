@@ -18,6 +18,7 @@ const API_PATH = "/api";
 // Auth cookies
 const ADMIN_COOKIE = "tikprofil_session";
 const OWNER_COOKIE = "tikprofil_owner_session";
+const STAFF_COOKIE = "tikprofil_staff_session";
 
 // Allowed origins for API requests
 const ALLOWED_ORIGINS = [
@@ -83,6 +84,18 @@ function forbidden(): NextResponse {
     );
 }
 
+function buildRedirect(request: NextRequest, targetPath: string, callbackPath?: string): URL {
+    const url = new URL(targetPath, request.url);
+    if (callbackPath && callbackPath !== targetPath) {
+        url.searchParams.set("callbackUrl", callbackPath);
+    }
+    return url;
+}
+
+function buildPanelLoginUrl(request: NextRequest, callbackPath?: string): URL {
+    return buildRedirect(request, "/giris-yap", callbackPath);
+}
+
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
     const ip = getClientIP(request);
@@ -114,30 +127,37 @@ export async function middleware(request: NextRequest) {
     // =============================================
     // STEALTH ADMIN PATH - IP + Session check
     // =============================================
-    if (pathname.startsWith(STEALTH_ADMIN_PATH)) {
-        // Login page is always accessible
-        if (pathname.endsWith("/login")) {
-            return NextResponse.next();
-        }
-
-        // Main stealth path requires session
+    if (pathname === STEALTH_ADMIN_PATH) {
         const sessionToken = request.cookies.get(ADMIN_COOKIE)?.value;
 
         if (!sessionToken) {
-            const loginUrl = new URL(`${STEALTH_ADMIN_PATH}/login`, request.url);
-            return NextResponse.redirect(loginUrl);
+            return NextResponse.next();
         }
 
-        // Verify admin session
-        const { valid, payload } = await verifyToken(sessionToken);
+        const { valid } = await verifyToken(sessionToken);
         if (!valid) {
-            // Invalid token - clear and redirect
-            const response = NextResponse.redirect(new URL(`${STEALTH_ADMIN_PATH}/login`, request.url));
+            const response = NextResponse.next();
             response.cookies.delete(ADMIN_COOKIE);
             return response;
         }
 
-        // Log admin access
+        return NextResponse.redirect(new URL(DASHBOARD_PATH, request.url));
+    }
+
+    if (pathname.startsWith(`${STEALTH_ADMIN_PATH}/`)) {
+        const sessionToken = request.cookies.get(ADMIN_COOKIE)?.value;
+
+        if (!sessionToken) {
+            return NextResponse.redirect(buildRedirect(request, STEALTH_ADMIN_PATH, pathname));
+        }
+
+        const { valid, payload } = await verifyToken(sessionToken);
+        if (!valid) {
+            const response = NextResponse.redirect(buildRedirect(request, STEALTH_ADMIN_PATH, pathname));
+            response.cookies.delete(ADMIN_COOKIE);
+            return response;
+        }
+
         console.log(`[IRON DOME] Admin access: ${pathname} by ${payload?.username || 'unknown'} from ${ip}`);
 
         return NextResponse.next();
@@ -150,15 +170,13 @@ export async function middleware(request: NextRequest) {
         const sessionToken = request.cookies.get(ADMIN_COOKIE)?.value;
 
         if (!sessionToken) {
-            const loginUrl = new URL(`${STEALTH_ADMIN_PATH}/login`, request.url);
-            loginUrl.searchParams.set("callbackUrl", pathname);
-            return NextResponse.redirect(loginUrl);
+            return NextResponse.redirect(buildRedirect(request, STEALTH_ADMIN_PATH, pathname));
         }
 
         // Verify session
         const { valid } = await verifyToken(sessionToken);
         if (!valid) {
-            const response = NextResponse.redirect(new URL(`${STEALTH_ADMIN_PATH}/login`, request.url));
+            const response = NextResponse.redirect(buildRedirect(request, STEALTH_ADMIN_PATH, pathname));
             response.cookies.delete(ADMIN_COOKIE);
             return response;
         }
@@ -172,42 +190,50 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith(PANEL_PATH)) {
         const adminToken = request.cookies.get(ADMIN_COOKIE)?.value;
         const ownerToken = request.cookies.get(OWNER_COOKIE)?.value;
+        const staffToken = request.cookies.get(STAFF_COOKIE)?.value;
+        const cookiesToClear: string[] = [];
 
         // Must have at least one token present
-        if (!adminToken && !ownerToken) {
-            const loginUrl = new URL("/giris-yap", request.url);
-            loginUrl.searchParams.set("callbackUrl", pathname);
-            return NextResponse.redirect(loginUrl);
+        if (!adminToken && !ownerToken && !staffToken) {
+            return NextResponse.redirect(buildPanelLoginUrl(request, pathname));
         }
 
-        // OWASP: Verify admin token if present (don't trust presence alone)
         if (adminToken) {
-            const { valid, payload } = await verifyToken(adminToken);
+            const { valid } = await verifyToken(adminToken);
             if (!valid) {
-                const response = NextResponse.redirect(new URL("/giris-yap", request.url));
-                response.cookies.delete(ADMIN_COOKIE);
-                return response;
+                cookiesToClear.push(ADMIN_COOKIE);
+            } else {
+                return NextResponse.next();
             }
-            // Admin token is valid - allow access
-            return NextResponse.next();
         }
 
-        // Verify owner token if present
         if (ownerToken) {
             const { valid, payload } = await verifyToken(ownerToken);
             if (!valid) {
-                const response = NextResponse.redirect(new URL("/giris-yap", request.url));
-                response.cookies.delete(OWNER_COOKIE);
-                return response;
-            }
-
-            // Check role
-            if (payload?.role !== "owner") {
-                return forbidden();
+                cookiesToClear.push(OWNER_COOKIE);
+            } else if (payload?.role === "owner") {
+                return NextResponse.next();
+            } else {
+                cookiesToClear.push(OWNER_COOKIE);
             }
         }
 
-        return NextResponse.next();
+        if (staffToken) {
+            const { valid, payload } = await verifyToken(staffToken);
+            if (!valid) {
+                cookiesToClear.push(STAFF_COOKIE);
+            } else if (payload?.isStaff === true && typeof payload.businessId === "string" && payload.businessId) {
+                return NextResponse.next();
+            } else {
+                cookiesToClear.push(STAFF_COOKIE);
+            }
+        }
+
+        const response = NextResponse.redirect(buildPanelLoginUrl(request, pathname));
+        for (const cookieName of cookiesToClear) {
+            response.cookies.delete(cookieName);
+        }
+        return response;
     }
 
     return NextResponse.next();

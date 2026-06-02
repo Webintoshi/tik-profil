@@ -1,5 +1,7 @@
 .vercel
-.env*.local
+.env
+.env.*
+!.env.example
 node_modules
 .next
 out
@@ -9,3 +11,7 @@ dist
 *.tsbuildinfo
 .DS_Store
 firebase-service-account.json
+*service-account*.json
+*credentials*.json
+*.pem
+*.key

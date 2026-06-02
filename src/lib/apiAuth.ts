@@ -36,11 +36,9 @@ export interface PermissionCheckResult {
 // SECRETS
 // ============================================
 
-// Staff JWT Secret (must match staff-login route - uses SESSION_SECRET)
-const STAFF_JWT_SECRET = getSessionSecretBytes();
-
-// Owner JWT Secret (must match env.ts fallback)
-const OWNER_JWT_SECRET = getSessionSecretBytes();
+function getJwtSecret(): Uint8Array {
+    return getSessionSecretBytes();
+}
 
 /**
  * Get current session from Cookies (Supports both Owner and Staff)
@@ -53,7 +51,7 @@ export async function getSession(): Promise<SessionUser | null> {
         const ownerToken = cookieStore.get("tikprofil_owner_session")?.value;
         if (ownerToken) {
             try {
-                const { payload } = await jwtVerify(ownerToken, OWNER_JWT_SECRET);
+                const { payload } = await jwtVerify(ownerToken, getJwtSecret());
 
                 return {
                     businessId: payload.businessId as string,
@@ -75,7 +73,7 @@ export async function getSession(): Promise<SessionUser | null> {
         const staffToken = cookieStore.get("tikprofil_staff_session")?.value;
         if (staffToken) {
             try {
-                const { payload } = await jwtVerify(staffToken, STAFF_JWT_SECRET);
+                const { payload } = await jwtVerify(staffToken, getJwtSecret());
 
                 return {
                     businessId: payload.businessId as string,

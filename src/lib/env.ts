@@ -6,6 +6,19 @@
 
 import { z } from 'zod';
 
+const optionalString = z.preprocess(
+    (value) => {
+        if (typeof value !== 'string') return undefined;
+        const trimmed = value.trim();
+        return trimmed === '' ? undefined : trimmed;
+    },
+    z.string().optional()
+);
+
+const sessionSecretSchema = z
+    .string()
+    .min(32, 'CRITICAL: SESSION_SECRET must be at least 32 characters');
+
 // Schema for environment variables
 const envSchema = z.object({
     // Supabase (Server-side)
@@ -24,6 +37,25 @@ const envSchema = z.object({
         .string()
         .min(32, 'CRITICAL: SESSION_SECRET must be at least 32 characters'),
 
+    // PostgreSQL foundation
+    DATABASE_URL: optionalString,
+
+    // Auth foundation
+    AUTH_PROVIDER: z.enum(['legacy', 'logto']).default('legacy'),
+    LOGTO_ENDPOINT: optionalString,
+    LOGTO_APP_ID: optionalString,
+    LOGTO_APP_SECRET: optionalString,
+    LOGTO_COOKIE_SECRET: optionalString,
+
+    // Analytics foundation
+    UMAMI_WEBSITE_ID: optionalString,
+    NEXT_PUBLIC_UMAMI_SRC: optionalString,
+
+    // Optional app URLs
+    APP_URL: optionalString,
+    NEXT_PUBLIC_APP_URL: optionalString,
+    NEXT_PUBLIC_BASE_URL: optionalString,
+
     // Optional
     NODE_ENV: z.enum(['development', 'production', 'test']).optional(),
 });
@@ -33,6 +65,12 @@ export type Env = z.infer<typeof envSchema>;
 
 // Cached validated env
 let cachedEnv: Env | null = null;
+
+function getTrimmedEnvValue(name: string): string | undefined {
+    const value = process.env[name];
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : undefined;
+}
 
 /**
  * Get validated environment variables
@@ -71,10 +109,37 @@ export function getEnv(): Env {
  * Get session secret (required)
  */
 export function getSessionSecret(): string {
-    const env = getEnv();
-    return env.SESSION_SECRET.trim();
+    const result = sessionSecretSchema.safeParse(getTrimmedEnvValue('SESSION_SECRET'));
+
+    if (!result.success) {
+        const errors = result.error.issues
+            .map(issue => `  - SESSION_SECRET: ${issue.message}`)
+            .join('\n');
+
+        console.error('=== IRON DOME: ENVIRONMENT VALIDATION FAILED ===');
+        console.error(errors);
+        console.error('=================================================');
+
+        throw new Error(`Environment validation failed:\n${errors}`);
+    }
+
+    return result.data;
 }
 
 export function getSessionSecretBytes(): Uint8Array {
     return new TextEncoder().encode(getSessionSecret());
+}
+
+export function getOptionalEnvValue(name: string): string | undefined {
+    return getTrimmedEnvValue(name);
+}
+
+export function getDatabaseUrl(): string | undefined {
+    return getTrimmedEnvValue('DATABASE_URL');
+}
+
+export function getAppUrl(): string | undefined {
+    return getTrimmedEnvValue('APP_URL')
+        ?? getTrimmedEnvValue('NEXT_PUBLIC_APP_URL')
+        ?? getTrimmedEnvValue('NEXT_PUBLIC_BASE_URL');
 }
