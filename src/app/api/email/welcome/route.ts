@@ -1,46 +1,44 @@
-// Welcome Email Test Endpoint
-import { NextResponse } from 'next/server';
-import { sendWelcomeEmail } from '@/lib/services/emailService';
+import { NextResponse } from "next/server";
+import { sendWelcomeEmail } from "@/lib/services/emailService";
+import { AppError } from "@/lib/errors";
+import { assertPlatformAdmin } from "@/server/auth/guards";
 
 export async function GET(request: Request) {
     try {
+        await assertPlatformAdmin();
+
         const url = new URL(request.url);
-        const to = url.searchParams.get('to');
+        const to = url.searchParams.get("to");
 
         if (!to) {
             return NextResponse.json({
-                message: 'Hoş geldin email test endpoint',
-                usage: '/api/email/welcome?to=email@example.com&name=İsim&business=İşletme',
-                example: 'https://tikprofil.com/api/email/welcome?to=test@gmail.com&name=Ahmet&business=Cafe%20Istanbul'
+                message: "Hos geldin email test endpoint",
+                usage: "/api/email/welcome?to=email@example.com&name=Isim&business=Isletme",
             });
         }
 
-        const name = url.searchParams.get('name') || 'Değerli Müşterimiz';
-        const business = url.searchParams.get('business') || 'İşletmeniz';
+        const name = url.searchParams.get("name") || "Degerli Musterimiz";
+        const business = url.searchParams.get("business") || "Isletmeniz";
 
         const result = await sendWelcomeEmail({
             to,
             ownerName: name,
-            businessName: business
+            businessName: business,
         });
 
-        if (result.success) {
-            return NextResponse.json({
-                success: true,
-                message: `Hoş geldin emaili ${to} adresine gönderildi!`,
-                messageId: result.messageId
-            });
-        } else {
+        if (!result.success) {
             return NextResponse.json(
-                { error: result.error || 'Email gönderilemedi' },
+                { error: result.error || "Email gonderilemedi" },
                 { status: 500 }
             );
         }
+
+        return NextResponse.json({
+            success: true,
+            message: `Hos geldin emaili ${to} adresine gonderildi!`,
+            messageId: result.messageId,
+        });
     } catch (error) {
-        console.error('[API] Welcome email error:', error);
-        return NextResponse.json(
-            { error: 'Sunucu hatası' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, "Email Welcome GET");
     }
 }

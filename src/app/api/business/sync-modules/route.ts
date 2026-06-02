@@ -1,25 +1,26 @@
-// Business Modules Sync API - Syncs business modules with industry type
-import { NextResponse } from 'next/server';
-import { getCollectionREST, updateDocumentREST, getDocumentREST } from '@/lib/documentStore';
+import { NextResponse } from "next/server";
+import { getCollectionREST, getDocumentREST, updateDocumentREST } from "@/lib/documentStore";
+import { AppError } from "@/lib/errors";
+import { assertPlatformAdmin } from "@/server/auth/guards";
 
-// POST - Sync business modules with its industry type
 export async function POST(request: Request) {
     try {
+        await assertPlatformAdmin();
+
         const body = await request.json();
         const { businessId } = body;
 
         if (!businessId) {
             return NextResponse.json(
-                { success: false, error: 'businessId required' },
+                { success: false, error: "businessId required" },
                 { status: 400 }
             );
         }
 
-        // Get business document
-        const business = await getDocumentREST('businesses', businessId);
+        const business = await getDocumentREST("businesses", businessId);
         if (!business) {
             return NextResponse.json(
-                { success: false, error: 'Business not found' },
+                { success: false, error: "Business not found" },
                 { status: 404 }
             );
         }
@@ -27,15 +28,14 @@ export async function POST(request: Request) {
         const industryId = business.industry_id as string;
         if (!industryId) {
             return NextResponse.json(
-                { success: false, error: 'Business has no industry_id' },
+                { success: false, error: "Business has no industry_id" },
                 { status: 400 }
             );
         }
 
-        // Get industry definition to find modules
-        const industryDefinitions = await getCollectionREST('industry_definitions');
+        const industryDefinitions = await getCollectionREST("industry_definitions");
         const industryDef = industryDefinitions.find(
-            (def) => def.slug === industryId || def.id === industryId
+            (definition) => definition.slug === industryId || definition.id === industryId
         );
 
         if (!industryDef) {
@@ -47,20 +47,16 @@ export async function POST(request: Request) {
 
         const industryModules = (industryDef.modules as string[]) || [];
 
-        // Update business modules
-        await updateDocumentREST('businesses', businessId, {
+        await updateDocumentREST("businesses", businessId, {
             modules: industryModules,
         });
+
         return NextResponse.json({
             success: true,
-            message: 'Business modules synced with industry type',
+            message: "Business modules synced with industry type",
             modules: industryModules,
         });
     } catch (error) {
-        console.error('[Business/Sync] POST error:', error);
-        return NextResponse.json(
-            { success: false, error: 'Server error' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, "Business Sync Modules POST");
     }
 }

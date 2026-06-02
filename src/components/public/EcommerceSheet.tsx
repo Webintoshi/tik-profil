@@ -96,7 +96,7 @@ export default function EcommerceSheet({
 
         async function fetchSettings() {
             try {
-                const res = await fetch(`/api/ecommerce/settings?businessId=${businessId}`);
+                const res = await fetch(`/api/public/ecommerce-settings?businessId=${businessId}`);
                 if (res.ok) {
                     const data = await res.json();
                     setSettings(data);

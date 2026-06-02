@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { AppError } from '@/lib/errors';
+import { assertBusinessMember } from '@/server/auth/guards';
 
 const TABLE = 'hotel_room_types';
 
@@ -8,10 +9,11 @@ export async function PUT(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { businessId } = await assertBusinessMember();
         const { id } = await params;
         const body = await request.json();
         const {
-            businessId,
+            businessId: _businessId,
             name,
             nameEn,
             description,
@@ -42,22 +44,19 @@ export async function PUT(
         const finalSizeSqm = size ?? sizeSqm;
 
         const supabase = getSupabaseAdmin();
+        const { data: existing, error: existingError } = await supabase
+            .from(TABLE)
+            .select('id')
+            .eq('id', id)
+            .eq('business_id', businessId)
+            .maybeSingle();
 
-        if (businessId) {
-            const { data: existing, error: existingError } = await supabase
-                .from(TABLE)
-                .select('id')
-                .eq('id', id)
-                .eq('business_id', businessId)
-                .maybeSingle();
+        if (existingError) {
+            throw existingError;
+        }
 
-            if (existingError) {
-                throw existingError;
-            }
-
-            if (!existing) {
-                return AppError.notFound('Oda türü').toResponse();
-            }
+        if (!existing) {
+            return AppError.notFound('Oda turu').toResponse();
         }
 
         const updateData: Record<string, unknown> = {};
@@ -88,7 +87,8 @@ export async function PUT(
         const { error: updateError } = await supabase
             .from(TABLE)
             .update(updateData)
-            .eq('id', id);
+            .eq('id', id)
+            .eq('business_id', businessId);
 
         if (updateError) {
             throw updateError;
@@ -96,7 +96,7 @@ export async function PUT(
 
         return Response.json({
             success: true,
-            message: 'Oda türü güncellendi',
+            message: 'Oda turu guncellendi',
         });
     } catch (error) {
         return AppError.toResponse(error, 'RoomTypes PUT');
@@ -108,33 +108,30 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { businessId } = await assertBusinessMember();
         const { id } = await params;
-        const { searchParams } = new URL(request.url);
-        const businessId = searchParams.get('businessId');
 
         const supabase = getSupabaseAdmin();
+        const { data: existing, error: existingError } = await supabase
+            .from(TABLE)
+            .select('id')
+            .eq('id', id)
+            .eq('business_id', businessId)
+            .maybeSingle();
 
-        if (businessId) {
-            const { data: existing, error: existingError } = await supabase
-                .from(TABLE)
-                .select('id')
-                .eq('id', id)
-                .eq('business_id', businessId)
-                .maybeSingle();
+        if (existingError) {
+            throw existingError;
+        }
 
-            if (existingError) {
-                throw existingError;
-            }
-
-            if (!existing) {
-                return AppError.notFound('Oda türü').toResponse();
-            }
+        if (!existing) {
+            return AppError.notFound('Oda turu').toResponse();
         }
 
         const { error: deleteError } = await supabase
             .from(TABLE)
             .delete()
-            .eq('id', id);
+            .eq('id', id)
+            .eq('business_id', businessId);
 
         if (deleteError) {
             throw deleteError;
@@ -142,7 +139,7 @@ export async function DELETE(
 
         return Response.json({
             success: true,
-            message: 'Oda türü silindi',
+            message: 'Oda turu silindi',
         });
     } catch (error) {
         return AppError.toResponse(error, 'RoomTypes DELETE');

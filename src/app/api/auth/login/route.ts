@@ -2,30 +2,40 @@ import { NextRequest, NextResponse } from "next/server";
 import {
     validateCredentials,
     createSession,
-    setSessionCookie
+    setSessionCookie,
 } from "@/lib/auth";
 import {
     logAuthAttempt,
     getGeoLocation,
-    getClientIP
+    getClientIP,
 } from "@/lib/security";
+import { checkRateLimit, recordSuccess } from "@/lib/rateLimit";
 import { logAdminLogin } from "@/lib/systemLogs";
 
 export async function POST(request: NextRequest) {
     try {
         const { username, password } = await request.json();
 
-        // Get client info
         const ip = getClientIP(request.headers);
         const userAgent = request.headers.get("user-agent") || "Bilinmiyor";
 
-        // Validate credentials
-        const isValid = await validateCredentials(username, password);
+        const rateCheck = checkRateLimit(ip, "admin-login");
+        if (!rateCheck.allowed) {
+            return NextResponse.json(
+                { error: rateCheck.message || "Cok fazla deneme" },
+                {
+                    status: 429,
+                    headers: {
+                        "Retry-After": String(rateCheck.retryAfter || 3600),
+                        "X-RateLimit-Remaining": "0",
+                    },
+                }
+            );
+        }
 
-        // Get geo location (async, don't block)
+        const isValid = await validateCredentials(username, password);
         const geoLocation = await getGeoLocation(ip);
 
-        // Log attempt (don't await, fire and forget)
         logAuthAttempt({
             ip_address: ip,
             user_agent: userAgent,
@@ -34,32 +44,29 @@ export async function POST(request: NextRequest) {
             username_attempted: username,
         });
 
-        // Log to system logs (fire and forget)
         logAdminLogin(ip, isValid);
 
         if (!isValid) {
             return NextResponse.json(
-                { error: "Kullanıcı adı veya şifre hatalı" },
+                { error: "Kullanici adi veya sifre hatali" },
                 { status: 401 }
             );
         }
 
-        // Create session
-        const token = await createSession({ username, ip });
+        recordSuccess(ip, "admin-login");
 
-        // Set cookie
+        const token = await createSession({ username, ip });
         await setSessionCookie(token);
 
         return NextResponse.json({
             success: true,
-            message: "Giriş başarılı"
+            message: "Giris basarili",
         });
     } catch (error) {
         console.error("Login error:", error);
         return NextResponse.json(
-            { error: "Sunucu hatası" },
+            { error: "Sunucu hatasi" },
             { status: 500 }
         );
     }
 }
-

@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
-import { AppError, validateOrThrow } from '@/lib/errors';
-import { categorySchema } from '@/types/ecommerce';
+import { NextRequest, NextResponse } from "next/server";
+import { AppError, validateOrThrow } from "@/lib/errors";
+import { getSupabaseAdmin } from "@/lib/supabase";
+import { categorySchema } from "@/types/ecommerce";
+import { assertBusinessMember } from "@/server/auth/guards";
 
-const TABLE = 'ecommerce_categories';
+const TABLE = "ecommerce_categories";
 
 interface CategoryRow {
     id: string;
@@ -35,26 +36,20 @@ function mapCategory(row: CategoryRow) {
 
 export async function GET(request: NextRequest) {
     try {
-        const searchParams = request.nextUrl.searchParams;
-        const businessId = searchParams.get('businessId');
-        const categoryId = searchParams.get('id');
-
-        if (!businessId) {
-            return NextResponse.json({ error: 'Business ID required' }, { status: 400 });
-        }
-
+        const { businessId } = await assertBusinessMember();
+        const categoryId = request.nextUrl.searchParams.get("id");
         const supabase = getSupabaseAdmin();
 
         if (categoryId) {
             const { data, error } = await supabase
                 .from(TABLE)
-                .select('*')
-                .eq('id', categoryId)
-                .eq('business_id', businessId)
+                .select("*")
+                .eq("id", categoryId)
+                .eq("business_id", businessId)
                 .single();
 
             if (error || !data) {
-                return NextResponse.json({ error: 'Category not found' }, { status: 404 });
+                return NextResponse.json({ error: "Category not found" }, { status: 404 });
             }
 
             return NextResponse.json(mapCategory(data));
@@ -62,46 +57,42 @@ export async function GET(request: NextRequest) {
 
         const { data, error } = await supabase
             .from(TABLE)
-            .select('*')
-            .eq('business_id', businessId)
-            .order('sort_order', { ascending: true });
+            .select("*")
+            .eq("business_id", businessId)
+            .order("sort_order", { ascending: true });
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
 
-        const categories = (data || []).map(mapCategory);
-        return NextResponse.json({ success: true, categories });
+        return NextResponse.json({
+            success: true,
+            categories: (data || []).map(mapCategory),
+        });
     } catch (error) {
-        console.error('[Ecommerce Categories GET Error]:', error);
-        return NextResponse.json(
-            { error: 'Kategoriler alınırken hata oluştu' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, "Ecommerce Categories GET");
     }
 }
 
 export async function POST(request: NextRequest) {
     try {
+        const { businessId } = await assertBusinessMember();
         const body = await request.json();
-        const { businessId, ...categoryData } = body;
-
-        if (!businessId) {
-            return NextResponse.json({ error: 'Business ID required' }, { status: 400 });
-        }
-
+        const { businessId: _ignoredBusinessId, ...categoryData } = body;
         validateOrThrow(categorySchema, categoryData);
 
         const supabase = getSupabaseAdmin();
-
         const { data: existingCategories, error: checkError } = await supabase
             .from(TABLE)
-            .select('sort_order')
-            .eq('business_id', businessId)
-            .order('sort_order', { ascending: false });
+            .select("sort_order")
+            .eq("business_id", businessId)
+            .order("sort_order", { ascending: false });
 
-        if (checkError) throw checkError;
+        if (checkError) {
+            throw checkError;
+        }
 
         const maxSortOrder = existingCategories?.[0]?.sort_order ?? 0;
-
         const { data, error } = await supabase
             .from(TABLE)
             .insert({
@@ -116,45 +107,47 @@ export async function POST(request: NextRequest) {
             .select()
             .single();
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
 
         return NextResponse.json({
             success: true,
             id: data.id,
-            category: mapCategory(data)
+            category: mapCategory(data),
         });
     } catch (error) {
-        console.error('[Ecommerce Categories POST Error]:', error);
-        return NextResponse.json(
-            { error: 'Kategori oluşturulurken hata oluştu' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, "Ecommerce Categories POST");
     }
 }
 
 export async function PUT(request: NextRequest) {
     try {
+        const { businessId } = await assertBusinessMember();
         const body = await request.json();
-        const { businessId, id, ...updateData } = body;
+        const { businessId: _ignoredBusinessId, id, ...updateData } = body;
 
-        if (!businessId || !id) {
-            return NextResponse.json({ error: 'Business ID and Category ID required' }, { status: 400 });
+        if (!id) {
+            return NextResponse.json({ error: "Category ID required" }, { status: 400 });
         }
 
         const supabase = getSupabaseAdmin();
-
         const { data: existing, error: checkError } = await supabase
             .from(TABLE)
-            .select('*')
-            .eq('id', id)
-            .eq('business_id', businessId)
-            .single();
+            .select("id")
+            .eq("id", id)
+            .eq("business_id", businessId)
+            .maybeSingle();
 
-        if (checkError || !existing) {
-            return NextResponse.json({ error: 'Category not found' }, { status: 404 });
+        if (checkError) {
+            throw checkError;
         }
 
-        const { data, error } = await supabase
+        if (!existing) {
+            return NextResponse.json({ error: "Category not found" }, { status: 404 });
+        }
+
+        const { error } = await supabase
             .from(TABLE)
             .update({
                 name: updateData.name,
@@ -164,75 +157,73 @@ export async function PUT(request: NextRequest) {
                 sort_order: updateData.sortOrder,
                 is_active: updateData.isActive,
             })
-            .eq('id', id)
-            .eq('business_id', businessId)
-            .select()
-            .single();
+            .eq("id", id)
+            .eq("business_id", businessId);
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('[Ecommerce Categories PUT Error]:', error);
-        return NextResponse.json(
-            { error: 'Kategori güncellenirken hata oluştu' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, "Ecommerce Categories PUT");
     }
 }
 
 export async function DELETE(request: NextRequest) {
     try {
-        const searchParams = request.nextUrl.searchParams;
-        const businessId = searchParams.get('businessId');
-        const id = searchParams.get('id');
+        const { businessId } = await assertBusinessMember();
+        const id = request.nextUrl.searchParams.get("id");
 
-        if (!businessId || !id) {
-            return NextResponse.json({ error: 'Business ID and Category ID required' }, { status: 400 });
+        if (!id) {
+            return NextResponse.json({ error: "Category ID required" }, { status: 400 });
         }
 
         const supabase = getSupabaseAdmin();
-
         const { data: existing, error: checkError } = await supabase
             .from(TABLE)
-            .select('id, business_id')
-            .eq('id', id)
-            .eq('business_id', businessId)
-            .single();
+            .select("id")
+            .eq("id", id)
+            .eq("business_id", businessId)
+            .maybeSingle();
 
-        if (checkError || !existing) {
-            return NextResponse.json({ error: 'Category not found' }, { status: 404 });
+        if (checkError) {
+            throw checkError;
+        }
+
+        if (!existing) {
+            return NextResponse.json({ error: "Category not found" }, { status: 404 });
         }
 
         const { data: products, error: productsError } = await supabase
-            .from('ecommerce_products')
-            .select('id')
-            .eq('business_id', businessId)
-            .eq('category_id', id)
+            .from("ecommerce_products")
+            .select("id")
+            .eq("business_id", businessId)
+            .eq("category_id", id)
             .range(0, 0);
 
-        if (productsError) throw productsError;
+        if (productsError) {
+            throw productsError;
+        }
 
         if (products && products.length > 0) {
             return NextResponse.json({
-                error: 'Bu kategoride ürün var, önce ürünleri taşıyın veya silin'
+                error: "Bu kategoride urun var, once urunleri tasiyin veya silin",
             }, { status: 400 });
         }
 
         const { error } = await supabase
             .from(TABLE)
             .delete()
-            .eq('id', id)
-            .eq('business_id', businessId);
+            .eq("id", id)
+            .eq("business_id", businessId);
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('[Ecommerce Categories DELETE Error]:', error);
-        return NextResponse.json(
-            { error: 'Kategori silinirken hata oluştu' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, "Ecommerce Categories DELETE");
     }
 }

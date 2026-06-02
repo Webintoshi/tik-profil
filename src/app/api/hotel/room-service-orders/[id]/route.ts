@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { AppError } from '@/lib/errors';
+import { assertBusinessMember } from '@/server/auth/guards';
 
 const TABLE = 'hotel_room_service_orders';
 
@@ -8,13 +9,14 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { businessId } = await assertBusinessMember();
         const { id } = await params;
         const body = await request.json();
         const { status } = body;
 
         const validStatuses = ['pending', 'preparing', 'delivered', 'cancelled'];
         if (!validStatuses.includes(status)) {
-            return AppError.badRequest('Geçersiz durum').toResponse();
+            return AppError.badRequest('Gecersiz durum').toResponse();
         }
 
         const supabase = getSupabaseAdmin();
@@ -24,18 +26,25 @@ export async function PATCH(
             updateData.completed_at = new Date().toISOString();
         }
 
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from(TABLE)
             .update(updateData)
-            .eq('id', id);
+            .eq('id', id)
+            .eq('business_id', businessId)
+            .select('id')
+            .maybeSingle();
 
         if (error) {
             throw error;
         }
 
+        if (!data) {
+            return AppError.notFound('Siparis').toResponse();
+        }
+
         return Response.json({
             success: true,
-            message: 'Sipariş durumu güncellendi',
+            message: 'Siparis durumu guncellendi',
         });
     } catch (error) {
         return AppError.toResponse(error, 'RoomServiceOrders PATCH');

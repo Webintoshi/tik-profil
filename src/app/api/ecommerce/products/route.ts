@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
-import { AppError, validateOrThrow } from '@/lib/errors';
-import { productSchema } from '@/types/ecommerce';
+import { NextRequest, NextResponse } from "next/server";
+import { AppError, validateOrThrow } from "@/lib/errors";
+import { getSupabaseAdmin } from "@/lib/supabase";
+import { productSchema } from "@/types/ecommerce";
+import { assertBusinessMember } from "@/server/auth/guards";
 
-const TABLE = 'ecommerce_products';
+const TABLE = "ecommerce_products";
 
 interface ProductRow {
     id: string;
@@ -34,7 +35,7 @@ function mapProduct(row: ProductRow) {
         nameEn: row.name_en,
         description: row.description,
         descriptionEn: row.description_en,
-        price: typeof row.price === 'string' ? parseFloat(row.price) : row.price,
+        price: typeof row.price === "string" ? parseFloat(row.price) : row.price,
         imageUrl: row.image_url,
         isActive: row.is_active,
         inStock: row.in_stock,
@@ -49,27 +50,22 @@ function mapProduct(row: ProductRow) {
 
 export async function GET(request: NextRequest) {
     try {
+        const { businessId } = await assertBusinessMember();
         const searchParams = request.nextUrl.searchParams;
-        const businessId = searchParams.get('businessId');
-        const productId = searchParams.get('id');
-        const categoryId = searchParams.get('categoryId');
-
-        if (!businessId) {
-            return NextResponse.json({ error: 'Business ID required' }, { status: 400 });
-        }
-
+        const productId = searchParams.get("id");
+        const categoryId = searchParams.get("categoryId");
         const supabase = getSupabaseAdmin();
 
         if (productId) {
             const { data, error } = await supabase
                 .from(TABLE)
-                .select('*')
-                .eq('id', productId)
-                .eq('business_id', businessId)
+                .select("*")
+                .eq("id", productId)
+                .eq("business_id", businessId)
                 .single();
 
             if (error || !data) {
-                return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+                return NextResponse.json({ error: "Product not found" }, { status: 404 });
             }
 
             return NextResponse.json(mapProduct(data));
@@ -77,41 +73,36 @@ export async function GET(request: NextRequest) {
 
         let query = supabase
             .from(TABLE)
-            .select('*')
-            .eq('business_id', businessId)
-            .order('sort_order', { ascending: true });
+            .select("*")
+            .eq("business_id", businessId)
+            .order("sort_order", { ascending: true });
 
         if (categoryId) {
-            query = query.eq('category_id', categoryId);
+            query = query.eq("category_id", categoryId);
         }
 
         const { data, error } = await query;
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
 
-        const products = (data || []).map(mapProduct);
-        return NextResponse.json({ success: true, products });
+        return NextResponse.json({
+            success: true,
+            products: (data || []).map(mapProduct),
+        });
     } catch (error) {
-        console.error('[Ecommerce Products GET Error]:', error);
-        return NextResponse.json(
-            { error: 'Ürünler alınırken hata oluştu' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, "Ecommerce Products GET");
     }
 }
 
 export async function POST(request: NextRequest) {
     try {
+        const { businessId } = await assertBusinessMember();
         const body = await request.json();
-        const { businessId, ...productData } = body;
-
-        if (!businessId) {
-            return NextResponse.json({ error: 'Business ID required' }, { status: 400 });
-        }
-
+        const { businessId: _ignoredBusinessId, ...productData } = body;
         validateOrThrow(productSchema, productData);
 
         const supabase = getSupabaseAdmin();
-
         const { data, error } = await supabase
             .from(TABLE)
             .insert({
@@ -133,45 +124,47 @@ export async function POST(request: NextRequest) {
             .select()
             .single();
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
 
         return NextResponse.json({
             success: true,
             id: data.id,
-            product: mapProduct(data)
+            product: mapProduct(data),
         });
     } catch (error) {
-        console.error('[Ecommerce Products POST Error]:', error);
-        return NextResponse.json(
-            { error: 'Ürün oluşturulurken hata oluştu' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, "Ecommerce Products POST");
     }
 }
 
 export async function PUT(request: NextRequest) {
     try {
+        const { businessId } = await assertBusinessMember();
         const body = await request.json();
-        const { businessId, id, ...updateData } = body;
+        const { businessId: _ignoredBusinessId, id, ...updateData } = body;
 
-        if (!businessId || !id) {
-            return NextResponse.json({ error: 'Business ID and Product ID required' }, { status: 400 });
+        if (!id) {
+            return NextResponse.json({ error: "Product ID required" }, { status: 400 });
         }
 
         const supabase = getSupabaseAdmin();
-
         const { data: existing, error: checkError } = await supabase
             .from(TABLE)
-            .select('*')
-            .eq('id', id)
-            .eq('business_id', businessId)
-            .single();
+            .select("id")
+            .eq("id", id)
+            .eq("business_id", businessId)
+            .maybeSingle();
 
-        if (checkError || !existing) {
-            return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+        if (checkError) {
+            throw checkError;
         }
 
-        const { data, error } = await supabase
+        if (!existing) {
+            return NextResponse.json({ error: "Product not found" }, { status: 404 });
+        }
+
+        const { error } = await supabase
             .from(TABLE)
             .update({
                 category_id: updateData.categoryId,
@@ -188,60 +181,56 @@ export async function PUT(request: NextRequest) {
                 tags: updateData.tags,
                 sort_order: updateData.sortOrder,
             })
-            .eq('id', id)
-            .eq('business_id', businessId)
-            .select()
-            .single();
+            .eq("id", id)
+            .eq("business_id", businessId);
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('[Ecommerce Products PUT Error]:', error);
-        return NextResponse.json(
-            { error: 'Ürün güncellenirken hata oluştu' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, "Ecommerce Products PUT");
     }
 }
 
 export async function DELETE(request: NextRequest) {
     try {
-        const searchParams = request.nextUrl.searchParams;
-        const businessId = searchParams.get('businessId');
-        const id = searchParams.get('id');
+        const { businessId } = await assertBusinessMember();
+        const id = request.nextUrl.searchParams.get("id");
 
-        if (!businessId || !id) {
-            return NextResponse.json({ error: 'Business ID and Product ID required' }, { status: 400 });
+        if (!id) {
+            return NextResponse.json({ error: "Product ID required" }, { status: 400 });
         }
 
         const supabase = getSupabaseAdmin();
-
         const { data: existing, error: checkError } = await supabase
             .from(TABLE)
-            .select('id, business_id')
-            .eq('id', id)
-            .eq('business_id', businessId)
-            .single();
+            .select("id")
+            .eq("id", id)
+            .eq("business_id", businessId)
+            .maybeSingle();
 
-        if (checkError || !existing) {
-            return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+        if (checkError) {
+            throw checkError;
+        }
+
+        if (!existing) {
+            return NextResponse.json({ error: "Product not found" }, { status: 404 });
         }
 
         const { error } = await supabase
             .from(TABLE)
             .delete()
-            .eq('id', id)
-            .eq('business_id', businessId);
+            .eq("id", id)
+            .eq("business_id", businessId);
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('[Ecommerce Products DELETE Error]:', error);
-        return NextResponse.json(
-            { error: 'Ürün silinirken hata oluştu' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, "Ecommerce Products DELETE");
     }
 }

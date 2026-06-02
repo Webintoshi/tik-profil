@@ -108,7 +108,9 @@ export async function middleware(request: NextRequest) {
     }
 
     // =============================================
-    // API PROTECTION - Origin/Authorization check
+    // API PROTECTION - Origin check only
+    // Origin/Referer validation is not tenant authorization.
+    // Protected APIs must authorize at route level.
     // =============================================
     if (pathname.startsWith(API_PATH)) {
         // Skip auth endpoints
@@ -116,6 +118,8 @@ export async function middleware(request: NextRequest) {
             return NextResponse.next();
         }
 
+        // Origin/Referer checks reduce cross-site abuse but are not authorization.
+        // Protected APIs still need route-level auth and tenant guards.
         // Check origin for non-auth API calls
         if (!isAllowedOrigin(request)) {
             return forbidden();

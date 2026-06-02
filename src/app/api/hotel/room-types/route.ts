@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { AppError } from '@/lib/errors';
+import { assertBusinessMember } from '@/server/auth/guards';
 
 const TABLE = 'hotel_room_types';
 
@@ -63,14 +64,9 @@ function mapRoomType(row: RoomTypeRow) {
     };
 }
 
-export async function GET(request: Request) {
+export async function GET() {
     try {
-        const { searchParams } = new URL(request.url);
-        const businessId = searchParams.get('businessId');
-
-        if (!businessId) {
-            return AppError.badRequest('businessId gerekli').toResponse();
-        }
+        const { businessId } = await assertBusinessMember();
 
         const supabase = getSupabaseAdmin();
         const { data, error } = await supabase
@@ -94,9 +90,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
+        const { businessId } = await assertBusinessMember();
         const body = await request.json();
         const {
-            businessId,
+            businessId: _businessId,
             name,
             nameEn,
             description,
@@ -124,8 +121,8 @@ export async function POST(request: Request) {
         const finalPricePerNight = price ?? pricePerNight ?? 0;
         const finalSizeSqm = size ?? sizeSqm;
 
-        if (!businessId || !name || finalPricePerNight === undefined) {
-            return AppError.badRequest('businessId, name ve price gerekli').toResponse();
+        if (!name || finalPricePerNight === undefined) {
+            return AppError.badRequest('name ve price gerekli').toResponse();
         }
 
         const supabase = getSupabaseAdmin();

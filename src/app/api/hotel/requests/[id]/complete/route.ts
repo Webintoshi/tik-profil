@@ -1,33 +1,42 @@
-import { getSupabaseAdmin } from '@/lib/supabase';
-import { AppError } from '@/lib/errors';
+import { AppError } from "@/lib/errors";
+import { getSupabaseAdmin } from "@/lib/supabase";
+import { assertBusinessMember } from "@/server/auth/guards";
 
-const TABLE = 'hotel_requests';
+const TABLE = "hotel_requests";
 
 export async function PATCH(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { businessId } = await assertBusinessMember();
         const { id } = await params;
-
         const supabase = getSupabaseAdmin();
-        const { error } = await supabase
+
+        const { data, error } = await supabase
             .from(TABLE)
             .update({
-                status: 'completed',
+                status: "completed",
                 completed_at: new Date().toISOString(),
             })
-            .eq('id', id);
+            .eq("id", id)
+            .eq("business_id", businessId)
+            .select("id")
+            .maybeSingle();
 
         if (error) {
             throw error;
         }
 
+        if (!data) {
+            return AppError.notFound("Talep").toResponse();
+        }
+
         return Response.json({
             success: true,
-            message: 'Talep tamamlandı',
+            message: "Talep tamamlandi",
         });
     } catch (error) {
-        return AppError.toResponse(error, 'Requests Complete');
+        return AppError.toResponse(error, "Hotel Requests Complete PATCH");
     }
 }

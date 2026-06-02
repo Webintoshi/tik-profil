@@ -1,67 +1,58 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getCollectionREST } from '@/lib/documentStore';
-import type { Order, Product, Customer } from '@/types/ecommerce';
+import { NextResponse } from "next/server";
+import { getCollectionREST } from "@/lib/documentStore";
+import { AppError } from "@/lib/errors";
+import type { Customer, Order, Product } from "@/types/ecommerce";
+import { assertBusinessMember } from "@/server/auth/guards";
 
-const ORDERS_COLLECTION = 'ecommerce_orders';
-const PRODUCTS_COLLECTION = 'ecommerce_products';
-const CUSTOMERS_COLLECTION = 'ecommerce_customers';
+const ORDERS_COLLECTION = "ecommerce_orders";
+const PRODUCTS_COLLECTION = "ecommerce_products";
+const CUSTOMERS_COLLECTION = "ecommerce_customers";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
     try {
-        const searchParams = request.nextUrl.searchParams;
-        const businessId = searchParams.get('businessId');
-
-        if (!businessId) {
-            return NextResponse.json({ error: 'Business ID required' }, { status: 400 });
-        }
-
+        const { businessId } = await assertBusinessMember();
         const [ordersData, productsData, customersData] = await Promise.all([
             getCollectionREST(ORDERS_COLLECTION),
             getCollectionREST(PRODUCTS_COLLECTION),
             getCollectionREST(CUSTOMERS_COLLECTION),
         ]);
 
-        const allOrders = (ordersData as unknown as Order[]).filter(o => o.businessId === businessId);
-        const allProducts = (productsData as unknown as Product[]).filter(p => p.businessId === businessId);
-        const allCustomers = (customersData as unknown as Customer[]).filter(c => c.businessId === businessId);
+        const allOrders = (ordersData as unknown as Order[]).filter((order) => order.businessId === businessId);
+        const allProducts = (productsData as unknown as Product[]).filter((product) => product.businessId === businessId);
+        const allCustomers = (customersData as unknown as Customer[]).filter((customer) => customer.businessId === businessId);
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        const todayOrders = allOrders.filter(o => {
-            const orderDate = new Date(o.createdAt);
+        const todayOrders = allOrders.filter((order) => {
+            const orderDate = new Date(order.createdAt);
             return orderDate >= today && orderDate < tomorrow;
         });
 
         const todaySales = todayOrders
-            .filter(o => o.status !== 'cancelled' && o.status !== 'refunded')
-            .reduce((sum, o) => sum + o.total, 0);
+            .filter((order) => order.status !== "cancelled" && order.status !== "refunded")
+            .reduce((sum, order) => sum + order.total, 0);
 
-        const pendingOrders = allOrders.filter(o => o.status === 'pending').length;
-
-        const lowStockThreshold = 5;
-        const lowStockProducts = allProducts.filter(p => {
-            const stock = p.stock ?? p.stockQuantity ?? 0;
-            return p.status === 'active' && stock <= lowStockThreshold;
+        const pendingOrders = allOrders.filter((order) => order.status === "pending").length;
+        const lowStockProducts = allProducts.filter((product) => {
+            const stock = product.stock ?? product.stockQuantity ?? 0;
+            return product.status === "active" && stock <= 5;
         }).length;
 
-        const stats = {
-            totalProducts: allProducts.filter(p => p.status === 'active').length,
-            totalOrders: allOrders.length,
-            totalCustomers: allCustomers.length,
-            todaySales,
-            pendingOrders,
-            lowStockProducts,
-        };
-
-        return NextResponse.json({ success: true, stats });
+        return NextResponse.json({
+            success: true,
+            stats: {
+                totalProducts: allProducts.filter((product) => product.status === "active").length,
+                totalOrders: allOrders.length,
+                totalCustomers: allCustomers.length,
+                todaySales,
+                pendingOrders,
+                lowStockProducts,
+            },
+        });
     } catch (error) {
-        console.error('[Ecommerce Dashboard GET Error]:', error);
-        return NextResponse.json(
-            { error: 'Dashboard verileri alınırken hata oluştu' },
-            { status: 500 }
-        );
+        return AppError.toResponse(error, "Ecommerce Dashboard GET");
     }
 }

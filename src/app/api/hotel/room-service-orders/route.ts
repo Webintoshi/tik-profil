@@ -1,5 +1,9 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { AppError } from '@/lib/errors';
+import {
+    assertBusinessMember,
+    resolvePublicBusinessContext,
+} from '@/server/auth/guards';
 
 const TABLE = 'hotel_room_service_orders';
 
@@ -51,13 +55,9 @@ function mapOrder(row: OrderRow) {
 
 export async function GET(request: Request) {
     try {
+        const { businessId } = await assertBusinessMember();
         const { searchParams } = new URL(request.url);
-        const businessId = searchParams.get('businessId');
         const status = searchParams.get('status');
-
-        if (!businessId) {
-            return AppError.badRequest('businessId gerekli').toResponse();
-        }
 
         const supabase = getSupabaseAdmin();
         let query = supabase
@@ -87,24 +87,37 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const {
-            businessId,
-            roomNumber,
-            items,
-            total,
-            note,
-            language,
-        } = body;
+        const businessContext = await resolvePublicBusinessContext({
+            businessId: body.businessId,
+        });
+        const businessId = businessContext?.businessId;
+        const { roomNumber, items, total, note, language } = body;
 
         if (!businessId || !roomNumber || !items || items.length === 0) {
             return AppError.badRequest('businessId, roomNumber ve items gerekli').toResponse();
         }
 
         const supabase = getSupabaseAdmin();
+        const { data: room, error: roomError } = await supabase
+            .from('hotel_rooms')
+            .select('id, room_number')
+            .eq('business_id', businessId)
+            .eq('room_number', roomNumber)
+            .eq('is_active', true)
+            .maybeSingle();
+
+        if (roomError) {
+            throw roomError;
+        }
+
+        if (!room) {
+            return AppError.notFound('Oda').toResponse();
+        }
+
         const orderData = {
             business_id: businessId,
-            room_id: null,
-            room_number: roomNumber,
+            room_id: room.id,
+            room_number: room.room_number,
             guest_name: null,
             items,
             subtotal: 0,
@@ -117,7 +130,7 @@ export async function POST(request: Request) {
             assigned_to: null,
             completed_at: null,
             completed_by: null,
-            notes: language === 'tr' ? 'Sipariş alındı' : 'Order received',
+            notes: language === 'tr' ? 'Siparis alindi' : 'Order received',
         };
 
         const { data, error } = await supabase
@@ -132,7 +145,7 @@ export async function POST(request: Request) {
 
         return Response.json({
             success: true,
-            message: 'Sipariş alındı',
+            message: 'Siparis alindi',
             order: {
                 id: data?.id,
                 ...orderData,
