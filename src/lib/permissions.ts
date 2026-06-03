@@ -28,6 +28,24 @@ export interface PermissionModule {
     permissions: PermissionDefinition[];
 }
 
+const MODULE_ALIASES: Record<string, string[]> = {
+    restaurant: ["restaurant", "cafe", "bar"],
+    hotel: ["hotel", "boutique", "hostel", "aparthotel"],
+    beauty: ["beauty", "salon", "guzellik", "kuafor", "spa", "barber"],
+    clinic: [
+        "clinic",
+        "hospital",
+        "dentist",
+        "veteriner",
+        "pharmacy",
+        "optik",
+        "physiotherapy",
+        "psychology",
+        "nutrition",
+        "laboratory",
+    ],
+};
+
 // ============================================
 // PERMISSION DEFINITIONS
 // ============================================
@@ -54,13 +72,27 @@ export const PERMISSION_MODULES: PermissionModule[] = [
                 id: "general.analytics",
                 label: "Analitik",
                 description: "İstatistik ve raporları görüntüleme",
-                routes: ["/panel/*/analytics", "/panel/food/analytics"],
+                routes: [
+                    "/panel/food/analytics",
+                    "/panel/fastfood/analytics",
+                    "/panel/hotel/analytics",
+                    "/panel/beauty/analytics",
+                    "/panel/clinic/analytics",
+                    "/panel/ecommerce/analytics",
+                    "/panel/emlak/analytics",
+                ],
             },
             {
                 id: "general.settings",
                 label: "Ayarlar",
                 description: "Genel ayarları düzenleme",
-                routes: ["/panel/*/settings", "/panel/food/settings"],
+                routes: [
+                    "/panel/food/settings",
+                    "/panel/fastfood/settings",
+                    "/panel/beauty/settings",
+                    "/panel/clinic/settings",
+                    "/panel/ecommerce/settings",
+                ],
             },
             {
                 id: "general.staff",
@@ -80,25 +112,31 @@ export const PERMISSION_MODULES: PermissionModule[] = [
                 id: "restaurant.menu",
                 label: "Menü Yönetimi",
                 description: "Ürün ve kategori yönetimi",
-                routes: ["/panel/food/menu"],
+                routes: [
+                    "/panel/food/menu",
+                    "/panel/fastfood/categories",
+                    "/panel/fastfood/products",
+                    "/panel/fastfood/extras",
+                    "/panel/fastfood/coupons",
+                ],
             },
             {
                 id: "restaurant.tables",
                 label: "Masa Düzeni",
                 description: "Masa oluşturma ve QR kodları",
-                routes: ["/panel/food/tables"],
+                routes: ["/panel/food/tables", "/panel/fastfood/tables"],
             },
             {
                 id: "restaurant.orders",
                 label: "Siparişler",
                 description: "Sipariş takibi ve yönetimi",
-                routes: ["/panel/food/orders"],
+                routes: ["/panel/fastfood/orders"],
             },
             {
                 id: "restaurant.reservations",
-                label: "Rezervasyonlar",
+                label: "Etkinlikler",
                 description: "Masa rezervasyonları",
-                routes: ["/panel/food/reservations"],
+                routes: ["/panel/food/events"],
             },
         ],
     },
@@ -115,40 +153,40 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             },
             {
                 id: "hotel.bookings",
-                label: "Rezervasyonlar",
-                routes: ["/panel/hotel/bookings"],
+                label: "Oda Talepleri",
+                routes: ["/panel/hotel/requests"],
             },
             {
                 id: "hotel.guests",
                 label: "Misafir Kayıtları",
-                routes: ["/panel/hotel/guests"],
+                routes: ["/panel/hotel/orders"],
             },
             {
                 id: "hotel.housekeeping",
-                label: "Kat Hizmetleri",
-                routes: ["/panel/hotel/housekeeping"],
+                label: "Oda TÃ¼rleri",
+                routes: ["/panel/hotel/room-types"],
             },
         ],
     },
     {
-        id: "salon",
+        id: "beauty",
         name: "Güzellik Salonu",
         icon: "Scissors",
         permissions: [
             {
                 id: "salon.services",
                 label: "Hizmetler",
-                routes: ["/panel/salon/services"],
+                routes: ["/panel/beauty/services"],
             },
             {
                 id: "salon.appointments",
                 label: "Randevular",
-                routes: ["/panel/salon/appointments"],
+                routes: ["/panel/beauty/appointments"],
             },
             {
                 id: "salon.customers",
                 label: "Müşteriler",
-                routes: ["/panel/salon/customers"],
+                routes: ["/panel/beauty/customers"],
             },
         ],
     },
@@ -334,7 +372,10 @@ export function getDefaultPermissionsForRole(role: StaffRole): string[] {
  * Filter permission modules based on enabled business modules
  */
 export function getAvailableModules(enabledModules: string[]): PermissionModule[] {
-    return PERMISSION_MODULES.filter(m =>
-        m.id === "general" || enabledModules.includes(m.id)
-    );
+    return PERMISSION_MODULES.filter((module) => {
+        if (module.id === "general") return true;
+
+        const aliases = MODULE_ALIASES[module.id] || [module.id];
+        return aliases.some((alias) => enabledModules.includes(alias));
+    });
 }

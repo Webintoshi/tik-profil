@@ -89,12 +89,6 @@ const RESTAURANT_NAV_ITEMS = [
         href: "/panel/food/events",
         icon: PartyPopper,
     },
-    {
-        id: "food-analytics",
-        label: "Masa Analizi",
-        href: "/panel/food/analytics",
-        icon: BarChart3,
-    },
 ];
 
 // Store item (coming soon)
@@ -143,12 +137,6 @@ const FASTFOOD_NAV_ITEMS = [
         label: "Kuponlar",
         href: "/panel/fastfood/coupons",
         icon: Ticket,
-    },
-    {
-        id: "ff-analytics",
-        label: "Analizler",
-        href: "/panel/fastfood/analytics",
-        icon: BarChart3,
     },
     {
         id: "ff-settings",
@@ -431,13 +419,14 @@ const PERMISSION_ROUTES: Record<string, string> = {
     "general.staff": "/panel/staff",
     "restaurant.menu": "/panel/food/menu",
     "restaurant.tables": "/panel/food/tables",
-    "restaurant.orders": "/panel/food/orders",
+    "restaurant.orders": "/panel/fastfood/orders",
+    "restaurant.reservations": "/panel/food/events",
     "general.analytics": "/panel/food/analytics",
     "general.settings": "/panel/food/settings",
     "hotel.rooms": "/panel/hotel/rooms",
-    "hotel.room-types": "/panel/hotel/room-types",
-    "hotel.requests": "/panel/hotel/requests",
-    "hotel.analytics": "/panel/hotel/analytics",
+    "hotel.bookings": "/panel/hotel/requests",
+    "hotel.guests": "/panel/hotel/orders",
+    "hotel.housekeeping": "/panel/hotel/room-types",
     "clinic.appointments": "/panel/clinic/appointments",
     "clinic.patients": "/panel/clinic/patients",
     "clinic.services": "/panel/clinic/services",
@@ -458,8 +447,11 @@ export function BusinessSidebar({
     const router = useRouter();
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
-    const [expandedGroups, setExpandedGroups] = useState<string[]>(["hotel", "restaurant", "clinic"]);
+    const [expandedGroups, setExpandedGroups] = useState<string[]>(["restaurant", "fastfood"]);
     const { isDark } = useTheme();
+    const showExtendedModules = false;
+    const showStoreItem = false;
+    const showPackagePurchase = false;
 
     // Check if restaurant module is enabled
     const hasRestaurantModule = enabledModules.includes("restaurant") ||
@@ -655,7 +647,7 @@ export function BusinessSidebar({
                 ))}
 
                 {/* Restaurant Module Group */}
-                {hasRestaurantModule && (
+                {hasRestaurantModule && filteredRestaurantNavItems.length > 0 && (
                     <div className="pt-3">
                         <button
                             onClick={() => toggleGroup("restaurant")}
@@ -696,7 +688,7 @@ export function BusinessSidebar({
                 )}
 
                 {/* Hotel Module Group */}
-                {hasHotelModule && (
+                {showExtendedModules && hasHotelModule && filteredHotelNavItems.length > 0 && (
                     <div className="pt-3">
                         <button
                             onClick={() => toggleGroup("hotel")}
@@ -737,7 +729,7 @@ export function BusinessSidebar({
                 )}
 
                 {/* Fast Food Module Group */}
-                {hasFastfoodModule && (
+                {hasFastfoodModule && filteredFastfoodNavItems.length > 0 && (
                     <div className="pt-3">
                         <button
                             onClick={() => toggleGroup("fastfood")}
@@ -778,7 +770,7 @@ export function BusinessSidebar({
                 )}
 
                 {/* Emlak (Real Estate) Module Group */}
-                {hasEmlakModule && (
+                {showExtendedModules && hasEmlakModule && filteredEmlakNavItems.length > 0 && (
                     <div className="pt-3">
                         <button
                             onClick={() => toggleGroup("emlak")}
@@ -819,7 +811,7 @@ export function BusinessSidebar({
                 )}
 
                 {/* Beauty Module Group */}
-                {hasBeautyModule && (
+                {showExtendedModules && hasBeautyModule && filteredBeautyNavItems.length > 0 && (
                     <div className="pt-3">
                         <button
                             onClick={() => toggleGroup("beauty")}
@@ -860,7 +852,7 @@ export function BusinessSidebar({
                 )}
 
                 {/* E-commerce Module Group */}
-                {hasEcommerceModule && (
+                {showExtendedModules && hasEcommerceModule && filteredEcommerceNavItems.length > 0 && (
                     <div className="pt-3">
                         <button
                             onClick={() => toggleGroup("ecommerce")}
@@ -901,7 +893,7 @@ export function BusinessSidebar({
                 )}
 
                 {/* Clinic Module Group */}
-                {hasClinicModule && (
+                {showExtendedModules && hasClinicModule && filteredClinicNavItems.length > 0 && (
                     <div className="pt-3">
                         <button
                             onClick={() => toggleGroup("clinic")}
@@ -942,7 +934,7 @@ export function BusinessSidebar({
                 )}
 
                 {/* Vehicle Rental Module Group */}
-                {hasVehicleRentalModule && (
+                {showExtendedModules && hasVehicleRentalModule && filteredVehicleRentalNavItems.length > 0 && (
                     <div className="pt-3">
                         <button
                             onClick={() => toggleGroup("vehicle-rental")}
@@ -983,9 +975,11 @@ export function BusinessSidebar({
                 )}
 
                 {/* Store Item */}
-                <div className="pt-2">
-                    <NavItem item={STORE_NAV_ITEM} />
-                </div>
+                {showStoreItem ? (
+                    <div className="pt-2">
+                        <NavItem item={STORE_NAV_ITEM} />
+                    </div>
+                ) : null}
             </nav>
 
             {/* Bottom Section */}
@@ -994,6 +988,7 @@ export function BusinessSidebar({
                 isDark ? "border-[#1a1a1a]" : "border-gray-100"
             )}>
                 {/* Paket Satın Al */}
+                {showPackagePurchase ? (
                 <button className={clsx(
                     "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors",
                     isDark
@@ -1003,6 +998,7 @@ export function BusinessSidebar({
                     <ShoppingCart className="h-5 w-5" />
                     <span className="font-medium">Paket Satın Al</span>
                 </button>
+                ) : null}
 
                 {/* Logout */}
                 <button
