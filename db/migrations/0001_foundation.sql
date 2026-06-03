@@ -1,5 +1,3 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 CREATE TABLE IF NOT EXISTS app_users (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     email text,
@@ -54,6 +52,7 @@ CREATE TABLE IF NOT EXISTS business_roles (
     is_system boolean NOT NULL DEFAULT false,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (business_id, id),
     UNIQUE (business_id, role_key)
 );
 
@@ -64,7 +63,7 @@ CREATE TABLE IF NOT EXISTS business_memberships (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id text NOT NULL,
     app_user_id uuid NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
-    role_id uuid REFERENCES business_roles(id) ON DELETE SET NULL,
+    role_id uuid,
     membership_status text NOT NULL DEFAULT 'active' CHECK (membership_status IN ('invited', 'active', 'suspended', 'revoked')),
     invited_by_user_id uuid REFERENCES app_users(id) ON DELETE SET NULL,
     invited_at timestamptz,
@@ -72,7 +71,10 @@ CREATE TABLE IF NOT EXISTS business_memberships (
     revoked_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (business_id, app_user_id)
+    UNIQUE (business_id, app_user_id),
+    CONSTRAINT fk_business_memberships_role
+        FOREIGN KEY (business_id, role_id)
+        REFERENCES business_roles(business_id, id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_business_memberships_business_id
@@ -81,15 +83,24 @@ CREATE INDEX IF NOT EXISTS idx_business_memberships_business_id
 CREATE INDEX IF NOT EXISTS idx_business_memberships_app_user_id
     ON business_memberships (app_user_id);
 
+CREATE INDEX IF NOT EXISTS idx_business_memberships_role_id
+    ON business_memberships (role_id)
+    WHERE role_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS module_access (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id text NOT NULL,
     app_user_id uuid REFERENCES app_users(id) ON DELETE CASCADE,
-    role_id uuid REFERENCES business_roles(id) ON DELETE CASCADE,
+    role_id uuid,
     module_key text NOT NULL,
     access_level text NOT NULL DEFAULT 'read' CHECK (access_level IN ('none', 'read', 'write', 'admin')),
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CHECK (num_nonnulls(app_user_id, role_id) = 1),
+    CONSTRAINT fk_module_access_role
+        FOREIGN KEY (business_id, role_id)
+        REFERENCES business_roles(business_id, id)
+        ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_module_access_business_id
@@ -102,6 +113,14 @@ CREATE INDEX IF NOT EXISTS idx_module_access_app_user_id
 CREATE INDEX IF NOT EXISTS idx_module_access_role_id
     ON module_access (role_id)
     WHERE role_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_module_access_business_user_module_unique
+    ON module_access (business_id, app_user_id, module_key)
+    WHERE app_user_id IS NOT NULL AND role_id IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_module_access_business_role_module_unique
+    ON module_access (business_id, role_id, module_key)
+    WHERE role_id IS NOT NULL AND app_user_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS business_import_batches (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
