@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { getSupabaseClient } from "@/lib/supabase";
+import {
+    loadKesfetBusinesses,
+    logKesfetPublicApiError,
+    matchesSearchQuery,
+} from "../shared";
 
 export const dynamic = "force-dynamic";
 
@@ -12,45 +16,21 @@ export async function GET(request: Request) {
         const lng = parseFloat(searchParams.get("lng") || "0");
 
         if (!query.trim()) {
-            return NextResponse.json({ success: true, businesses: [] });
+            return NextResponse.json({ success: true, businesses: [], total: 0 });
         }
 
-        const searchLower = query.toLowerCase();
+        let businesses = (await loadKesfetBusinesses())
+            .filter((business) => matchesSearchQuery(business, query))
+            .slice(0, 30);
 
-        const supabase = getSupabaseClient();
-        const { data, error } = await supabase
-            .from("businesses")
-            .select("id,slug,name,logo,cover,data,status")
-            .eq("status", "active")
-            .or(
-                [
-                    `name.ilike.%${searchLower}%`,
-                    `data->>city.ilike.%${searchLower}%`,
-                    `data->>district.ilike.%${searchLower}%`,
-                    `data->>category.ilike.%${searchLower}%`,
-                    `data->>moduleType.ilike.%${searchLower}%`,
-                ].join(",")
-            )
-            .range(0, 29);
-
-        if (error) throw error;
-
-        const businesses = (data || []).map((row: any) => {
-            const payload = (row.data || {}) as Record<string, unknown>;
-            const loc = payload.location as { lat?: number; lng?: number } | undefined;
-            return {
-                id: row.id as string,
-                slug: (row.slug as string) || (row.id as string),
-                name: (row.name as string) || (payload.name as string) || "İşletme",
-                coverImage: (payload.coverImage as string) || (row.cover as string) || (row.logo as string) || null,
-                logoUrl: (row.logo as string) || null,
-                category: (payload.category as string) || (payload.moduleType as string) || "other",
-                district: (payload.district as string) || null,
-                city: (payload.city as string) || null,
-                lat: loc?.lat || (payload.lat as number) || null,
-                lng: loc?.lng || (payload.lng as number) || null,
-            };
-        });
+        if (lat && lng) {
+            businesses = businesses.map((business) => ({
+                ...business,
+                distance: business.lat && business.lng
+                    ? calculateHaversineDistance(lat, lng, business.lat, business.lng)
+                    : null,
+            }));
+        }
 
         return NextResponse.json({
             success: true,
@@ -58,10 +38,37 @@ export async function GET(request: Request) {
             total: businesses.length,
         });
     } catch (error) {
-        console.error("[Kesfet Search API] Error:", error);
-        return NextResponse.json(
-            { success: false, error: "Server error" },
-            { status: 500 }
-        );
+        logKesfetPublicApiError("/api/kesfet/search", error);
+        return NextResponse.json({
+            success: true,
+            businesses: [],
+            total: 0,
+        });
     }
+}
+
+function calculateHaversineDistance(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number
+): number {
+    const R = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+}
+
+function toRad(deg: number): number {
+    return deg * (Math.PI / 180);
 }

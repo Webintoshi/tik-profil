@@ -1,88 +1,51 @@
 import { NextResponse } from "next/server";
-import { getSupabaseClient } from "@/lib/supabase";
+import {
+    loadKesfetBusinesses,
+    logKesfetPublicApiError,
+    matchesCategory,
+    matchesCity,
+} from "./shared";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-    try {
-        const { searchParams } = new URL(request.url);
+    const { searchParams } = new URL(request.url);
+    const page = parsePositiveInt(searchParams.get("page"), 1);
+    const limit = parsePositiveInt(searchParams.get("limit"), 20);
 
+    try {
         const lat = parseFloat(searchParams.get("lat") || "0");
         const lng = parseFloat(searchParams.get("lng") || "0");
         const city = searchParams.get("city") || "";
         const category = searchParams.get("category") || "";
-        const page = parseInt(searchParams.get("page") || "1");
-        const limit = parseInt(searchParams.get("limit") || "20");
+        const maxDistance = parseFloat(searchParams.get("distance") || "0");
 
-        const supabase = getSupabaseClient();
-        const prefetchLimit = Math.min(1000, Math.max(limit * 25, 200));
-        let queryBuilder = supabase
-            .from("businesses")
-            .select("id,slug,name,logo,cover,data,status,industry_id,industry_label,created_at")
-            .eq("status", "active")
-            .range(0, prefetchLimit - 1);
+        let businesses = await loadKesfetBusinesses();
 
-        if (city) {
-            queryBuilder = queryBuilder.ilike("data->>city", `%${city}%`);
+        if (city.trim()) {
+            businesses = businesses.filter((business) => matchesCity(business, city));
         }
 
-        if (category) {
-            const catLower = category.toLowerCase().replace(/\s+/g, "_");
-            queryBuilder = queryBuilder.or(
-                [
-                    `data->>category.ilike.%${catLower}%`,
-                    `data->>moduleType.ilike.%${catLower}%`,
-                    `industry_label.ilike.%${catLower}%`,
-                    `industry_id.ilike.%${catLower}%`,
-                ].join(",")
-            );
+        if (category.trim()) {
+            businesses = businesses.filter((business) => matchesCategory(business, category));
         }
 
-        const { data, error } = await queryBuilder;
-        if (error) throw error;
-
-        // Filter and transform
-        let businesses = (data || []).map((row: any) => {
-            const payload = (row.data || {}) as Record<string, unknown>;
-            const loc = payload.location as { lat?: number; lng?: number } | undefined;
-            return {
-                id: row.id as string,
-                slug: (row.slug as string) || (row.id as string),
-                name: (row.name as string) || (payload.name as string) || "İşletme",
-                coverImage: (payload.coverImage as string) || (row.cover as string) || (row.logo as string) || null,
-                logoUrl: (row.logo as string) || null,
-                category: (payload.category as string) || (payload.moduleType as string) || "other",
-                district: (payload.district as string) || null,
-                city: (payload.city as string) || null,
-                lat: loc?.lat || (payload.lat as number) || null,
-                lng: loc?.lng || (payload.lng as number) || null,
-                rating: (payload.rating as number) || null,
-                reviewCount: (payload.reviewCount as number) || null,
-                createdAt: (payload.createdAt as string) || (row.created_at as string) || null,
-                distance: null as number | null,
-            };
-        });
-
-        // Sort by distance if coordinates provided
         if (lat && lng) {
-            businesses.forEach((b) => {
-                if (b.lat && b.lng) {
-                    b.distance = calculateHaversineDistance(lat, lng, b.lat, b.lng);
+            businesses.forEach((business) => {
+                if (business.lat && business.lng) {
+                    business.distance = calculateHaversineDistance(lat, lng, business.lat, business.lng);
                 } else {
-                    b.distance = 999999;
+                    business.distance = 999999;
                 }
             });
 
             businesses.sort((a, b) => (a.distance || 999999) - (b.distance || 999999));
         }
 
-        // Filter by max distance if provided
-        const maxDistance = parseFloat(searchParams.get("distance") || "0");
         if (maxDistance > 0 && lat && lng) {
-            businesses = businesses.filter((b) => (b.distance || 999999) <= maxDistance);
+            businesses = businesses.filter((business) => (business.distance || 999999) <= maxDistance);
         }
 
-        // Paginate
         const startIndex = (page - 1) * limit;
         const paginatedBusinesses = businesses.slice(startIndex, startIndex + limit);
 
@@ -95,22 +58,25 @@ export async function GET(request: Request) {
             hasMore: startIndex + limit < businesses.length,
         });
     } catch (error) {
-        console.error("[Kesfet API] Error:", error);
-        return NextResponse.json(
-            { success: false, error: "Server error" },
-            { status: 500 }
-        );
+        logKesfetPublicApiError("/api/kesfet", error);
+        return NextResponse.json({
+            success: true,
+            businesses: [],
+            total: 0,
+            page,
+            limit,
+            hasMore: false,
+        });
     }
 }
 
-// Haversine formula for distance calculation
 function calculateHaversineDistance(
     lat1: number,
     lng1: number,
     lat2: number,
     lng2: number
 ): number {
-    const R = 6371; // Earth's radius in km
+    const R = 6371;
     const dLat = toRad(lat2 - lat1);
     const dLng = toRad(lng2 - lng1);
 
@@ -128,4 +94,9 @@ function calculateHaversineDistance(
 
 function toRad(deg: number): number {
     return deg * (Math.PI / 180);
+}
+
+function parsePositiveInt(value: string | null, fallback: number): number {
+    const parsed = Number.parseInt(value || "", 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
