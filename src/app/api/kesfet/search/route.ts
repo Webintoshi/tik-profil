@@ -19,7 +19,7 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: true, businesses: [], total: 0 });
         }
 
-        let businesses = (await loadKesfetBusinesses())
+        let businesses = (await loadKesfetBusinesses("/api/kesfet/search"))
             .filter((business) => matchesSearchQuery(business, query))
             .slice(0, 30);
 

@@ -20,7 +20,7 @@ export async function GET(request: Request) {
         const category = searchParams.get("category") || "";
         const maxDistance = parseFloat(searchParams.get("distance") || "0");
 
-        let businesses = await loadKesfetBusinesses();
+        let businesses = await loadKesfetBusinesses("/api/kesfet");
 
         if (city.trim()) {
             businesses = businesses.filter((business) => matchesCity(business, city));

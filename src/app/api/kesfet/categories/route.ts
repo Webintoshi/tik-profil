@@ -80,7 +80,7 @@ function getCategoryEmoji(category: string): string {
 
 export async function GET() {
     try {
-        const activeBusinesses = await loadKesfetBusinesses();
+        const activeBusinesses = await loadKesfetBusinesses("/api/kesfet/categories");
         const categoryCounts: Record<string, { label: string; count: number }> = {};
 
         activeBusinesses.forEach((business) => {

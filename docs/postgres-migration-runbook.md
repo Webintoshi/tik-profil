@@ -176,6 +176,44 @@ Until explicit cutover work exists, Supabase remains the only authoritative prod
 
 The runtime transform branch does not change that rule. Supabase remains the production source-of-truth until later feature-flag work explicitly switches read paths.
 
+## Application Dual-Read Flags
+
+The application-side discovery read path now supports two optional flags:
+
+- `BUSINESS_DATA_PROVIDER=legacy_supabase|postgres`
+- `BUSINESS_DUAL_READ_COMPARE=0|1`
+
+Defaults:
+
+- `BUSINESS_DATA_PROVIDER=legacy_supabase`
+- `BUSINESS_DUAL_READ_COMPARE=0`
+
+Behavior:
+
+- if both flags are absent, runtime behavior is unchanged and still reads Supabase
+- if `BUSINESS_DATA_PROVIDER=postgres`, only the low-risk `/api/kesfet`, `/api/kesfet/search`, and `/api/kesfet/categories` discovery reads switch to PostgreSQL
+- if `BUSINESS_DUAL_READ_COMPARE=1`, those same discovery reads load both providers, log sanitized count/id/slug diffs only, and never log emails, phone numbers, password hashes, owner data, or secrets
+- if `BUSINESS_DATA_PROVIDER=postgres` but `DATABASE_URL` is missing, the app falls back to `legacy_supabase` for safety
+
+Local usage example:
+
+```bash
+BUSINESS_DATA_PROVIDER=legacy_supabase \
+BUSINESS_DUAL_READ_COMPARE=1 \
+npm run dev
+```
+
+Local PostgreSQL comparison example:
+
+```bash
+DATABASE_URL=postgres://... \
+BUSINESS_DATA_PROVIDER=postgres \
+BUSINESS_DUAL_READ_COMPARE=1 \
+npm run dev
+```
+
+Production remains legacy by default until an explicit cutover step adds `DATABASE_URL` and opts the discovery routes into PostgreSQL.
+
 ## Migration Drift Note
 
 `0001_foundation.sql` has an accepted checksum drift against the live `schema_migrations` row.
@@ -213,3 +251,13 @@ When core import work moves forward, validation should compare:
 - later, PostgreSQL runtime projections
 
 Only after repeated comparison passes succeed should any controlled dual-read or cutover branch be considered.
+
+## `/api/kesfet` Cutover Checklist
+
+Before enabling `BUSINESS_DATA_PROVIDER=postgres` in production:
+
+1. confirm live PostgreSQL runtime counts still match the approved rehearsal counts
+2. enable `BUSINESS_DUAL_READ_COMPARE=1` first and inspect sanitized diff logs for `/api/kesfet*`
+3. confirm `/api/kesfet`, `/api/kesfet/search`, and `/api/kesfet/categories` all return equivalent business ids, slugs, and counts
+4. confirm `postgres.status` in `/api/health/ready` is expected for the intended environment
+5. only then consider a separate, explicit production flag change for `BUSINESS_DATA_PROVIDER=postgres`
