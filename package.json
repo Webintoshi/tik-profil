@@ -10,7 +10,10 @@
     "lint": "next lint --max-warnings=10000",
     "typecheck": "tsc --noEmit --incremental false",
     "lint:strict": "next lint --max-warnings=0",
-    "db:migrate": "node scripts/db/run-migrations.mjs"
+    "db:migrate": "node scripts/db/run-migrations.mjs",
+    "migration:export:p0": "node scripts/migration/export-p0-legacy.mjs",
+    "migration:import:p0-staging": "node scripts/migration/import-p0-staging.mjs",
+    "migration:validate:p0-staging": "node scripts/migration/validate-p0-staging.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.969.0",
