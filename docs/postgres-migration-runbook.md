@@ -4,7 +4,7 @@ This runbook is for local or disposable rehearsal only. It does **not** change t
 
 ## Scope
 
-This branch adds a P0 staging layer for legacy core data only:
+The PostgreSQL rehearsal work currently covers:
 
 - businesses
 - admins
@@ -13,13 +13,22 @@ This branch adds a P0 staging layer for legacy core data only:
 - QR scans
 - selected `app_documents` archive rows
 
-It does **not** add final runtime tables for legacy businesses, menu/order data, or customer/mobile auth.
+It also adds the first core runtime transform path for:
+
+- runtime `businesses`
+- `business_modules`
+- `staff_members`
+- `legacy_auth_credentials`
+- `qr_scan_events`
+- population of existing foundation identity tables
+
+It still does **not** cut over the live app to PostgreSQL, remove Supabase, or authorize any production import.
 
 ## Preconditions
 
 - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` available for export
 - `DATABASE_URL` available for local/disposable PostgreSQL only
-- migration `0001_foundation.sql` and `0002_legacy_compat_staging.sql` applied to the rehearsal database
+- migration `0001_foundation.sql`, `0002_legacy_compat_staging.sql`, and `0003_core_runtime_tables.sql` applied to the rehearsal database
 - no production cutover approval assumed
 
 ## Commands
@@ -81,6 +90,29 @@ This command is artifact-only. It does not need database access and it prints on
 - optional mapping target
 - reconciliation status
 
+### 6. Dry-run the runtime transform
+
+```bash
+npm run migration:transform:p0-runtime -- --dry-run
+```
+
+This command reads only from PostgreSQL staging tables plus the reconciliation manifest, writes only to the runtime tables and foundation identity tables inside a transaction, and then rolls the transaction back.
+
+### 7. Validate runtime transform results
+
+```bash
+npm run migration:validate:p0-runtime
+```
+
+This command validates:
+
+- runtime business and module counts
+- owner/staff/admin identity counts
+- manifest-driven exclusions
+- case-insensitive slug uniqueness
+- business-linked integrity for staff, QR, and credentials
+- idempotency-oriented uniqueness assumptions
+
 ## What Staging Means Here
 
 The new PostgreSQL tables are compatibility/staging tables, not final runtime tables:
@@ -91,6 +123,17 @@ The new PostgreSQL tables are compatibility/staging tables, not final runtime ta
 - they do not wire data into `app_users`, `business_memberships`, or runtime auth
 
 This is deliberate. Final normalized import logic comes later.
+
+## What Runtime Transform Means Here
+
+The runtime transform is still rehearsal-only:
+
+- it reads from `legacy_*` staging tables only
+- it preserves legacy business, staff, and QR identifiers
+- it keeps legacy password hashes verbatim in a transitional bridge table
+- it populates only the narrow PostgreSQL runtime model needed for the first web cutover rehearsal
+- it does **not** switch application reads
+- it does **not** make PostgreSQL the production source-of-truth
 
 ## Reconciliation Manifest Policy
 
@@ -131,6 +174,8 @@ Do **not**:
 
 Until explicit cutover work exists, Supabase remains the only authoritative production store.
 
+The runtime transform branch does not change that rule. Supabase remains the production source-of-truth until later feature-flag work explicitly switches read paths.
+
 ## Migration Drift Note
 
 `0001_foundation.sql` has an accepted checksum drift against the live `schema_migrations` row.
@@ -153,8 +198,11 @@ For rehearsal environments:
 1. stop the rehearsal import process
 2. discard or recreate the disposable PostgreSQL database
 3. re-run exports from Supabase if a clean snapshot is needed
+4. if the runtime transform was applied outside `--dry-run`, either recreate the rehearsal database or reapply migrations and rerun the staging import from clean artifacts
 
 Because staging imports are idempotent upserts into rehearsal tables only, rollback is operationally just "throw away the rehearsal DB and try again".
+
+The same operational rule applies to the runtime transform. If a non-dry-run rehearsal import produces an invalid runtime projection, recreate the disposable database rather than trying to hand-edit runtime rows.
 
 ## Dual-Read Strategy Reminder
 
