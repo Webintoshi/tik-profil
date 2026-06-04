@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "audit_timestamp": "2026-06-04T00:00:00.000Z",
+  "source_note": "Read-only reconciliation audit after the P0 staging import rehearsal.",
+  "default_policy": {
+    "action": "archive_only",
+    "exclude_from_runtime_import": true,
+    "auto_mapping_enabled": false,
+    "require_explicit_mapping": true
+  },
+  "entries": [
+    {
+      "legacy_business_id": "4kBu7Pugx38e4VPGHDoU",
+      "entity_scopes": [
+        "business_staff"
+      ],
+      "action": "archive_only",
+      "exclude_from_runtime_import": true,
+      "mapping": {
+        "enabled": false,
+        "target_business_id": null
+      },
+      "reason": "High-confidence stale or test-only staff orphan with no matching canonical business record.",
+      "confidence": "high",
+      "reference_count": 7,
+      "source_note": "Appears only in legacy business_staff documents.",
+      "audit_timestamp": "2026-06-04T00:00:00.000Z"
+    },
+    {
+      "legacy_business_id": "SaHTieQCEVA1mT6To0UF",
+      "entity_scopes": [
+        "business_staff"
+      ],
+      "action": "archive_only",
+      "exclude_from_runtime_import": true,
+      "mapping": {
+        "enabled": false,
+        "target_business_id": "8IssSPZF1Lw0A3q4UyNz"
+      },
+      "reason": "Possible but unproven alternate business identifier. Keep archive-only until a manual mapping is explicitly approved.",
+      "confidence": "medium",
+      "reference_count": 1,
+      "source_note": "Sanitized staff context suggests a possible bebek-burger-akyazi relationship, but evidence is not authoritative.",
+      "audit_timestamp": "2026-06-04T00:00:00.000Z"
+    },
+    {
+      "legacy_business_id": "8e57c84b-99e9-4602-bba0-eaa014103b0c",
+      "entity_scopes": [
+        "qr_scans"
+      ],
+      "action": "archive_only",
+      "exclude_from_runtime_import": true,
+      "mapping": {
+        "enabled": false,
+        "target_business_id": null
+      },
+      "reason": "QR scans point to a typo or draft slug and do not map safely to any canonical business.",
+      "confidence": "high",
+      "reference_count": 2,
+      "source_note": "Observed only in qr_scans with slug dasdsadsa.",
+      "audit_timestamp": "2026-06-04T00:00:00.000Z"
+    },
+    {
+      "legacy_business_id": "b0fdfce9-0c8d-4f85-9007-f021e3af4983",
+      "entity_scopes": [
+        "qr_scans"
+      ],
+      "action": "archive_only",
+      "exclude_from_runtime_import": true,
+      "mapping": {
+        "enabled": false,
+        "target_business_id": null
+      },
+      "reason": "QR scan references an abandoned or deleted draft business and has no safe canonical mapping.",
+      "confidence": "high",
+      "reference_count": 1,
+      "source_note": "Observed only in qr_scans with slug antigravity-burger-1768785947244.",
+      "audit_timestamp": "2026-06-04T00:00:00.000Z"
+    }
+  ]
+}

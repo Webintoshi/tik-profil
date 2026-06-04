@@ -66,6 +66,21 @@ Optional persistence of validation summaries into `import_validation_results`:
 npm run migration:validate:p0-staging -- --artifact-dir artifacts/migrations/<run-id> --persist
 ```
 
+### 5. Report reconciliation policy coverage
+
+```bash
+npm run migration:report:p0-reconciliation -- --artifact-dir artifacts/migrations/<run-id>
+```
+
+This command is artifact-only. It does not need database access and it prints only:
+
+- orphan legacy business id
+- entity scope
+- orphan row count
+- manifest action
+- optional mapping target
+- reconciliation status
+
 ## What Staging Means Here
 
 The new PostgreSQL tables are compatibility/staging tables, not final runtime tables:
@@ -77,6 +92,34 @@ The new PostgreSQL tables are compatibility/staging tables, not final runtime ta
 
 This is deliberate. Final normalized import logic comes later.
 
+## Reconciliation Manifest Policy
+
+The reconciliation manifest lives at `config/migration/p0-reconciliation.json`.
+
+Use it to record known orphan legacy tenant references without mutating source data.
+
+Rules:
+
+- default orphan action is `archive_only`
+- `archive_only` rows stay in staging/archive tables
+- `archive_only` rows are excluded from future final runtime transforms by default
+- no orphan business reference may be auto-mapped without explicit manifest evidence
+- optional mappings must stay disabled until a human explicitly approves them
+
+Current approved policy:
+
+- orphan staff rows under `4kBu7Pugx38e4VPGHDoU` are archive-only
+- the single orphan staff row under `SaHTieQCEVA1mT6To0UF` is archive-only by default, with a disabled candidate mapping retained only as a future note
+- orphan QR rows under `8e57c84b-99e9-4602-bba0-eaa014103b0c` and `b0fdfce9-0c8d-4f85-9007-f021e3af4983` are archive-only
+
+Manual mapping workflow:
+
+1. confirm a canonical target with source evidence
+2. edit only the reconciliation manifest, not the source export
+3. enable the mapping entry explicitly
+4. rerun reconciliation reporting and staged validation
+5. only then let downstream runtime-transform tooling consume the mapped target
+
 ## No-Live-Cutover Warning
 
 Do **not**:
@@ -87,6 +130,19 @@ Do **not**:
 - remove Supabase as source-of-truth
 
 Until explicit cutover work exists, Supabase remains the only authoritative production store.
+
+## Migration Drift Note
+
+`0001_foundation.sql` has an accepted checksum drift against the live `schema_migrations` row.
+
+Operational rule:
+
+- do not mutate `schema_migrations`
+- do not rewrite `0001_foundation.sql`
+- do not edit any applied migration file again
+- append new migrations only
+
+The live schema was audited as semantically compatible with the current foundation expectations, so this is a provenance/checksum note, not a live-schema incompatibility.
 
 ## Rollback Strategy
 

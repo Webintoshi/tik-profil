@@ -14,6 +14,7 @@ import {
     toRepoRelativePath,
 } from "./_shared.mjs";
 import { entityTableMap, toStageRecord } from "./_p0-entities.mjs";
+import { readReconciliationManifest } from "./_reconciliation.mjs";
 
 async function readManifest(manifestPath) {
     const manifest = await readJsonFile(manifestPath);
@@ -34,7 +35,15 @@ async function assertFileChecksum(filePath, expectedChecksum) {
     }
 }
 
-async function upsertImportManifest(client, manifest, entityRecord, artifactDir, importedAt, dryRun) {
+async function upsertImportManifest(
+    client,
+    manifest,
+    entityRecord,
+    artifactDir,
+    importedAt,
+    dryRun,
+    reconciliationManifest,
+) {
     await client.query(
         `
             INSERT INTO import_manifests (
@@ -71,6 +80,13 @@ async function upsertImportManifest(client, manifest, entityRecord, artifactDir,
                 imported_at: importedAt,
                 notes: entityRecord.notes ?? null,
                 metadata: entityRecord.metadata ?? {},
+                reconciliation_manifest: reconciliationManifest
+                    ? {
+                        path: toRepoRelativePath(reconciliationManifest.filePath),
+                        schema_version: reconciliationManifest.schema_version,
+                        audit_timestamp: reconciliationManifest.audit_timestamp,
+                    }
+                    : null,
             }),
         ],
     );
@@ -439,6 +455,7 @@ const manifestPath = resolveFromRepo(args.manifest) || resolve(artifactDirectory
 const databaseUrl = ensureRequiredEnv("DATABASE_URL");
 const dryRun = Boolean(args["dry-run"]);
 const importedAt = new Date().toISOString();
+const reconciliationManifestPath = resolveFromRepo(args["reconciliation-manifest"]);
 
 const client = new Client({
     connectionString: databaseUrl,
@@ -446,9 +463,12 @@ const client = new Client({
 
 try {
     const manifest = await readManifest(manifestPath);
+    const reconciliationManifest = await readReconciliationManifest(reconciliationManifestPath);
     console.log(`Database target: ${maskDatabaseTarget(databaseUrl)}`);
     console.log(`Artifact directory: ${toRepoRelativePath(artifactDirectory)}`);
     console.log(`Import mode: ${dryRun ? "dry-run" : "apply"}`);
+    console.log(`Reconciliation manifest: ${toRepoRelativePath(reconciliationManifest.filePath)}`);
+    console.log("Staging import remains lossless; reconciliation policy is recorded for later runtime transforms only.");
 
     await client.connect();
     await client.query("BEGIN");
@@ -469,7 +489,15 @@ try {
             );
         }
 
-        await upsertImportManifest(client, manifest, entityRecord, artifactDirectory, importedAt, dryRun);
+        await upsertImportManifest(
+            client,
+            manifest,
+            entityRecord,
+            artifactDirectory,
+            importedAt,
+            dryRun,
+            reconciliationManifest,
+        );
 
         for (const row of rows) {
             await upsertEntityRow(client, entityRecord.entity, row, importedAt);

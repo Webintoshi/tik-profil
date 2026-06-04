@@ -19,6 +19,11 @@ import {
     getEntityPrimaryId,
     getShadowPlaceholderChecks,
 } from "./_p0-entities.mjs";
+import {
+    buildArtifactOrphanGroups,
+    readReconciliationManifest,
+    summarizeOrphanGroups,
+} from "./_reconciliation.mjs";
 
 function makeResult({
     entity,
@@ -319,6 +324,7 @@ if (!artifactDirectory) {
 const manifestPath = resolveFromRepo(args.manifest) || resolve(artifactDirectory, "manifest.json");
 const databaseUrl = ensureRequiredEnv("DATABASE_URL");
 const shouldPersist = Boolean(args.persist);
+const reconciliationManifestPath = resolveFromRepo(args["reconciliation-manifest"]);
 
 const client = new Client({
     connectionString: databaseUrl,
@@ -326,13 +332,28 @@ const client = new Client({
 
 try {
     const manifest = await readManifest(manifestPath);
+    const reconciliationManifest = await readReconciliationManifest(reconciliationManifestPath);
     const results = [];
     const entityRows = new Map();
 
     console.log(`Database target: ${maskDatabaseTarget(databaseUrl)}`);
     console.log(`Artifact directory: ${toRepoRelativePath(artifactDirectory)}`);
+    console.log(`Reconciliation manifest: ${toRepoRelativePath(reconciliationManifest.filePath)}`);
 
     await client.connect();
+
+    for (const entityRecord of manifest.entities) {
+        const artifactPath = resolve(artifactDirectory, entityRecord.artifact);
+        await assertArtifactChecksum(artifactPath, entityRecord.checksum);
+        entityRows.set(entityRecord.entity, await readNdjsonFile(artifactPath));
+    }
+
+    const businessRows = entityRows.get("businesses") || [];
+    const canonicalBusinessIds = new Set(
+        businessRows
+            .map((row) => getEntityPrimaryId("businesses", row))
+            .filter(Boolean),
+    );
 
     for (const entityRecord of manifest.entities) {
         const tableName = entityTableMap[entityRecord.entity];
@@ -340,10 +361,7 @@ try {
             throw new Error(`Unsupported manifest entity ${entityRecord.entity}.`);
         }
 
-        const artifactPath = resolve(artifactDirectory, entityRecord.artifact);
-        await assertArtifactChecksum(artifactPath, entityRecord.checksum);
-        const rows = await readNdjsonFile(artifactPath);
-        entityRows.set(entityRecord.entity, rows);
+        const rows = entityRows.get(entityRecord.entity) || [];
 
         const ids = rows
             .map((row) => getEntityPrimaryId(entityRecord.entity, row))
@@ -397,14 +415,59 @@ try {
 
         if (["business_owners", "business_staff", "qr_scans"].includes(entityRecord.entity)) {
             const missingRefs = await fetchMissingBusinessRefs(client, entityRecord.entity, ids);
+            const orphanGroups = ["business_staff", "qr_scans"].includes(entityRecord.entity)
+                ? buildArtifactOrphanGroups({
+                    manifest: reconciliationManifest,
+                    entity: entityRecord.entity,
+                    rows,
+                    canonicalBusinessIds,
+                })
+                : [];
+            const reconciliationSummary = summarizeOrphanGroups(orphanGroups);
+            const missingRefStatus = missingRefs === 0
+                ? "pass"
+                : reconciliationSummary.unresolved_rows === 0 && reconciliationSummary.orphan_rows === missingRefs
+                    ? "warn"
+                    : "fail";
+
             results.push(
                 makeResult({
                     entity: entityRecord.entity,
                     check_name: "missing_business_refs",
-                    status: missingRefs === 0 ? "pass" : "fail",
+                    status: missingRefStatus,
                     expected_count: 0,
                     actual_count: missingRefs,
-                    details: {},
+                    details: {
+                        reconciled_by_manifest: missingRefStatus === "warn",
+                        orphan_business_ids: orphanGroups.map((group) => group.legacy_business_id),
+                    },
+                }),
+            );
+        }
+
+        if (["business_staff", "qr_scans"].includes(entityRecord.entity)) {
+            const orphanGroups = buildArtifactOrphanGroups({
+                manifest: reconciliationManifest,
+                entity: entityRecord.entity,
+                rows,
+                canonicalBusinessIds,
+            });
+            const reconciliationSummary = summarizeOrphanGroups(orphanGroups);
+
+            results.push(
+                makeResult({
+                    entity: entityRecord.entity,
+                    check_name: "reconciliation_policy",
+                    status: reconciliationSummary.unresolved_rows === 0 ? "pass" : "fail",
+                    expected_count: reconciliationSummary.orphan_rows,
+                    actual_count: reconciliationSummary.orphan_rows - reconciliationSummary.unresolved_rows,
+                    details: {
+                        archive_only_rows: reconciliationSummary.archive_only_rows,
+                        mapped_rows: reconciliationSummary.mapped_rows,
+                        excluded_rows: reconciliationSummary.excluded_rows,
+                        unresolved_rows: reconciliationSummary.unresolved_rows,
+                        orphan_business_ids: orphanGroups,
+                    },
                 }),
             );
         }
@@ -412,7 +475,6 @@ try {
         console.log(`Validated ${entityRecord.entity}.`);
     }
 
-    const businessRows = entityRows.get("businesses") || [];
     const duplicateSlugRows = await fetchDuplicateSlugRows(
         client,
         businessRows
