@@ -1,46 +1,24 @@
 import { getCollectionREST } from "@/lib/documentStore";
 import {
-    asNumber,
     asString,
-    isRecord,
     normalizeSearchText,
     type JsonRecord,
     type KesfetPublicBusiness,
 } from "../businesses.types";
-
-function mergeBusinessFields(document: JsonRecord): JsonRecord {
-    const levelOne = isRecord(document.data) ? document.data : {};
-    const levelTwo = isRecord(levelOne.data) ? levelOne.data : {};
-
-    return {
-        ...levelTwo,
-        ...levelOne,
-        ...document,
-    };
-}
+import {
+    mergeLegacyBusinessFields,
+    normalizeKesfetPublicBusiness,
+} from "../kesfet-contract";
 
 function isPublicBusinessDocument(document: JsonRecord): boolean {
-    const fields = mergeBusinessFields(document);
+    const fields = mergeLegacyBusinessFields(document);
     const status = asString(fields.status)?.toLowerCase();
 
     return !status || status === "active";
 }
 
-function getLegacyModuleKeys(document: JsonRecord): string[] {
-    const fields = mergeBusinessFields(document);
-    const values = [
-        ...(Array.isArray(fields.modules) ? fields.modules : []),
-        ...(Array.isArray(fields.activeModules) ? fields.activeModules : []),
-    ];
-
-    return values
-        .map((value) => asString(value))
-        .filter((value): value is string => Boolean(value))
-        .map((value) => value.toLowerCase());
-}
-
 function hasLegacySlug(document: JsonRecord, slug: string): boolean {
-    const fields = mergeBusinessFields(document);
+    const fields = mergeLegacyBusinessFields(document);
     const normalizedSlug = normalizeSearchText(slug);
     const currentSlug = asString(fields.slug);
     const previousSlugs = Array.isArray(fields.previousSlugs)
@@ -60,51 +38,12 @@ function hasLegacySlug(document: JsonRecord, slug: string): boolean {
 }
 
 function normalizeLegacyBusiness(document: JsonRecord): KesfetPublicBusiness {
-    const fields = mergeBusinessFields(document);
-    const location = isRecord(fields.location) ? fields.location : null;
-    const id = asString(fields.id) || "";
-    const moduleKeys = getLegacyModuleKeys(document);
-    const category =
-        asString(fields.category) ||
-        asString(fields.moduleType) ||
-        asString(fields.active_module) ||
-        asString(fields.activeModule) ||
-        asString(fields.industry_id) ||
-        asString(fields.industryId) ||
-        moduleKeys[0] ||
-        "other";
-    const categoryLabel =
-        asString(fields.categoryLabel) ||
-        asString(fields.industry_label) ||
-        asString(fields.industryLabel) ||
-        asString(fields.moduleType) ||
-        asString(fields.active_module) ||
-        asString(fields.activeModule) ||
-        asString(fields.category) ||
-        asString(fields.industry_id) ||
-        asString(fields.industryId) ||
-        moduleKeys[0] ||
-        category;
-    const logoUrl = asString(fields.logo);
-
-    return {
-        id,
-        slug: asString(fields.slug) || id,
-        name: asString(fields.name) || "Isletme",
-        coverImage: asString(fields.coverImage) || asString(fields.cover) || logoUrl,
-        logoUrl,
-        category,
-        categoryLabel,
-        industryId: asString(fields.industry_id) || asString(fields.industryId),
-        district: asString(fields.district),
-        city: asString(fields.city),
-        lat: asNumber(location?.lat) ?? asNumber(fields.lat),
-        lng: asNumber(location?.lng) ?? asNumber(fields.lng),
-        rating: asNumber(fields.rating),
-        reviewCount: asNumber(fields.reviewCount) ?? asNumber(fields.review_count),
-        createdAt: asString(fields.createdAt) || asString(fields.created_at),
-        distance: null,
-    };
+    return normalizeKesfetPublicBusiness({
+        source: document,
+        fallback: {
+            id: asString(document.id),
+        },
+    });
 }
 
 async function getLegacyBusinessDocuments(): Promise<JsonRecord[]> {

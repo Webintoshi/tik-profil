@@ -6,6 +6,7 @@ import {
     toIsoStringOrNull,
     type KesfetPublicBusiness,
 } from "../businesses.types";
+import { normalizeKesfetPublicBusiness } from "../kesfet-contract";
 import { getBusinessModules, getBusinessModulesMap } from "./business-modules.repository";
 
 interface RuntimeBusinessRow extends QueryResultRow {
@@ -25,6 +26,7 @@ interface RuntimeBusinessRow extends QueryResultRow {
     rating: string | number | null;
     review_count: number | null;
     created_at: Date | string | null;
+    legacy_source: unknown;
 }
 
 const BUSINESS_SELECT = `
@@ -44,7 +46,8 @@ const BUSINESS_SELECT = `
         lng,
         rating,
         review_count,
-        created_at
+        created_at,
+        legacy_source
     FROM businesses
 `;
 
@@ -53,37 +56,28 @@ function normalizePostgresBusinessRow(
     moduleKeys: readonly string[] = [],
 ): KesfetPublicBusiness {
     const primaryModule = moduleKeys[0] ?? null;
-    const category =
-        asString(row.active_module) ||
-        asString(row.industry_id) ||
-        primaryModule ||
-        "other";
-    const categoryLabel =
-        asString(row.industry_label) ||
-        asString(row.active_module) ||
-        asString(row.industry_id) ||
-        primaryModule ||
-        category;
-    const logoUrl = asString(row.logo);
 
-    return {
-        id: row.id,
-        slug: row.slug,
-        name: row.name,
-        coverImage: asString(row.cover) || logoUrl,
-        logoUrl,
-        category,
-        categoryLabel,
-        industryId: asString(row.industry_id),
-        district: asString(row.district),
-        city: asString(row.city),
-        lat: asNumber(row.lat),
-        lng: asNumber(row.lng),
-        rating: asNumber(row.rating),
-        reviewCount: row.review_count ?? 0,
-        createdAt: toIsoStringOrNull(row.created_at),
-        distance: null,
-    };
+    return normalizeKesfetPublicBusiness({
+        source: row.legacy_source,
+        fallback: {
+            id: row.id,
+            slug: row.slug,
+            name: row.name,
+            coverImage: asString(row.cover),
+            logoUrl: asString(row.logo),
+            industryId: asString(row.industry_id),
+            industryLabel: asString(row.industry_label),
+            activeModule: asString(row.active_module) || primaryModule,
+            district: asString(row.district),
+            city: asString(row.city),
+            lat: asNumber(row.lat),
+            lng: asNumber(row.lng),
+            rating: asNumber(row.rating),
+            reviewCount: row.review_count,
+            createdAt: toIsoStringOrNull(row.created_at),
+        },
+        moduleKeys,
+    });
 }
 
 export async function listActiveBusinessRowsForDiscovery(): Promise<RuntimeBusinessRow[]> {

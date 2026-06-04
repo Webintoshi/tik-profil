@@ -4,6 +4,9 @@ import {
     type BusinessDataProvider,
 } from "@/lib/env";
 import { hasPostgresDatabaseUrl } from "@/server/db/postgres";
+import {
+    createBusinessDualReadComparisonSummary,
+} from "./business-dual-read";
 import type { KesfetPublicBusiness } from "./businesses.types";
 import * as legacyBusinessesRepository from "./legacy/businesses.repository";
 import * as postgresBusinessesRepository from "./postgres/businesses.repository";
@@ -21,58 +24,14 @@ function serializeError(error: unknown): { name?: string; message: string } {
     };
 }
 
-function getBusinessIdentifiers(
-    businesses: readonly KesfetPublicBusiness[],
-    key: "id" | "slug",
-): string[] {
-    return [...new Set(
-        businesses
-            .map((business) => {
-                const value = key === "slug"
-                    ? business.slug.trim().toLowerCase()
-                    : business.id.trim();
-                return value || null;
-            })
-            .filter((value): value is string => Boolean(value)),
-    )].sort();
-}
-
-function getMissingValues(source: readonly string[], target: ReadonlySet<string>): string[] {
-    return source.filter((value) => !target.has(value)).slice(0, 5);
-}
-
 function logDualReadComparison(
     route: string,
     legacyBusinesses: readonly KesfetPublicBusiness[],
     postgresBusinesses: readonly KesfetPublicBusiness[],
 ) {
-    const legacyIds = getBusinessIdentifiers(legacyBusinesses, "id");
-    const postgresIds = getBusinessIdentifiers(postgresBusinesses, "id");
-    const legacySlugs = getBusinessIdentifiers(legacyBusinesses, "slug");
-    const postgresSlugs = getBusinessIdentifiers(postgresBusinesses, "slug");
-    const postgresIdSet = new Set(postgresIds);
-    const legacyIdSet = new Set(legacyIds);
-    const postgresSlugSet = new Set(postgresSlugs);
-    const legacySlugSet = new Set(legacySlugs);
+    const summary = createBusinessDualReadComparisonSummary(route, legacyBusinesses, postgresBusinesses);
 
-    const summary = {
-        route,
-        legacyCount: legacyBusinesses.length,
-        postgresCount: postgresBusinesses.length,
-        idsMissingInPostgres: getMissingValues(legacyIds, postgresIdSet),
-        idsMissingInLegacy: getMissingValues(postgresIds, legacyIdSet),
-        slugsMissingInPostgres: getMissingValues(legacySlugs, postgresSlugSet),
-        slugsMissingInLegacy: getMissingValues(postgresSlugs, legacySlugSet),
-    };
-
-    const hasDiff =
-        summary.legacyCount !== summary.postgresCount ||
-        summary.idsMissingInPostgres.length > 0 ||
-        summary.idsMissingInLegacy.length > 0 ||
-        summary.slugsMissingInPostgres.length > 0 ||
-        summary.slugsMissingInLegacy.length > 0;
-
-    if (hasDiff) {
+    if (summary.hasDiff) {
         console.warn("[BusinessDualRead] discovery mismatch detected", summary);
         return;
     }
