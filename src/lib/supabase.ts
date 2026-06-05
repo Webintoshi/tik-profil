@@ -3,6 +3,19 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 let adminClient: SupabaseClient | null = null;
 let publicClient: SupabaseClient | null = null;
 
+type BrowserSupabaseEnv = {
+    NEXT_PUBLIC_SUPABASE_URL?: string;
+    NEXT_PUBLIC_SUPABASE_ANON_KEY?: string;
+    [key: string]: string | undefined;
+};
+
+export function hasBrowserSupabaseClientConfig(env: BrowserSupabaseEnv = process.env): boolean {
+    return Boolean(
+        env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+        && env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
+    );
+}
+
 export function getSupabaseAdmin(): SupabaseClient {
     if (adminClient) return adminClient;
 

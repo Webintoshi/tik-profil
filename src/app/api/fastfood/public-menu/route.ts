@@ -2,6 +2,10 @@
 // PERFORMANCE OPTIMIZED: Parallel fetching with Promise.all
 // SECURITY: Module verification to prevent Restaurant data in FastFood tables
 import { NextResponse } from 'next/server';
+import {
+    filterAndMapPublicMenuExtras,
+    type PublicMenuExtraRow,
+} from '@/lib/fastfood/publicMenu';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
 // Force dynamic to prevent caching
@@ -71,36 +75,51 @@ export async function GET(request: Request) {
             categoriesResult,
             productsResult,
             groupsResult,
-            extrasResult,
             campaignsResult,
             settingsResult
         ] = await Promise.all([
             supabase.from('ff_categories').select('*').eq('business_id', businessId).order('created_at', { ascending: true }),
             supabase.from('ff_products').select('*').eq('business_id', businessId).order('created_at', { ascending: true }),
             supabase.from('ff_extra_groups').select('*').eq('business_id', businessId),
-            supabase.from('ff_extras').select('*'),
             supabase.from('ff_campaigns').select('*').eq('business_id', businessId),
             supabase.from('ff_settings').select('*').eq('business_id', businessId).maybeSingle()
         ]);
 
-        if (categoriesResult.error || productsResult.error || groupsResult.error || extrasResult.error || campaignsResult.error || settingsResult.error) {
+        if (categoriesResult.error || productsResult.error || groupsResult.error || campaignsResult.error || settingsResult.error) {
             console.error('[FastFood Public Menu] Database errors:', {
                 categoriesError: categoriesResult.error?.message,
                 productsError: productsResult.error?.message,
                 groupsError: groupsResult.error?.message,
-                extrasError: extrasResult.error?.message,
                 campaignsError: campaignsResult.error?.message,
                 settingsError: settingsResult.error?.message
             });
-            throw categoriesResult.error || productsResult.error || groupsResult.error || extrasResult.error || campaignsResult.error || settingsResult.error;
+            throw categoriesResult.error || productsResult.error || groupsResult.error || campaignsResult.error || settingsResult.error;
         }
 
         const allCategories = categoriesResult.data || [];
         const allProducts = productsResult.data || [];
         const allExtraGroups = groupsResult.data || [];
-        const allExtras = extrasResult.data || [];
         const allCampaigns = campaignsResult.data || [];
         const settings = settingsResult.data || null;
+        const activeExtraGroupIds = allExtraGroups
+            .filter(group => group.is_active !== false)
+            .map(group => group.id as string)
+            .filter(Boolean);
+
+        let allExtras: PublicMenuExtraRow[] = [];
+        if (activeExtraGroupIds.length > 0) {
+            const extrasResult = await supabase
+                .from('ff_extras')
+                .select('*')
+                .in('group_id', activeExtraGroupIds);
+
+            if (extrasResult.error) {
+                console.error('[FastFood Public Menu] Extras fetch error:', extrasResult.error.message);
+                throw extrasResult.error;
+            }
+
+            allExtras = extrasResult.data || [];
+        }
 
         console.log('[FastFood Public Menu] Raw data counts:', {
             categories: allCategories.length,
@@ -166,17 +185,7 @@ export async function GET(request: Request) {
         });
 
         // Process extras (before extra groups)
-        const extras = allExtras
-            .filter(e => e.is_active !== false)
-            .map(e => ({
-                id: e.id,
-                groupId: e.group_id,
-                name: e.name,
-                priceModifier: Number(e.price_modifier) || 0,
-                isDefault: e.is_default || false,
-                image: e.image_url || '',
-                order: e.sort_order || 0,
-            }));
+        const extras = filterAndMapPublicMenuExtras(allExtras, activeExtraGroupIds);
 
         // Process extra groups
         const extraGroups = allExtraGroups

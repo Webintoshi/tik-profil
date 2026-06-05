@@ -24,16 +24,38 @@ export default function QRManagementClient({
             setBusinessSlug(session.businessSlug);
         }
 
-        if (session?.businessId) {
-            import("@/lib/businessStore").then(({ getBusiness }) => {
-                getBusiness(session.businessId)
-                    .then((data) => {
-                        if (data?.logo) setLogoUrl(data.logo);
-                    })
-                    .catch((err) => console.error("Logo fetch error:", err));
-            });
+        if (!session?.businessId) {
+            setLogoUrl(undefined);
+            return;
         }
-    }, [session]);
+
+        let isActive = true;
+
+        const loadProfileLogo = async () => {
+            try {
+                const response = await fetch("/api/panel/profile", {
+                    credentials: "include",
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const data = await response.json();
+                if (isActive) {
+                    setLogoUrl(data?.success ? data.profile?.logo || undefined : undefined);
+                }
+            } catch (err) {
+                console.error("Logo fetch error:", err);
+            }
+        };
+
+        void loadProfileLogo();
+
+        return () => {
+            isActive = false;
+        };
+    }, [session?.businessId, session?.businessSlug]);
 
     const textSecondary = isDark ? "text-white/50" : "text-gray-500";
 

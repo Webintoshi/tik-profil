@@ -13,7 +13,6 @@ import {
 import clsx from "clsx";
 import { toast } from "sonner";
 import { useTheme } from "@/components/panel/ThemeProvider";
-import { logActivity } from "@/lib/services/auditService";
 import { CircularProgress } from "@/components/panel/CircularProgress";
 import { ProfileWizard } from "@/components/panel/ProfileWizard";
 import { toR2ProxyUrl } from "@/lib/publicImage";
@@ -377,16 +376,6 @@ export default function ProfilePage() {
             const data = await response.json();
 
             if (data.success) {
-                // Log profile update
-                await logActivity({
-                    actor_id: businessId,
-                    actor_name: profile.name || "İşletme",
-                    action_type: "PROFILE_UPDATE",
-                    metadata: {
-                        updated_fields: ["name", "slogan", "phone", "address"],
-                    },
-                });
-
                 toast.success("Değişiklikler kaydedildi");
                 setHasChanges(false);
             } else {

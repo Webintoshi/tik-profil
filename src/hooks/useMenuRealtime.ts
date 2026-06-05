@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { getSupabaseClient } from "@/lib/supabase";
+import { getSupabaseClient, hasBrowserSupabaseClientConfig } from "@/lib/supabase";
 
 type RefreshFn = () => void;
 
@@ -17,7 +17,7 @@ export function useFastfoodMenuSubscription(
     }, [onRefresh]);
 
     useEffect(() => {
-        if (!businessId) return;
+        if (!businessId || !hasBrowserSupabaseClientConfig()) return;
 
         const supabase = getSupabaseClient();
         const scheduleRefresh = () => {
@@ -84,7 +84,7 @@ export function useRestaurantMenuSubscription(
     }, [onRefresh]);
 
     useEffect(() => {
-        if (!businessId) return;
+        if (!businessId || !hasBrowserSupabaseClientConfig()) return;
 
         const supabase = getSupabaseClient();
         const scheduleRefresh = () => {

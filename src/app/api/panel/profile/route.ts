@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
+import { logActivity } from '@/lib/services/auditService';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getSessionSecretBytes } from '@/lib/env';
 
@@ -53,7 +54,7 @@ export async function PUT(request: Request) {
         // Fetch existing data to merge
         const { data: existing, error: fetchError } = await supabase
             .from('businesses')
-            .select('data')
+            .select('name, slogan, about, phone, data')
             .eq('id', businessId)
             .single();
 
@@ -67,29 +68,51 @@ export async function PUT(request: Request) {
 
         // Build data fields
         const existingData = (existing?.data as Record<string, unknown>) || {};
+        const nextSlogan = body.slogan || null;
+        const nextAbout = body.about || null;
+        const nextPhone = body.phone || null;
+        const nextAddress = body.address || null;
+        const nextMapsUrl = body.mapsUrl || null;
+        const nextSocialLinks = body.socialLinks || existingData.socialLinks || {};
+        const nextShowHours = body.showHours ?? existingData.showHours ?? true;
+        const nextWorkingHours = body.workingHours || existingData.workingHours || [];
         const mergedData = {
             ...existingData,
             name: body.name,
-            slogan: body.slogan || null,
-            about: body.about || null,
-            phone: body.phone || null,
-            address: body.address || null,
-            mapsUrl: body.mapsUrl || null,
-            socialLinks: body.socialLinks || existingData.socialLinks || {},
-            showHours: body.showHours ?? existingData.showHours ?? true,
-            workingHours: body.workingHours || existingData.workingHours || [],
+            slogan: nextSlogan,
+            about: nextAbout,
+            phone: nextPhone,
+            address: nextAddress,
+            mapsUrl: nextMapsUrl,
+            socialLinks: nextSocialLinks,
+            showHours: nextShowHours,
+            workingHours: nextWorkingHours,
             updatedAt: new Date().toISOString(),
         };
 
         // Build update data
         const updateData: Record<string, unknown> = {
             name: body.name,
-            slogan: body.slogan || null,
-            about: body.about || null,
-            phone: body.phone || null,
+            slogan: nextSlogan,
+            about: nextAbout,
+            phone: nextPhone,
             data: mergedData,
             updated_at: new Date().toISOString(),
         };
+
+        const updatedFields = [
+            ['name', existing?.name || '', body.name],
+            ['slogan', existing?.slogan ?? existingData.slogan ?? null, nextSlogan],
+            ['about', existing?.about ?? existingData.about ?? null, nextAbout],
+            ['phone', existing?.phone ?? existingData.phone ?? null, nextPhone],
+            ['address', existingData.address ?? null, nextAddress],
+            ['mapsUrl', existingData.mapsUrl ?? null, nextMapsUrl],
+            ['socialLinks', existingData.socialLinks || {}, nextSocialLinks],
+            ['showHours', existingData.showHours ?? true, nextShowHours],
+            ['workingHours', existingData.workingHours || [], nextWorkingHours],
+        ]
+            .filter(([, previousValue, nextValue]) => JSON.stringify(previousValue) !== JSON.stringify(nextValue))
+            .map(([field]) => field);
 
         // Update the business record
         const { error: updateError } = await supabase
@@ -104,6 +127,15 @@ export async function PUT(request: Request) {
                 { status: 500 }
             );
         }
+
+        await logActivity({
+            actor_id: businessId,
+            actor_name: body.name || 'İşletme',
+            action_type: 'PROFILE_UPDATE',
+            metadata: {
+                updated_fields: updatedFields,
+            },
+        });
 
         return NextResponse.json({
             success: true,

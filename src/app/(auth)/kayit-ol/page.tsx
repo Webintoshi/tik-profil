@@ -75,26 +75,19 @@ export default function KayitOlPage() {
 
     // Fetch only ACTIVE industries from super admin panel
     useEffect(() => {
-        const isSupabaseConfigured = Boolean(
-            process.env.NEXT_PUBLIC_SUPABASE_URL &&
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-        );
-
-        if (isSupabaseConfigured) {
-            const unsubIndustries = subscribeToIndustries((data) => {
-                // ONLY show ACTIVE industries (set by super admin)
-                const active = data.filter(i => i.status === "active");
-                setIndustries(active);
-            });
-            const unsubPlans = subscribeToPlans((data) => {
-                const active = data.filter(p => p.status === "active");
-                setPlans(active);
-            });
-            return () => {
-                unsubIndustries();
-                unsubPlans();
-            };
-        }
+        const unsubIndustries = subscribeToIndustries((data) => {
+            // ONLY show ACTIVE industries (set by super admin)
+            const active = data.filter(i => i.status === "active");
+            setIndustries(active);
+        });
+        const unsubPlans = subscribeToPlans((data) => {
+            const active = data.filter(p => p.status === "active");
+            setPlans(active);
+        });
+        return () => {
+            unsubIndustries();
+            unsubPlans();
+        };
     }, []);
 
     // Auto-generate slug from business name (always)
