@@ -1,0 +1,43 @@
+export const tokens = {
+  colors: {
+    canvas: "#F4F7FB",
+    surface: "#FFFFFF",
+    surfaceMuted: "#EEF3F9",
+    surfaceStrong: "#DCE7F3",
+    text: "#102033",
+    textMuted: "#5F7087",
+    textSoft: "#8090A5",
+    border: "#D1DEEB",
+    primary: "#123B6A",
+    primaryStrong: "#0B2541",
+    primarySoft: "#2B5D94",
+    accent: "#3F7BC1",
+    success: "#0D8A66",
+    warning: "#C98A00",
+    danger: "#C64D46",
+    white: "#FFFFFF",
+  },
+  gradients: {
+    hero: ["#091C35", "#123B6A", "#2E6BA8"] as const,
+    banner: ["#EAF3FC", "#FFFFFF"] as const,
+    chip: ["#123B6A", "#295A90"] as const,
+  },
+  spacing: {
+    xs: 8,
+    sm: 12,
+    md: 16,
+    lg: 20,
+    xl: 24,
+    xxl: 32,
+  },
+  radius: {
+    sm: 12,
+    md: 18,
+    lg: 24,
+    pill: 999,
+  },
+  shadow: {
+    soft: "0 12px 24px rgba(18, 59, 106, 0.10)",
+    strong: "0 18px 40px rgba(11, 37, 65, 0.18)",
+  },
+} as const;
