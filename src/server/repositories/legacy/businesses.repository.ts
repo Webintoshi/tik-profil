@@ -9,6 +9,7 @@ import {
     mergeLegacyBusinessFields,
     normalizeKesfetPublicBusiness,
 } from "../kesfet-contract";
+import { sortKesfetDiscoveryBusinesses } from "../kesfet-discovery-order";
 
 function isPublicBusinessDocument(document: JsonRecord): boolean {
     const fields = mergeLegacyBusinessFields(document);
@@ -53,10 +54,12 @@ async function getLegacyBusinessDocuments(): Promise<JsonRecord[]> {
 export async function listActiveBusinessesForDiscovery(): Promise<KesfetPublicBusiness[]> {
     const documents = await getLegacyBusinessDocuments();
 
-    return documents
-        .filter(isPublicBusinessDocument)
-        .map(normalizeLegacyBusiness)
-        .filter((business) => Boolean(business.id));
+    return sortKesfetDiscoveryBusinesses(
+        documents
+            .filter(isPublicBusinessDocument)
+            .map(normalizeLegacyBusiness)
+            .filter((business) => Boolean(business.id)),
+    );
 }
 
 export async function getBusinessBySlug(slug: string): Promise<KesfetPublicBusiness | null> {

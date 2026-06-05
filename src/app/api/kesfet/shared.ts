@@ -10,6 +10,24 @@ export async function loadKesfetBusinesses(route = "/api/kesfet*"): Promise<Kesf
     return loadKesfetBusinessesForDiscovery(route);
 }
 
+export function buildKesfetRouteSignature(
+    route: string,
+    params: Record<string, string | number | boolean | null | undefined>,
+): string {
+    const searchParams = new URLSearchParams();
+
+    Object.entries(params).forEach(([key, value]) => {
+        if (value === null || value === undefined || value === "" || value === false) {
+            return;
+        }
+
+        searchParams.set(key, String(value));
+    });
+
+    const query = searchParams.toString();
+    return query ? `${route}?${query}` : route;
+}
+
 export function matchesCity(business: KesfetPublicBusiness, city: string): boolean {
     const normalizedCity = normalizeSearchText(city);
     return Boolean(

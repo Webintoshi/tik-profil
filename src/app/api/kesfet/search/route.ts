@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+    buildKesfetRouteSignature,
     loadKesfetBusinesses,
     logKesfetPublicApiError,
     matchesSearchQuery,
@@ -19,7 +20,12 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: true, businesses: [], total: 0 });
         }
 
-        let businesses = (await loadKesfetBusinesses("/api/kesfet/search"))
+        const routeSignature = buildKesfetRouteSignature("/api/kesfet/search", {
+            q: query.trim().slice(0, 64),
+            geo: lat && lng ? 1 : null,
+        });
+
+        let businesses = (await loadKesfetBusinesses(routeSignature))
             .filter((business) => matchesSearchQuery(business, query))
             .slice(0, 30);
 

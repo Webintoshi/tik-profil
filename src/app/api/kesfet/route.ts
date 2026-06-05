@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+    buildKesfetRouteSignature,
     loadKesfetBusinesses,
     logKesfetPublicApiError,
     matchesCategory,
@@ -19,8 +20,16 @@ export async function GET(request: Request) {
         const city = searchParams.get("city") || "";
         const category = searchParams.get("category") || "";
         const maxDistance = parseFloat(searchParams.get("distance") || "0");
+        const routeSignature = buildKesfetRouteSignature("/api/kesfet", {
+            page,
+            limit,
+            city: city.trim() || null,
+            category: category.trim() || null,
+            distance: maxDistance > 0 ? maxDistance : null,
+            geo: lat && lng ? 1 : null,
+        });
 
-        let businesses = await loadKesfetBusinesses("/api/kesfet");
+        let businesses = await loadKesfetBusinesses(routeSignature);
 
         if (city.trim()) {
             businesses = businesses.filter((business) => matchesCity(business, city));

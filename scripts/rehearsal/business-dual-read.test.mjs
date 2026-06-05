@@ -78,6 +78,35 @@ test("reports ordering drift for page-sensitive discovery routes", () => {
     });
 });
 
+test("reports createdAt and reviewCount drift with a query-specific route signature", () => {
+    const legacyBusinesses = [
+        createBusiness({
+            createdAt: "2026-01-01T00:00:00.000+00:00",
+            reviewCount: null,
+        }),
+    ];
+    const postgresBusinesses = [
+        createBusiness({
+            createdAt: "2026-01-01T00:00:00.000Z",
+            reviewCount: 0,
+        }),
+    ];
+
+    const summary = createBusinessDualReadComparisonSummary(
+        "/api/kesfet?limit=1&page=1",
+        legacyBusinesses,
+        postgresBusinesses,
+    );
+
+    assert.equal(summary.route, "/api/kesfet?limit=1&page=1");
+    assert.equal(summary.hasDiff, true);
+    assert.equal(summary.fieldDiffCount, 2);
+    assert.deepEqual(
+        summary.fieldDiffSamples.map((diff) => diff.field).sort(),
+        ["createdAt", "reviewCount"],
+    );
+});
+
 test("returns a clean summary when public discovery payloads match", () => {
     const businesses = [
         createBusiness({ id: "1", slug: "first" }),

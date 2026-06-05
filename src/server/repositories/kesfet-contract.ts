@@ -149,8 +149,8 @@ export function normalizeKesfetPublicBusiness({
             fallback.reviewCount ??
             null,
         createdAt:
-            asString(fields.createdAt) ||
             asString(fields.created_at) ||
+            asString(fields.createdAt) ||
             asString(fallback.createdAt),
         distance: null,
     };

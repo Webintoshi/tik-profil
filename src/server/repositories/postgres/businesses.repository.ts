@@ -1,32 +1,18 @@
 import type { QueryResultRow } from "pg";
 import { query } from "@/server/db/query";
-import {
-    asNumber,
-    asString,
-    toIsoStringOrNull,
-    type KesfetPublicBusiness,
-} from "../businesses.types";
-import { normalizeKesfetPublicBusiness } from "../kesfet-contract";
+import type { KesfetPublicBusiness } from "../businesses.types";
+import { sortKesfetDiscoveryBusinesses } from "../kesfet-discovery-order";
 import { getBusinessModules, getBusinessModulesMap } from "./business-modules.repository";
+import {
+    normalizePostgresKesfetBusinessRow,
+    type PostgresKesfetBusinessRow,
+} from "./kesfet-normalization";
 
-interface RuntimeBusinessRow extends QueryResultRow {
+interface RuntimeBusinessRow extends QueryResultRow, PostgresKesfetBusinessRow {
     id: string;
     slug: string;
     name: string;
     status: string | null;
-    industry_id: string | null;
-    industry_label: string | null;
-    active_module: string | null;
-    logo: string | null;
-    cover: string | null;
-    city: string | null;
-    district: string | null;
-    lat: string | number | null;
-    lng: string | number | null;
-    rating: string | number | null;
-    review_count: number | null;
-    created_at: Date | string | null;
-    legacy_source: unknown;
 }
 
 const BUSINESS_SELECT = `
@@ -51,35 +37,6 @@ const BUSINESS_SELECT = `
     FROM businesses
 `;
 
-function normalizePostgresBusinessRow(
-    row: RuntimeBusinessRow,
-    moduleKeys: readonly string[] = [],
-): KesfetPublicBusiness {
-    const primaryModule = moduleKeys[0] ?? null;
-
-    return normalizeKesfetPublicBusiness({
-        source: row.legacy_source,
-        fallback: {
-            id: row.id,
-            slug: row.slug,
-            name: row.name,
-            coverImage: asString(row.cover),
-            logoUrl: asString(row.logo),
-            industryId: asString(row.industry_id),
-            industryLabel: asString(row.industry_label),
-            activeModule: asString(row.active_module) || primaryModule,
-            district: asString(row.district),
-            city: asString(row.city),
-            lat: asNumber(row.lat),
-            lng: asNumber(row.lng),
-            rating: asNumber(row.rating),
-            reviewCount: row.review_count,
-            createdAt: toIsoStringOrNull(row.created_at),
-        },
-        moduleKeys,
-    });
-}
-
 export async function listActiveBusinessRowsForDiscovery(): Promise<RuntimeBusinessRow[]> {
     const result = await query<RuntimeBusinessRow>(
         `
@@ -87,7 +44,7 @@ export async function listActiveBusinessRowsForDiscovery(): Promise<RuntimeBusin
             WHERE status IS NULL
                OR btrim(status) = ''
                OR lower(btrim(status)) = 'active'
-            ORDER BY COALESCE(created_at, now()) DESC, id ASC
+            ORDER BY id ASC
         `,
     );
 
@@ -129,7 +86,9 @@ export async function listActiveBusinessesForDiscovery(): Promise<KesfetPublicBu
     const rows = await listActiveBusinessRowsForDiscovery();
     const modulesByBusinessId = await getBusinessModulesMap(rows.map((row) => row.id));
 
-    return rows.map((row) => normalizePostgresBusinessRow(row, modulesByBusinessId.get(row.id) ?? []));
+    return sortKesfetDiscoveryBusinesses(
+        rows.map((row) => normalizePostgresKesfetBusinessRow(row, modulesByBusinessId.get(row.id) ?? [])),
+    );
 }
 
 export async function getBusinessBySlug(slug: string): Promise<KesfetPublicBusiness | null> {
@@ -140,7 +99,7 @@ export async function getBusinessBySlug(slug: string): Promise<KesfetPublicBusin
     }
 
     const moduleKeys = await getBusinessModules(row.id);
-    return normalizePostgresBusinessRow(row, moduleKeys);
+    return normalizePostgresKesfetBusinessRow(row, moduleKeys);
 }
 
 export async function getBusinessById(id: string): Promise<KesfetPublicBusiness | null> {
@@ -151,5 +110,5 @@ export async function getBusinessById(id: string): Promise<KesfetPublicBusiness 
     }
 
     const moduleKeys = await getBusinessModules(row.id);
-    return normalizePostgresBusinessRow(row, moduleKeys);
+    return normalizePostgresKesfetBusinessRow(row, moduleKeys);
 }
