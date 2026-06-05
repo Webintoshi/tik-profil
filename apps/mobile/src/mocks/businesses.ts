@@ -1,0 +1,238 @@
+import type { BusinessProfile } from "@/types/business";
+
+export const mockBusinesses: BusinessProfile[] = [
+  {
+    id: "coffee-1",
+    slug: "mavi-kahve-kadikoy",
+    name: "Mavi Kahve",
+    tagline: "Sessiz çalışma köşeleri ve hızlı espresso",
+    description:
+      "Mavi Kahve, Kadıköy keşif akışının temel mock profili olarak kurgulandı. Mobil tasarımda kategori, iletişim ve profil alanlarının tamamını besler.",
+    category: {
+      id: "kahve",
+      slug: "kahve",
+      label: "Kahve",
+      icon: "☕",
+    },
+    city: "İstanbul",
+    district: "Kadıköy",
+    neighborhood: "Moda",
+    address: "Moda Caddesi No:18 Kadıköy / İstanbul",
+    distanceKm: 0.8,
+    rating: 4.8,
+    reviewCount: 214,
+    isOpen: true,
+    coverImageUrl:
+      "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=1200&q=80",
+    logoImageUrl:
+      "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=240&q=80",
+    tags: ["Üçüncü dalga", "Wi-Fi", "Kahvaltı"],
+    contact: {
+      phone: "+902165550101",
+      whatsapp: "+905551112233",
+      address: "Moda Caddesi No:18 Kadıköy / İstanbul",
+      directionsUrl: "https://maps.google.com/?q=Moda+Caddesi+18+Kadikoy",
+    },
+    websiteUrl: "https://tikprofil.com/mavi-kahve-kadikoy",
+    socialLinks: [
+      {
+        id: "coffee-web",
+        label: "Web sitesi",
+        type: "website",
+        url: "https://tikprofil.com/mavi-kahve-kadikoy",
+      },
+      {
+        id: "coffee-ig",
+        label: "Instagram",
+        type: "instagram",
+        url: "https://instagram.com/mavikahvekadikoy",
+      },
+    ],
+    workingHours: [
+      { day: "Pazartesi", hours: "08:00 - 22:00" },
+      { day: "Salı", hours: "08:00 - 22:00" },
+      { day: "Çarşamba", hours: "08:00 - 22:00" },
+      { day: "Perşembe", hours: "08:00 - 22:00" },
+      { day: "Cuma", hours: "08:00 - 23:00", isToday: true },
+      { day: "Cumartesi", hours: "09:00 - 23:00" },
+      { day: "Pazar", hours: "09:00 - 21:00" },
+    ],
+    qrProfileUrl: "https://tikprofil.com/mavi-kahve-kadikoy",
+  },
+  {
+    id: "restaurant-1",
+    slug: "sahil-mutfak-besiktas",
+    name: "Sahil Mutfak",
+    tagline: "Boğaz hattında modern Türk mutfağı",
+    description:
+      "Sahil Mutfak mock verisi; kategori sonuçları, arama akışı ve işletme detay ekranındaki aksiyon satırlarını besler.",
+    category: {
+      id: "restoran",
+      slug: "restoran",
+      label: "Restoran",
+      icon: "🍽️",
+    },
+    city: "İstanbul",
+    district: "Beşiktaş",
+    neighborhood: "Abbasağa",
+    address: "Ihlamurdere Caddesi No:42 Beşiktaş / İstanbul",
+    distanceKm: 3.2,
+    rating: 4.6,
+    reviewCount: 128,
+    isOpen: true,
+    coverImageUrl:
+      "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80",
+    logoImageUrl:
+      "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=240&q=80",
+    tags: ["Akşam servisi", "Rezervasyon", "Teras"],
+    contact: {
+      phone: "+902125550202",
+      whatsapp: "+905551112244",
+      address: "Ihlamurdere Caddesi No:42 Beşiktaş / İstanbul",
+      directionsUrl:
+        "https://maps.google.com/?q=Ihlamurdere+Caddesi+42+Besiktas",
+    },
+    websiteUrl: "https://tikprofil.com/sahil-mutfak-besiktas",
+    socialLinks: [
+      {
+        id: "restaurant-web",
+        label: "Web sitesi",
+        type: "website",
+        url: "https://tikprofil.com/sahil-mutfak-besiktas",
+      },
+      {
+        id: "restaurant-fb",
+        label: "Facebook",
+        type: "facebook",
+        url: "https://facebook.com/sahilmutfak",
+      },
+    ],
+    workingHours: [
+      { day: "Pazartesi", hours: "12:00 - 23:00" },
+      { day: "Salı", hours: "12:00 - 23:00" },
+      { day: "Çarşamba", hours: "12:00 - 23:00" },
+      { day: "Perşembe", hours: "12:00 - 23:00" },
+      { day: "Cuma", hours: "12:00 - 00:00", isToday: true },
+      { day: "Cumartesi", hours: "12:00 - 00:00" },
+      { day: "Pazar", hours: "12:00 - 22:00" },
+    ],
+    qrProfileUrl: "https://tikprofil.com/sahil-mutfak-besiktas",
+  },
+  {
+    id: "beauty-1",
+    slug: "nova-guzellik-cankaya",
+    name: "Nova Güzellik",
+    tagline: "Bakım ve hızlı randevu profili",
+    description:
+      "Nova Güzellik, mobil keşif tarafında servis odaklı işletme detayı ve WhatsApp temasını örneklemek için eklendi.",
+    category: {
+      id: "guzellik",
+      slug: "guzellik",
+      label: "Güzellik",
+      icon: "💅",
+    },
+    city: "Ankara",
+    district: "Çankaya",
+    neighborhood: "Ayrancı",
+    address: "Hoşdere Caddesi No:77 Çankaya / Ankara",
+    distanceKm: 1.6,
+    rating: 4.7,
+    reviewCount: 91,
+    isOpen: false,
+    coverImageUrl:
+      "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=1200&q=80",
+    logoImageUrl:
+      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=240&q=80",
+    tags: ["Randevu", "Cilt bakımı", "Kaş tasarımı"],
+    contact: {
+      phone: "+903125550303",
+      whatsapp: "+905551112255",
+      address: "Hoşdere Caddesi No:77 Çankaya / Ankara",
+      directionsUrl: "https://maps.google.com/?q=Hosdere+Caddesi+77+Cankaya",
+    },
+    websiteUrl: "https://tikprofil.com/nova-guzellik-cankaya",
+    socialLinks: [
+      {
+        id: "beauty-web",
+        label: "Web sitesi",
+        type: "website",
+        url: "https://tikprofil.com/nova-guzellik-cankaya",
+      },
+      {
+        id: "beauty-ig",
+        label: "Instagram",
+        type: "instagram",
+        url: "https://instagram.com/novaguzellik",
+      },
+    ],
+    workingHours: [
+      { day: "Pazartesi", hours: "09:00 - 19:00" },
+      { day: "Salı", hours: "09:00 - 19:00" },
+      { day: "Çarşamba", hours: "09:00 - 19:00" },
+      { day: "Perşembe", hours: "09:00 - 19:00" },
+      { day: "Cuma", hours: "09:00 - 19:00", isToday: true },
+      { day: "Cumartesi", hours: "10:00 - 17:00" },
+      { day: "Pazar", hours: "Kapalı" },
+    ],
+    qrProfileUrl: "https://tikprofil.com/nova-guzellik-cankaya",
+  },
+  {
+    id: "hotel-1",
+    slug: "kordon-konak-otel",
+    name: "Kordon Konak",
+    tagline: "Hafta sonu kaçamağı için butik otel",
+    description:
+      "Kordon Konak, keşfet akışında konaklama kategorisi ve saat/adres alanlarının farklı yoğunlukta görünmesini test eder.",
+    category: {
+      id: "otel",
+      slug: "otel",
+      label: "Otel",
+      icon: "🏨",
+    },
+    city: "İzmir",
+    district: "Konak",
+    neighborhood: "Alsancak",
+    address: "Kıbrıs Şehitleri Caddesi No:9 Konak / İzmir",
+    distanceKm: 2.1,
+    rating: 4.5,
+    reviewCount: 74,
+    isOpen: true,
+    coverImageUrl:
+      "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80",
+    logoImageUrl:
+      "https://images.unsplash.com/photo-1445019980597-93fa8acb246c?auto=format&fit=crop&w=240&q=80",
+    tags: ["Butik", "Kahvaltı dahil", "Merkezi"],
+    contact: {
+      phone: "+902325550404",
+      whatsapp: "+905551112266",
+      address: "Kıbrıs Şehitleri Caddesi No:9 Konak / İzmir",
+      directionsUrl:
+        "https://maps.google.com/?q=Kibris+Sehitleri+Caddesi+9+Konak",
+    },
+    websiteUrl: "https://tikprofil.com/kordon-konak-otel",
+    socialLinks: [
+      {
+        id: "hotel-web",
+        label: "Web sitesi",
+        type: "website",
+        url: "https://tikprofil.com/kordon-konak-otel",
+      },
+      {
+        id: "hotel-linkedin",
+        label: "LinkedIn",
+        type: "linkedin",
+        url: "https://linkedin.com/company/kordon-konak",
+      },
+    ],
+    workingHours: [
+      { day: "Pazartesi", hours: "24 saat açık" },
+      { day: "Salı", hours: "24 saat açık" },
+      { day: "Çarşamba", hours: "24 saat açık" },
+      { day: "Perşembe", hours: "24 saat açık" },
+      { day: "Cuma", hours: "24 saat açık", isToday: true },
+      { day: "Cumartesi", hours: "24 saat açık" },
+      { day: "Pazar", hours: "24 saat açık" },
+    ],
+    qrProfileUrl: "https://tikprofil.com/kordon-konak-otel",
+  },
+];
