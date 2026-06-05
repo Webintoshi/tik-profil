@@ -41,6 +41,8 @@ const envSchema = z.object({
     DATABASE_URL: optionalString,
     BUSINESS_DATA_PROVIDER: z.enum(['legacy_supabase', 'postgres']).default('legacy_supabase'),
     BUSINESS_DUAL_READ_COMPARE: z.enum(['0', '1']).default('0'),
+    PUBLIC_PROFILE_DATA_PROVIDER: z.enum(['legacy_supabase', 'postgres']).default('legacy_supabase'),
+    PUBLIC_PROFILE_DUAL_READ_COMPARE: z.enum(['0', '1']).default('0'),
 
     // Auth foundation
     AUTH_PROVIDER: z.enum(['legacy', 'logto']).default('legacy'),
@@ -65,6 +67,7 @@ const envSchema = z.object({
 // Type for validated environment
 export type Env = z.infer<typeof envSchema>;
 export type BusinessDataProvider = Env['BUSINESS_DATA_PROVIDER'];
+export type PublicProfileDataProvider = Env['PUBLIC_PROFILE_DATA_PROVIDER'];
 
 // Cached validated env
 let cachedEnv: Env | null = null;
@@ -149,6 +152,16 @@ export function getBusinessDataProvider(): BusinessDataProvider {
 
 export function isBusinessDualReadCompareEnabled(): boolean {
     return getTrimmedEnvValue('BUSINESS_DUAL_READ_COMPARE') === '1';
+}
+
+export function getPublicProfileDataProvider(): PublicProfileDataProvider {
+    return getTrimmedEnvValue('PUBLIC_PROFILE_DATA_PROVIDER') === 'postgres'
+        ? 'postgres'
+        : 'legacy_supabase';
+}
+
+export function isPublicProfileDualReadCompareEnabled(): boolean {
+    return getTrimmedEnvValue('PUBLIC_PROFILE_DUAL_READ_COMPARE') === '1';
 }
 
 export function getAppUrl(): string | undefined {

@@ -13,6 +13,8 @@ import {
 import Link from "next/link";
 import { PublicProfileWrapper, ActionButton } from "@/components/public";
 import { TikLogo } from "@/components/TikLogo";
+import { loadPublicProfileBySlug } from "@/server/repositories/public-profile-provider";
+import type { PublicProfile } from "@/server/repositories/public-profile.types";
 import {
     SocialIconWebsite,
     SocialIconInstagram,
@@ -29,33 +31,7 @@ import { toR2ProxyUrl } from "@/lib/publicImage";
 // ============================================
 // TYPES
 // ============================================
-interface Business {
-    id: string;
-    slug: string;
-    name: string;
-    logo?: string;
-    cover?: string;
-    industry: string;
-    industryLabel: string;
-    isVerified: boolean;
-    phone?: string;
-    whatsapp?: string;
-    about?: string;
-    address?: string;
-    mapsUrl?: string; // Preferred for "Konum" Button
-    hasRestaurantModule?: boolean;
-    cartEnabled?: boolean;
-    social: {
-        website?: string;
-        instagram?: string;
-        youtube?: string;
-        google?: string;
-        facebook?: string;
-        twitter?: string;
-        tiktok?: string;
-        linkedin?: string;
-    };
-}
+type Business = PublicProfile;
 
 const INDUSTRY_ACTIONS: Record<string, { label: string; icon: string }> = {
     "e-commerce": { label: "Sipariş Ver", icon: "cart" },
@@ -408,8 +384,16 @@ function ProfileContent({ business }: { business: Business }) {
 // ============================================
 // DATA FETCHING (PRESERVED)
 // ============================================
-async function getBusinessBySlug(slug: string): Promise<Business | null> {
+async function getBusinessBySlug(
+    slug: string,
+    options?: { compare?: boolean },
+): Promise<Business | null> {
     try {
+        const providerResult = await loadPublicProfileBySlug(`/${slug}`, slug, options);
+        if (providerResult.profile) {
+            return providerResult.profile;
+        }
+
         const { getSupabaseAdmin } = await import("@/lib/supabase");
         const supabase = getSupabaseAdmin();
 
@@ -554,6 +538,9 @@ async function getBusinessBySlug(slug: string): Promise<Business | null> {
             about: (business.about as string) || (fields.about as string) || undefined,
             address: (fields.address as string) || undefined,
             mapsUrl: (fields.mapsUrl as string) || undefined,
+            showHours: (fields.showHours as boolean) ?? false,
+            workingHours: fields.workingHours,
+            modules: modulesArr,
             hasRestaurantModule: modulesArr.includes("restaurant"),
             cartEnabled: (fields.cartEnabled as boolean) ?? true,
             social: {
@@ -613,6 +600,11 @@ function getIndustryLabel(industryId: string): string {
 // CHECK FOR OLD SLUG REDIRECT
 // ============================================
 async function getBusinessByPreviousSlug(oldSlug: string): Promise<{ currentSlug: string } | null> {
+    const providerResult = await loadPublicProfileBySlug(`redirect:/${oldSlug}`, oldSlug, { compare: false });
+    if (providerResult.redirectTarget) {
+        return { currentSlug: providerResult.redirectTarget };
+    }
+
     try {
         const { getSupabaseAdmin } = await import("@/lib/supabase");
         const supabase = getSupabaseAdmin();
@@ -641,7 +633,7 @@ async function getBusinessByPreviousSlug(oldSlug: string): Promise<{ currentSlug
 // ============================================
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
     const { slug } = await params;
-    const business = await getBusinessBySlug(slug);
+    const business = await getBusinessBySlug(slug, { compare: false });
     if (!business) return { title: "İşletme Bulunamadı" };
     return {
         title: `${business.name} | Tık Profil`,
