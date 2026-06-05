@@ -14,7 +14,8 @@ import {
 import { toast } from "sonner";
 import { useBusinessContext } from "@/components/panel/BusinessSessionContext";
 import { useTheme } from "@/components/panel/ThemeProvider";
-import { getSupabaseClient } from "@/lib/supabase";
+import { getSupabaseClient, hasBrowserSupabaseClientConfig } from "@/lib/supabase";
+import { normalizeHotelPanelRequest } from "@/lib/hotel/panelState";
 import clsx from "clsx";
 
 // Request interface
@@ -79,7 +80,7 @@ export default function RequestsPage() {
                 if (!isActive) return;
 
                 if (data.success) {
-                    setRequests(data.requests || []);
+                    setRequests((data.requests || []).map(normalizeHotelPanelRequest));
                 } else {
                     toast.error(data.error || 'Talep güncellemeleri alınamadı');
                 }
@@ -102,6 +103,16 @@ export default function RequestsPage() {
         };
 
         fetchRequests();
+
+        if (!hasBrowserSupabaseClientConfig()) {
+            return () => {
+                isActive = false;
+                if (refreshTimeoutRef.current) {
+                    clearTimeout(refreshTimeoutRef.current);
+                    refreshTimeoutRef.current = null;
+                }
+            };
+        }
 
         const supabase = getSupabaseClient();
         const channel = supabase

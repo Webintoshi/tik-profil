@@ -8,6 +8,10 @@ import { CategoryPills } from "@/components/public/menu/CategoryPills";
 import { ProductCard } from "@/components/public/menu/ProductCard";
 import { ProductDetail } from "@/components/public/menu/ProductDetail";
 import { useFastfoodMenuSubscription } from "@/hooks/useMenuRealtime";
+import {
+    getPublicMenuFallbackState,
+    type PublicMenuFallbackState,
+} from "@/lib/public/menuState";
 
 // Types
 interface Category {
@@ -50,7 +54,7 @@ function MenuContent() {
     const slug = params.slug as string;
 
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [menuIssue, setMenuIssue] = useState<PublicMenuFallbackState | null>(null);
     const [business, setBusiness] = useState<Business | null>(null);
     const [categories, setCategories] = useState<Category[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
@@ -73,8 +77,6 @@ function MenuContent() {
     const [activeCategory, setActiveCategory] = useState<string>("");
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [isProductDetailOpen, setIsProductDetailOpen] = useState(false);
-    const [isCartOpen, setIsCartOpen] = useState(false);
-    const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
     const categoryRefs = useRef<Map<string, HTMLElement>>(new Map());
     const observerRef = useRef<IntersectionObserver | null>(null);
@@ -85,30 +87,29 @@ function MenuContent() {
 
             // Validate slug before fetching
             if (!slug) {
-                setError("İşletme bilgisi bulunamadı");
+                setMenuIssue(getPublicMenuFallbackState(400, "businessSlug required"));
                 setLoading(false);
                 return;
             }
 
             // Fetch menu data
             const url = `/api/fastfood/public-menu?businessSlug=${encodeURIComponent(slug)}${tableId ? `&tableId=${encodeURIComponent(tableId)}` : ''}`;
-            console.log('[Menu] Fetching from URL:', url);
-
             const res = await fetch(url);
-            console.log('[Menu] Response status:', res.status);
 
             if (!res.ok) {
-                const errorText = await res.text();
-                console.error('[Menu] HTTP Error:', res.status, errorText);
-                setError(`Sunucu hatası: ${res.status}`);
+                const payload = await res.json().catch(() => null);
+                setMenuIssue(getPublicMenuFallbackState(res.status, payload));
+                setBusiness(null);
+                setBusinessId(null);
+                setCategories([]);
+                setProducts([]);
                 return;
             }
 
             const data = await res.json();
-            console.log('[Menu] Response data:', data);
 
             if (!data.success) {
-                setError(data.error || "Menü yüklenemedi");
+                setMenuIssue(getPublicMenuFallbackState(res.status, data));
                 return;
             }
 
@@ -131,7 +132,6 @@ function MenuContent() {
             try {
                 const settingsRes = await fetch(`/api/fastfood/public-settings?businessSlug=${slug}`);
                 const settingsData = await settingsRes.json();
-                console.log('[Menu] Settings Response:', settingsData);
                 if (settingsData.success && settingsData.settings) {
                     setMenuTheme(settingsData.settings.menuTheme || "modern");
                     setWifiPassword(settingsData.settings.wifiPassword || "");
@@ -140,20 +140,23 @@ function MenuContent() {
                 console.error("Failed to load settings", err);
             }
 
-            setError(null);
+            setMenuIssue(null);
         } catch (err) {
             console.error("[Menu] Fetch error:", err);
             if (err instanceof TypeError && err.message === 'Failed to fetch') {
-                setError("Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.");
-            } else if (err instanceof Error) {
-                setError(`Menü yüklenirken hata: ${err.message}`);
+                setMenuIssue({
+                    kind: "error",
+                    title: "Menü Yüklenemedi",
+                    message: "Sunucuya bağlanılamadı. Lütfen daha sonra tekrar deneyin.",
+                    retryable: true,
+                });
             } else {
-                setError("Menü yüklenirken bilinmeyen bir hata oluştu");
+                setMenuIssue(getPublicMenuFallbackState(undefined, err));
             }
         } finally {
             if (showLoading) setLoading(false);
         }
-    }, [slug]);
+    }, [slug, tableId]);
 
     useEffect(() => {
         refreshMenu(true);
@@ -225,17 +228,6 @@ function MenuContent() {
             .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
     })).filter(cat => cat.products.length > 0);
 
-    // Debug logging
-    console.log('[Menu] Debug Info:', {
-        businessId,
-        categoriesCount: categories.length,
-        productsCount: products.length,
-        productsByCategoryCount: productsByCategory.length,
-        categoryIds: categories.map(c => c.id),
-        productCategoryIds: [...new Set(products.map(p => p.categoryId))],
-        sampleProduct: products[0]
-    });
-
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -247,15 +239,27 @@ function MenuContent() {
         );
     }
 
-    if (error) {
+    if (menuIssue) {
         return (
             <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
                 <div className="text-center">
-                    <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
-                        <span className="text-3xl">😕</span>
+                    <div
+                        className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${menuIssue.kind === "not-ready" ? "bg-gray-200" : "bg-red-500/20"}`}
+                    >
+                        <span className="text-3xl">
+                            {menuIssue.kind === "not-ready" ? "🍽️" : "😕"}
+                        </span>
                     </div>
-                    <h2 className="text-lg font-semibold mb-2 text-gray-900">Menü Yüklenemedi</h2>
-                    <p className="text-gray-600">{error}</p>
+                    <h2 className="text-lg font-semibold mb-2 text-gray-900">{menuIssue.title}</h2>
+                    <p className="text-gray-600">{menuIssue.message}</p>
+                    {menuIssue.retryable && (
+                        <button
+                            onClick={() => refreshMenu(true)}
+                            className="mt-4 inline-flex items-center justify-center rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-orange-600"
+                        >
+                            Tekrar Dene
+                        </button>
+                    )}
                 </div>
             </div>
         );

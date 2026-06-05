@@ -11,6 +11,7 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const businessSlug = searchParams.get('businessSlug');
+        const tableId = searchParams.get('tableId');
 
         if (!businessSlug) {
             return NextResponse.json({ success: false, error: 'businessSlug required' }, { status: 400 });
@@ -35,7 +36,12 @@ export async function GET(request: Request) {
 
         const businessId = business.id as string;
 
-        const [{ data: allCategories, error: categoriesError }, { data: allProducts, error: productsError }, { data: settings, error: settingsError }] = await Promise.all([
+        const [
+            { data: allCategories, error: categoriesError },
+            { data: allProducts, error: productsError },
+            { data: settings, error: settingsError },
+            { data: tableData, error: tableError },
+        ] = await Promise.all([
             supabase
                 .from('fb_categories')
                 .select('*')
@@ -51,10 +57,17 @@ export async function GET(request: Request) {
                 .select('*')
                 .eq('business_id', businessId)
                 .maybeSingle(),
+            tableId
+                ? supabase
+                    .from('fb_tables')
+                    .select('name')
+                    .eq('id', tableId)
+                    .maybeSingle()
+                : Promise.resolve({ data: null, error: null }),
         ]);
 
-        if (categoriesError || productsError || settingsError) {
-            console.error('[Restaurant Public Menu] Supabase error:', categoriesError || productsError || settingsError);
+        if (categoriesError || productsError || settingsError || tableError) {
+            console.error('[Restaurant Public Menu] Supabase error:', categoriesError || productsError || settingsError || tableError);
             return NextResponse.json({ success: false, error: 'Server error' }, { status: 500 });
         }
 
@@ -90,12 +103,17 @@ export async function GET(request: Request) {
                 businessLogo: business.logo || '',
                 businessPhone: business.phone || '',
                 businessWhatsapp: business.whatsapp || business.phone || '',
+                tableName: tableData?.name || '',
                 categories,
                 products,
                 settings: {
+                    styleId: settings?.style_id || 'modern',
+                    accentColorId: settings?.accent_color_id || 'emerald',
+                    showAvatar: settings?.show_avatar !== false,
                     cartEnabled: settings?.cart_enabled !== false,
                     whatsappOrderEnabled: settings?.whatsapp_order_enabled !== false,
                     waiterCallEnabled: (settings?.waiter_call_enabled ?? settings?.call_waiter_enabled) !== false,
+                    wifiPassword: settings?.wifi_password || '',
                 }
             }
         }, {

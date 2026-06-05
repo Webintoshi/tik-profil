@@ -37,6 +37,7 @@ import {
     toggleProductStock,
     formatPrice
 } from "@/lib/services/foodService";
+import { getErrorMessage } from "@/lib/errorMessage";
 
 // ============================================
 // PRODUCT MODAL COMPONENT
@@ -286,6 +287,7 @@ export default function MenuPage() {
     const [editingCategory, setEditingCategory] = useState<string | null>(null);
     const [editingCategoryName, setEditingCategoryName] = useState("");
     const [isAdding, setIsAdding] = useState(false);
+    const [categoryCreateError, setCategoryCreateError] = useState<string | null>(null);
 
     // Product Modal State
     const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -352,11 +354,13 @@ export default function MenuPage() {
         try {
             const newId = await createCategory(session.businessId, newCategoryName.trim(), categories.length);
             setNewCategoryName("");
+            setCategoryCreateError(null);
             setExpandedCategories(prev => [...prev, newId]);
             toast.success("Kategori eklendi");
         } catch (error) {
             console.error("Error adding category:", error);
-            toast.error("Kategori eklenirken hata oluştu");
+            setCategoryCreateError(getErrorMessage(error, "Kategori eklenemedi."));
+            toast.error(getErrorMessage(error, "Kategori eklenemedi."));
         } finally {
             setIsAdding(false);
         }
@@ -510,7 +514,12 @@ export default function MenuPage() {
                     <input
                         type="text"
                         value={newCategoryName}
-                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        onChange={(e) => {
+                            setNewCategoryName(e.target.value);
+                            if (categoryCreateError) {
+                                setCategoryCreateError(null);
+                            }
+                        }}
                         onKeyDown={(e) => e.key === "Enter" && handleAddCategory()}
                         placeholder="Yeni kategori adı (ör: Tatlılar, İçecekler)"
                         className={clsx(
@@ -528,6 +537,11 @@ export default function MenuPage() {
                         Kategori Ekle
                     </button>
                 </div>
+                {categoryCreateError && (
+                    <p className="mt-3 text-sm text-red-500">
+                        {categoryCreateError}
+                    </p>
+                )}
             </div>
 
             {/* Categories List */}

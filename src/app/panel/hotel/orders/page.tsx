@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Loader2,
@@ -15,7 +15,8 @@ import {
 import { toast } from "sonner";
 import { useBusinessContext } from "@/components/panel/BusinessSessionContext";
 import { useTheme } from "@/components/panel/ThemeProvider";
-import { getSupabaseClient } from "@/lib/supabase";
+import { getSupabaseClient, hasBrowserSupabaseClientConfig } from "@/lib/supabase";
+import { normalizeHotelPanelOrder } from "@/lib/hotel/panelState";
 import clsx from "clsx";
 
 // Order interface
@@ -69,7 +70,7 @@ export default function RoomServiceOrdersPage() {
                 if (!isActive) return;
 
                 if (data.success) {
-                    setOrders(data.orders || []);
+                    setOrders((data.orders || []).map(normalizeHotelPanelOrder));
                 } else {
                     toast.error(data.error || 'Sipariş güncellemeleri alınamadı');
                 }
@@ -92,6 +93,16 @@ export default function RoomServiceOrdersPage() {
         };
 
         fetchOrders();
+
+        if (!hasBrowserSupabaseClientConfig()) {
+            return () => {
+                isActive = false;
+                if (refreshTimeoutRef.current) {
+                    clearTimeout(refreshTimeoutRef.current);
+                    refreshTimeoutRef.current = null;
+                }
+            };
+        }
 
         const supabase = getSupabaseClient();
         const channel = supabase

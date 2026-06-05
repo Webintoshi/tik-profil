@@ -3,11 +3,15 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, ShoppingBag, X, Plus, Minus, MessageCircle, Loader2, UtensilsCrossed, Wifi, Copy, Check } from "lucide-react";
-import { formatPrice, getCategories, getProducts, getTableById, getMenuSettings } from "@/lib/services/foodService";
+import { Bell, ShoppingBag, X, Plus, Minus, MessageCircle, Loader2, UtensilsCrossed, Wifi, Check } from "lucide-react";
+import { formatPrice } from "@/lib/services/foodService";
 import { MenuSettings, DEFAULT_MENU_SETTINGS, getAccentColor, getStyleConfig, normalizeStyleId, ColorId } from "@/lib/menuStyles";
 import { toR2ProxyUrl } from "@/lib/publicImage";
 import { useRestaurantMenuSubscription } from "@/hooks/useMenuRealtime";
+import {
+    getPublicMenuFallbackState,
+    type PublicMenuFallbackState,
+} from "@/lib/public/menuState";
 
 // ============================================
 // TYPES
@@ -59,6 +63,7 @@ export function RestaurantMenuClient({
     const [categories, setCategories] = useState<MenuCategory[]>([]);
     const [products, setProducts] = useState<MenuProduct[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [menuIssue, setMenuIssue] = useState<PublicMenuFallbackState | null>(null);
     const [activeCategory, setActiveCategory] = useState<string>("");
     const [cart, setCart] = useState<CartItem[]>([]);
     const [showCart, setShowCart] = useState(false);
@@ -75,68 +80,84 @@ export function RestaurantMenuClient({
     const accentColor = getAccentColor(menuSettings.accentColorId);
 
     const refreshMenu = useCallback(async (showLoading: boolean = false) => {
-        if (!businessId) return;
+        if (!businessSlug) return;
 
         try {
             if (showLoading) setIsLoading(true);
-            const [categoriesData, productsData, settingsData] = await Promise.all([
-                getCategories(businessId),
-                getProducts(businessId),
-                getMenuSettings(businessId)
-            ]);
+            const params = new URLSearchParams({ businessSlug });
+            if (tableId) {
+                params.set("tableId", tableId);
+            }
 
-            const cats = categoriesData.map(c => ({ id: c.id, name: c.name }));
-            const prods = productsData.map(p => ({
-                id: p.id,
-                category_id: p.category_id,
-                name: p.name,
-                description: p.description,
-                price: p.price,
-                image: p.image,
-                in_stock: p.in_stock
+            const response = await fetch(`/api/restaurant/public-menu?${params.toString()}`);
+            const payload = await response.json().catch(() => null);
+
+            if (!response.ok || !payload?.success || !payload?.data) {
+                setMenuIssue(getPublicMenuFallbackState(response.status, payload));
+                setCategories([]);
+                setProducts([]);
+                return;
+            }
+
+            const data = payload.data;
+            const cats = (data.categories || []).map((category: {
+                id: string;
+                name: string;
+            }) => ({
+                id: category.id,
+                name: category.name,
             }));
+            const prods = (data.products || []).map((product: {
+                id: string;
+                categoryId: string;
+                name: string;
+                description?: string;
+                price: number;
+                image?: string;
+                inStock?: boolean;
+            }) => ({
+                id: product.id,
+                category_id: product.categoryId,
+                name: product.name,
+                description: product.description,
+                price: product.price,
+                image: product.image,
+                in_stock: product.inStock !== false,
+            }));
+            const settingsData = data.settings;
 
             if (settingsData) {
                 setMenuSettings({
-                    styleId: normalizeStyleId(settingsData.style_id || "modern"),
-                    accentColorId: (settingsData.accent_color_id || "emerald") as ColorId,
-                    showAvatar: settingsData.show_avatar ?? DEFAULT_MENU_SETTINGS.showAvatar,
-                    waiterCallEnabled: settingsData.waiter_call_enabled ?? DEFAULT_MENU_SETTINGS.waiterCallEnabled,
-                    cartEnabled: settingsData.cart_enabled ?? DEFAULT_MENU_SETTINGS.cartEnabled,
-                    whatsappOrderEnabled: settingsData.whatsapp_order_enabled ?? DEFAULT_MENU_SETTINGS.whatsappOrderEnabled,
-                    wifiPassword: settingsData.wifi_password || undefined,
+                    styleId: normalizeStyleId(settingsData.styleId || "modern"),
+                    accentColorId: (settingsData.accentColorId || "emerald") as ColorId,
+                    showAvatar: settingsData.showAvatar ?? DEFAULT_MENU_SETTINGS.showAvatar,
+                    waiterCallEnabled: settingsData.waiterCallEnabled ?? DEFAULT_MENU_SETTINGS.waiterCallEnabled,
+                    cartEnabled: settingsData.cartEnabled ?? DEFAULT_MENU_SETTINGS.cartEnabled,
+                    whatsappOrderEnabled: settingsData.whatsappOrderEnabled ?? DEFAULT_MENU_SETTINGS.whatsappOrderEnabled,
+                    wifiPassword: settingsData.wifiPassword || undefined,
                 });
             }
 
             setCategories(cats);
             setProducts(prods);
+            setTableName(data.tableName || null);
+            setMenuIssue(null);
             if (cats.length > 0) setActiveCategory(cats[0].id);
         } catch (error) {
             console.error("Error loading menu:", error);
+            setMenuIssue(getPublicMenuFallbackState(undefined, error));
+            setCategories([]);
+            setProducts([]);
         } finally {
             if (showLoading) setIsLoading(false);
         }
-    }, [businessId]);
+    }, [businessSlug, tableId]);
 
     useEffect(() => {
         refreshMenu(true);
     }, [refreshMenu]);
 
     useRestaurantMenuSubscription(businessId, () => refreshMenu(false));
-
-    // Load table name
-    useEffect(() => {
-        if (!tableId) return;
-        const loadTable = async () => {
-            try {
-                const table = await getTableById(tableId);
-                if (table) setTableName(table.name);
-            } catch (error) {
-                console.error("Error loading table:", error);
-            }
-        };
-        loadTable();
-    }, [tableId]);
 
     // Scroll to category
     const scrollToCategory = (categoryId: string) => {
@@ -241,6 +262,32 @@ export function RestaurantMenuClient({
                         Menü yükleniyor...
                     </p>
                 </div>
+            </div>
+        );
+    }
+
+    if (menuIssue) {
+        return (
+            <div
+                className="min-h-screen flex flex-col items-center justify-center p-6"
+                style={{ backgroundColor: styleConfig.colors.background }}
+            >
+                <UtensilsCrossed className="w-16 h-16 mb-4" style={{ color: styleConfig.colors.textSecondary }} />
+                <h2 className="text-xl font-bold mb-2" style={{ color: styleConfig.colors.text }}>
+                    {menuIssue.title}
+                </h2>
+                <p className="text-center max-w-sm" style={{ color: styleConfig.colors.textSecondary }}>
+                    {menuIssue.message}
+                </p>
+                {menuIssue.retryable && (
+                    <button
+                        onClick={() => refreshMenu(true)}
+                        className="mt-4 rounded-xl px-4 py-2 text-sm font-semibold text-white"
+                        style={{ backgroundColor: accentColor.value }}
+                    >
+                        Tekrar Dene
+                    </button>
+                )}
             </div>
         );
     }

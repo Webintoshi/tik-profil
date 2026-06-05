@@ -5,6 +5,7 @@
  */
 
 import { getSupabaseClient } from '../supabase';
+import { getErrorMessage } from '../errorMessage';
 
 // ============================================
 // TYPES
@@ -283,19 +284,25 @@ export function subscribeToCategories(businessId: string, callback: (categories:
 }
 
 export async function createCategory(businessId: string, name: string, order: number): Promise<string> {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-        .from(CATEGORIES_COLLECTION)
-        .insert({
-            business_id: businessId,
+    const response = await fetch('/api/panel/food/categories', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            businessId,
             name,
-            sort_order: order,
-        })
-        .select('id')
-        .single();
+            sortOrder: order,
+        }),
+    });
 
-    if (error) throw error;
-    return data.id as string;
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok || !payload?.success || !payload?.categoryId) {
+        throw new Error(getErrorMessage(payload, 'Kategori eklenemedi.'));
+    }
+
+    return payload.categoryId as string;
 }
 
 export async function updateCategory(categoryId: string, data: Partial<Pick<FBCategory, 'name' | 'order'>>): Promise<void> {
