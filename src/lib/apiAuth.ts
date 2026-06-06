@@ -15,11 +15,14 @@ import { getSessionSecretBytes } from "./env";
 // ============================================
 
 export interface SessionUser {
+    appUserId?: string;
+    authProvider?: "legacy" | "logto";
     businessId: string;
     businessName: string;
     businessSlug: string;
     email: string;
     isStaff: boolean;
+    logtoSub?: string;
     staffId?: string;
     role: StaffRole;
     permissions: string[];
@@ -54,11 +57,14 @@ export async function getSession(): Promise<SessionUser | null> {
                 const { payload } = await jwtVerify(ownerToken, getJwtSecret());
 
                 return {
+                    appUserId: payload.appUserId as string || undefined,
+                    authProvider: (payload.authProvider as "legacy" | "logto") || "legacy",
                     businessId: payload.businessId as string,
                     businessName: payload.businessName as string,
                     businessSlug: payload.businessSlug as string,
                     email: payload.email as string,
                     isStaff: false,
+                    logtoSub: payload.logtoSub as string || undefined,
                     role: "owner",
                     permissions: [], // Owner has implicit access to everything
                     enabledModules: (payload.enabledModules as string[]) || [],
@@ -76,11 +82,14 @@ export async function getSession(): Promise<SessionUser | null> {
                 const { payload } = await jwtVerify(staffToken, getJwtSecret());
 
                 return {
+                    appUserId: payload.appUserId as string || undefined,
+                    authProvider: (payload.authProvider as "legacy" | "logto") || "legacy",
                     businessId: payload.businessId as string,
                     businessName: payload.businessName as string,
                     businessSlug: payload.businessSlug as string,
                     email: payload.email as string,
                     isStaff: payload.isStaff as boolean || false,
+                    logtoSub: payload.logtoSub as string || undefined,
                     staffId: payload.staffId as string || undefined,
                     role: (payload.role as StaffRole) || "staff",
                     permissions: (payload.permissions as string[]) || [],

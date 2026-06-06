@@ -230,6 +230,11 @@ const COOKIE_NAME = "tikprofil_session";
 const ADMIN_SALT_ROUNDS = 12;
 
 export interface SessionPayload {
+    appUserId?: string;
+    authProvider?: "legacy" | "logto";
+    displayName?: string;
+    email?: string;
+    logtoSub?: string;
     username: string;
     ip?: string;
     iat?: number;
