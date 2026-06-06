@@ -3,6 +3,7 @@
  */
 
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const securityHeaders = [
     {
@@ -40,6 +41,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
     reactStrictMode: true,
     output: "standalone",
+    outputFileTracingRoot: path.join(process.cwd()),
     typescript: {
         ignoreBuildErrors: true,
     },
