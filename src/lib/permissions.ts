@@ -7,6 +7,8 @@
  * - Route mapping for sidebar filtering
  */
 
+import { getVisiblePermissionModuleIds } from "@/lib/panel/moduleEntitlements";
+
 // ============================================
 // TYPES
 // ============================================
@@ -32,6 +34,7 @@ const MODULE_ALIASES: Record<string, string[]> = {
     restaurant: ["restaurant", "cafe", "bar"],
     hotel: ["hotel", "boutique", "hostel", "aparthotel"],
     beauty: ["beauty", "salon", "guzellik", "kuafor", "spa", "barber"],
+    "vehicle-rental": ["vehicle-rental", "rentacar", "arac-kiralama", "oto-kiralama", "rent-a-car"],
     clinic: [
         "clinic",
         "hospital",
@@ -187,6 +190,42 @@ export const PERMISSION_MODULES: PermissionModule[] = [
                 id: "salon.customers",
                 label: "Müşteriler",
                 routes: ["/panel/beauty/customers"],
+            },
+        ],
+    },
+    {
+        id: "vehicle-rental",
+        name: "Arac Kiralama",
+        icon: "Car",
+        permissions: [
+            {
+                id: "vehicle.dashboard",
+                label: "Arac Kiralama Paneli",
+                routes: ["/panel/vehicle-rental"],
+            },
+            {
+                id: "vehicle.vehicles",
+                label: "Araclar",
+                routes: [
+                    "/panel/vehicle-rental/vehicles",
+                    "/panel/vehicle-rental/vehicles/new",
+                    "/panel/vehicle-rental/vehicles/*",
+                ],
+            },
+            {
+                id: "vehicle.reservations",
+                label: "Rezervasyonlar",
+                routes: ["/panel/vehicle-rental/reservations"],
+            },
+            {
+                id: "vehicle.calendar",
+                label: "Takvim",
+                routes: ["/panel/vehicle-rental/calendar"],
+            },
+            {
+                id: "vehicle.categories",
+                label: "Kategoriler",
+                routes: ["/panel/vehicle-rental/categories"],
             },
         ],
     },
@@ -372,10 +411,14 @@ export function getDefaultPermissionsForRole(role: StaffRole): string[] {
  * Filter permission modules based on enabled business modules
  */
 export function getAvailableModules(enabledModules: string[]): PermissionModule[] {
+    const normalizedEnabledModules = enabledModules.map((moduleId) => moduleId.toLowerCase());
+    const visiblePermissionModules = new Set(getVisiblePermissionModuleIds(enabledModules));
+
     return PERMISSION_MODULES.filter((module) => {
+        if (!visiblePermissionModules.has(module.id)) return false;
         if (module.id === "general") return true;
 
         const aliases = MODULE_ALIASES[module.id] || [module.id];
-        return aliases.some((alias) => enabledModules.includes(alias));
+        return aliases.some((alias) => normalizedEnabledModules.includes(alias));
     });
 }

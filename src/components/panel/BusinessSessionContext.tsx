@@ -21,7 +21,7 @@ const defaultSession: BusinessSessionData = {
     businessName: "İşletme",
     businessSlug: "",
     email: "",
-    enabledModules: ["restaurant"],
+    enabledModules: [],
     isStaff: false,
     role: "owner",
     permissions: [],

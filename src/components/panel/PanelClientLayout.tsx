@@ -49,7 +49,7 @@ interface PanelClientLayoutProps {
 export default function PanelClientLayout({
     children,
     businessName,
-    enabledModules = ["restaurant"],
+    enabledModules = [],
     session
 }: PanelClientLayoutProps) {
     // Build full session data for context - MEMOIZED to prevent context thrashing
@@ -70,7 +70,7 @@ export default function PanelClientLayout({
             <BusinessSessionProvider session={fullSession}>
                 <PanelContent
                     businessName={businessName}
-                    enabledModules={enabledModules}
+                    enabledModules={fullSession.enabledModules}
                     role={fullSession.role}
                     permissions={fullSession.permissions}
                 >

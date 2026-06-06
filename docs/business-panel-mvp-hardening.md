@@ -1,5 +1,7 @@
 # Business Panel MVP Hardening
 
+> Current entitlement and sidebar policy now lives in `docs/module-entitlements-mvp-policy.md`.
+
 ## Fixed in this branch
 
 - QR management no longer hardcodes any Vercel domain.
@@ -23,7 +25,6 @@
   - clinic
   - ecommerce
   - emlak
-  - vehicle-rental
 
 ## Permission map alignment
 
@@ -40,7 +41,6 @@
 - Clinic vertical
 - Ecommerce vertical
 - Emlak vertical
-- Vehicle rental vertical
 
 ## Later branch candidates
 

@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Car, Calendar, Users, DollarSign, Plus, TrendingUp, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { VehicleRentalGuard } from '@/components/panel/VehicleRentalGuard';
+import { useBusinessSession } from '@/hooks/useBusinessSession';
 
 interface DashboardStats {
   totalVehicles: number;
@@ -26,6 +27,7 @@ export default function VehicleRentalDashboard() {
 }
 
 function DashboardContent() {
+  const { session } = useBusinessSession();
   const [stats, setStats] = useState<DashboardStats>({
     totalVehicles: 0,
     availableVehicles: 0,
@@ -38,34 +40,14 @@ function DashboardContent() {
   });
   const [loading, setLoading] = useState(true);
 
-  // Module authorization check
   useEffect(() => {
-    const checkModuleAccess = async () => {
-      try {
-        const res = await fetch('/api/panel/profile');
-        const data = await res.json();
-        
-        if (data.success && data.profile) {
-          const modules = data.profile.modules || [];
-          const hasAccess = modules.some((m: string) => VEHICLE_RENTAL_MODULES.includes(m.toLowerCase()));
-          
-          if (!hasAccess) {
-            router.push('/panel');
-            return;
-          }
-          setIsAuthorized(true);
-          loadStats();
-        } else {
-          router.push('/panel');
-        }
-      } catch (error) {
-        console.error('Module check error:', error);
-        router.push('/panel');
-      }
-    };
-    
-    checkModuleAccess();
-  }, [router]);
+    if (!session?.businessId) {
+      setLoading(false);
+      return;
+    }
+
+    loadStats();
+  }, [session?.businessId]);
 
   const loadStats = async () => {
     try {
