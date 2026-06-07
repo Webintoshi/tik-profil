@@ -48,6 +48,7 @@ const envSchema = z.object({
     AUTH_PROVIDER: z.enum(['legacy', 'logto']).default('legacy'),
     LOGTO_ENDPOINT: optionalString,
     LOGTO_APP_ID: optionalString,
+    LOGTO_MOBILE_CUSTOMER_APP_ID: optionalString,
     LOGTO_APP_SECRET: optionalString,
     LOGTO_COOKIE_SECRET: optionalString,
     LOGTO_BASE_URL: optionalString,

@@ -116,3 +116,28 @@ export async function verifyLogtoIdToken(
 
     return payload;
 }
+
+export async function verifyLogtoIdTokenForAudiences(
+    input: Pick<ResolvedLogtoConfig, "endpoint">,
+    idToken: string,
+    allowedAudiences: string[],
+): Promise<JWTPayload> {
+    const metadata = await fetchLogtoOidcMetadata(input.endpoint);
+    const jwksCache = getJwksCache();
+    const jwksUri = metadata.jwks_uri;
+    const jwks = jwksCache.get(jwksUri) ?? createRemoteJWKSet(new URL(jwksUri));
+
+    jwksCache.set(jwksUri, jwks);
+
+    const audiences = [...new Set(allowedAudiences.filter((value) => value.trim().length > 0))];
+    if (audiences.length === 0) {
+        throw new Error("At least one Logto audience is required.");
+    }
+
+    const { payload } = await jwtVerify(idToken, jwks, {
+        audience: audiences,
+        issuer: metadata.issuer,
+    });
+
+    return payload;
+}
