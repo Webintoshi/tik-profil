@@ -8,7 +8,7 @@
 - `requireBusinessOwner()` narrows `requireBusinessMember()` to owners.
 - `requireStaffPermission()` reuses the current permission model for staff checks.
 - `requireConsultant()` validates the consultant session cookie.
-- `requireCustomer()` intentionally returns `501 CUSTOMER_AUTH_NOT_READY`.
+- `requireCustomer()` now accepts only the dedicated customer session and returns `401` or `403` for every other actor.
 - `publicReadOnly()` and `resolvePublicBusinessContext()` document safe public access paths.
 - Middleware origin/referer checks are documented as CSRF-style filtering only, not tenant authorization.
 
@@ -57,15 +57,21 @@
   - `/api/kesfet/search`
   - `/api/kesfet/categories`
 
-## Temporarily disabled pending customer auth
+## Customer auth-ready guarded routes
 
 - `/api/kesfet/orders`
 - `/api/kesfet/reservations`
 - `/api/kesfet/wallet`
 - `/api/kesfet/user/profile`
 - `/api/kesfet/user/favorites`
+- `/api/account`
 
-These routes now return `501` with code `CUSTOMER_AUTH_NOT_READY`.
+Behavior now splits cleanly by actor:
+
+- unauthenticated requests return `401`
+- owner, staff, admin, and consultant sessions return `403`
+- authenticated customer reads on `/api/account` and `GET /api/kesfet/user/profile` return a safe customer profile sourced from `app_users`
+- unfinished customer features stay behind `501 FEATURE_NOT_READY`
 
 ## Remaining backlog
 
@@ -76,6 +82,6 @@ These routes now return `501` with code `CUSTOMER_AUTH_NOT_READY`.
 
 ## Next recommended branch
 
-- `foundation/logto-customer-auth`
-  - add a real customer session model for `/kesfet`
-  - re-enable the disabled customer routes behind trusted auth only
+- `mobile/expo-logto-customer-login`
+  - consume the new `actor=customer` Logto flow from Expo
+  - validate deep-link callback handling and token/session exchange on mobile

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession as getAdminSession } from "@/lib/auth";
 import { getSession as getBusinessSession } from "@/lib/apiAuth";
+import { getCustomerSession } from "@/lib/customerAuth";
 
 export async function GET() {
     const businessSession = await getBusinessSession();
@@ -33,6 +34,20 @@ export async function GET() {
             provider: "logto",
             success: true,
             username: adminSession.username,
+        });
+    }
+
+    const customerSession = await getCustomerSession();
+    if (customerSession?.authProvider === "logto") {
+        return NextResponse.json({
+            actorType: "customer",
+            appUserId: customerSession.appUserId,
+            displayName: customerSession.displayName ?? null,
+            email: customerSession.email ?? null,
+            logtoSub: customerSession.logtoSub,
+            provider: "logto",
+            role: customerSession.role,
+            success: true,
         });
     }
 

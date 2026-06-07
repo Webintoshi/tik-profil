@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { getSessionSecretBytes } from "@/lib/env";
+import { CUSTOMER_SESSION_COOKIE } from "@/lib/customerAuth";
 import type { StaffRole } from "@/lib/permissions";
 import { LOGTO_AUTH_STATE_COOKIE } from "./config";
 
@@ -13,11 +14,12 @@ const SESSION_COOKIES = [
     ADMIN_SESSION_COOKIE,
     OWNER_SESSION_COOKIE,
     STAFF_SESSION_COOKIE,
+    CUSTOMER_SESSION_COOKIE,
     IMPERSONATE_COOKIE,
 ] as const;
 
 interface PendingLogtoAuthState {
-    actorHint: "auto" | "platform_admin" | "business";
+    actorHint: "auto" | "platform_admin" | "business" | "customer";
     callbackUrl: string;
     codeVerifier: string;
     nonce: string;
@@ -47,6 +49,11 @@ interface LogtoBusinessSessionClaims extends BaseLocalLogtoSessionClaims {
     permissions: string[];
     role: StaffRole;
     staffId?: string;
+}
+
+interface LogtoCustomerSessionClaims extends BaseLocalLogtoSessionClaims {
+    displayName?: string;
+    role: "customer";
 }
 
 function createCookieSecretBytes(cookieSecret: string): Uint8Array {
@@ -124,6 +131,12 @@ export async function createLogtoBusinessSessionToken(
     return signPayload(payload, getSessionSecretBytes(), "7d");
 }
 
+export async function createLogtoCustomerSessionToken(
+    payload: LogtoCustomerSessionClaims,
+): Promise<string> {
+    return signPayload(payload, getSessionSecretBytes(), "7d");
+}
+
 export function clearAllLocalSessionCookies(response: {
     cookies: {
         delete(name: string): void;
@@ -184,4 +197,15 @@ export function setBusinessStaffSessionCookie(
     token: string,
 ) {
     response.cookies.set(STAFF_SESSION_COOKIE, token, buildSessionCookieOptions(SESSION_DURATION_SECONDS));
+}
+
+export function setCustomerSessionCookie(
+    response: {
+        cookies: {
+            set(name: string, value: string, options: ReturnType<typeof buildSessionCookieOptions>): void;
+        };
+    },
+    token: string,
+) {
+    response.cookies.set(CUSTOMER_SESSION_COOKIE, token, buildSessionCookieOptions(SESSION_DURATION_SECONDS));
 }

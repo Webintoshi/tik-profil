@@ -9,10 +9,12 @@ import {
     getSession as getBusinessSession,
     type SessionUser,
 } from "@/lib/apiAuth";
+import { getCustomerSession, type CustomerSession } from "@/lib/customerAuth";
 import { getDocumentREST } from "@/lib/documentStore";
 import { getSessionSecretBytes } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { hasPermission, meetsMinRole, type StaffRole } from "@/lib/permissions";
+import { requireCustomerActorFromSnapshot } from "./customerAccess";
 
 const CONSULTANT_COOKIE = "tikprofil_consultant_session";
 
@@ -26,6 +28,8 @@ export interface ConsultantContext {
     name: string;
     role: "consultant";
 }
+
+export type CustomerContext = CustomerSession;
 
 interface RequireBusinessMemberOptions {
     roles?: StaffRole[];
@@ -167,8 +171,30 @@ export function customerAuthNotReadyResponse(): NextResponse {
     return AppError.customerAuthNotReady().toResponse();
 }
 
-export async function requireCustomer(): Promise<never> {
-    throw AppError.customerAuthNotReady();
+export async function requireCustomer(): Promise<CustomerContext> {
+    const [adminSession, businessSession, customerSession, hasConsultantSession] = await Promise.all([
+        getAdminSession(),
+        getBusinessSession(),
+        getCustomerSession(),
+        hasConsultantSessionCookie(),
+    ]);
+
+    const resolution = requireCustomerActorFromSnapshot({
+        adminSession,
+        businessSession,
+        customerSession,
+        hasConsultantSession,
+    });
+
+    if (resolution.kind === "customer") {
+        return resolution.session;
+    }
+
+    if (resolution.kind === "forbidden") {
+        throw AppError.forbidden(resolution.message);
+    }
+
+    throw AppError.unauthorized(resolution.message);
 }
 
 export const assertCustomer = requireCustomer;

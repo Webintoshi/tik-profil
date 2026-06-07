@@ -22,6 +22,7 @@ export type ErrorCode =
     | 'CONFLICT'
     | 'RATE_LIMIT'
     | 'NOT_IMPLEMENTED'
+    | 'FEATURE_NOT_READY'
     | 'CUSTOMER_AUTH_NOT_READY'
     | 'SERVER_ERROR';
 
@@ -35,6 +36,7 @@ const STATUS_MAP: Record<ErrorCode, number> = {
     CONFLICT: 409,
     RATE_LIMIT: 429,
     NOT_IMPLEMENTED: 501,
+    FEATURE_NOT_READY: 501,
     CUSTOMER_AUTH_NOT_READY: 501,
     SERVER_ERROR: 500,
 };
@@ -129,6 +131,13 @@ export class AppError extends Error {
      */
     static notImplemented(message = 'Bu ozellik henuz hazir degil.'): AppError {
         return new AppError('NOT_IMPLEMENTED', message);
+    }
+
+    /**
+     * 501 - Feature is intentionally deferred but auth/session is valid
+     */
+    static featureNotReady(message = 'Bu ozellik henuz hazir degil.'): AppError {
+        return new AppError('FEATURE_NOT_READY', message);
     }
 
     /**

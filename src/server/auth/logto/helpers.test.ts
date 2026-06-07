@@ -14,6 +14,7 @@ test("normalizeLogtoActorHint falls back to auto for unknown values", () => {
     assert.equal(normalizeLogtoActorHint(""), "auto");
     assert.equal(normalizeLogtoActorHint("platform_admin"), "platform_admin");
     assert.equal(normalizeLogtoActorHint("business"), "business");
+    assert.equal(normalizeLogtoActorHint("customer"), "customer");
     assert.equal(normalizeLogtoActorHint("owner"), "auto");
 });
 
@@ -62,6 +63,9 @@ test("buildLogtoEndSessionUrl includes post logout redirect and client id", () =
 
 test("selectPreferredLogtoActor honors explicit actor hints and business-role priority", () => {
     const context = {
+        customer: {
+            appUserId: "app-user-customer",
+        },
         platformAdmin: {
             username: "admin@tikprofil.com",
         },
@@ -87,8 +91,29 @@ test("selectPreferredLogtoActor honors explicit actor hints and business-role pr
         value: context.memberships[1],
     });
 
+    assert.deepEqual(selectPreferredLogtoActor(context, "customer"), {
+        kind: "customer",
+        value: context.customer,
+    });
+
     assert.deepEqual(selectPreferredLogtoActor(context, "auto"), {
         kind: "business",
         value: context.memberships[1],
+    });
+});
+
+test("selectPreferredLogtoActor does not silently treat customer as auto fallback", () => {
+    const context = {
+        customer: {
+            appUserId: "app-user-customer",
+        },
+        platformAdmin: null,
+        memberships: [],
+    };
+
+    assert.equal(selectPreferredLogtoActor(context, "auto"), null);
+    assert.deepEqual(selectPreferredLogtoActor(context, "customer"), {
+        kind: "customer",
+        value: context.customer,
     });
 });

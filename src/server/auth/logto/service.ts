@@ -2,16 +2,20 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { type JWTPayload } from "jose";
 import { buildLogtoAuthorizationUrl, normalizeLogtoActorHint, normalizeLogtoRedirectPath, selectPreferredLogtoActor } from "./helpers";
+import { createLogtoCustomerProvisioningService } from "./customerProvisioning";
+import { createQueryBackedLogtoCustomerProvisioningRepository } from "./customerProvisioningRepository";
 import { fetchLogtoOidcMetadata, exchangeLogtoAuthorizationCode, verifyLogtoIdToken } from "./oidc";
 import { resolveLogtoIdentity } from "./repository";
 import {
     clearAllLocalSessionCookies,
     clearPendingLogtoAuthStateCookie,
     createLogtoBusinessSessionToken,
+    createLogtoCustomerSessionToken,
     createLogtoPlatformAdminSessionToken,
     createPendingLogtoAuthStateToken,
     setBusinessOwnerSessionCookie,
     setBusinessStaffSessionCookie,
+    setCustomerSessionCookie,
     setPendingLogtoAuthStateCookie,
     setPlatformAdminSessionCookie,
     verifyPendingLogtoAuthStateToken,
@@ -38,12 +42,20 @@ function createAbsoluteUrl(baseUrl: string, path: string): string {
     return new URL(path, `${baseUrl}/`).toString();
 }
 
-function getLoginPath(actorHint: "auto" | "platform_admin" | "business"): string {
+function getLoginPath(actorHint: "auto" | "platform_admin" | "business" | "customer"): string {
     return actorHint === "platform_admin" ? "/webintoshi" : "/giris-yap";
 }
 
-function getDefaultCallbackPath(actorHint: "auto" | "platform_admin" | "business"): string {
-    return actorHint === "platform_admin" ? "/dashboard" : "/panel";
+function getDefaultCallbackPath(actorHint: "auto" | "platform_admin" | "business" | "customer"): string {
+    if (actorHint === "platform_admin") {
+        return "/dashboard";
+    }
+
+    if (actorHint === "customer") {
+        return "/kesfet";
+    }
+
+    return "/panel";
 }
 
 function buildAuthErrorRedirect(baseUrl: string, loginPath: string, errorCode: string): NextResponse {
@@ -168,12 +180,53 @@ export async function completeLogtoSignIn(request: NextRequest): Promise<NextRes
             throw new Error("Logto subject is missing");
         }
 
+        const email = getStringClaim(claims, "email");
+        const name = getStringClaim(claims, "name");
+        const username = getStringClaim(claims, "username") ?? getStringClaim(claims, "preferred_username");
+        const logtoRoles = getStringArrayClaim(claims, "roles");
+
+        if (pendingState.actorHint === "customer") {
+            const customerProvisioningService = createLogtoCustomerProvisioningService({
+                repository: createQueryBackedLogtoCustomerProvisioningRepository(),
+            });
+            const customerIdentity = await customerProvisioningService.provision({
+                email,
+                logtoSub,
+                name,
+                username,
+            });
+            const redirectTarget = createAbsoluteUrl(
+                config.baseUrl,
+                normalizeLogtoRedirectPath(
+                    pendingState.callbackUrl,
+                    getDefaultCallbackPath(pendingState.actorHint),
+                ),
+            );
+            const response = NextResponse.redirect(redirectTarget);
+
+            clearPendingLogtoAuthStateCookie(response);
+            clearAllLocalSessionCookies(response);
+
+            const customerToken = await createLogtoCustomerSessionToken({
+                appUserId: customerIdentity.appUser.id,
+                authProvider: "logto",
+                displayName: customerIdentity.displayName ?? undefined,
+                email: customerIdentity.email ?? undefined,
+                logtoRoles,
+                logtoSub,
+                role: "customer",
+            });
+
+            setCustomerSessionCookie(response, customerToken);
+            return response;
+        }
+
         const resolvedIdentity = await resolveLogtoIdentity({
-            email: getStringClaim(claims, "email"),
-            logtoRoles: getStringArrayClaim(claims, "roles"),
+            email,
+            logtoRoles,
             logtoSub,
-            name: getStringClaim(claims, "name"),
-            username: getStringClaim(claims, "username") ?? getStringClaim(claims, "preferred_username"),
+            name,
+            username,
         });
 
         if (!resolvedIdentity) {
@@ -183,6 +236,11 @@ export async function completeLogtoSignIn(request: NextRequest): Promise<NextRes
         }
 
         const selectedActor = selectPreferredLogtoActor({
+            customer: resolvedIdentity
+                ? {
+                    appUserId: resolvedIdentity.appUserId,
+                }
+                : null,
             memberships: resolvedIdentity.memberships,
             platformAdmin: resolvedIdentity.platformAdmin
                 ? { username: resolvedIdentity.platformAdmin.username }
@@ -213,7 +271,7 @@ export async function completeLogtoSignIn(request: NextRequest): Promise<NextRes
                 authProvider: "logto",
                 displayName: resolvedIdentity.platformAdmin.displayName ?? undefined,
                 email: resolvedIdentity.platformAdmin.email ?? undefined,
-                logtoRoles: getStringArrayClaim(claims, "roles"),
+                logtoRoles,
                 logtoSub,
                 username: resolvedIdentity.platformAdmin.username,
             });
@@ -243,7 +301,7 @@ export async function completeLogtoSignIn(request: NextRequest): Promise<NextRes
                 email: membership.email ?? resolvedIdentity.email ?? undefined,
                 enabledModules: membership.enabledModules,
                 isStaff: membership.role !== "owner",
-                logtoRoles: getStringArrayClaim(claims, "roles"),
+                logtoRoles,
                 logtoSub,
                 permissions: membership.permissions,
                 role: membership.role,

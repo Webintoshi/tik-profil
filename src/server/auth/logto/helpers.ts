@@ -1,7 +1,11 @@
-export type LogtoActorHint = "auto" | "platform_admin" | "business";
+export type LogtoActorHint = "auto" | "platform_admin" | "business" | "customer";
 
 export interface LogtoPlatformAdminCandidate {
     username: string;
+}
+
+export interface LogtoCustomerCandidate {
+    appUserId: string;
 }
 
 export interface LogtoBusinessMembershipCandidate {
@@ -10,6 +14,7 @@ export interface LogtoBusinessMembershipCandidate {
 }
 
 export interface SelectPreferredLogtoActorInput {
+    customer: LogtoCustomerCandidate | null;
     platformAdmin: LogtoPlatformAdminCandidate | null;
     memberships: LogtoBusinessMembershipCandidate[];
 }
@@ -58,6 +63,8 @@ export function normalizeLogtoActorHint(value: string | null | undefined): Logto
             return "platform_admin";
         case "business":
             return "business";
+        case "customer":
+            return "customer";
         default:
             return "auto";
     }
@@ -129,6 +136,7 @@ export function selectPreferredLogtoActor(
     input: SelectPreferredLogtoActorInput,
     hint: LogtoActorHint,
 ):
+    | { kind: "customer"; value: LogtoCustomerCandidate }
     | { kind: "platform_admin"; value: LogtoPlatformAdminCandidate }
     | { kind: "business"; value: LogtoBusinessMembershipCandidate }
     | null {
@@ -140,6 +148,10 @@ export function selectPreferredLogtoActor(
 
     if (hint === "business") {
         return preferredMembership ? { kind: "business", value: preferredMembership } : null;
+    }
+
+    if (hint === "customer") {
+        return input.customer ? { kind: "customer", value: input.customer } : null;
     }
 
     if (preferredMembership) {

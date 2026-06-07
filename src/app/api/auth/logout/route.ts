@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getSession as getAdminSession } from "@/lib/auth";
 import { getSession as getBusinessSession } from "@/lib/apiAuth";
+import { getCustomerSession, CUSTOMER_SESSION_COOKIE } from "@/lib/customerAuth";
 import { normalizeLogtoRedirectPath } from "@/server/auth/logto/helpers";
 
 const SESSION_COOKIES = [
@@ -10,6 +11,7 @@ const SESSION_COOKIES = [
     "tikprofil_staff_session",
     "tikprofil_impersonate",
     "tikprofil_logto_auth",
+    CUSTOMER_SESSION_COOKIE,
 ];
 
 async function parseBody(request: Request): Promise<{ postLogoutRedirect?: string } | null> {
@@ -22,17 +24,23 @@ async function parseBody(request: Request): Promise<{ postLogoutRedirect?: strin
 
 export async function POST(request: Request) {
     try {
-        const [adminSession, businessSession, body] = await Promise.all([
+        const [adminSession, businessSession, customerSession, body] = await Promise.all([
             getAdminSession(),
             getBusinessSession(),
+            getCustomerSession(),
             parseBody(request),
         ]);
         const cookieStore = await cookies();
         const shouldLogOutFromLogto = adminSession?.authProvider === "logto"
-            || businessSession?.authProvider === "logto";
+            || businessSession?.authProvider === "logto"
+            || customerSession?.authProvider === "logto";
         const postLogoutRedirect = normalizeLogtoRedirectPath(
             body?.postLogoutRedirect,
-            adminSession?.authProvider === "logto" ? "/webintoshi" : "/giris-yap",
+            adminSession?.authProvider === "logto"
+                ? "/webintoshi"
+                : customerSession?.authProvider === "logto"
+                    ? "/kesfet"
+                    : "/giris-yap",
         );
 
         for (const cookieName of SESSION_COOKIES) {
