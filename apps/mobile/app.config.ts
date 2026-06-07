@@ -2,7 +2,7 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: "Tık Profil",
+  name: "Tik Profil",
   slug: "tik-profil-mobile",
   scheme: "tikprofil",
   version: "1.0.0",
@@ -13,11 +13,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-router",
     "expo-status-bar",
     "expo-image",
+    "expo-secure-store",
+    "expo-web-browser",
     [
       "expo-location",
       {
         locationWhenInUsePermission:
-          "Tık Profil, yakındaki işletmeleri göstermek için konumunu kullanır.",
+          "Tik Profil, yakindaki isletmeleri gostermek icin konumunu kullanir.",
       },
     ],
   ],
@@ -45,6 +47,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     apiMode: process.env.EXPO_PUBLIC_API_MODE ?? "mock",
     apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://tikprofil.com",
+    logtoAppId: process.env.EXPO_PUBLIC_LOGTO_APP_ID ?? "",
+    logtoEndpoint: process.env.EXPO_PUBLIC_LOGTO_ENDPOINT ?? "",
+    logtoRedirectUri:
+      process.env.EXPO_PUBLIC_LOGTO_REDIRECT_URI ?? "tikprofil://auth/callback",
     publicBusinessProfilePathTemplate:
       process.env.EXPO_PUBLIC_BUSINESS_PROFILE_PATH_TEMPLATE ?? "",
   },

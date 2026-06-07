@@ -1,21 +1,42 @@
 import { Link } from "expo-router";
-import { ChevronRight, UserRound } from "lucide-react-native";
+import { ChevronRight, ShieldCheck, UserRound } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 import { AppScrollScreen } from "@/components/layout/app-scroll-screen";
+import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { useAppSession } from "@/providers/app-session-provider";
+import { useCustomerAuth } from "@/providers/customer-auth-provider";
 import { tokens } from "@/theme/tokens";
 
-export default function ProfilePlaceholderScreen() {
-  const { favoriteSlugs, selectedLocation } = useAppSession();
+export default function ProfileScreen() {
+  const { selectedLocation } = useAppSession();
+  const {
+    backendStatus,
+    customerAccount,
+    customerIdentity,
+    customerSession,
+    errorMessage,
+    isAuthenticated,
+    isBackendSessionReady,
+    isBusy,
+    isConfigured,
+    isInitialized,
+    limitationMessage,
+    signIn,
+    signOut,
+  } = useCustomerAuth();
 
   return (
     <AppScrollScreen
       header={
         <SectionHeader
-          title="Profil placeholder"
-          subtitle="Müşteri auth hazır olmadığı için bu alan hesap kimliği yerine uygulama durumu ve ileride bağlanacak giriş yüzeyi için yer tutar."
+          title={isAuthenticated ? "Profil ve oturum" : "Musteri girisi"}
+          subtitle={
+            isAuthenticated
+              ? "Yerel Logto kimligi hazir. Backend senkronu ayri olarak raporlanir."
+              : "Bu sekme Expo customer Logto girisini ve sonraki mobile bridge ihtiyacini dogrular."
+          }
         />
       }
     >
@@ -35,25 +56,111 @@ export default function ProfilePlaceholderScreen() {
           </View>
           <View style={{ flex: 1, gap: 4 }}>
             <Text style={{ color: tokens.colors.text, fontSize: 18, fontWeight: "700" }}>
-              Misafir mod
+              {customerIdentity?.displayName ?? "Misafir mod"}
             </Text>
             <Text style={{ color: tokens.colors.textMuted, fontSize: 14 }}>
-              Auth hazır olana kadar keşif ve profil görüntüleme odaklı.
+              {customerIdentity?.identifier ??
+                (isConfigured
+                  ? "Customer actor bu cihazda native Logto ile acilabilir."
+                  : "Bu build icin mobile auth config henuz hazir degil.")}
             </Text>
           </View>
         </View>
       </SurfaceCard>
+
+      <SurfaceCard>
+        <Text style={{ color: tokens.colors.text, fontSize: 16, fontWeight: "700" }}>
+          Oturum aksiyonlari
+        </Text>
+        {!isAuthenticated ? (
+          <>
+            <Button disabled={!isConfigured || isBusy} onPress={() => void signIn()}>
+              {isBusy ? "Giris baslatiliyor" : "Giris Yap"}
+            </Button>
+            <Button disabled variant="secondary">
+              Google ile devam et
+            </Button>
+            <Button disabled variant="secondary">
+              Apple ile devam et
+            </Button>
+            <Text style={{ color: tokens.colors.textMuted, fontSize: 13, lineHeight: 20 }}>
+              Google ve Apple connector kurulumu bu branchte sadece placeholder olarak tutuldu.
+            </Text>
+          </>
+        ) : (
+          <>
+            <Button disabled={isBusy} onPress={() => void signOut()} variant="secondary">
+              {isBusy ? "Cikis yapiliyor" : "Cikis yap"}
+            </Button>
+            <Text style={{ color: tokens.colors.textMuted, fontSize: 13, lineHeight: 20 }}>
+              Native Logto oturumu cihazda tutulur. Backend customer cookie senkronu ayri durum
+              olarak kontrol edilir.
+            </Text>
+          </>
+        )}
+      </SurfaceCard>
+
+      <SurfaceCard>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <ShieldCheck color={tokens.colors.primary} size={18} />
+          <Text style={{ color: tokens.colors.text, fontSize: 16, fontWeight: "700" }}>
+            Backend senkronu
+          </Text>
+        </View>
+        <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
+          Init: {isInitialized ? "tamam" : "bekleniyor"}
+        </Text>
+        <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
+          Logto actor: {isAuthenticated ? "customer" : "misafir"}
+        </Text>
+        <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
+          Backend durum: {backendStatus}
+        </Text>
+        {customerSession?.appUserId ? (
+          <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
+            Backend app user: {customerSession.appUserId}
+          </Text>
+        ) : null}
+        {isBackendSessionReady && customerAccount ? (
+          <>
+            <Text style={{ color: tokens.colors.text, fontSize: 15, fontWeight: "700" }}>
+              Hesap ozeti
+            </Text>
+            <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
+              Ad: {customerAccount.displayName ?? "Customer"}
+            </Text>
+            <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
+              E-posta: {customerAccount.email ?? "Yok"}
+            </Text>
+            <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
+              Cuzdan puani: {customerAccount.wallet?.points ?? 0}
+            </Text>
+          </>
+        ) : null}
+        {limitationMessage ? (
+          <Text style={{ color: tokens.colors.warning, fontSize: 14, lineHeight: 20 }}>
+            {limitationMessage}
+          </Text>
+        ) : null}
+        {errorMessage ? (
+          <Text style={{ color: tokens.colors.danger, fontSize: 14, lineHeight: 20 }}>
+            {errorMessage}
+          </Text>
+        ) : null}
+      </SurfaceCard>
+
       <SurfaceCard>
         <Text style={{ color: tokens.colors.text, fontSize: 16, fontWeight: "700" }}>
           Uygulama durumu
         </Text>
         <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-          Konum: {selectedLocation?.label ?? "Seçilmedi"}
+          Konum: {selectedLocation?.label ?? "Secilmedi"}
         </Text>
         <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-          Cihaz favorileri: {favoriteSlugs.length}
+          Mobile auth hedefi: customer
         </Text>
       </SurfaceCard>
+
       <Link href="/settings" asChild>
         <Pressable
           style={{

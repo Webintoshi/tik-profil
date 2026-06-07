@@ -1,42 +1,106 @@
+import { Text } from "react-native";
+import { resolveLogtoMobileRuntimeConfig } from "@/auth/config";
 import { resolveApiRuntimeConfig } from "@/api/config";
 import { AppScrollScreen } from "@/components/layout/app-scroll-screen";
+import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { useAppSession } from "@/providers/app-session-provider";
-import { Text } from "react-native";
+import { useCustomerAuth } from "@/providers/customer-auth-provider";
 
 export default function SettingsScreen() {
   const { selectedLocation } = useAppSession();
-  const config = resolveApiRuntimeConfig();
+  const {
+    backendStatus,
+    customerIdentity,
+    errorMessage,
+    isAuthenticated,
+    isBusy,
+    isConfigured,
+    limitationMessage,
+    signOut,
+  } = useCustomerAuth();
+  const apiConfig = resolveApiRuntimeConfig();
+  const logtoConfig = resolveLogtoMobileRuntimeConfig();
 
   return (
     <AppScrollScreen
       header={
         <SectionHeader
-          title="Ayarlar placeholder"
-          subtitle="Gerçek hesap, bildirim ve kişiselleştirme ayarları sonraki entegrasyonlarda genişletilecek."
+          title="Ayarlar"
+          subtitle="Discovery foundation ile mobile customer auth foundation burada birlikte gorunur."
         />
       }
     >
       <SurfaceCard>
-        <Text style={{ fontSize: 16, fontWeight: "700" }}>Veri kaynağı</Text>
+        <Text style={{ fontSize: 16, fontWeight: "700" }}>Veri kaynagi</Text>
         <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
-          API modu: {config.mode}
+          API modu: {apiConfig.mode}
         </Text>
         <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
-          API tabanı: {config.baseUrl}
+          API tabani: {apiConfig.baseUrl}
         </Text>
       </SurfaceCard>
+
+      <SurfaceCard>
+        <Text style={{ fontSize: 16, fontWeight: "700" }}>Logto mobile</Text>
+        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
+          Konfig: {isConfigured ? "hazir" : "eksik"}
+        </Text>
+        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
+          Actor: {isAuthenticated ? "customer" : "misafir"}
+        </Text>
+        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
+          Backend sync: {backendStatus}
+        </Text>
+        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
+          Redirect URI: {logtoConfig.redirectUri}
+        </Text>
+        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
+          Web fallback path: {logtoConfig.webSignInPath}
+        </Text>
+        {customerIdentity?.logtoSub ? (
+          <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
+            Logto sub: {customerIdentity.logtoSub}
+          </Text>
+        ) : null}
+        {limitationMessage ? (
+          <Text style={{ fontSize: 14, lineHeight: 22 }}>{limitationMessage}</Text>
+        ) : null}
+        {errorMessage ? (
+          <Text style={{ fontSize: 14, lineHeight: 22, color: "#C64D46" }}>
+            {errorMessage}
+          </Text>
+        ) : null}
+        {isAuthenticated ? (
+          <Button disabled={isBusy} onPress={() => void signOut()} variant="secondary">
+            {isBusy ? "Cikis yapiliyor" : "Cikis yap"}
+          </Button>
+        ) : null}
+      </SurfaceCard>
+
+      <SurfaceCard>
+        <Text style={{ fontSize: 16, fontWeight: "700" }}>Placeholder baglayicilar</Text>
+        <Text style={{ fontSize: 14, lineHeight: 22 }}>
+          Google: Logto connector + Expo development build gerekli.
+        </Text>
+        <Text style={{ fontSize: 14, lineHeight: 22 }}>
+          Apple: Apple Developer hesabi, iOS bundle ID ve Android package/SHA gerekli.
+        </Text>
+      </SurfaceCard>
+
       <SurfaceCard>
         <Text style={{ fontSize: 16, fontWeight: "700" }}>Konum</Text>
         <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
-          {selectedLocation?.label ?? "Seçilmedi"}
+          {selectedLocation?.label ?? "Secilmedi"}
         </Text>
       </SurfaceCard>
+
       <SurfaceCard>
         <Text style={{ fontSize: 16, fontWeight: "700" }}>Not</Text>
         <Text style={{ fontSize: 14, lineHeight: 22 }}>
-          Customer auth, payment ve production push notifications bu foundation kapsamı dışında bırakıldı.
+          Payments, wallet, siparisler, rezervasyonlar ve stateful customer urun akisleri halen bu
+          branch kapsami disinda.
         </Text>
       </SurfaceCard>
     </AppScrollScreen>
