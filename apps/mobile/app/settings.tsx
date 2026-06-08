@@ -19,6 +19,23 @@ function StatusLine({ label, value }: { label: string; value: string }) {
   );
 }
 
+function getSessionStatusLabel(status: string): string {
+  switch (status) {
+    case "loading":
+      return "Hazırlanıyor";
+    case "ready":
+      return "Tamamlandı";
+    case "profile-warning":
+      return "Profil bilgileri bekleniyor";
+    case "disconnected":
+      return "Doğrulanıyor";
+    case "error":
+      return "Tekrar deneyin";
+    default:
+      return "Beklemede";
+  }
+}
+
 export default function SettingsScreen() {
   const { selectedLocation } = useAppSession();
   const {
@@ -46,7 +63,7 @@ export default function SettingsScreen() {
           Hesap
         </Text>
         <StatusLine label="Giriş" value={isAuthenticated ? "Açık" : "Kapalı"} />
-        <StatusLine label="Backend session" value={backendStatus} />
+        <StatusLine label="Oturum durumu" value={getSessionStatusLabel(backendStatus)} />
         <StatusLine
           label="Hesap tamamlama"
           value={accountCompletion.isComplete ? "Tamam" : "Eksik"}

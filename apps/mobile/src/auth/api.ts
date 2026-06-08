@@ -400,8 +400,10 @@ export async function logout(input: {
 }
 
 export async function startCustomerLogin(input: {
+  beforeOpenAuth?: () => Promise<void> | void;
   redirectUri: string;
   signIn: (redirectUri: string) => Promise<void>;
 }): Promise<void> {
+  await input.beforeOpenAuth?.();
   await input.signIn(input.redirectUri);
 }

@@ -36,7 +36,7 @@ export function AuthLandingPanel({
           </Text>
         </View>
         <Button disabled={!isConfigured || isBusy} onPress={onSignIn}>
-          {isBusy ? "Giriş başlatılıyor" : "Giriş Yap"}
+          {isBusy ? "Güvenli giriş hazırlanıyor" : "Giriş Yap"}
         </Button>
         <Button disabled={!isConfigured || isBusy} onPress={onSignIn} variant="secondary">
           Hesap Oluştur
@@ -62,16 +62,21 @@ export function AuthLandingPanel({
   );
 }
 
-export function AuthSyncPanel() {
+export function AuthSyncPanel({
+  body = "Oturum doğrulanıyor, lütfen bekleyin.",
+  title = "Hesabınız hazırlanıyor",
+}: {
+  body?: string;
+  title?: string;
+}) {
   return (
     <SurfaceCard>
       <View style={{ gap: 8 }}>
         <Text style={{ color: tokens.colors.text, fontSize: 20, fontWeight: "800" }}>
-          Hesabınız hazırlanıyor
+          {title}
         </Text>
         <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-          Oturum doğrulanıyor, müşteri profili ve backend session güvenli sırayla
-          senkronlanıyor.
+          {body}
         </Text>
       </View>
     </SurfaceCard>

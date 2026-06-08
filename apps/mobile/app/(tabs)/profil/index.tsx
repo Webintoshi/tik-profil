@@ -12,7 +12,25 @@ import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { useCustomerAuth } from "@/providers/customer-auth-provider";
+import { getAuthFlowDisplayCopy } from "@/auth/login-flow-state";
 import { tokens } from "@/theme/tokens";
+
+function getSessionStatusLabel(status: string): string {
+  switch (status) {
+    case "loading":
+      return "Hazırlanıyor";
+    case "ready":
+      return "Tamamlandı";
+    case "profile-warning":
+      return "Profil bilgileri bekleniyor";
+    case "disconnected":
+      return "Doğrulanıyor";
+    case "error":
+      return "Tekrar deneyin";
+    default:
+      return "Beklemede";
+  }
+}
 
 export default function ProfileScreen() {
   const {
@@ -32,6 +50,10 @@ export default function ProfileScreen() {
     signIn,
     signOut,
   } = useCustomerAuth();
+  const authFlowCopy = getAuthFlowDisplayCopy({
+    errorMessage,
+    status: authFlowStatus,
+  });
 
   return (
     <AppScrollScreen
@@ -40,7 +62,7 @@ export default function ProfileScreen() {
           title={isAuthenticated ? "Hesabım" : "Giriş Yap"}
           subtitle={
             isAuthenticated
-              ? "Müşteri oturumu, profil durumu ve hesap tamamlama akışı."
+              ? "Hesap bilgilerin ve tamamlama durumun."
               : "Tık Profil'i kullanmak için giriş yap veya yeni hesap oluştur."
           }
         />
@@ -50,7 +72,10 @@ export default function ProfileScreen() {
       (authFlowStatus === "startingLogin" ||
         authFlowStatus === "awaitingCallback" ||
         authFlowStatus === "syncingBackendSession") ? (
-        <AuthSyncPanel />
+        <AuthSyncPanel
+          body={authFlowCopy?.body}
+          title={authFlowCopy?.title}
+        />
       ) : null}
 
       {!isAuthenticated &&
@@ -93,7 +118,7 @@ export default function ProfileScreen() {
           </Text>
           <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
             {limitationMessage ??
-              "Backend müşteri oturumu henüz doğrulanamadı. Birkaç saniye sonra tekrar deneyebilirsin."}
+              "Oturum doğrulanıyor, lütfen bekleyin."}
           </Text>
           <Button onPress={() => void refreshCustomerProfile()} variant="secondary">
             Tekrar dene
@@ -146,7 +171,7 @@ export default function ProfileScreen() {
               : "Tam erişim için ad soyad, mail adresi ve telefon numarası tamamlanmalı."}
           </Text>
           <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-            Backend sync: {backendStatus}
+            Oturum durumu: {getSessionStatusLabel(backendStatus)}
           </Text>
           {profileWarningMessage ? (
             <Text style={{ color: tokens.colors.warning, fontSize: 14, lineHeight: 20 }}>

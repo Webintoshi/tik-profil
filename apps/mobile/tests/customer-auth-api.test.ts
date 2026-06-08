@@ -663,4 +663,23 @@ describe("startCustomerLogin", () => {
     ).resolves.toBeUndefined();
     expect(signIn).toHaveBeenCalledWith("tikprofil://auth/callback");
   });
+
+  it("runs the branded pre-auth transition before opening native auth", async () => {
+    const steps: string[] = [];
+    const signIn = jest.fn<Promise<void>, [string]>().mockImplementation(async () => {
+      steps.push("open-auth");
+    });
+
+    await expect(
+      startCustomerLogin({
+        beforeOpenAuth: async () => {
+          steps.push("show-transition");
+        },
+        redirectUri: "tikprofil://auth/callback",
+        signIn,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(steps).toEqual(["show-transition", "open-auth"]);
+  });
 });

@@ -50,7 +50,7 @@ Operational assumption:
 
 - Profile:
   - logged out: login CTA + disabled Google/Apple placeholders
-  - logged in: local Logto identity + backend sync status + safe account summary when synced
+  - logged in: local Logto identity + user-facing session status + safe account summary when synced
 - Favorites:
   - logged out: login required
   - synced and route returns `501`: show `Yakinda`
@@ -58,8 +58,35 @@ Operational assumption:
 - Settings:
   - mock/real mode
   - local Logto signed-in yes/no
-  - backend session synced yes/no
+  - customer session synced yes/no
   - logout action
+
+## Native Auth Feel
+
+The app should keep OAuth secure by using the `@logto/rn` system auth session flow. Do not embed
+the Logto credential form in an app-owned WebView.
+
+Mobile UX expectations:
+
+- Before opening the system auth surface, show `Güvenli girişe yönlendiriliyorsun`.
+- While returning and preparing the local customer session, show `Hesabınız hazırlanıyor`.
+- Avoid user-facing technical words such as callback, bridge, backend, redirect, or session sync.
+- Treat transient auth handoff errors as recoverable until the deep link and account refresh path
+  have had a chance to finish.
+- Show the final failure copy only when the flow truly fails:
+  `Giriş tamamlanamadı. Lütfen tekrar deneyin.`
+
+Recommended Logto Console branding changes, outside this branch:
+
+- Set the app/tenant display name to `Tık Profil`.
+- Add the Tık Profil logo and mobile-safe favicon.
+- Use the production auth domain `https://auth.tikprofil.com`.
+- Set the primary color to the Tık Profil brand blue used by the mobile app.
+- Prefer Turkish sign-in copy where Logto customization allows it.
+- Remove irrelevant generic product wording from the hosted sign-in page if Logto branding settings
+  allow it.
+
+No Logto Console configuration was changed by this branch.
 
 ## Remaining Risk
 

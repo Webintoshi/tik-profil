@@ -1,4 +1,5 @@
 import {
+  getAuthFlowDisplayCopy,
   getAuthFlowDisplayError,
   reduceCustomerAuthFlow,
   type CustomerAuthFlowState,
@@ -25,9 +26,27 @@ describe("reduceCustomerAuthFlow", () => {
     });
   });
 
+  it("uses branded native-feeling copy before opening the secure auth surface", () => {
+    const state = reduceCustomerAuthFlow(idle, { type: "START_LOGIN" });
+
+    expect(getAuthFlowDisplayCopy(state)).toEqual({
+      body: "Tık Profil hesabını güvenli şekilde doğruluyoruz.",
+      title: "Güvenli girişe yönlendiriliyorsun",
+    });
+  });
+
+  it("uses non-technical loading copy while callback and account sync finish", () => {
+    const state = reduceCustomerAuthFlow(idle, { type: "CALLBACK_RECEIVED" });
+
+    expect(getAuthFlowDisplayCopy(state)).toEqual({
+      body: "Oturum doğrulanıyor, lütfen bekleyin.",
+      title: "Hesabınız hazırlanıyor",
+    });
+  });
+
   it("clears stale login errors after customer session sync succeeds", () => {
     const failed: CustomerAuthFlowState = {
-      errorMessage: "Giriş tamamlanamadı. Tekrar deneyin.",
+      errorMessage: "Giriş tamamlanamadı. Lütfen tekrar deneyin.",
       status: "failed",
     };
 
@@ -58,17 +77,27 @@ describe("reduceCustomerAuthFlow", () => {
     });
 
     expect(state).toEqual({
-      errorMessage: "Giriş tamamlanamadı. Tekrar deneyin.",
+      errorMessage: "Giriş tamamlanamadı. Lütfen tekrar deneyin.",
       status: "failed",
     });
-    expect(getAuthFlowDisplayError(state)).toBe("Giriş tamamlanamadı. Tekrar deneyin.");
+    expect(getAuthFlowDisplayError(state)).toBe("Giriş tamamlanamadı. Lütfen tekrar deneyin.");
+  });
+
+  it("shows safe cancellation copy when the user cancels sign-in", () => {
+    const state = reduceCustomerAuthFlow(idle, { type: "LOGIN_CANCELLED" });
+
+    expect(state).toEqual({
+      errorMessage: "Giriş işlemi iptal edildi.",
+      status: "cancelled",
+    });
+    expect(getAuthFlowDisplayError(state)).toBe("Giriş işlemi iptal edildi.");
   });
 
   it("logout clears auth flow state", () => {
     expect(
       reduceCustomerAuthFlow(
         {
-          errorMessage: "Giriş tamamlanamadı. Tekrar deneyin.",
+          errorMessage: "Giriş tamamlanamadı. Lütfen tekrar deneyin.",
           status: "failed",
         },
         { type: "LOGOUT" },

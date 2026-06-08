@@ -5,6 +5,7 @@ export type CustomerAuthFlowStatus =
   | "syncingBackendSession"
   | "authenticated"
   | "needsAccountCompletion"
+  | "cancelled"
   | "failed";
 
 export interface CustomerAuthFlowState {
@@ -14,13 +15,20 @@ export interface CustomerAuthFlowState {
 
 export type CustomerAuthFlowEvent =
   | { type: "START_LOGIN" }
+  | { type: "LOGIN_CANCELLED" }
   | { recoverableViaCallback: boolean; type: "LOGIN_START_REJECTED" }
   | { type: "CALLBACK_RECEIVED" }
   | { needsAccountCompletion: boolean; type: "SYNC_SUCCEEDED" }
   | { message?: string; type: "SYNC_FAILED" }
   | { type: "LOGOUT" };
 
-const SAFE_LOGIN_FAILURE_MESSAGE = "Giriş tamamlanamadı. Tekrar deneyin.";
+const CANCELLED_LOGIN_MESSAGE = "Giriş işlemi iptal edildi.";
+const SAFE_LOGIN_FAILURE_MESSAGE = "Giriş tamamlanamadı. Lütfen tekrar deneyin.";
+
+export interface CustomerAuthFlowDisplayCopy {
+  body: string;
+  title: string;
+}
 
 export const initialCustomerAuthFlowState: CustomerAuthFlowState = {
   errorMessage: null,
@@ -36,6 +44,11 @@ export function reduceCustomerAuthFlow(
       return {
         errorMessage: null,
         status: "startingLogin",
+      };
+    case "LOGIN_CANCELLED":
+      return {
+        errorMessage: CANCELLED_LOGIN_MESSAGE,
+        status: "cancelled",
       };
     case "LOGIN_START_REJECTED":
       return event.recoverableViaCallback
@@ -74,5 +87,47 @@ export function reduceCustomerAuthFlow(
 export function getAuthFlowDisplayError(
   state: CustomerAuthFlowState,
 ): null | string {
-  return state.status === "failed" ? state.errorMessage : null;
+  return state.status === "failed" || state.status === "cancelled"
+    ? state.errorMessage
+    : null;
+}
+
+export function getAuthFlowDisplayCopy(
+  state: CustomerAuthFlowState,
+): CustomerAuthFlowDisplayCopy | null {
+  switch (state.status) {
+    case "startingLogin":
+      return {
+        body: "Tık Profil hesabını güvenli şekilde doğruluyoruz.",
+        title: "Güvenli girişe yönlendiriliyorsun",
+      };
+    case "awaitingCallback":
+      return {
+        body: "Oturum doğrulanıyor, lütfen bekleyin.",
+        title: "Tık Profil’e dönülüyor",
+      };
+    case "syncingBackendSession":
+      return {
+        body: "Oturum doğrulanıyor, lütfen bekleyin.",
+        title: "Hesabınız hazırlanıyor",
+      };
+    case "authenticated":
+    case "needsAccountCompletion":
+      return {
+        body: "Tık Profil’e dönülüyor.",
+        title: "Giriş tamamlanıyor",
+      };
+    case "cancelled":
+      return {
+        body: "Hazır olduğunuzda tekrar deneyebilirsiniz.",
+        title: CANCELLED_LOGIN_MESSAGE,
+      };
+    case "failed":
+      return {
+        body: SAFE_LOGIN_FAILURE_MESSAGE,
+        title: "Giriş tamamlanamadı",
+      };
+    default:
+      return null;
+  }
 }

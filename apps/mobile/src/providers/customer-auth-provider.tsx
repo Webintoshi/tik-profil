@@ -41,6 +41,9 @@ type BackendSyncStatus =
   | "disconnected"
   | "error";
 
+const PRE_AUTH_TRANSITION_MS = 450;
+const SAFE_LOGIN_FAILURE_MESSAGE = "Giriş tamamlanamadı. Lütfen tekrar deneyin.";
+
 interface CustomerLogtoIdentity {
   displayName: string;
   email: null | string;
@@ -121,12 +124,8 @@ function buildCustomerIdentity(input: {
   };
 }
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
-  return "Musteri oturumu su anda hazirlanamadi.";
+function getErrorMessage(_error: unknown): string {
+  return "Giriş tamamlanamadı. Lütfen tekrar deneyin.";
 }
 
 function getDisconnectedBackendMessage(
@@ -134,12 +133,18 @@ function getDisconnectedBackendMessage(
 ): string {
   switch (reason) {
     case "missing-id-token":
-      return "Backend session not connected. Native Logto id token bu cihazda okunamadi.";
+      return "Oturum doğrulanıyor, lütfen bekleyin.";
     case "session-cookie-missing":
-      return "Backend session not connected. Bridge sonrasi musteri cookie oturumu dogrulanamadi.";
+      return "Oturum doğrulanıyor, lütfen bekleyin.";
     default:
-      return "Backend session not connected.";
+      return "Oturum doğrulanıyor, lütfen bekleyin.";
   }
+}
+
+async function showPreAuthTransition(): Promise<void> {
+  await new Promise((resolve) => {
+    setTimeout(resolve, PRE_AUTH_TRANSITION_MS);
+  });
 }
 
 function CustomerAuthDisabledProvider({
@@ -304,7 +309,7 @@ function CustomerAuthBridgeProvider({
       setAuthFlow((current) =>
         reduceCustomerAuthFlow(current, { type: "SYNC_FAILED" }),
       );
-      setErrorMessage("Giriş tamamlanamadı. Tekrar deneyin.");
+      setErrorMessage(SAFE_LOGIN_FAILURE_MESSAGE);
       throw error;
     } finally {
       setIsBusy(false);
@@ -361,7 +366,7 @@ function CustomerAuthBridgeProvider({
         setAuthFlow((current) =>
           reduceCustomerAuthFlow(current, { type: "SYNC_FAILED" }),
         );
-        setErrorMessage(result.errorMessage ?? "Giriş tamamlanamadı. Tekrar deneyin.");
+        setErrorMessage(result.errorMessage ?? SAFE_LOGIN_FAILURE_MESSAGE);
       }
 
       setIsBusy(false);
@@ -392,6 +397,7 @@ function CustomerAuthBridgeProvider({
 
     try {
       await startCustomerLogin({
+        beforeOpenAuth: showPreAuthTransition,
         redirectUri: runtimeConfig.redirectUri,
         signIn: async (redirectUri) => await logtoSignIn(redirectUri),
       });
