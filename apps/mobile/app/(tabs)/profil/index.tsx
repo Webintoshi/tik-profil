@@ -34,8 +34,8 @@ export default function ProfileScreen() {
           title={isAuthenticated ? "Profil ve oturum" : "Musteri girisi"}
           subtitle={
             isAuthenticated
-              ? "Yerel Logto kimligi hazir. Backend senkronu ayri olarak raporlanir."
-              : "Bu sekme Expo customer Logto girisini ve sonraki mobile bridge ihtiyacini dogrular."
+              ? "Yerel Logto kimligi ve backend customer session durumu birlikte raporlanir."
+              : "Bu sekme Expo customer Logto girisini ve backend customer bridge sonucunu dogrular."
           }
         />
       }
@@ -78,10 +78,10 @@ export default function ProfileScreen() {
               {isBusy ? "Giris baslatiliyor" : "Giris Yap"}
             </Button>
             <Button disabled variant="secondary">
-              Google ile devam et
+              Google ile devam et (Yakinda)
             </Button>
             <Button disabled variant="secondary">
-              Apple ile devam et
+              Apple ile devam et (Yakinda)
             </Button>
             <Text style={{ color: tokens.colors.textMuted, fontSize: 13, lineHeight: 20 }}>
               Google ve Apple connector kurulumu bu branchte sadece placeholder olarak tutuldu.
@@ -93,8 +93,8 @@ export default function ProfileScreen() {
               {isBusy ? "Cikis yapiliyor" : "Cikis yap"}
             </Button>
             <Text style={{ color: tokens.colors.textMuted, fontSize: 13, lineHeight: 20 }}>
-              Native Logto oturumu cihazda tutulur. Backend customer cookie senkronu ayri durum
-              olarak kontrol edilir.
+              Native Logto oturumu cihazda tutulur. Backend customer cookie oturumu ayni akista
+              ayrica dogrulanir.
             </Text>
           </>
         )}
@@ -111,7 +111,10 @@ export default function ProfileScreen() {
           Init: {isInitialized ? "tamam" : "bekleniyor"}
         </Text>
         <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-          Logto actor: {isAuthenticated ? "customer" : "misafir"}
+          Local Logto: {isAuthenticated ? "bagli" : "yok"}
+        </Text>
+        <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
+          Backend actor: {isAuthenticated ? "customer" : "misafir"}
         </Text>
         <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
           Backend durum: {backendStatus}

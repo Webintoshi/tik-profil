@@ -38,6 +38,21 @@ export interface CustomerAccountProfile {
   };
 }
 
+export type CustomerProfile = CustomerAccountProfile;
+
+export type CustomerBackendSyncReason =
+  | "missing-id-token"
+  | "session-cookie-missing";
+
+export interface CustomerBackendSyncResult {
+  account: CustomerAccountProfile | null;
+  profile: CustomerProfile | null;
+  reason: CustomerBackendSyncReason | null;
+  session: CustomerBackendSession | null;
+  state: "disconnected" | "ready";
+  usedBridge: boolean;
+}
+
 interface JsonErrorEnvelope {
   code?: string;
   error?: string;
@@ -75,6 +90,15 @@ function getErrorMessage(payload: null | unknown, fallbackMessage: string): stri
   }
 
   return fallbackMessage;
+}
+
+function trimToNull(value: null | string | undefined): null | string {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
 }
 
 async function readJsonPayload<T>(response: Response): Promise<null | T> {
@@ -174,6 +198,138 @@ export async function getAccount(input: {
     ),
     "Customer account profile could not be loaded.",
   );
+}
+
+export async function getCustomerProfile(input: {
+  apiBaseUrl: string;
+  fetchImpl?: typeof fetch;
+  profilePath?: string;
+}): Promise<CustomerProfile> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+
+  return await parseJsonResponse<CustomerProfile>(
+    await fetchImpl(
+      buildApiUrl(
+        input.apiBaseUrl,
+        input.profilePath ?? "/api/kesfet/user/profile",
+      ),
+      {
+        credentials: "include",
+        method: "GET",
+      },
+    ),
+    "Customer kesfet profile could not be loaded.",
+  );
+}
+
+export async function bootstrapCustomerSession(input: {
+  apiBaseUrl: string;
+  bridgePath?: string;
+  fetchImpl?: typeof fetch;
+  idToken: string;
+}): Promise<CustomerBackendSession> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const response = await fetchImpl(
+    buildApiUrl(
+      input.apiBaseUrl,
+      input.bridgePath ?? "/api/auth/logto/mobile/customer-session",
+    ),
+    {
+      body: JSON.stringify({
+        actor: "customer",
+        idToken: input.idToken,
+      }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    },
+  );
+
+  return await parseJsonResponse<CustomerBackendSession>(
+    response,
+    "Customer backend session could not be bootstrapped.",
+  );
+}
+
+export async function syncCustomerBackendSession(input: {
+  accountPath?: string;
+  apiBaseUrl: string;
+  bridgePath?: string;
+  fetchImpl?: typeof fetch;
+  idToken?: null | string;
+  mePath?: string;
+  profilePath?: string;
+}): Promise<CustomerBackendSyncResult> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  let session = await getCurrentSession({
+    apiBaseUrl: input.apiBaseUrl,
+    fetchImpl,
+    mePath: input.mePath,
+  });
+  let usedBridge = false;
+
+  if (!session) {
+    const idToken = trimToNull(input.idToken);
+
+    if (!idToken) {
+      return {
+        account: null,
+        profile: null,
+        reason: "missing-id-token",
+        session: null,
+        state: "disconnected",
+        usedBridge: false,
+      };
+    }
+
+    await bootstrapCustomerSession({
+      apiBaseUrl: input.apiBaseUrl,
+      bridgePath: input.bridgePath,
+      fetchImpl,
+      idToken,
+    });
+    usedBridge = true;
+    session = await getCurrentSession({
+      apiBaseUrl: input.apiBaseUrl,
+      fetchImpl,
+      mePath: input.mePath,
+    });
+
+    if (!session) {
+      return {
+        account: null,
+        profile: null,
+        reason: "session-cookie-missing",
+        session: null,
+        state: "disconnected",
+        usedBridge,
+      };
+    }
+  }
+
+  const [account, profile] = await Promise.all([
+    getAccount({
+      accountPath: input.accountPath,
+      apiBaseUrl: input.apiBaseUrl,
+      fetchImpl,
+    }),
+    getCustomerProfile({
+      apiBaseUrl: input.apiBaseUrl,
+      fetchImpl,
+      profilePath: input.profilePath,
+    }),
+  ]);
+
+  return {
+    account,
+    profile,
+    reason: null,
+    session,
+    state: "ready",
+    usedBridge,
+  };
 }
 
 export async function logout(input: {

@@ -28,7 +28,7 @@ export default function SettingsScreen() {
       header={
         <SectionHeader
           title="Ayarlar"
-          subtitle="Discovery foundation ile mobile customer auth foundation burada birlikte gorunur."
+          subtitle="Discovery, local Logto ve backend customer session durumu burada birlikte gorunur."
         />
       }
     >
@@ -48,10 +48,19 @@ export default function SettingsScreen() {
           Konfig: {isConfigured ? "hazir" : "eksik"}
         </Text>
         <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
+          Local Logto signed-in: {isAuthenticated ? "evet" : "hayir"}
+        </Text>
+        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
+          Backend session synced: {backendStatus === "ready" ? "evet" : "hayir"}
+        </Text>
+        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
           Actor: {isAuthenticated ? "customer" : "misafir"}
         </Text>
         <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
           Backend sync: {backendStatus}
+        </Text>
+        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
+          Bridge path: {logtoConfig.customerSessionBridgePath}
         </Text>
         <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
           Redirect URI: {logtoConfig.redirectUri}
@@ -82,10 +91,10 @@ export default function SettingsScreen() {
       <SurfaceCard>
         <Text style={{ fontSize: 16, fontWeight: "700" }}>Placeholder baglayicilar</Text>
         <Text style={{ fontSize: 14, lineHeight: 22 }}>
-          Google: Logto connector + Expo development build gerekli.
+          Google: Yakinda. Logto connector + Expo development build gerekli.
         </Text>
         <Text style={{ fontSize: 14, lineHeight: 22 }}>
-          Apple: Apple Developer hesabi, iOS bundle ID ve Android package/SHA gerekli.
+          Apple: Yakinda. Apple Developer hesabi, iOS bundle ID ve Android package/SHA gerekli.
         </Text>
       </SurfaceCard>
 

@@ -9,20 +9,22 @@ import {
 } from "react";
 import { LogtoProvider, useLogto } from "@logto/rn";
 import {
-  getAccount,
-  getCurrentSession,
   logout,
   startCustomerLogin,
   type CustomerAccountProfile,
   type CustomerBackendSession,
+  type CustomerBackendSyncReason,
+  syncCustomerBackendSession,
 } from "@/auth/api";
 import { resolveLogtoMobileRuntimeConfig } from "@/auth/config";
 import { resolveApiRuntimeConfig } from "@/api/config";
 
-const BACKEND_SYNC_LIMITATION_MESSAGE =
-  "Native Logto girisi hazir, ancak backend musteri cookie oturumu icin ayri bir mobile bridge hala gerekli.";
-
-type BackendSyncStatus = "idle" | "loading" | "ready" | "unavailable" | "error";
+type BackendSyncStatus =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "disconnected"
+  | "error";
 
 interface CustomerLogtoIdentity {
   displayName: string;
@@ -105,6 +107,19 @@ function getErrorMessage(error: unknown): string {
   return "Musteri oturumu su anda hazirlanamadi.";
 }
 
+function getDisconnectedBackendMessage(
+  reason: CustomerBackendSyncReason | null,
+): string {
+  switch (reason) {
+    case "missing-id-token":
+      return "Backend session not connected. Native Logto id token bu cihazda okunamadi.";
+    case "session-cookie-missing":
+      return "Backend session not connected. Bridge sonrasi musteri cookie oturumu dogrulanamadi.";
+    default:
+      return "Backend session not connected.";
+  }
+}
+
 function CustomerAuthDisabledProvider({
   children,
   reason,
@@ -148,6 +163,7 @@ function CustomerAuthBridgeProvider({
 }>) {
   const {
     fetchUserInfo,
+    getIdToken,
     getIdTokenClaims,
     isAuthenticated,
     isInitialized,
@@ -162,6 +178,8 @@ function CustomerAuthBridgeProvider({
   const [customerSession, setCustomerSession] =
     useState<CustomerBackendSession | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [backendDisconnectReason, setBackendDisconnectReason] =
+    useState<CustomerBackendSyncReason | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 
   const clearCustomerState = useCallback(() => {
@@ -169,6 +187,7 @@ function CustomerAuthBridgeProvider({
     setCustomerAccount(null);
     setCustomerIdentity(null);
     setCustomerSession(null);
+    setBackendDisconnectReason(null);
     setErrorMessage(null);
   }, []);
 
@@ -183,13 +202,10 @@ function CustomerAuthBridgeProvider({
     setBackendStatus("loading");
 
     try {
-      const [userInfoResult, claimsResult, backendSessionResult] = await Promise.allSettled([
+      const [userInfoResult, idTokenResult, claimsResult] = await Promise.allSettled([
         fetchUserInfo(),
+        getIdToken(),
         getIdTokenClaims(),
-        getCurrentSession({
-          apiBaseUrl: runtimeConfig.apiBaseUrl,
-          mePath: runtimeConfig.mePath,
-        }),
       ]);
 
       const identity = buildCustomerIdentity({
@@ -199,28 +215,31 @@ function CustomerAuthBridgeProvider({
 
       setCustomerIdentity(identity);
 
-      if (backendSessionResult.status === "rejected") {
-        throw backendSessionResult.reason;
-      }
+      const backendSync = await syncCustomerBackendSession({
+        accountPath: runtimeConfig.accountPath,
+        apiBaseUrl: runtimeConfig.apiBaseUrl,
+        bridgePath: runtimeConfig.customerSessionBridgePath,
+        idToken: idTokenResult.status === "fulfilled" ? idTokenResult.value : null,
+        mePath: runtimeConfig.mePath,
+        profilePath: runtimeConfig.profilePath,
+      });
 
-      if (!backendSessionResult.value) {
+      if (backendSync.state !== "ready") {
         setCustomerSession(null);
         setCustomerAccount(null);
-        setBackendStatus("unavailable");
+        setBackendDisconnectReason(backendSync.reason);
+        setBackendStatus("disconnected");
         return;
       }
 
-      const account = await getAccount({
-        accountPath: runtimeConfig.accountPath,
-        apiBaseUrl: runtimeConfig.apiBaseUrl,
-      });
-
-      setCustomerSession(backendSessionResult.value);
-      setCustomerAccount(account);
+      setBackendDisconnectReason(null);
+      setCustomerSession(backendSync.session);
+      setCustomerAccount(backendSync.account);
       setBackendStatus("ready");
     } catch (error) {
       setCustomerSession(null);
       setCustomerAccount(null);
+      setBackendDisconnectReason(null);
       setBackendStatus("error");
       setErrorMessage(getErrorMessage(error));
       throw error;
@@ -230,11 +249,14 @@ function CustomerAuthBridgeProvider({
   }, [
     clearCustomerState,
     fetchUserInfo,
+    getIdToken,
     getIdTokenClaims,
     isAuthenticated,
     runtimeConfig.accountPath,
     runtimeConfig.apiBaseUrl,
+    runtimeConfig.customerSessionBridgePath,
     runtimeConfig.mePath,
+    runtimeConfig.profilePath,
   ]);
 
   useEffect(() => {
@@ -310,7 +332,9 @@ function CustomerAuthBridgeProvider({
       isConfigured: true,
       isInitialized,
       limitationMessage:
-        backendStatus === "unavailable" ? BACKEND_SYNC_LIMITATION_MESSAGE : null,
+        backendStatus === "disconnected"
+          ? getDisconnectedBackendMessage(backendDisconnectReason)
+          : null,
       refreshCustomerProfile,
       signIn,
       signOut,
@@ -324,6 +348,7 @@ function CustomerAuthBridgeProvider({
       isAuthenticated,
       isBusy,
       isInitialized,
+      backendDisconnectReason,
       refreshCustomerProfile,
       signIn,
       signOut,

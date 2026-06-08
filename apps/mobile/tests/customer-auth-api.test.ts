@@ -1,8 +1,11 @@
 import {
+  bootstrapCustomerSession,
   getAccount,
+  getCustomerProfile,
   getCurrentSession,
   logout,
   startCustomerLogin,
+  syncCustomerBackendSession,
 } from "../src/auth/api";
 
 describe("getCurrentSession", () => {
@@ -125,6 +128,334 @@ describe("getAccount", () => {
         balance: 0,
         points: 0,
       },
+    });
+  });
+});
+
+describe("getCustomerProfile", () => {
+  it("loads the safe customer profile from the kesfet profile route", async () => {
+    const fetchMock = jest
+      .fn<Promise<Response>, [RequestInfo | URL, RequestInit?]>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              actorType: "customer",
+              appUserId: "app-user-1",
+              displayName: "Customer Example",
+              email: "customer@example.com",
+              provider: "logto",
+              role: "customer",
+              uid: "app-user-1",
+            },
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+
+    await expect(
+      getCustomerProfile({
+        apiBaseUrl: "https://tikprofil.com",
+        fetchImpl: fetchMock,
+      }),
+    ).resolves.toMatchObject({
+      actorType: "customer",
+      appUserId: "app-user-1",
+      uid: "app-user-1",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://tikprofil.com/api/kesfet/user/profile",
+      expect.objectContaining({
+        credentials: "include",
+        method: "GET",
+      }),
+    );
+  });
+});
+
+describe("bootstrapCustomerSession", () => {
+  it("posts the customer actor and Logto id token to the mobile bridge", async () => {
+    const fetchMock = jest
+      .fn<Promise<Response>, [RequestInfo | URL, RequestInit?]>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              success: true,
+              actorType: "customer",
+              appUserId: "app-user-1",
+              displayName: "Customer Example",
+              email: "customer@example.com",
+              logtoSub: "logto|customer-1",
+              provider: "logto",
+              role: "customer",
+            },
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+
+    await expect(
+      bootstrapCustomerSession({
+        apiBaseUrl: "https://tikprofil.com",
+        fetchImpl: fetchMock,
+        idToken: "id-token-1",
+      }),
+    ).resolves.toMatchObject({
+      actorType: "customer",
+      appUserId: "app-user-1",
+      logtoSub: "logto|customer-1",
+      provider: "logto",
+      role: "customer",
+      success: true,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://tikprofil.com/api/auth/logto/mobile/customer-session",
+      expect.objectContaining({
+        body: JSON.stringify({
+          actor: "customer",
+          idToken: "id-token-1",
+        }),
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      }),
+    );
+  });
+});
+
+describe("syncCustomerBackendSession", () => {
+  it("bootstraps the backend session and re-reads the customer session cookie before loading profile data", async () => {
+    const fetchMock = jest
+      .fn<Promise<Response>, [RequestInfo | URL, RequestInit?]>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: false,
+            error: "No Logto session",
+          }),
+          {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              success: true,
+              actorType: "customer",
+              appUserId: "app-user-1",
+              displayName: "Customer Example",
+              email: "customer@example.com",
+              logtoSub: "logto|customer-1",
+              provider: "logto",
+              role: "customer",
+            },
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            actorType: "customer",
+            appUserId: "app-user-1",
+            displayName: "Customer Example",
+            email: "customer@example.com",
+            logtoSub: "logto|customer-1",
+            provider: "logto",
+            role: "customer",
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              actorType: "customer",
+              appUserId: "app-user-1",
+              displayName: "Customer Example",
+              email: "customer@example.com",
+              provider: "logto",
+              role: "customer",
+              uid: "app-user-1",
+            },
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              actorType: "customer",
+              appUserId: "app-user-1",
+              displayName: "Customer Example",
+              email: "customer@example.com",
+              provider: "logto",
+              role: "customer",
+              uid: "app-user-1",
+            },
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+
+    await expect(
+      syncCustomerBackendSession({
+        apiBaseUrl: "https://tikprofil.com",
+        fetchImpl: fetchMock,
+        idToken: "id-token-1",
+      }),
+    ).resolves.toMatchObject({
+      state: "ready",
+      usedBridge: true,
+      session: {
+        actorType: "customer",
+        appUserId: "app-user-1",
+      },
+      account: {
+        actorType: "customer",
+        appUserId: "app-user-1",
+      },
+      profile: {
+        actorType: "customer",
+        appUserId: "app-user-1",
+      },
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://tikprofil.com/api/auth/logto/me",
+      expect.objectContaining({
+        credentials: "include",
+        method: "GET",
+      }),
+    );
+  });
+
+  it("reports a disconnected state when the native id token is unavailable", async () => {
+    const fetchMock = jest
+      .fn<Promise<Response>, [RequestInfo | URL, RequestInit?]>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: false,
+            error: "No Logto session",
+          }),
+          {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+
+    await expect(
+      syncCustomerBackendSession({
+        apiBaseUrl: "https://tikprofil.com",
+        fetchImpl: fetchMock,
+        idToken: null,
+      }),
+    ).resolves.toEqual({
+      account: null,
+      profile: null,
+      reason: "missing-id-token",
+      session: null,
+      state: "disconnected",
+      usedBridge: false,
+    });
+  });
+
+  it("reports a disconnected state when the bridge succeeds but the backend cookie is still missing on the follow-up session read", async () => {
+    const fetchMock = jest
+      .fn<Promise<Response>, [RequestInfo | URL, RequestInit?]>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: false,
+            error: "No Logto session",
+          }),
+          {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              success: true,
+              actorType: "customer",
+              appUserId: "app-user-1",
+              displayName: "Customer Example",
+              email: "customer@example.com",
+              logtoSub: "logto|customer-1",
+              provider: "logto",
+              role: "customer",
+            },
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: false,
+            error: "No Logto session",
+          }),
+          {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+
+    await expect(
+      syncCustomerBackendSession({
+        apiBaseUrl: "https://tikprofil.com",
+        fetchImpl: fetchMock,
+        idToken: "id-token-1",
+      }),
+    ).resolves.toEqual({
+      account: null,
+      profile: null,
+      reason: "session-cookie-missing",
+      session: null,
+      state: "disconnected",
+      usedBridge: true,
     });
   });
 });

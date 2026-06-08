@@ -49,10 +49,12 @@ export interface LogtoMobileRuntimeConfig {
   actor: "customer";
   apiBaseUrl: string;
   appId: null | string;
+  customerSessionBridgePath: string;
   enabled: boolean;
   endpoint: null | string;
   logoutPath: string;
   mePath: string;
+  profilePath: string;
   redirectUri: string;
   scopes: string[];
   webSignInPath: string;
@@ -90,10 +92,12 @@ export function resolveLogtoMobileRuntimeConfig(
     actor: "customer",
     apiBaseUrl,
     appId,
+    customerSessionBridgePath: "/api/auth/logto/mobile/customer-session",
     enabled: Boolean(appId && endpoint),
     endpoint,
     logoutPath: "/api/auth/logout",
     mePath: "/api/auth/logto/me",
+    profilePath: "/api/kesfet/user/profile",
     redirectUri,
     scopes,
     webSignInPath: buildCustomerWebSignInPath(webCallbackPath),

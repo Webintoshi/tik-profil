@@ -96,7 +96,7 @@ export default function FavoritesScreen() {
       header={
         <SectionHeader
           title="Favoriler"
-          subtitle="Customer actor oturumu olmadan bu alan yalnizca login gereksinimini gosterir."
+          subtitle="Customer actor oturumu olmadan login gerekir; backend session baglaninca guvenli rota probe edilir."
         />
       }
     >
@@ -114,10 +114,10 @@ export default function FavoritesScreen() {
 
       {isAuthenticated && !isBackendSessionReady ? (
         <EmptyState
-          title="Yakinda"
+          title="Backend session bagli degil"
           description={
             limitationMessage ??
-            "Native Logto oturumu var, ancak stateful favorites icin backend cookie bridge henuz eksik."
+            "Native Logto oturumu var, ancak backend musteri cookie oturumu bu cihazda henuz dogrulanmadi."
           }
         />
       ) : null}
