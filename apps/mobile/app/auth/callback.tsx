@@ -46,7 +46,7 @@ export default function LogtoCustomerCallbackScreen() {
       }
 
       setStatus("error");
-      setErrorMessage(result.errorMessage ?? "Musteri girisi tamamlanamadi.");
+      setErrorMessage(result.errorMessage ?? "Giriş tamamlanamadı. Tekrar deneyin.");
     });
   }, [callbackUrl, completeSignInCallback]);
 
@@ -54,24 +54,24 @@ export default function LogtoCustomerCallbackScreen() {
     <AppScrollScreen
       header={
         <SectionHeader
-          title="Giris tamamlanıyor"
-          subtitle="Logto geri donusu isleniyor ve backend musteri oturumu senkronlanıyor."
+          title="Giriş tamamlanıyor"
+          subtitle="Oturum doğrulanıyor, lütfen bekleyin."
         />
       }
     >
       <SurfaceCard>
         <View style={{ gap: tokens.spacing.md }}>
           <Text style={{ color: tokens.colors.text, fontSize: 18, fontWeight: "700" }}>
-            {status === "loading" ? "Oturum hazirlaniyor" : "Giris tamamlanamadi"}
+            {status === "loading" ? "Hesabınız hazırlanıyor" : "Giriş tamamlanamadı"}
           </Text>
           <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
             {status === "loading"
-              ? "Bu ekranda callback kodu veya token degerleri gosterilmez."
-              : errorMessage ?? "Profil sekmesine donup tekrar deneyebilirsiniz."}
+              ? "Logto callback, backend bridge ve müşteri profili güvenli sırayla senkronlanıyor."
+              : errorMessage ?? "Profil sekmesine dönüp tekrar deneyebilirsiniz."}
           </Text>
           {status === "error" ? (
             <Button onPress={() => router.replace("/(tabs)/profil")} variant="secondary">
-              Profile don
+              Profile dön
             </Button>
           ) : null}
         </View>

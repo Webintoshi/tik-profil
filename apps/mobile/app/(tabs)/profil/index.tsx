@@ -17,6 +17,7 @@ import { tokens } from "@/theme/tokens";
 export default function ProfileScreen() {
   const {
     accountCompletion,
+    authFlowStatus,
     backendStatus,
     customerAccount,
     customerIdentity,
@@ -45,7 +46,17 @@ export default function ProfileScreen() {
         />
       }
     >
-      {!isAuthenticated ? (
+      {!isAuthenticated &&
+      (authFlowStatus === "startingLogin" ||
+        authFlowStatus === "awaitingCallback" ||
+        authFlowStatus === "syncingBackendSession") ? (
+        <AuthSyncPanel />
+      ) : null}
+
+      {!isAuthenticated &&
+      authFlowStatus !== "startingLogin" &&
+      authFlowStatus !== "awaitingCallback" &&
+      authFlowStatus !== "syncingBackendSession" ? (
         <AuthLandingPanel
           isBusy={isBusy}
           isConfigured={isConfigured}

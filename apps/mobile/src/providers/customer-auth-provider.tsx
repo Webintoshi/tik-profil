@@ -24,6 +24,12 @@ import {
   completeCustomerLogtoCallback,
   type CustomerLogtoCallbackResult,
 } from "@/auth/callback";
+import {
+  getAuthFlowDisplayError,
+  initialCustomerAuthFlowState,
+  reduceCustomerAuthFlow,
+  type CustomerAuthFlowStatus,
+} from "@/auth/login-flow-state";
 import { resolveLogtoMobileRuntimeConfig } from "@/auth/config";
 import { resolveApiRuntimeConfig } from "@/api/config";
 
@@ -44,6 +50,7 @@ interface CustomerLogtoIdentity {
 
 interface CustomerAuthContextValue {
   accountCompletion: AccountCompletionStatus;
+  authFlowStatus: CustomerAuthFlowStatus;
   backendStatus: BackendSyncStatus;
   canAccessFullApp: boolean;
   completeSignInCallback: (
@@ -144,6 +151,7 @@ function CustomerAuthDisabledProvider({
   const value = useMemo<CustomerAuthContextValue>(
     () => ({
       accountCompletion: getAccountCompletionStatus(null),
+      authFlowStatus: "idle",
       backendStatus: "idle",
       canAccessFullApp: false,
       completeSignInCallback: async () => ({
@@ -202,6 +210,7 @@ function CustomerAuthBridgeProvider({
   const [customerSession, setCustomerSession] =
     useState<CustomerBackendSession | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [authFlow, setAuthFlow] = useState(initialCustomerAuthFlowState);
   const [profileWarningMessage, setProfileWarningMessage] =
     useState<string | null>(null);
   const [backendDisconnectReason, setBackendDisconnectReason] =
@@ -215,12 +224,16 @@ function CustomerAuthBridgeProvider({
     setCustomerSession(null);
     setBackendDisconnectReason(null);
     setErrorMessage(null);
+    setAuthFlow(initialCustomerAuthFlowState);
     setProfileWarningMessage(null);
   }, []);
 
   const syncAuthenticatedCustomerProfile = useCallback(async () => {
     setIsBusy(true);
     setErrorMessage(null);
+    setAuthFlow((current) =>
+      reduceCustomerAuthFlow(current, { type: "CALLBACK_RECEIVED" }),
+    );
     setProfileWarningMessage(null);
     setBackendStatus("loading");
 
@@ -255,12 +268,18 @@ function CustomerAuthBridgeProvider({
         if (backendSync.state === "profile-warning") {
           setBackendStatus("profile-warning");
           setProfileWarningMessage("Profil bilgileri su anda alinamadi.");
+          setAuthFlow((current) =>
+            reduceCustomerAuthFlow(current, { type: "SYNC_SUCCEEDED", needsAccountCompletion: true }),
+          );
           return;
         }
 
         setCustomerSession(null);
         setCustomerAccount(null);
         setBackendStatus("disconnected");
+        setAuthFlow((current) =>
+          reduceCustomerAuthFlow(current, { type: "SYNC_FAILED" }),
+        );
         return;
       }
 
@@ -269,13 +288,23 @@ function CustomerAuthBridgeProvider({
       setCustomerSession(backendSync.session);
       setCustomerAccount(backendSync.account);
       setBackendStatus("ready");
+      setAuthFlow((current) =>
+        reduceCustomerAuthFlow(current, {
+          needsAccountCompletion:
+            !getAccountCompletionStatus(backendSync.account).isComplete,
+          type: "SYNC_SUCCEEDED",
+        }),
+      );
     } catch (error) {
       setCustomerSession(null);
       setCustomerAccount(null);
       setBackendDisconnectReason(null);
       setProfileWarningMessage(null);
       setBackendStatus("error");
-      setErrorMessage(getErrorMessage(error));
+      setAuthFlow((current) =>
+        reduceCustomerAuthFlow(current, { type: "SYNC_FAILED" }),
+      );
+      setErrorMessage("Giriş tamamlanamadı. Tekrar deneyin.");
       throw error;
     } finally {
       setIsBusy(false);
@@ -307,6 +336,9 @@ function CustomerAuthBridgeProvider({
   const completeSignInCallback = useCallback(
     async (callbackUrl: null | string | undefined) => {
       setErrorMessage(null);
+      setAuthFlow((current) =>
+        reduceCustomerAuthFlow(current, { type: "CALLBACK_RECEIVED" }),
+      );
       setIsBusy(true);
 
       const result = await completeCustomerLogtoCallback({
@@ -326,7 +358,10 @@ function CustomerAuthBridgeProvider({
         setBackendDisconnectReason(null);
         setProfileWarningMessage(null);
         setBackendStatus("error");
-        setErrorMessage(result.errorMessage ?? "Musteri oturumu hazirlanamadi.");
+        setAuthFlow((current) =>
+          reduceCustomerAuthFlow(current, { type: "SYNC_FAILED" }),
+        );
+        setErrorMessage(result.errorMessage ?? "Giriş tamamlanamadı. Tekrar deneyin.");
       }
 
       setIsBusy(false);
@@ -350,6 +385,9 @@ function CustomerAuthBridgeProvider({
 
   const signIn = useCallback(async () => {
     setErrorMessage(null);
+    setAuthFlow((current) =>
+      reduceCustomerAuthFlow(current, { type: "START_LOGIN" }),
+    );
     setIsBusy(true);
 
     try {
@@ -358,8 +396,13 @@ function CustomerAuthBridgeProvider({
         signIn: async (redirectUri) => await logtoSignIn(redirectUri),
       });
     } catch (error) {
-      setErrorMessage(getErrorMessage(error));
-      throw error;
+      setAuthFlow((current) =>
+        reduceCustomerAuthFlow(current, {
+          recoverableViaCallback: true,
+          type: "LOGIN_START_REJECTED",
+        }),
+      );
+      return;
     } finally {
       setIsBusy(false);
     }
@@ -367,6 +410,7 @@ function CustomerAuthBridgeProvider({
 
   const signOut = useCallback(async () => {
     setErrorMessage(null);
+    setAuthFlow((current) => reduceCustomerAuthFlow(current, { type: "LOGOUT" }));
     setIsBusy(true);
 
     try {
@@ -398,16 +442,18 @@ function CustomerAuthBridgeProvider({
   const value = useMemo<CustomerAuthContextValue>(
     () => {
       const accountCompletion = getAccountCompletionStatus(customerAccount);
+      const flowError = getAuthFlowDisplayError(authFlow);
 
       return {
         accountCompletion,
+        authFlowStatus: authFlow.status,
         backendStatus,
         canAccessFullApp: backendStatus === "ready" && accountCompletion.isComplete,
         completeSignInCallback,
         customerAccount,
         customerIdentity,
         customerSession,
-        errorMessage,
+        errorMessage: flowError ?? errorMessage,
         isAuthenticated,
         isBackendSessionReady:
           backendStatus === "ready" || backendStatus === "profile-warning",
@@ -426,6 +472,7 @@ function CustomerAuthBridgeProvider({
     },
     [
       backendStatus,
+      authFlow,
       completeSignInCallback,
       customerAccount,
       customerIdentity,
