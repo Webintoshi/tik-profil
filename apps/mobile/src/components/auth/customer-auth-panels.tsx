@@ -9,18 +9,20 @@ import type { AccountCompletionField } from "@/auth/account-completion";
 const completionLabels: Record<AccountCompletionField, string> = {
   displayName: "Ad soyad",
   email: "Mail adresi",
-  phone: "Telefon numarasi",
+  phone: "Telefon numarası",
 };
 
 interface AuthLandingPanelProps {
   isBusy: boolean;
   isConfigured: boolean;
+  onRegister: () => void;
   onSignIn: () => void;
 }
 
 export function AuthLandingPanel({
   isBusy,
   isConfigured,
+  onRegister,
   onSignIn,
 }: AuthLandingPanelProps) {
   return (
@@ -38,7 +40,7 @@ export function AuthLandingPanel({
         <Button disabled={!isConfigured || isBusy} onPress={onSignIn}>
           {isBusy ? "Güvenli giriş hazırlanıyor" : "Giriş Yap"}
         </Button>
-        <Button disabled={!isConfigured || isBusy} onPress={onSignIn} variant="secondary">
+        <Button disabled={!isConfigured || isBusy} onPress={onRegister} variant="secondary">
           Hesap Oluştur
         </Button>
         <View style={{ flexDirection: "row", gap: 10 }}>
@@ -133,9 +135,8 @@ export function AccountCompletionPanel({
             Hesabını tamamla
           </Text>
           <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-            Tam uygulama erişimi için ad soyad, mail adresi ve telefon numarası
-            gereklidir. Profil güncelleme endpoint'i hazır olmadığı için bu ekranda
-            şimdilik güvenli lokal doğrulama gösterilir.
+            Tık Profil'i kullanmaya devam etmek için bilgilerini tamamla. Ad soyad,
+            e-posta ve telefon numarası tam erişim için gereklidir.
           </Text>
         </View>
         {(["displayName", "email", "phone"] as AccountCompletionField[]).map((field) => (
@@ -169,7 +170,7 @@ export function AccountCompletionPanel({
           {missingFields.map((field) => completionLabels[field]).join(", ") || "Yok"}
         </Text>
         <Button disabled>
-          Kaydet (Backend endpoint hazır değil)
+          Profil bilgilerini kaydetme yakında aktif olacak.
         </Button>
       </View>
     </SurfaceCard>

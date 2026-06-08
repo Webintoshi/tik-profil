@@ -7,13 +7,15 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
-import { LogtoContext, LogtoProvider, useLogto } from "@logto/rn";
+import { LogtoContext, LogtoProvider, Prompt, useLogto } from "@logto/rn";
 import {
   logout,
   startCustomerLogin,
+  type CustomerAuthIntent,
   type CustomerAccountProfile,
   type CustomerBackendSession,
   type CustomerBackendSyncReason,
+  type CustomerLoginOptions,
   syncCustomerBackendSession,
 } from "@/auth/api";
 import {
@@ -22,6 +24,7 @@ import {
 } from "@/auth/account-completion";
 import {
   completeCustomerLogtoCallback,
+  logMobileAuthDebug,
   type CustomerLogtoCallbackResult,
 } from "@/auth/callback";
 import {
@@ -40,6 +43,12 @@ type BackendSyncStatus =
   | "profile-warning"
   | "disconnected"
   | "error";
+
+type CustomerProfileSyncOutcome =
+  | "disconnected"
+  | "error"
+  | "profile-warning"
+  | "ready";
 
 const PRE_AUTH_TRANSITION_MS = 450;
 const SAFE_LOGIN_FAILURE_MESSAGE = "Giriş tamamlanamadı. Lütfen tekrar deneyin.";
@@ -70,6 +79,7 @@ interface CustomerAuthContextValue {
   isInitialized: boolean;
   limitationMessage: null | string;
   profileWarningMessage: null | string;
+  register: () => Promise<void>;
   refreshCustomerProfile: () => Promise<void>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -174,6 +184,9 @@ function CustomerAuthDisabledProvider({
       isInitialized: true,
       limitationMessage: null,
       profileWarningMessage: null,
+      register: async () => {
+        throw new Error(reason);
+      },
       refreshCustomerProfile: async () => undefined,
       signIn: async () => {
         throw new Error(reason);
@@ -233,7 +246,8 @@ function CustomerAuthBridgeProvider({
     setProfileWarningMessage(null);
   }, []);
 
-  const syncAuthenticatedCustomerProfile = useCallback(async () => {
+  const syncAuthenticatedCustomerProfile =
+    useCallback(async (): Promise<CustomerProfileSyncOutcome> => {
     setIsBusy(true);
     setErrorMessage(null);
     setAuthFlow((current) =>
@@ -276,7 +290,7 @@ function CustomerAuthBridgeProvider({
           setAuthFlow((current) =>
             reduceCustomerAuthFlow(current, { type: "SYNC_SUCCEEDED", needsAccountCompletion: true }),
           );
-          return;
+          return "profile-warning";
         }
 
         setCustomerSession(null);
@@ -285,7 +299,7 @@ function CustomerAuthBridgeProvider({
         setAuthFlow((current) =>
           reduceCustomerAuthFlow(current, { type: "SYNC_FAILED" }),
         );
-        return;
+        return "disconnected";
       }
 
       setBackendDisconnectReason(null);
@@ -300,6 +314,7 @@ function CustomerAuthBridgeProvider({
           type: "SYNC_SUCCEEDED",
         }),
       );
+      return "ready";
     } catch (error) {
       setCustomerSession(null);
       setCustomerAccount(null);
@@ -310,7 +325,7 @@ function CustomerAuthBridgeProvider({
         reduceCustomerAuthFlow(current, { type: "SYNC_FAILED" }),
       );
       setErrorMessage(SAFE_LOGIN_FAILURE_MESSAGE);
-      throw error;
+      return "error";
     } finally {
       setIsBusy(false);
     }
@@ -354,7 +369,12 @@ function CustomerAuthBridgeProvider({
         markAuthenticated: () => {
           setIsAuthenticated(true);
         },
-        refreshCustomerProfile: syncAuthenticatedCustomerProfile,
+        debugLog: logMobileAuthDebug,
+        isLogtoSessionAvailable: async () => await client.isAuthenticated(),
+        refreshCustomerProfile: async () => {
+          const outcome = await syncAuthenticatedCustomerProfile();
+          return outcome === "ready" || outcome === "profile-warning";
+        },
       });
 
       if (result.state === "error") {
@@ -388,7 +408,7 @@ function CustomerAuthBridgeProvider({
     void refreshCustomerProfile().catch(() => undefined);
   }, [clearCustomerState, isAuthenticated, isInitialized, refreshCustomerProfile]);
 
-  const signIn = useCallback(async () => {
+  const startAuthFlow = useCallback(async (intent: CustomerAuthIntent) => {
     setErrorMessage(null);
     setAuthFlow((current) =>
       reduceCustomerAuthFlow(current, { type: "START_LOGIN" }),
@@ -398,8 +418,13 @@ function CustomerAuthBridgeProvider({
     try {
       await startCustomerLogin({
         beforeOpenAuth: showPreAuthTransition,
+        intent,
         redirectUri: runtimeConfig.redirectUri,
-        signIn: async (redirectUri) => await logtoSignIn(redirectUri),
+        signIn: async (options: CustomerLoginOptions) =>
+          await logtoSignIn({
+            ...options,
+            prompt: Prompt.Login,
+          }),
       });
     } catch (error) {
       setAuthFlow((current) =>
@@ -413,6 +438,14 @@ function CustomerAuthBridgeProvider({
       setIsBusy(false);
     }
   }, [logtoSignIn, runtimeConfig.redirectUri]);
+
+  const signIn = useCallback(async () => {
+    await startAuthFlow("login");
+  }, [startAuthFlow]);
+
+  const register = useCallback(async () => {
+    await startAuthFlow("register");
+  }, [startAuthFlow]);
 
   const signOut = useCallback(async () => {
     setErrorMessage(null);
@@ -430,19 +463,27 @@ function CustomerAuthBridgeProvider({
 
     try {
       await logtoSignOut(runtimeConfig.redirectUri);
-      clearCustomerState();
     } catch (error) {
+      logMobileAuthDebug("logout.logto_signout_failed");
+      try {
+        await client.clearAllTokens();
+      } catch {
+        logMobileAuthDebug("logout.clear_tokens_failed");
+      }
       setErrorMessage(getErrorMessage(error));
-      throw error;
     } finally {
+      setIsAuthenticated(false);
+      clearCustomerState();
       setIsBusy(false);
     }
   }, [
+    client,
     clearCustomerState,
     logtoSignOut,
     runtimeConfig.apiBaseUrl,
     runtimeConfig.logoutPath,
     runtimeConfig.redirectUri,
+    setIsAuthenticated,
   ]);
 
   const value = useMemo<CustomerAuthContextValue>(
@@ -471,6 +512,7 @@ function CustomerAuthBridgeProvider({
             ? getDisconnectedBackendMessage(backendDisconnectReason)
             : null,
         profileWarningMessage,
+        register,
         refreshCustomerProfile,
         signIn,
         signOut,
@@ -489,6 +531,7 @@ function CustomerAuthBridgeProvider({
       isInitialized,
       backendDisconnectReason,
       profileWarningMessage,
+      register,
       refreshCustomerProfile,
       signIn,
       signOut,
@@ -527,6 +570,7 @@ export function CustomerAuthProvider({ children }: PropsWithChildren) {
       config={{
         appId: runtimeConfig.appId,
         endpoint: runtimeConfig.endpoint,
+        prompt: [Prompt.Login, Prompt.Consent],
         scopes: runtimeConfig.scopes,
       }}
     >

@@ -72,6 +72,54 @@ describe("completeCustomerLogtoCallback", () => {
     ]);
   });
 
+  it("recovers when the native SDK already handled the callback before the route runs", async () => {
+    const steps: string[] = [];
+
+    await expect(
+      completeCustomerLogtoCallback({
+        callbackUrl:
+          "tikprofil://auth/callback?code=authorization-code&state=callback-state",
+        handleSignInCallback: async () => {
+          steps.push("handle-callback");
+          throw new Error("sign-in session not found");
+        },
+        isLogtoSessionAvailable: async () => {
+          steps.push("probe-existing-session");
+          return true;
+        },
+        markAuthenticated: () => {
+          steps.push("mark-authenticated");
+        },
+        refreshCustomerProfile: async () => {
+          steps.push("refresh-profile");
+          return true;
+        },
+      }),
+    ).resolves.toEqual({ recovered: true, state: "success" });
+
+    expect(steps).toEqual([
+      "handle-callback",
+      "probe-existing-session",
+      "mark-authenticated",
+      "refresh-profile",
+    ]);
+  });
+
+  it("returns a retryable safe error when callback succeeds but customer session sync fails", async () => {
+    await expect(
+      completeCustomerLogtoCallback({
+        callbackUrl:
+          "tikprofil://auth/callback?code=authorization-code&state=callback-state",
+        handleSignInCallback: async () => undefined,
+        refreshCustomerProfile: async () => false,
+      }),
+    ).resolves.toEqual({
+      canRetry: true,
+      errorMessage: "Musteri giris geri donusu tamamlanamadi.",
+      state: "error",
+    });
+  });
+
   it("returns a safe error without exposing callback secrets", async () => {
     const consoleErrorSpy = jest
       .spyOn(console, "error")
@@ -87,6 +135,7 @@ describe("completeCustomerLogtoCallback", () => {
         refreshCustomerProfile: async () => undefined,
       }),
     ).resolves.toEqual({
+      canRetry: true,
       errorMessage: "Musteri giris geri donusu tamamlanamadi.",
       state: "error",
     });

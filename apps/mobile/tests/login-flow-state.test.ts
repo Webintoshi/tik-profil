@@ -104,4 +104,21 @@ describe("reduceCustomerAuthFlow", () => {
       ),
     ).toEqual(idle);
   });
+
+  it("starts a fresh login state after logout clears stale auth errors", () => {
+    const afterLogout = reduceCustomerAuthFlow(
+      {
+        errorMessage: "Giriş tamamlanamadı. Lütfen tekrar deneyin.",
+        status: "failed",
+      },
+      { type: "LOGOUT" },
+    );
+
+    expect(
+      reduceCustomerAuthFlow(afterLogout, { type: "START_LOGIN" }),
+    ).toEqual({
+      errorMessage: null,
+      status: "startingLogin",
+    });
+  });
 });

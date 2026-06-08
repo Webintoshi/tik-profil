@@ -399,11 +399,38 @@ export async function logout(input: {
   }
 }
 
+export type CustomerAuthIntent = "login" | "register";
+
+export interface CustomerLoginOptions {
+  clearTokens: true;
+  firstScreen: "register" | "sign_in";
+  prompt: "login";
+  redirectUri: string;
+}
+
+export function buildCustomerLoginOptions(input: {
+  intent: CustomerAuthIntent;
+  redirectUri: string;
+}): CustomerLoginOptions {
+  return {
+    clearTokens: true,
+    firstScreen: input.intent === "register" ? "register" : "sign_in",
+    prompt: "login",
+    redirectUri: input.redirectUri,
+  };
+}
+
 export async function startCustomerLogin(input: {
   beforeOpenAuth?: () => Promise<void> | void;
+  intent: CustomerAuthIntent;
   redirectUri: string;
-  signIn: (redirectUri: string) => Promise<void>;
+  signIn: (options: CustomerLoginOptions) => Promise<void>;
 }): Promise<void> {
   await input.beforeOpenAuth?.();
-  await input.signIn(input.redirectUri);
+  await input.signIn(
+    buildCustomerLoginOptions({
+      intent: input.intent,
+      redirectUri: input.redirectUri,
+    }),
+  );
 }

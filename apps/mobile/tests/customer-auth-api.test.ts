@@ -1,4 +1,5 @@
 import {
+  buildCustomerLoginOptions,
   bootstrapCustomerSession,
   getAccount,
   getCustomerProfile,
@@ -653,20 +654,26 @@ describe("logout", () => {
 
 describe("startCustomerLogin", () => {
   it("delegates the native callback URI to the provided login adapter", async () => {
-    const signIn = jest.fn<Promise<void>, [string]>().mockResolvedValue(undefined);
+    const signIn = jest.fn<Promise<void>, [ReturnType<typeof buildCustomerLoginOptions>]>().mockResolvedValue(undefined);
 
     await expect(
       startCustomerLogin({
+        intent: "login",
         redirectUri: "tikprofil://auth/callback",
         signIn,
       }),
     ).resolves.toBeUndefined();
-    expect(signIn).toHaveBeenCalledWith("tikprofil://auth/callback");
+    expect(signIn).toHaveBeenCalledWith({
+      clearTokens: true,
+      firstScreen: "sign_in",
+      prompt: "login",
+      redirectUri: "tikprofil://auth/callback",
+    });
   });
 
   it("runs the branded pre-auth transition before opening native auth", async () => {
     const steps: string[] = [];
-    const signIn = jest.fn<Promise<void>, [string]>().mockImplementation(async () => {
+    const signIn = jest.fn<Promise<void>, [ReturnType<typeof buildCustomerLoginOptions>]>().mockImplementation(async () => {
       steps.push("open-auth");
     });
 
@@ -675,11 +682,31 @@ describe("startCustomerLogin", () => {
         beforeOpenAuth: async () => {
           steps.push("show-transition");
         },
+        intent: "login",
         redirectUri: "tikprofil://auth/callback",
         signIn,
       }),
     ).resolves.toBeUndefined();
 
     expect(steps).toEqual(["show-transition", "open-auth"]);
+  });
+
+  it("starts account creation with a distinct register first screen", async () => {
+    const signIn = jest.fn<Promise<void>, [ReturnType<typeof buildCustomerLoginOptions>]>().mockResolvedValue(undefined);
+
+    await expect(
+      startCustomerLogin({
+        intent: "register",
+        redirectUri: "tikprofil://auth/callback",
+        signIn,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(signIn).toHaveBeenCalledWith({
+      clearTokens: true,
+      firstScreen: "register",
+      prompt: "login",
+      redirectUri: "tikprofil://auth/callback",
+    });
   });
 });

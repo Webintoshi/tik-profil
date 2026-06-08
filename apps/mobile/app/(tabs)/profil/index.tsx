@@ -46,6 +46,7 @@ export default function ProfileScreen() {
     isConfigured,
     limitationMessage,
     profileWarningMessage,
+    register,
     refreshCustomerProfile,
     signIn,
     signOut,
@@ -85,6 +86,7 @@ export default function ProfileScreen() {
         <AuthLandingPanel
           isBusy={isBusy}
           isConfigured={isConfigured}
+          onRegister={() => void register()}
           onSignIn={() => void signIn()}
         />
       ) : null}
