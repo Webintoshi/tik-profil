@@ -1,17 +1,36 @@
 import { CameraOff, QrCode } from "lucide-react-native";
 import { Text, View } from "react-native";
+import { FullAccessRequiredPanel } from "@/components/auth/customer-auth-panels";
 import { AppScrollScreen } from "@/components/layout/app-scroll-screen";
 import { SectionHeader } from "@/components/ui/section-header";
 import { SurfaceCard } from "@/components/ui/surface-card";
+import { useCustomerAuth } from "@/providers/customer-auth-provider";
 import { tokens } from "@/theme/tokens";
 
 export default function QrPlaceholderScreen() {
+  const { canAccessFullApp, isAuthenticated } = useCustomerAuth();
+
+  if (!canAccessFullApp) {
+    return (
+      <AppScrollScreen
+        header={
+          <SectionHeader
+            title="QR"
+            subtitle="QR deneyimi için önce müşteri hesabı tamamlanmalı."
+          />
+        }
+      >
+        <FullAccessRequiredPanel isAuthenticated={isAuthenticated} />
+      </AppScrollScreen>
+    );
+  }
+
   return (
     <AppScrollScreen
       header={
         <SectionHeader
-          title="QR tarayıcı placeholder"
-          subtitle="Gerçek kamera ve tarama akışı bu foundation sürümünde deliberately dışarıda bırakıldı."
+          title="QR tarayıcı"
+          subtitle="Kampanya, menü ve işletme yönlendirmeleri için hazırlanıyor."
         />
       }
     >
@@ -40,8 +59,8 @@ export default function QrPlaceholderScreen() {
           >
             <QrCode color={tokens.colors.primary} size={52} />
           </View>
-          <Text style={{ color: tokens.colors.text, fontSize: 18, fontWeight: "700" }}>
-            Tarayıcı altyapısı hazırlanacak
+          <Text style={{ color: tokens.colors.text, fontSize: 18, fontWeight: "800" }}>
+            Tarayıcı yakında aktif olacak
           </Text>
           <Text
             style={{
@@ -51,8 +70,8 @@ export default function QrPlaceholderScreen() {
               textAlign: "center",
             }}
           >
-            Expo Camera entegrasyonu, QR çözümleme ve işletme yönlendirmesi bir sonraki
-            bağlantı aşamasında eklenecek.
+            Expo Camera entegrasyonu ve QR çözümleme sonraki mobil ürün branch'inde
+            eklenecek.
           </Text>
         </View>
       </SurfaceCard>
@@ -60,7 +79,7 @@ export default function QrPlaceholderScreen() {
         <View style={{ flexDirection: "row", gap: 12 }}>
           <CameraOff color={tokens.colors.primary} size={20} />
           <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20, flex: 1 }}>
-            Bu ekran production push, auth veya stateful müşteri route’larına bağlı değildir.
+            Bu ekranda sipariş, ödeme veya rezervasyon verisi oluşturulmaz.
           </Text>
         </View>
       </SurfaceCard>

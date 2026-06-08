@@ -1,28 +1,33 @@
 import { Link } from "expo-router";
-import { ChevronRight, ShieldCheck, UserRound } from "lucide-react-native";
+import { CheckCircle2, ChevronRight, ShieldCheck, UserRound } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
+import {
+  AccountCompletionPanel,
+  AuthLandingPanel,
+  AuthSyncPanel,
+  ProfileWarningPanel,
+} from "@/components/auth/customer-auth-panels";
 import { AppScrollScreen } from "@/components/layout/app-scroll-screen";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { SurfaceCard } from "@/components/ui/surface-card";
-import { useAppSession } from "@/providers/app-session-provider";
 import { useCustomerAuth } from "@/providers/customer-auth-provider";
 import { tokens } from "@/theme/tokens";
 
 export default function ProfileScreen() {
-  const { selectedLocation } = useAppSession();
   const {
+    accountCompletion,
     backendStatus,
     customerAccount,
     customerIdentity,
-    customerSession,
     errorMessage,
     isAuthenticated,
     isBackendSessionReady,
     isBusy,
     isConfigured,
-    isInitialized,
     limitationMessage,
+    profileWarningMessage,
+    refreshCustomerProfile,
     signIn,
     signOut,
   } = useCustomerAuth();
@@ -31,167 +36,163 @@ export default function ProfileScreen() {
     <AppScrollScreen
       header={
         <SectionHeader
-          title={isAuthenticated ? "Profil ve oturum" : "Musteri girisi"}
+          title={isAuthenticated ? "Hesabım" : "Giriş Yap"}
           subtitle={
             isAuthenticated
-              ? "Yerel Logto kimligi ve backend customer session durumu birlikte raporlanir."
-              : "Bu sekme Expo customer Logto girisini ve backend customer bridge sonucunu dogrular."
+              ? "Müşteri oturumu, profil durumu ve hesap tamamlama akışı."
+              : "Tık Profil'i kullanmak için giriş yap veya yeni hesap oluştur."
           }
         />
       }
     >
-      <SurfaceCard>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-          <View
-            style={{
-              width: 52,
-              height: 52,
-              borderRadius: 18,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "#EAF3FC",
-            }}
-          >
-            <UserRound color={tokens.colors.primary} size={24} />
-          </View>
-          <View style={{ flex: 1, gap: 4 }}>
-            <Text style={{ color: tokens.colors.text, fontSize: 18, fontWeight: "700" }}>
-              {customerIdentity?.displayName ?? "Misafir mod"}
-            </Text>
-            <Text style={{ color: tokens.colors.textMuted, fontSize: 14 }}>
-              {customerIdentity?.identifier ??
-                (isConfigured
-                  ? "Customer actor bu cihazda native Logto ile acilabilir."
-                  : "Bu build icin mobile auth config henuz hazir degil.")}
-            </Text>
-          </View>
-        </View>
-      </SurfaceCard>
+      {!isAuthenticated ? (
+        <AuthLandingPanel
+          isBusy={isBusy}
+          isConfigured={isConfigured}
+          onSignIn={() => void signIn()}
+        />
+      ) : null}
 
-      <SurfaceCard>
-        <Text style={{ color: tokens.colors.text, fontSize: 16, fontWeight: "700" }}>
-          Oturum aksiyonlari
-        </Text>
-        {!isAuthenticated ? (
-          <>
-            <Button disabled={!isConfigured || isBusy} onPress={() => void signIn()}>
-              {isBusy ? "Giris baslatiliyor" : "Giris Yap"}
-            </Button>
-            <Button disabled variant="secondary">
-              Google ile devam et (Yakinda)
-            </Button>
-            <Button disabled variant="secondary">
-              Apple ile devam et (Yakinda)
-            </Button>
-            <Text style={{ color: tokens.colors.textMuted, fontSize: 13, lineHeight: 20 }}>
-              Google ve Apple connector kurulumu bu branchte sadece placeholder olarak tutuldu.
-            </Text>
-          </>
-        ) : (
-          <>
-            <Button disabled={isBusy} onPress={() => void signOut()} variant="secondary">
-              {isBusy ? "Cikis yapiliyor" : "Cikis yap"}
-            </Button>
-            <Text style={{ color: tokens.colors.textMuted, fontSize: 13, lineHeight: 20 }}>
-              Native Logto oturumu cihazda tutulur. Backend customer cookie oturumu ayni akista
-              ayrica dogrulanir.
-            </Text>
-          </>
-        )}
-      </SurfaceCard>
+      {isAuthenticated && backendStatus === "loading" ? (
+        <AuthSyncPanel />
+      ) : null}
 
-      <SurfaceCard>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <ShieldCheck color={tokens.colors.primary} size={18} />
-          <Text style={{ color: tokens.colors.text, fontSize: 16, fontWeight: "700" }}>
-            Backend senkronu
+      {isAuthenticated && backendStatus === "profile-warning" ? (
+        <ProfileWarningPanel
+          message={profileWarningMessage}
+          onRetry={() => void refreshCustomerProfile()}
+        />
+      ) : null}
+
+      {isAuthenticated &&
+      backendStatus === "ready" &&
+      !accountCompletion.isComplete ? (
+        <AccountCompletionPanel
+          displayName={customerAccount?.displayName ?? customerIdentity?.displayName}
+          email={customerAccount?.email ?? customerIdentity?.email}
+          missingFields={accountCompletion.missingFields}
+          phone={customerAccount?.phone}
+        />
+      ) : null}
+
+      {isAuthenticated && backendStatus === "disconnected" ? (
+        <SurfaceCard>
+          <Text style={{ color: tokens.colors.warning, fontSize: 18, fontWeight: "800" }}>
+            Oturum doğrulanıyor
           </Text>
-        </View>
-        <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-          Init: {isInitialized ? "tamam" : "bekleniyor"}
-        </Text>
-        <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-          Local Logto: {isAuthenticated ? "bagli" : "yok"}
-        </Text>
-        <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-          Backend actor: {isAuthenticated ? "customer" : "misafir"}
-        </Text>
-        <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-          Backend durum: {backendStatus}
-        </Text>
-        {customerSession?.appUserId ? (
+          <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
+            {limitationMessage ??
+              "Backend müşteri oturumu henüz doğrulanamadı. Birkaç saniye sonra tekrar deneyebilirsin."}
+          </Text>
+          <Button onPress={() => void refreshCustomerProfile()} variant="secondary">
+            Tekrar dene
+          </Button>
+        </SurfaceCard>
+      ) : null}
+
+      {isAuthenticated && isBackendSessionReady ? (
+        <SurfaceCard>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+            <View
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 20,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#EAF3FC",
+              }}
+            >
+              <UserRound color={tokens.colors.primary} size={26} />
+            </View>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={{ color: tokens.colors.text, fontSize: 20, fontWeight: "800" }}>
+                {customerAccount?.displayName ?? customerIdentity?.displayName ?? "Müşteri"}
+              </Text>
+              <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14 }}>
+                {customerAccount?.email ?? customerIdentity?.identifier ?? "Mail bekleniyor"}
+              </Text>
+            </View>
+          </View>
+        </SurfaceCard>
+      ) : null}
+
+      {isAuthenticated && isBackendSessionReady ? (
+        <SurfaceCard>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            {accountCompletion.isComplete ? (
+              <CheckCircle2 color={tokens.colors.success} size={19} />
+            ) : (
+              <ShieldCheck color={tokens.colors.warning} size={19} />
+            )}
+            <Text style={{ color: tokens.colors.text, fontSize: 16, fontWeight: "800" }}>
+              Hesap durumu
+            </Text>
+          </View>
+          <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
+            {accountCompletion.isComplete
+              ? "Hesap tamamlandı. Keşfet, arama ve favori ekranlarına tam erişim açık."
+              : "Tam erişim için ad soyad, mail adresi ve telefon numarası tamamlanmalı."}
+          </Text>
           <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-            Backend app user: {customerSession.appUserId}
+            Backend sync: {backendStatus}
           </Text>
-        ) : null}
-        {isBackendSessionReady && customerAccount ? (
-          <>
-            <Text style={{ color: tokens.colors.text, fontSize: 15, fontWeight: "700" }}>
-              Hesap ozeti
+          {profileWarningMessage ? (
+            <Text style={{ color: tokens.colors.warning, fontSize: 14, lineHeight: 20 }}>
+              {profileWarningMessage}
             </Text>
-            <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-              Ad: {customerAccount.displayName ?? "Customer"}
+          ) : null}
+          {limitationMessage ? (
+            <Text style={{ color: tokens.colors.warning, fontSize: 14, lineHeight: 20 }}>
+              {limitationMessage}
             </Text>
-            <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-              E-posta: {customerAccount.email ?? "Yok"}
+          ) : null}
+          {errorMessage && backendStatus === "error" ? (
+            <Text style={{ color: tokens.colors.danger, fontSize: 14, lineHeight: 20 }}>
+              {errorMessage}
             </Text>
-            <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-              Cuzdan puani: {customerAccount.wallet?.points ?? 0}
-            </Text>
-          </>
-        ) : null}
-        {limitationMessage ? (
-          <Text style={{ color: tokens.colors.warning, fontSize: 14, lineHeight: 20 }}>
-            {limitationMessage}
-          </Text>
-        ) : null}
-        {errorMessage ? (
-          <Text style={{ color: tokens.colors.danger, fontSize: 14, lineHeight: 20 }}>
-            {errorMessage}
-          </Text>
-        ) : null}
-      </SurfaceCard>
+          ) : null}
+        </SurfaceCard>
+      ) : null}
 
-      <SurfaceCard>
-        <Text style={{ color: tokens.colors.text, fontSize: 16, fontWeight: "700" }}>
-          Uygulama durumu
-        </Text>
-        <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-          Konum: {selectedLocation?.label ?? "Secilmedi"}
-        </Text>
-        <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-          Mobile auth hedefi: customer
-        </Text>
-      </SurfaceCard>
-
-      <Link href="/settings" asChild>
-        <Pressable
-          style={{
-            minHeight: 54,
-            borderRadius: tokens.radius.md,
-            borderCurve: "continuous",
-            borderWidth: 1,
-            borderColor: tokens.colors.border,
-            backgroundColor: tokens.colors.surface,
-            justifyContent: "center",
-            paddingHorizontal: tokens.spacing.lg,
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              width: "100%",
-            }}
-          >
-            <Text style={{ color: tokens.colors.text, fontSize: 16, fontWeight: "700" }}>
-              Ayarlar
-            </Text>
-            <ChevronRight color={tokens.colors.textSoft} size={18} />
-          </View>
-        </Pressable>
-      </Link>
+      {isAuthenticated ? (
+        <SurfaceCard>
+          <Text style={{ color: tokens.colors.text, fontSize: 16, fontWeight: "800" }}>
+            Oturum
+          </Text>
+          <Button disabled={isBusy} onPress={() => void signOut()} variant="secondary">
+            {isBusy ? "Çıkış yapılıyor" : "Çıkış yap"}
+          </Button>
+          <Link href="/settings" asChild>
+            <Pressable
+              style={{
+                minHeight: 54,
+                borderRadius: tokens.radius.md,
+                borderCurve: "continuous",
+                borderWidth: 1,
+                borderColor: tokens.colors.border,
+                backgroundColor: tokens.colors.surfaceMuted,
+                justifyContent: "center",
+                paddingHorizontal: tokens.spacing.lg,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                }}
+              >
+                <Text style={{ color: tokens.colors.text, fontSize: 16, fontWeight: "700" }}>
+                  Ayarlar
+                </Text>
+                <ChevronRight color={tokens.colors.textSoft} size={18} />
+              </View>
+            </Pressable>
+          </Link>
+        </SurfaceCard>
+      ) : null}
     </AppScrollScreen>
   );
 }

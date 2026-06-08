@@ -448,6 +448,7 @@ describe("syncCustomerBackendSession", () => {
         apiBaseUrl: "https://tikprofil.com",
         fetchImpl: fetchMock,
         idToken: "id-token-1",
+        sessionRetryDelaysMs: [],
       }),
     ).resolves.toEqual({
       account: null,
@@ -456,6 +457,163 @@ describe("syncCustomerBackendSession", () => {
       session: null,
       state: "disconnected",
       usedBridge: true,
+    });
+  });
+
+  it("retries the backend session read after the mobile bridge before reporting a missing cookie", async () => {
+    const fetchMock = jest
+      .fn<Promise<Response>, [RequestInfo | URL, RequestInit?]>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: false, error: "No session" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              success: true,
+              actorType: "customer",
+              appUserId: "app-user-1",
+              logtoSub: "logto|customer-1",
+              provider: "logto",
+              role: "customer",
+            },
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: false, error: "Still syncing" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            actorType: "customer",
+            appUserId: "app-user-1",
+            logtoSub: "logto|customer-1",
+            provider: "logto",
+            role: "customer",
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              actorType: "customer",
+              appUserId: "app-user-1",
+              displayName: "Customer Example",
+              email: "customer@example.com",
+              phone: "+905551112233",
+              provider: "logto",
+              role: "customer",
+              uid: "app-user-1",
+            },
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              actorType: "customer",
+              appUserId: "app-user-1",
+              displayName: "Customer Example",
+              email: "customer@example.com",
+              phone: "+905551112233",
+              provider: "logto",
+              role: "customer",
+              uid: "app-user-1",
+            },
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+
+    await expect(
+      syncCustomerBackendSession({
+        apiBaseUrl: "https://tikprofil.com",
+        fetchImpl: fetchMock,
+        idToken: "id-token-1",
+        sessionRetryDelaysMs: [0],
+      }),
+    ).resolves.toMatchObject({
+      state: "ready",
+      session: {
+        appUserId: "app-user-1",
+      },
+    });
+  });
+
+  it("keeps a valid customer session when account/profile loading fails after /me succeeds", async () => {
+    const fetchMock = jest
+      .fn<Promise<Response>, [RequestInfo | URL, RequestInit?]>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            actorType: "customer",
+            appUserId: "app-user-1",
+            logtoSub: "logto|customer-1",
+            provider: "logto",
+            role: "customer",
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: false, error: "Account lag" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: false, error: "Profile lag" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+    await expect(
+      syncCustomerBackendSession({
+        apiBaseUrl: "https://tikprofil.com",
+        fetchImpl: fetchMock,
+        idToken: "id-token-1",
+      }),
+    ).resolves.toMatchObject({
+      account: null,
+      profile: null,
+      reason: "profile-fetch-failed",
+      session: {
+        appUserId: "app-user-1",
+      },
+      state: "profile-warning",
     });
   });
 });

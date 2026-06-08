@@ -42,6 +42,7 @@ export type CustomerProfile = CustomerAccountProfile;
 
 export type CustomerBackendSyncReason =
   | "missing-id-token"
+  | "profile-fetch-failed"
   | "session-cookie-missing";
 
 export interface CustomerBackendSyncResult {
@@ -49,7 +50,7 @@ export interface CustomerBackendSyncResult {
   profile: CustomerProfile | null;
   reason: CustomerBackendSyncReason | null;
   session: CustomerBackendSession | null;
-  state: "disconnected" | "ready";
+  state: "disconnected" | "profile-warning" | "ready";
   usedBridge: boolean;
 }
 
@@ -130,6 +131,16 @@ async function parseJsonResponse<T>(
   }
 
   return payload.data;
+}
+
+async function delay(ms: number): Promise<void> {
+  if (ms <= 0) {
+    return;
+  }
+
+  await new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 export async function getCurrentSession(input: {
@@ -261,8 +272,10 @@ export async function syncCustomerBackendSession(input: {
   idToken?: null | string;
   mePath?: string;
   profilePath?: string;
+  sessionRetryDelaysMs?: number[];
 }): Promise<CustomerBackendSyncResult> {
   const fetchImpl = input.fetchImpl ?? fetch;
+  const sessionRetryDelaysMs = input.sessionRetryDelaysMs ?? [200, 500];
   let session = await getCurrentSession({
     apiBaseUrl: input.apiBaseUrl,
     fetchImpl,
@@ -291,11 +304,20 @@ export async function syncCustomerBackendSession(input: {
       idToken,
     });
     usedBridge = true;
-    session = await getCurrentSession({
-      apiBaseUrl: input.apiBaseUrl,
-      fetchImpl,
-      mePath: input.mePath,
-    });
+
+    for (let attempt = 0; attempt <= sessionRetryDelaysMs.length; attempt += 1) {
+      session = await getCurrentSession({
+        apiBaseUrl: input.apiBaseUrl,
+        fetchImpl,
+        mePath: input.mePath,
+      });
+
+      if (session || attempt === sessionRetryDelaysMs.length) {
+        break;
+      }
+
+      await delay(sessionRetryDelaysMs[attempt] ?? 0);
+    }
 
     if (!session) {
       return {
@@ -309,7 +331,7 @@ export async function syncCustomerBackendSession(input: {
     }
   }
 
-  const [account, profile] = await Promise.all([
+  const [accountResult, profileResult] = await Promise.allSettled([
     getAccount({
       accountPath: input.accountPath,
       apiBaseUrl: input.apiBaseUrl,
@@ -321,6 +343,21 @@ export async function syncCustomerBackendSession(input: {
       profilePath: input.profilePath,
     }),
   ]);
+  const account =
+    accountResult.status === "fulfilled" ? accountResult.value : null;
+  const profile =
+    profileResult.status === "fulfilled" ? profileResult.value : null;
+
+  if (accountResult.status === "rejected" || profileResult.status === "rejected") {
+    return {
+      account,
+      profile,
+      reason: "profile-fetch-failed",
+      session,
+      state: "profile-warning",
+      usedBridge,
+    };
+  }
 
   return {
     account,

@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
+import { Heart } from "lucide-react-native";
+import { Text, View } from "react-native";
+import { buildApiUrl } from "@/api/url";
+import { resolveApiRuntimeConfig } from "@/api/config";
+import { FullAccessRequiredPanel } from "@/components/auth/customer-auth-panels";
 import { AppScrollScreen } from "@/components/layout/app-scroll-screen";
 import { EmptyState } from "@/components/states/empty-state";
 import { LoadingState } from "@/components/states/loading-state";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
+import { SurfaceCard } from "@/components/ui/surface-card";
 import { useCustomerAuth } from "@/providers/customer-auth-provider";
-import { buildApiUrl } from "@/api/url";
-import { resolveApiRuntimeConfig } from "@/api/config";
+import { tokens } from "@/theme/tokens";
 
 interface JsonErrorEnvelope {
   code?: string;
@@ -26,21 +31,15 @@ async function readJsonPayload<T>(response: Response): Promise<null | T> {
 
 export default function FavoritesScreen() {
   const apiConfig = resolveApiRuntimeConfig();
-  const {
-    isAuthenticated,
-    isBackendSessionReady,
-    isBusy,
-    isConfigured,
-    limitationMessage,
-    signIn,
-  } = useCustomerAuth();
+  const { canAccessFullApp, isAuthenticated } = useCustomerAuth();
   const [probeState, setProbeState] = useState<FavoritesProbeState>("idle");
   const [probeMessage, setProbeMessage] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let active = true;
 
-    if (!isAuthenticated || !isBackendSessionReady) {
+    if (!canAccessFullApp) {
       setProbeState("idle");
       setProbeMessage(null);
       return () => {
@@ -67,13 +66,13 @@ export default function FavoritesScreen() {
           (payload?.code === "FEATURE_NOT_READY" && payload.success === false)
         ) {
           setProbeState("not-ready");
-          setProbeMessage(payload?.error ?? "Customer favorites henuz hazir degil.");
+          setProbeMessage(payload?.error ?? "Favoriler çok yakında aktif olacak.");
           return;
         }
 
         if (!response.ok) {
           setProbeState("error");
-          setProbeMessage(payload?.error ?? "Favorites rotasi su anda acilamadi.");
+          setProbeMessage(payload?.error ?? "Favoriler şu anda açılamadı.");
           return;
         }
 
@@ -82,68 +81,66 @@ export default function FavoritesScreen() {
       .catch(() => {
         if (active) {
           setProbeState("error");
-          setProbeMessage("Favorites rotasi kontrol edilirken beklenmeyen bir hata olustu.");
+          setProbeMessage("Favoriler kontrol edilirken beklenmeyen bir hata oluştu.");
         }
       });
 
     return () => {
       active = false;
     };
-  }, [apiConfig.baseUrl, isAuthenticated, isBackendSessionReady]);
+  }, [apiConfig.baseUrl, canAccessFullApp, reloadKey]);
 
   return (
     <AppScrollScreen
       header={
         <SectionHeader
           title="Favoriler"
-          subtitle="Customer actor oturumu olmadan login gerekir; backend session baglaninca guvenli rota probe edilir."
+          subtitle="Kaydettiğin işletmeler ve kampanyalar burada toplanacak."
         />
       }
     >
-      {!isAuthenticated ? (
+      {!canAccessFullApp ? (
+        <FullAccessRequiredPanel isAuthenticated={isAuthenticated} />
+      ) : null}
+
+      {canAccessFullApp && probeState === "loading" ? (
+        <LoadingState label="Favoriler hazırlanıyor..." />
+      ) : null}
+
+      {canAccessFullApp && probeState === "not-ready" ? (
+        <SurfaceCard>
+          <View style={{ alignItems: "center", gap: tokens.spacing.md }}>
+            <Heart color={tokens.colors.primary} size={42} />
+            <Text style={{ color: tokens.colors.text, fontSize: 22, fontWeight: "900" }}>
+              Yakında
+            </Text>
+            <Text
+              style={{
+                color: tokens.colors.textMuted,
+                fontSize: 14,
+                lineHeight: 20,
+                textAlign: "center",
+              }}
+            >
+              {probeMessage ??
+                "Favori işletmeler, kampanyalar ve listeler v1 sonrası aktif edilecek."}
+            </Text>
+          </View>
+        </SurfaceCard>
+      ) : null}
+
+      {canAccessFullApp && probeState === "error" ? (
         <EmptyState
-          title="Giris gerekli"
-          description="Gercek musteri favorileri backend customer session ile korunuyor. Devam etmek icin once giris yap."
-          action={
-            <Button disabled={!isConfigured || isBusy} onPress={() => void signIn()}>
-              {isBusy ? "Giris baslatiliyor" : "Giris Yap"}
-            </Button>
-          }
+          title="Favoriler açılamadı"
+          description={probeMessage ?? "Beklenmeyen bir favoriler hatası alındı."}
+          action={<Button onPress={() => setReloadKey((value) => value + 1)}>Tekrar dene</Button>}
         />
       ) : null}
 
-      {isAuthenticated && !isBackendSessionReady ? (
+      {canAccessFullApp && probeState === "ready" ? (
         <EmptyState
-          title="Backend session bagli degil"
-          description={
-            limitationMessage ??
-            "Native Logto oturumu var, ancak backend musteri cookie oturumu bu cihazda henuz dogrulanmadi."
-          }
-        />
-      ) : null}
-
-      {isAuthenticated && isBackendSessionReady && probeState === "loading" ? (
-        <LoadingState label="Favorites rotasi kontrol ediliyor..." />
-      ) : null}
-
-      {isAuthenticated && isBackendSessionReady && probeState === "not-ready" ? (
-        <EmptyState
-          title="Yakinda"
-          description={probeMessage ?? "Customer favorites henuz hazir degil."}
-        />
-      ) : null}
-
-      {isAuthenticated && isBackendSessionReady && probeState === "error" ? (
-        <EmptyState
-          title="Rota su anda acilamadi"
-          description={probeMessage ?? "Beklenmeyen bir favorites hatasi alindi."}
-        />
-      ) : null}
-
-      {isAuthenticated && isBackendSessionReady && probeState === "ready" ? (
-        <EmptyState
-          title="Henuz veri yok"
-          description="API rotasi acildi, ancak bu branch gercek musteri favorites yazim/okuma akisini henuz genisletmiyor."
+          title="Henüz favori yok"
+          description="Beğendiğin işletmeleri kaydettiğinde bu ekran dolacak."
         />
       ) : null}
     </AppScrollScreen>

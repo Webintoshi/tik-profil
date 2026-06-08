@@ -17,6 +17,10 @@ import {
   syncCustomerBackendSession,
 } from "@/auth/api";
 import {
+  getAccountCompletionStatus,
+  type AccountCompletionStatus,
+} from "@/auth/account-completion";
+import {
   completeCustomerLogtoCallback,
   type CustomerLogtoCallbackResult,
 } from "@/auth/callback";
@@ -27,6 +31,7 @@ type BackendSyncStatus =
   | "idle"
   | "loading"
   | "ready"
+  | "profile-warning"
   | "disconnected"
   | "error";
 
@@ -38,7 +43,9 @@ interface CustomerLogtoIdentity {
 }
 
 interface CustomerAuthContextValue {
+  accountCompletion: AccountCompletionStatus;
   backendStatus: BackendSyncStatus;
+  canAccessFullApp: boolean;
   completeSignInCallback: (
     callbackUrl: null | string | undefined,
   ) => Promise<CustomerLogtoCallbackResult>;
@@ -52,6 +59,7 @@ interface CustomerAuthContextValue {
   isConfigured: boolean;
   isInitialized: boolean;
   limitationMessage: null | string;
+  profileWarningMessage: null | string;
   refreshCustomerProfile: () => Promise<void>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -135,7 +143,9 @@ function CustomerAuthDisabledProvider({
 }>) {
   const value = useMemo<CustomerAuthContextValue>(
     () => ({
+      accountCompletion: getAccountCompletionStatus(null),
       backendStatus: "idle",
+      canAccessFullApp: false,
       completeSignInCallback: async () => ({
         errorMessage: reason,
         state: "error",
@@ -150,6 +160,7 @@ function CustomerAuthDisabledProvider({
       isConfigured: false,
       isInitialized: true,
       limitationMessage: null,
+      profileWarningMessage: null,
       refreshCustomerProfile: async () => undefined,
       signIn: async () => {
         throw new Error(reason);
@@ -191,6 +202,8 @@ function CustomerAuthBridgeProvider({
   const [customerSession, setCustomerSession] =
     useState<CustomerBackendSession | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [profileWarningMessage, setProfileWarningMessage] =
+    useState<string | null>(null);
   const [backendDisconnectReason, setBackendDisconnectReason] =
     useState<CustomerBackendSyncReason | null>(null);
   const [isBusy, setIsBusy] = useState(false);
@@ -202,11 +215,13 @@ function CustomerAuthBridgeProvider({
     setCustomerSession(null);
     setBackendDisconnectReason(null);
     setErrorMessage(null);
+    setProfileWarningMessage(null);
   }, []);
 
   const syncAuthenticatedCustomerProfile = useCallback(async () => {
     setIsBusy(true);
     setErrorMessage(null);
+    setProfileWarningMessage(null);
     setBackendStatus("loading");
 
     try {
@@ -233,14 +248,24 @@ function CustomerAuthBridgeProvider({
       });
 
       if (backendSync.state !== "ready") {
+        setCustomerSession(backendSync.session);
+        setCustomerAccount(backendSync.account);
+        setBackendDisconnectReason(backendSync.reason);
+
+        if (backendSync.state === "profile-warning") {
+          setBackendStatus("profile-warning");
+          setProfileWarningMessage("Profil bilgileri su anda alinamadi.");
+          return;
+        }
+
         setCustomerSession(null);
         setCustomerAccount(null);
-        setBackendDisconnectReason(backendSync.reason);
         setBackendStatus("disconnected");
         return;
       }
 
       setBackendDisconnectReason(null);
+      setProfileWarningMessage(null);
       setCustomerSession(backendSync.session);
       setCustomerAccount(backendSync.account);
       setBackendStatus("ready");
@@ -248,6 +273,7 @@ function CustomerAuthBridgeProvider({
       setCustomerSession(null);
       setCustomerAccount(null);
       setBackendDisconnectReason(null);
+      setProfileWarningMessage(null);
       setBackendStatus("error");
       setErrorMessage(getErrorMessage(error));
       throw error;
@@ -298,6 +324,7 @@ function CustomerAuthBridgeProvider({
         setCustomerSession(null);
         setCustomerAccount(null);
         setBackendDisconnectReason(null);
+        setProfileWarningMessage(null);
         setBackendStatus("error");
         setErrorMessage(result.errorMessage ?? "Musteri oturumu hazirlanamadi.");
       }
@@ -369,26 +396,34 @@ function CustomerAuthBridgeProvider({
   ]);
 
   const value = useMemo<CustomerAuthContextValue>(
-    () => ({
-      backendStatus,
-      completeSignInCallback,
-      customerAccount,
-      customerIdentity,
-      customerSession,
-      errorMessage,
-      isAuthenticated,
-      isBackendSessionReady: backendStatus === "ready",
-      isBusy,
-      isConfigured: true,
-      isInitialized,
-      limitationMessage:
-        backendStatus === "disconnected"
-          ? getDisconnectedBackendMessage(backendDisconnectReason)
-          : null,
-      refreshCustomerProfile,
-      signIn,
-      signOut,
-    }),
+    () => {
+      const accountCompletion = getAccountCompletionStatus(customerAccount);
+
+      return {
+        accountCompletion,
+        backendStatus,
+        canAccessFullApp: backendStatus === "ready" && accountCompletion.isComplete,
+        completeSignInCallback,
+        customerAccount,
+        customerIdentity,
+        customerSession,
+        errorMessage,
+        isAuthenticated,
+        isBackendSessionReady:
+          backendStatus === "ready" || backendStatus === "profile-warning",
+        isBusy,
+        isConfigured: true,
+        isInitialized,
+        limitationMessage:
+          backendStatus === "disconnected"
+            ? getDisconnectedBackendMessage(backendDisconnectReason)
+            : null,
+        profileWarningMessage,
+        refreshCustomerProfile,
+        signIn,
+        signOut,
+      };
+    },
     [
       backendStatus,
       completeSignInCallback,
@@ -400,6 +435,7 @@ function CustomerAuthBridgeProvider({
       isBusy,
       isInitialized,
       backendDisconnectReason,
+      profileWarningMessage,
       refreshCustomerProfile,
       signIn,
       signOut,

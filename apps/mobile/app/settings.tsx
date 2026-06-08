@@ -1,5 +1,4 @@
-import { Text } from "react-native";
-import { resolveLogtoMobileRuntimeConfig } from "@/auth/config";
+import { Text, View } from "react-native";
 import { resolveApiRuntimeConfig } from "@/api/config";
 import { AppScrollScreen } from "@/components/layout/app-scroll-screen";
 import { Button } from "@/components/ui/button";
@@ -7,109 +6,85 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { useAppSession } from "@/providers/app-session-provider";
 import { useCustomerAuth } from "@/providers/customer-auth-provider";
+import { tokens } from "@/theme/tokens";
+
+function StatusLine({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 16 }}>
+      <Text style={{ color: tokens.colors.textMuted, fontSize: 14 }}>{label}</Text>
+      <Text selectable style={{ color: tokens.colors.text, fontSize: 14, fontWeight: "700" }}>
+        {value}
+      </Text>
+    </View>
+  );
+}
 
 export default function SettingsScreen() {
   const { selectedLocation } = useAppSession();
   const {
+    accountCompletion,
     backendStatus,
-    customerIdentity,
-    errorMessage,
+    customerAccount,
     isAuthenticated,
     isBusy,
     isConfigured,
-    limitationMessage,
     signOut,
   } = useCustomerAuth();
   const apiConfig = resolveApiRuntimeConfig();
-  const logtoConfig = resolveLogtoMobileRuntimeConfig();
 
   return (
     <AppScrollScreen
       header={
         <SectionHeader
           title="Ayarlar"
-          subtitle="Discovery, local Logto ve backend customer session durumu burada birlikte gorunur."
+          subtitle="Hesap, oturum ve uygulama durumu."
         />
       }
     >
       <SurfaceCard>
-        <Text style={{ fontSize: 16, fontWeight: "700" }}>Veri kaynagi</Text>
-        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
-          API modu: {apiConfig.mode}
+        <Text style={{ color: tokens.colors.text, fontSize: 17, fontWeight: "800" }}>
+          Hesap
         </Text>
-        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
-          API tabani: {apiConfig.baseUrl}
-        </Text>
-      </SurfaceCard>
-
-      <SurfaceCard>
-        <Text style={{ fontSize: 16, fontWeight: "700" }}>Logto mobile</Text>
-        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
-          Konfig: {isConfigured ? "hazir" : "eksik"}
-        </Text>
-        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
-          Local Logto signed-in: {isAuthenticated ? "evet" : "hayir"}
-        </Text>
-        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
-          Backend session synced: {backendStatus === "ready" ? "evet" : "hayir"}
-        </Text>
-        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
-          Actor: {isAuthenticated ? "customer" : "misafir"}
-        </Text>
-        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
-          Backend sync: {backendStatus}
-        </Text>
-        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
-          Bridge path: {logtoConfig.customerSessionBridgePath}
-        </Text>
-        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
-          Redirect URI: {logtoConfig.redirectUri}
-        </Text>
-        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
-          Web fallback path: {logtoConfig.webSignInPath}
-        </Text>
-        {customerIdentity?.logtoSub ? (
-          <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
-            Logto sub: {customerIdentity.logtoSub}
-          </Text>
-        ) : null}
-        {limitationMessage ? (
-          <Text style={{ fontSize: 14, lineHeight: 22 }}>{limitationMessage}</Text>
-        ) : null}
-        {errorMessage ? (
-          <Text style={{ fontSize: 14, lineHeight: 22, color: "#C64D46" }}>
-            {errorMessage}
-          </Text>
-        ) : null}
+        <StatusLine label="Giriş" value={isAuthenticated ? "Açık" : "Kapalı"} />
+        <StatusLine label="Backend session" value={backendStatus} />
+        <StatusLine
+          label="Hesap tamamlama"
+          value={accountCompletion.isComplete ? "Tamam" : "Eksik"}
+        />
+        {customerAccount?.email ? <StatusLine label="Mail" value={customerAccount.email} /> : null}
         {isAuthenticated ? (
           <Button disabled={isBusy} onPress={() => void signOut()} variant="secondary">
-            {isBusy ? "Cikis yapiliyor" : "Cikis yap"}
+            {isBusy ? "Çıkış yapılıyor" : "Çıkış yap"}
           </Button>
         ) : null}
       </SurfaceCard>
 
       <SurfaceCard>
-        <Text style={{ fontSize: 16, fontWeight: "700" }}>Placeholder baglayicilar</Text>
-        <Text style={{ fontSize: 14, lineHeight: 22 }}>
-          Google: Yakinda. Logto connector + Expo development build gerekli.
+        <Text style={{ color: tokens.colors.text, fontSize: 17, fontWeight: "800" }}>
+          Uygulama
         </Text>
-        <Text style={{ fontSize: 14, lineHeight: 22 }}>
-          Apple: Yakinda. Apple Developer hesabi, iOS bundle ID ve Android package/SHA gerekli.
+        <StatusLine label="API modu" value={apiConfig.mode} />
+        <StatusLine label="Mobil auth" value={isConfigured ? "Hazır" : "Eksik"} />
+        <StatusLine label="Konum" value={selectedLocation?.label ?? "Seçilmedi"} />
+      </SurfaceCard>
+
+      <SurfaceCard>
+        <Text style={{ color: tokens.colors.text, fontSize: 17, fontWeight: "800" }}>
+          Destek
+        </Text>
+        <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 22 }}>
+          Yardım merkezi, bildirim tercihleri ve hesap güvenliği bağlantıları v1 sonrası
+          ürün akışında tamamlanacak.
         </Text>
       </SurfaceCard>
 
       <SurfaceCard>
-        <Text style={{ fontSize: 16, fontWeight: "700" }}>Konum</Text>
-        <Text selectable style={{ fontSize: 14, lineHeight: 22 }}>
-          {selectedLocation?.label ?? "Secilmedi"}
+        <Text style={{ color: tokens.colors.text, fontSize: 17, fontWeight: "800" }}>
+          Sosyal girişler
         </Text>
-      </SurfaceCard>
-
-      <SurfaceCard>
-        <Text style={{ fontSize: 16, fontWeight: "700" }}>Not</Text>
-        <Text style={{ fontSize: 14, lineHeight: 22 }}>
-          Payments, wallet, siparisler, rezervasyonlar ve stateful customer urun akisleri halen bu
-          branch kapsami disinda.
+        <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 22 }}>
+          Google ve Apple ile devam et seçenekleri şu an yalnızca Yakında placeholder'ı.
+          Gerçek connector kurulumu bu branch kapsamında yapılmadı.
         </Text>
       </SurfaceCard>
     </AppScrollScreen>

@@ -13,25 +13,23 @@ interface BusinessCardProps {
 export function BusinessCard({ business }: BusinessCardProps) {
   return (
     <Link href={`/business/${business.slug}`} asChild>
-      <Pressable
-        style={({ pressed }) => ({
-          opacity: pressed ? 0.92 : 1,
-        })}
-      >
+      <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.92 : 1 })}>
         <View
           style={{
+            minHeight: 148,
             borderRadius: tokens.radius.lg,
             borderCurve: "continuous",
             borderWidth: 1,
             borderColor: tokens.colors.border,
             backgroundColor: tokens.colors.surface,
+            flexDirection: "row",
             overflow: "hidden",
             boxShadow: tokens.shadow.soft,
           }}
         >
           <View
             style={{
-              height: 118,
+              width: 118,
               backgroundColor: tokens.colors.surfaceStrong,
             }}
           >
@@ -44,35 +42,18 @@ export function BusinessCard({ business }: BusinessCardProps) {
               />
             ) : null}
           </View>
-          <View
-            style={{
-              gap: 12,
-              padding: tokens.spacing.lg,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-              }}
-            >
-              <View style={{ flex: 1, gap: 4 }}>
+          <View style={{ flex: 1, gap: 10, padding: tokens.spacing.md }}>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <View style={{ flex: 1, gap: 3 }}>
                 <Text
-                  style={{
-                    color: tokens.colors.text,
-                    fontSize: 18,
-                    fontWeight: "700",
-                  }}
+                  numberOfLines={1}
+                  style={{ color: tokens.colors.text, fontSize: 17, fontWeight: "800" }}
                 >
                   {business.name}
                 </Text>
                 <Text
-                  style={{
-                    color: tokens.colors.textMuted,
-                    fontSize: 14,
-                  }}
+                  numberOfLines={2}
+                  style={{ color: tokens.colors.textMuted, fontSize: 13, lineHeight: 18 }}
                 >
                   {business.tagline}
                 </Text>
@@ -80,46 +61,34 @@ export function BusinessCard({ business }: BusinessCardProps) {
               <ChevronRight color={tokens.colors.textSoft} size={18} />
             </View>
 
-            <View
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                gap: 8,
-              }}
-            >
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
               <View
                 style={{
                   borderRadius: tokens.radius.pill,
                   backgroundColor: tokens.colors.surfaceMuted,
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
                 }}
               >
-                <Text
-                  style={{
-                    color: tokens.colors.text,
-                    fontSize: 13,
-                    fontWeight: "600",
-                  }}
-                >
+                <Text style={{ color: tokens.colors.text, fontSize: 12, fontWeight: "700" }}>
                   {business.category.icon} {business.category.label}
                 </Text>
               </View>
-              {business.tags.slice(0, 2).map((tag) => (
+              {business.tags.slice(0, 1).map((tag) => (
                 <View
                   key={tag}
                   style={{
                     borderRadius: tokens.radius.pill,
                     backgroundColor: "#EDF4FD",
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
                   }}
                 >
                   <Text
                     style={{
                       color: tokens.colors.primarySoft,
-                      fontSize: 13,
-                      fontWeight: "600",
+                      fontSize: 12,
+                      fontWeight: "700",
                     }}
                   >
                     {tag}
@@ -128,77 +97,37 @@ export function BusinessCard({ business }: BusinessCardProps) {
               ))}
             </View>
 
-            <View style={{ gap: 8 }}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <MapPin color={tokens.colors.textSoft} size={15} />
+            <View style={{ gap: 7 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <MapPin color={tokens.colors.textSoft} size={14} />
                 <Text
                   selectable
-                  style={{
-                    color: tokens.colors.textMuted,
-                    fontSize: 13,
-                    flex: 1,
-                  }}
+                  numberOfLines={1}
+                  style={{ color: tokens.colors.textMuted, fontSize: 12, flex: 1 }}
                 >
                   {business.district}, {business.city}
                 </Text>
               </View>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <Clock3 color={tokens.colors.textSoft} size={15} />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Clock3 color={tokens.colors.textSoft} size={14} />
                   <Text
                     style={{
-                      color: business.isOpen
-                        ? tokens.colors.success
-                        : tokens.colors.textMuted,
-                      fontSize: 13,
-                      fontWeight: "600",
+                      color: business.isOpen ? tokens.colors.success : tokens.colors.textMuted,
+                      fontSize: 12,
+                      fontWeight: "700",
                     }}
                   >
                     {business.isOpen ? "Açık" : "Kapalı"}
                   </Text>
                 </View>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <Star color="#E3A008" fill="#E3A008" size={15} />
-                  <Text
-                    style={{
-                      color: tokens.colors.textMuted,
-                      fontSize: 13,
-                    }}
-                  >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Star color="#E3A008" fill="#E3A008" size={14} />
+                  <Text style={{ color: tokens.colors.textMuted, fontSize: 12 }}>
                     {business.rating?.toFixed(1) ?? "-"} · {business.reviewCount ?? 0}
                   </Text>
                 </View>
-                <Text
-                  style={{
-                    color: tokens.colors.primary,
-                    fontSize: 13,
-                    fontWeight: "700",
-                  }}
-                >
+                <Text style={{ color: tokens.colors.primary, fontSize: 12, fontWeight: "800" }}>
                   {formatDistanceKm(business.distanceKm)}
                 </Text>
               </View>

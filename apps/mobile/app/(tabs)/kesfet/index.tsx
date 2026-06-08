@@ -2,11 +2,12 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { MapPin, Settings2 } from "lucide-react-native";
 import { Pressable, ScrollView, Text, View } from "react-native";
+import { FullAccessRequiredPanel } from "@/components/auth/customer-auth-panels";
+import { BusinessCard } from "@/components/business/business-card";
 import { AppScrollScreen } from "@/components/layout/app-scroll-screen";
 import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
 import { LoadingState } from "@/components/states/loading-state";
-import { BusinessCard } from "@/components/business/business-card";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { SearchField } from "@/components/ui/search-field";
@@ -15,14 +16,31 @@ import { SurfaceCard } from "@/components/ui/surface-card";
 import { useCategories } from "@/hooks/use-categories";
 import { useDiscoveryFeed } from "@/hooks/use-discovery-feed";
 import { useAppSession } from "@/providers/app-session-provider";
+import { useCustomerAuth } from "@/providers/customer-auth-provider";
 import { tokens } from "@/theme/tokens";
 
 export default function DiscoverScreen() {
   const router = useRouter();
   const { selectedLocation } = useAppSession();
+  const { canAccessFullApp, isAuthenticated } = useCustomerAuth();
   const [selectedCategory, setSelectedCategory] = useState("all");
   const categories = useCategories();
   const discovery = useDiscoveryFeed(selectedLocation, selectedCategory);
+
+  if (!canAccessFullApp) {
+    return (
+      <AppScrollScreen
+        header={
+          <SectionHeader
+            title="Keşfet"
+            subtitle="Tam mobil deneyim için önce müşteri hesabı tamamlanır."
+          />
+        }
+      >
+        <FullAccessRequiredPanel isAuthenticated={isAuthenticated} />
+      </AppScrollScreen>
+    );
+  }
 
   return (
     <AppScrollScreen
@@ -42,21 +60,15 @@ export default function DiscoverScreen() {
                   <Text
                     style={{
                       color: tokens.colors.text,
-                      fontSize: 22,
-                      fontWeight: "800",
+                      fontSize: 24,
+                      fontWeight: "900",
                     }}
                   >
                     Bugün nereyi keşfetmek istersin?
                   </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     <MapPin color={tokens.colors.primarySoft} size={15} />
-                    <Text
-                      selectable
-                      style={{
-                        color: tokens.colors.textMuted,
-                        fontSize: 14,
-                      }}
-                    >
+                    <Text selectable style={{ color: tokens.colors.textMuted, fontSize: 14 }}>
                       {selectedLocation?.label ?? "Konum seçilmedi"}
                     </Text>
                   </View>
@@ -84,7 +96,10 @@ export default function DiscoverScreen() {
             </View>
           </SurfaceCard>
           <View style={{ gap: 10 }}>
-            <SectionHeader title="Kategoriler" subtitle="Kategori sonuçları ayrı bir route üzerinden açılır." />
+            <SectionHeader
+              title="Kategoriler"
+              subtitle="Popüler işletmeleri kategoriye göre keşfet."
+            />
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -115,7 +130,7 @@ export default function DiscoverScreen() {
     >
       <SectionHeader
         title="Yakındaki işletmeler"
-        subtitle="Mock mod varsayılan. Gerçek public discovery API geçişi config bayrağı ile açılacak."
+        subtitle="Yakındaki mekanlar, kampanyalar ve menüler için başlangıç noktası."
       />
       {!selectedLocation ? (
         <EmptyState
@@ -131,9 +146,7 @@ export default function DiscoverScreen() {
           }
         />
       ) : null}
-      {selectedLocation && discovery.isLoading ? (
-        <LoadingState />
-      ) : null}
+      {selectedLocation && discovery.isLoading ? <LoadingState /> : null}
       {selectedLocation && discovery.isError ? (
         <ErrorState
           description={discovery.error ?? "Keşif akışı yüklenemedi."}
@@ -145,7 +158,7 @@ export default function DiscoverScreen() {
       discovery.data.businesses.length === 0 ? (
         <EmptyState
           title="Bu bölgede henüz işletme yok"
-          description="Başka bir ilçe seçerek empty state senaryosunu da doğrulayabilirsin."
+          description="Başka bir ilçe seçerek yakınındaki işletmeleri görebilirsin."
           action={
             <Button
               onPress={() => router.push("/(onboarding)/manual-location")}

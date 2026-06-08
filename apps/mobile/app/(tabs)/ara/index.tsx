@@ -1,21 +1,38 @@
 import { useDeferredValue, useState } from "react";
-import { Text, View } from "react-native";
-import { AppScrollScreen } from "@/components/layout/app-scroll-screen";
+import { View } from "react-native";
+import { FullAccessRequiredPanel } from "@/components/auth/customer-auth-panels";
 import { BusinessCard } from "@/components/business/business-card";
+import { AppScrollScreen } from "@/components/layout/app-scroll-screen";
 import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
 import { LoadingState } from "@/components/states/loading-state";
 import { SearchField } from "@/components/ui/search-field";
 import { SectionHeader } from "@/components/ui/section-header";
-import { SurfaceCard } from "@/components/ui/surface-card";
 import { useBusinessSearch } from "@/hooks/use-business-search";
 import { useAppSession } from "@/providers/app-session-provider";
+import { useCustomerAuth } from "@/providers/customer-auth-provider";
 
 export default function SearchScreen() {
   const { selectedLocation } = useAppSession();
+  const { canAccessFullApp, isAuthenticated } = useCustomerAuth();
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const search = useBusinessSearch(deferredQuery, selectedLocation);
+
+  if (!canAccessFullApp) {
+    return (
+      <AppScrollScreen
+        header={
+          <SectionHeader
+            title="Ara"
+            subtitle="Arama için önce müşteri hesabı tamamlanmalı."
+          />
+        }
+      >
+        <FullAccessRequiredPanel isAuthenticated={isAuthenticated} />
+      </AppScrollScreen>
+    );
+  }
 
   return (
     <AppScrollScreen
@@ -26,12 +43,6 @@ export default function SearchScreen() {
             placeholder="İşletme, kategori veya mahalle ara"
             value={query}
           />
-          <SurfaceCard>
-            <Text style={{ fontSize: 14, lineHeight: 20 }}>
-              `hata` yazarsan error state, sonuçsuz bir arama yaparsan empty state,
-              normal sorgularda ise mock search results akışı görünür.
-            </Text>
-          </SurfaceCard>
         </View>
       }
     >
