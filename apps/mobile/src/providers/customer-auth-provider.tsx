@@ -7,7 +7,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
-import { LogtoProvider, useLogto } from "@logto/rn";
+import { LogtoContext, LogtoProvider, useLogto } from "@logto/rn";
 import {
   logout,
   startCustomerLogin,
@@ -16,6 +16,10 @@ import {
   type CustomerBackendSyncReason,
   syncCustomerBackendSession,
 } from "@/auth/api";
+import {
+  completeCustomerLogtoCallback,
+  type CustomerLogtoCallbackResult,
+} from "@/auth/callback";
 import { resolveLogtoMobileRuntimeConfig } from "@/auth/config";
 import { resolveApiRuntimeConfig } from "@/api/config";
 
@@ -35,6 +39,9 @@ interface CustomerLogtoIdentity {
 
 interface CustomerAuthContextValue {
   backendStatus: BackendSyncStatus;
+  completeSignInCallback: (
+    callbackUrl: null | string | undefined,
+  ) => Promise<CustomerLogtoCallbackResult>;
   customerAccount: CustomerAccountProfile | null;
   customerIdentity: CustomerLogtoIdentity | null;
   customerSession: CustomerBackendSession | null;
@@ -129,6 +136,10 @@ function CustomerAuthDisabledProvider({
   const value = useMemo<CustomerAuthContextValue>(
     () => ({
       backendStatus: "idle",
+      completeSignInCallback: async () => ({
+        errorMessage: reason,
+        state: "error",
+      }),
       customerAccount: null,
       customerIdentity: null,
       customerSession: null,
@@ -161,7 +172,9 @@ function CustomerAuthBridgeProvider({
 }: PropsWithChildren<{
   runtimeConfig: ReturnType<typeof resolveLogtoMobileRuntimeConfig>;
 }>) {
+  const { setIsAuthenticated } = useContext(LogtoContext);
   const {
+    client,
     fetchUserInfo,
     getIdToken,
     getIdTokenClaims,
@@ -191,12 +204,7 @@ function CustomerAuthBridgeProvider({
     setErrorMessage(null);
   }, []);
 
-  const refreshCustomerProfile = useCallback(async () => {
-    if (!isAuthenticated) {
-      clearCustomerState();
-      return;
-    }
-
+  const syncAuthenticatedCustomerProfile = useCallback(async () => {
     setIsBusy(true);
     setErrorMessage(null);
     setBackendStatus("loading");
@@ -247,17 +255,58 @@ function CustomerAuthBridgeProvider({
       setIsBusy(false);
     }
   }, [
-    clearCustomerState,
     fetchUserInfo,
     getIdToken,
     getIdTokenClaims,
-    isAuthenticated,
     runtimeConfig.accountPath,
     runtimeConfig.apiBaseUrl,
     runtimeConfig.customerSessionBridgePath,
     runtimeConfig.mePath,
     runtimeConfig.profilePath,
   ]);
+
+  const refreshCustomerProfile = useCallback(async () => {
+    if (!isAuthenticated) {
+      clearCustomerState();
+      return;
+    }
+
+    await syncAuthenticatedCustomerProfile();
+  }, [
+    clearCustomerState,
+    isAuthenticated,
+    syncAuthenticatedCustomerProfile,
+  ]);
+
+  const completeSignInCallback = useCallback(
+    async (callbackUrl: null | string | undefined) => {
+      setErrorMessage(null);
+      setIsBusy(true);
+
+      const result = await completeCustomerLogtoCallback({
+        callbackUrl,
+        handleSignInCallback: async (url) => {
+          await client.handleSignInCallback(url);
+        },
+        markAuthenticated: () => {
+          setIsAuthenticated(true);
+        },
+        refreshCustomerProfile: syncAuthenticatedCustomerProfile,
+      });
+
+      if (result.state === "error") {
+        setCustomerSession(null);
+        setCustomerAccount(null);
+        setBackendDisconnectReason(null);
+        setBackendStatus("error");
+        setErrorMessage(result.errorMessage ?? "Musteri oturumu hazirlanamadi.");
+      }
+
+      setIsBusy(false);
+      return result;
+    },
+    [client, setIsAuthenticated, syncAuthenticatedCustomerProfile],
+  );
 
   useEffect(() => {
     if (!isInitialized) {
@@ -322,6 +371,7 @@ function CustomerAuthBridgeProvider({
   const value = useMemo<CustomerAuthContextValue>(
     () => ({
       backendStatus,
+      completeSignInCallback,
       customerAccount,
       customerIdentity,
       customerSession,
@@ -341,6 +391,7 @@ function CustomerAuthBridgeProvider({
     }),
     [
       backendStatus,
+      completeSignInCallback,
       customerAccount,
       customerIdentity,
       customerSession,
