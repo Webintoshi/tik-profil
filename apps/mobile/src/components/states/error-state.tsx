@@ -16,20 +16,21 @@ export function ErrorState({
   return (
     <View
       style={{
-        borderRadius: tokens.radius.lg,
+        borderRadius: tokens.radius.xl,
         borderCurve: "continuous",
         borderWidth: 1,
-        borderColor: "#F0C2BF",
-        backgroundColor: "#FFF6F5",
-        gap: 10,
+        borderColor: "#F4B8B4",
+        backgroundColor: tokens.colors.dangerSoft,
+        gap: 12,
         padding: tokens.spacing.xl,
+        boxShadow: tokens.shadow.soft,
       }}
     >
       <Text
         style={{
           color: tokens.colors.danger,
-          fontSize: 18,
-          fontWeight: "700",
+          fontSize: 20,
+          fontWeight: "900",
         }}
       >
         {title}

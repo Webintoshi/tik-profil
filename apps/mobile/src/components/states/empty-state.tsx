@@ -16,20 +16,21 @@ export function EmptyState({
   return (
     <View
       style={{
-        borderRadius: tokens.radius.lg,
+        borderRadius: tokens.radius.xl,
         borderCurve: "continuous",
         borderWidth: 1,
         borderColor: tokens.colors.border,
         backgroundColor: tokens.colors.surface,
-        gap: 10,
+        gap: 12,
         padding: tokens.spacing.xl,
+        boxShadow: tokens.shadow.soft,
       }}
     >
       <Text
         style={{
           color: tokens.colors.text,
-          fontSize: 18,
-          fontWeight: "700",
+          fontSize: 20,
+          fontWeight: "900",
         }}
       >
         {title}

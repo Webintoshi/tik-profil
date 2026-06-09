@@ -4,12 +4,13 @@ import { Text, View } from "react-native";
 import { buildApiUrl } from "@/api/url";
 import { resolveApiRuntimeConfig } from "@/api/config";
 import { FullAccessRequiredPanel } from "@/components/auth/customer-auth-panels";
-import { AppScrollScreen } from "@/components/layout/app-scroll-screen";
 import { EmptyState } from "@/components/states/empty-state";
 import { LoadingState } from "@/components/states/loading-state";
 import { Button } from "@/components/ui/button";
-import { SectionHeader } from "@/components/ui/section-header";
 import { SurfaceCard } from "@/components/ui/surface-card";
+import { AppScreen } from "@/components/v2/app-screen";
+import { PromoRail } from "@/components/v2/promo-rail";
+import { SectionTitle } from "@/components/v2/section-title";
 import { useCustomerAuth } from "@/providers/customer-auth-provider";
 import { tokens } from "@/theme/tokens";
 
@@ -91,11 +92,12 @@ export default function FavoritesScreen() {
   }, [apiConfig.baseUrl, canAccessFullApp, reloadKey]);
 
   return (
-    <AppScrollScreen
+    <AppScreen
       header={
-        <SectionHeader
+        <SectionTitle
+          eyebrow="Listelerin"
           title="Favoriler"
-          subtitle="Kaydettiğin işletmeler ve kampanyalar burada toplanacak."
+          subtitle="Kaydettiğin işletmeler, kampanyalar ve QR profiller burada toplanacak."
         />
       }
     >
@@ -129,6 +131,8 @@ export default function FavoritesScreen() {
         </SurfaceCard>
       ) : null}
 
+      {canAccessFullApp && probeState === "not-ready" ? <PromoRail /> : null}
+
       {canAccessFullApp && probeState === "error" ? (
         <EmptyState
           title="Favoriler açılamadı"
@@ -143,6 +147,6 @@ export default function FavoritesScreen() {
           description="Beğendiğin işletmeleri kaydettiğinde bu ekran dolacak."
         />
       ) : null}
-    </AppScrollScreen>
+    </AppScreen>
   );
 }

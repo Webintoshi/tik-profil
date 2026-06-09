@@ -24,15 +24,16 @@ export function Button({
       onPress={onPress}
       style={({ pressed }) => ({
         minHeight: 54,
-        borderRadius: tokens.radius.md,
+        borderRadius: tokens.radius.lg,
         borderCurve: "continuous",
         alignItems: "center",
         justifyContent: "center",
         paddingHorizontal: tokens.spacing.lg,
-        backgroundColor: isPrimary ? tokens.colors.primary : tokens.colors.surface,
+        backgroundColor: isPrimary ? tokens.colors.accent : tokens.colors.surface,
         borderWidth: isPrimary ? 0 : 1,
         borderColor: tokens.colors.border,
         opacity: disabled ? 0.5 : pressed ? 0.88 : 1,
+        boxShadow: isPrimary ? tokens.shadow.glow : "none",
       })}
     >
       {typeof children === "string" ? (
@@ -40,7 +41,7 @@ export function Button({
           style={{
             color: isPrimary ? tokens.colors.white : tokens.colors.text,
             fontSize: 16,
-            fontWeight: "700",
+            fontWeight: "900",
           }}
         >
           {children}

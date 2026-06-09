@@ -1,9 +1,9 @@
 import { CameraOff, QrCode } from "lucide-react-native";
 import { Text, View } from "react-native";
 import { FullAccessRequiredPanel } from "@/components/auth/customer-auth-panels";
-import { AppScrollScreen } from "@/components/layout/app-scroll-screen";
-import { SectionHeader } from "@/components/ui/section-header";
 import { SurfaceCard } from "@/components/ui/surface-card";
+import { AppScreen } from "@/components/v2/app-screen";
+import { SectionTitle } from "@/components/v2/section-title";
 import { useCustomerAuth } from "@/providers/customer-auth-provider";
 import { tokens } from "@/theme/tokens";
 
@@ -12,25 +12,27 @@ export default function QrPlaceholderScreen() {
 
   if (!canAccessFullApp) {
     return (
-      <AppScrollScreen
+      <AppScreen
         header={
-          <SectionHeader
+          <SectionTitle
+            eyebrow="QR"
             title="QR"
-            subtitle="QR deneyimi için önce müşteri hesabı tamamlanmalı."
+            subtitle="QR profil deneyimi için hesabını hazırla."
           />
         }
       >
         <FullAccessRequiredPanel isAuthenticated={isAuthenticated} />
-      </AppScrollScreen>
+      </AppScreen>
     );
   }
 
   return (
-    <AppScrollScreen
+    <AppScreen
       header={
-        <SectionHeader
+        <SectionTitle
+          eyebrow="QR Profil"
           title="QR tarayıcı"
-          subtitle="Kampanya, menü ve işletme yönlendirmeleri için hazırlanıyor."
+          subtitle="Kampanya, menü ve işletme profillerini hızlıca açmak için hazırlanıyor."
         />
       }
     >
@@ -51,15 +53,15 @@ export default function QrPlaceholderScreen() {
               borderCurve: "continuous",
               borderWidth: 2,
               borderStyle: "dashed",
-              borderColor: tokens.colors.primarySoft,
+              borderColor: tokens.colors.accent,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: "#EDF4FD",
+              backgroundColor: tokens.colors.infoSoft,
             }}
           >
-            <QrCode color={tokens.colors.primary} size={52} />
+            <QrCode color={tokens.colors.primary} size={60} />
           </View>
-          <Text style={{ color: tokens.colors.text, fontSize: 18, fontWeight: "800" }}>
+          <Text style={{ color: tokens.colors.text, fontSize: 21, fontWeight: "900" }}>
             Tarayıcı yakında aktif olacak
           </Text>
           <Text
@@ -70,8 +72,8 @@ export default function QrPlaceholderScreen() {
               textAlign: "center",
             }}
           >
-            Expo Camera entegrasyonu ve QR çözümleme sonraki mobil ürün branch'inde
-            eklenecek.
+            QR profil, kampanya ve menü bağlantıları için güvenli tarama deneyimi
+            hazırlanıyor.
           </Text>
         </View>
       </SurfaceCard>
@@ -83,6 +85,6 @@ export default function QrPlaceholderScreen() {
           </Text>
         </View>
       </SurfaceCard>
-    </AppScrollScreen>
+    </AppScreen>
   );
 }

@@ -2,12 +2,12 @@ import { useDeferredValue, useState } from "react";
 import { View } from "react-native";
 import { FullAccessRequiredPanel } from "@/components/auth/customer-auth-panels";
 import { BusinessCard } from "@/components/business/business-card";
-import { AppScrollScreen } from "@/components/layout/app-scroll-screen";
 import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
 import { LoadingState } from "@/components/states/loading-state";
 import { SearchField } from "@/components/ui/search-field";
-import { SectionHeader } from "@/components/ui/section-header";
+import { AppScreen } from "@/components/v2/app-screen";
+import { SectionTitle } from "@/components/v2/section-title";
 import { useBusinessSearch } from "@/hooks/use-business-search";
 import { useAppSession } from "@/providers/app-session-provider";
 import { useCustomerAuth } from "@/providers/customer-auth-provider";
@@ -21,23 +21,29 @@ export default function SearchScreen() {
 
   if (!canAccessFullApp) {
     return (
-      <AppScrollScreen
+      <AppScreen
         header={
-          <SectionHeader
+          <SectionTitle
+            eyebrow="Arama"
             title="Ara"
-            subtitle="Arama için önce müşteri hesabı tamamlanmalı."
+            subtitle="İşletme, kategori ve mahalle aramak için hesabını hazırla."
           />
         }
       >
         <FullAccessRequiredPanel isAuthenticated={isAuthenticated} />
-      </AppScrollScreen>
+      </AppScreen>
     );
   }
 
   return (
-    <AppScrollScreen
+    <AppScreen
       header={
         <View style={{ gap: 16 }}>
+          <SectionTitle
+            eyebrow="Arama"
+            title="Ne arıyorsun?"
+            subtitle="İşletme adı, kategori ya da mahalle ile hızlıca keşfet."
+          />
           <SearchField
             onChangeText={setQuery}
             placeholder="İşletme, kategori veya mahalle ara"
@@ -46,7 +52,8 @@ export default function SearchScreen() {
         </View>
       }
     >
-      <SectionHeader
+      <SectionTitle
+        eyebrow="Sonuçlar"
         title="Arama sonuçları"
         subtitle={selectedLocation?.label ?? "Konum filtresi henüz seçilmedi."}
       />
@@ -75,6 +82,6 @@ export default function SearchScreen() {
             <BusinessCard business={business} key={business.id} />
           ))
         : null}
-    </AppScrollScreen>
+    </AppScreen>
   );
 }

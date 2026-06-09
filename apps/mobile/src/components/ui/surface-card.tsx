@@ -6,14 +6,14 @@ export function SurfaceCard({ children }: PropsWithChildren) {
   return (
     <View
       style={{
-        borderRadius: tokens.radius.lg,
+        borderRadius: tokens.radius.xl,
         borderCurve: "continuous",
         borderWidth: 1,
-        borderColor: tokens.colors.border,
+        borderColor: "rgba(200,215,232,0.82)",
         backgroundColor: tokens.colors.surface,
         padding: tokens.spacing.lg,
-        gap: tokens.spacing.sm,
-        boxShadow: tokens.shadow.soft,
+        gap: tokens.spacing.md,
+        boxShadow: tokens.shadow.strong,
       }}
     >
       {children}

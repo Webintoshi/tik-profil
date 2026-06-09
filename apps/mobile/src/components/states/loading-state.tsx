@@ -11,7 +11,7 @@ export function LoadingState({
   return (
     <View
       style={{
-        borderRadius: tokens.radius.lg,
+        borderRadius: tokens.radius.xl,
         borderCurve: "continuous",
         borderWidth: 1,
         borderColor: tokens.colors.border,
@@ -20,6 +20,7 @@ export function LoadingState({
         justifyContent: "center",
         gap: 12,
         padding: tokens.spacing.xl,
+        boxShadow: tokens.shadow.soft,
       }}
     >
       <ActivityIndicator color={tokens.colors.primary} />

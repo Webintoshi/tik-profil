@@ -1,33 +1,28 @@
 import { Tabs } from "expo-router";
-import {
-  Compass,
-  Heart,
-  QrCode,
-  Search,
-  UserRound,
-} from "lucide-react-native";
+import { Compass, Heart, QrCode, Search, UserRound } from "lucide-react-native";
 import { tokens } from "@/theme/tokens";
 
-const iconSize = 20;
+const iconSize = 21;
 
 export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: tokens.colors.surface },
+        headerStyle: { backgroundColor: tokens.colors.canvas },
         headerTintColor: tokens.colors.text,
         headerShadowVisible: false,
-        tabBarActiveTintColor: tokens.colors.primary,
+        tabBarActiveTintColor: tokens.colors.accent,
         tabBarInactiveTintColor: tokens.colors.textSoft,
         tabBarStyle: {
-          height: 74,
-          paddingTop: 8,
-          backgroundColor: tokens.colors.surface,
-          borderTopColor: tokens.colors.border,
+          height: 80,
+          paddingTop: 10,
+          backgroundColor: tokens.colors.surfaceInk,
+          borderTopWidth: 0,
+          boxShadow: "0 -16px 34px rgba(7, 24, 45, 0.16)",
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: "700",
+          fontWeight: "900",
           marginBottom: 6,
         },
       }}
