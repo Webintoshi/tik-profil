@@ -404,17 +404,22 @@ export type CustomerAuthIntent = "login" | "register";
 export interface CustomerLoginOptions {
   clearTokens: true;
   firstScreen: "register" | "sign_in";
+  loginHint?: string;
   prompt: "login";
   redirectUri: string;
 }
 
 export function buildCustomerLoginOptions(input: {
   intent: CustomerAuthIntent;
+  loginHint?: null | string;
   redirectUri: string;
 }): CustomerLoginOptions {
+  const loginHint = trimToNull(input.loginHint);
+
   return {
     clearTokens: true,
     firstScreen: input.intent === "register" ? "register" : "sign_in",
+    ...(loginHint ? { loginHint } : {}),
     prompt: "login",
     redirectUri: input.redirectUri,
   };
@@ -423,6 +428,7 @@ export function buildCustomerLoginOptions(input: {
 export async function startCustomerLogin(input: {
   beforeOpenAuth?: () => Promise<void> | void;
   intent: CustomerAuthIntent;
+  loginHint?: null | string;
   redirectUri: string;
   signIn: (options: CustomerLoginOptions) => Promise<void>;
 }): Promise<void> {
@@ -430,6 +436,7 @@ export async function startCustomerLogin(input: {
   await input.signIn(
     buildCustomerLoginOptions({
       intent: input.intent,
+      loginHint: input.loginHint,
       redirectUri: input.redirectUri,
     }),
   );

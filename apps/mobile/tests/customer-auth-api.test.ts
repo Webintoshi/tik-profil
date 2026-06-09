@@ -709,4 +709,25 @@ describe("startCustomerLogin", () => {
       redirectUri: "tikprofil://auth/callback",
     });
   });
+
+  it("passes a trimmed native identifier as Logto login hint", async () => {
+    const signIn = jest.fn<Promise<void>, [ReturnType<typeof buildCustomerLoginOptions>]>().mockResolvedValue(undefined);
+
+    await expect(
+      startCustomerLogin({
+        intent: "login",
+        loginHint: "  musteri@example.com  ",
+        redirectUri: "tikprofil://auth/callback",
+        signIn,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(signIn).toHaveBeenCalledWith({
+      clearTokens: true,
+      firstScreen: "sign_in",
+      loginHint: "musteri@example.com",
+      prompt: "login",
+      redirectUri: "tikprofil://auth/callback",
+    });
+  });
 });

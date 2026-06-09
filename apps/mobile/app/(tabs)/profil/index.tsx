@@ -86,8 +86,8 @@ export default function ProfileScreen() {
         <AuthLandingPanel
           isBusy={isBusy}
           isConfigured={isConfigured}
-          onRegister={() => void register()}
-          onSignIn={() => void signIn()}
+          onRegister={(identifier) => void register(identifier)}
+          onSignIn={(identifier) => void signIn(identifier)}
         />
       ) : null}
 

@@ -15,8 +15,8 @@ const completionLabels: Record<AccountCompletionField, string> = {
 interface AuthLandingPanelProps {
   isBusy: boolean;
   isConfigured: boolean;
-  onRegister: () => void;
-  onSignIn: () => void;
+  onRegister: (identifier: string) => void;
+  onSignIn: (identifier: string) => void;
 }
 
 export function AuthLandingPanel({
@@ -25,22 +25,68 @@ export function AuthLandingPanel({
   onRegister,
   onSignIn,
 }: AuthLandingPanelProps) {
+  const [identifier, setIdentifier] = useState("");
+
   return (
     <SurfaceCard>
       <View style={{ gap: tokens.spacing.md }}>
-        <View style={{ gap: 8 }}>
-          <Text style={{ color: tokens.colors.text, fontSize: 28, fontWeight: "900" }}>
-            Tık Profil'e hoş geldin
+        <View
+          style={{
+            gap: 10,
+            borderRadius: tokens.radius.lg,
+            borderCurve: "continuous",
+            backgroundColor: tokens.colors.primary,
+            padding: tokens.spacing.lg,
+          }}
+        >
+          <Text style={{ color: tokens.colors.white, fontSize: 13, fontWeight: "800" }}>
+            Tık Profil hesabı
           </Text>
-          <Text style={{ color: tokens.colors.textMuted, fontSize: 15, lineHeight: 22 }}>
-            Yakındaki işletmeleri keşfet, kampanyaları takip et ve hesabını tek müşteri
-            profiliyle kullan.
+          <Text style={{ color: tokens.colors.white, fontSize: 28, fontWeight: "900" }}>
+            Güvenli giriş
+          </Text>
+          <Text style={{ color: "#D7E6F5", fontSize: 15, lineHeight: 22 }}>
+            Yakındaki işletmeleri keşfetmek ve kampanyalarını takip etmek için hesabını
+            doğrula.
           </Text>
         </View>
-        <Button disabled={!isConfigured || isBusy} onPress={onSignIn}>
+        <View style={{ gap: 7 }}>
+          <Text style={{ color: tokens.colors.text, fontSize: 13, fontWeight: "800" }}>
+            E-posta veya telefon
+          </Text>
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!isBusy}
+            keyboardType="email-address"
+            onChangeText={setIdentifier}
+            placeholder="ornek@tikprofil.com"
+            style={{
+              minHeight: 54,
+              borderRadius: tokens.radius.lg,
+              borderCurve: "continuous",
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              backgroundColor: tokens.colors.surfaceMuted,
+              color: tokens.colors.text,
+              fontSize: 16,
+              paddingHorizontal: tokens.spacing.md,
+            }}
+            textContentType="username"
+            value={identifier}
+          />
+          <Text style={{ color: tokens.colors.textSoft, fontSize: 12, lineHeight: 18 }}>
+            Çıkış yaptıktan sonra tekrar girişte hesabını doğrulaman istenir.
+          </Text>
+        </View>
+        <Button disabled={!isConfigured || isBusy} onPress={() => onSignIn(identifier)}>
           {isBusy ? "Güvenli giriş hazırlanıyor" : "Giriş Yap"}
         </Button>
-        <Button disabled={!isConfigured || isBusy} onPress={onRegister} variant="secondary">
+        <Button
+          disabled={!isConfigured || isBusy}
+          onPress={() => onRegister(identifier)}
+          variant="secondary"
+        >
           Hesap Oluştur
         </Button>
         <View style={{ flexDirection: "row", gap: 10 }}>
@@ -56,8 +102,8 @@ export function AuthLandingPanel({
           </View>
         </View>
         <Text style={{ color: tokens.colors.textSoft, fontSize: 13, lineHeight: 19 }}>
-          Google ve Apple bağlantıları hazırlanıyor. Bu sürümde gerçek connector
-          etkinleştirilmedi.
+          Şifren ve doğrulama bilgilerin güvenli doğrulama ekranında işlenir.
+          Google ve Apple ile devam et seçenekleri yakında aktif olacak.
         </Text>
       </View>
     </SurfaceCard>

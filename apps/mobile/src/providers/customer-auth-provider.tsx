@@ -79,9 +79,9 @@ interface CustomerAuthContextValue {
   isInitialized: boolean;
   limitationMessage: null | string;
   profileWarningMessage: null | string;
-  register: () => Promise<void>;
+  register: (loginHint?: string) => Promise<void>;
   refreshCustomerProfile: () => Promise<void>;
-  signIn: () => Promise<void>;
+  signIn: (loginHint?: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -408,7 +408,10 @@ function CustomerAuthBridgeProvider({
     void refreshCustomerProfile().catch(() => undefined);
   }, [clearCustomerState, isAuthenticated, isInitialized, refreshCustomerProfile]);
 
-  const startAuthFlow = useCallback(async (intent: CustomerAuthIntent) => {
+  const startAuthFlow = useCallback(async (
+    intent: CustomerAuthIntent,
+    loginHint?: string,
+  ) => {
     setErrorMessage(null);
     setAuthFlow((current) =>
       reduceCustomerAuthFlow(current, { type: "START_LOGIN" }),
@@ -419,6 +422,7 @@ function CustomerAuthBridgeProvider({
       await startCustomerLogin({
         beforeOpenAuth: showPreAuthTransition,
         intent,
+        loginHint,
         redirectUri: runtimeConfig.redirectUri,
         signIn: async (options: CustomerLoginOptions) =>
           await logtoSignIn({
@@ -439,12 +443,12 @@ function CustomerAuthBridgeProvider({
     }
   }, [logtoSignIn, runtimeConfig.redirectUri]);
 
-  const signIn = useCallback(async () => {
-    await startAuthFlow("login");
+  const signIn = useCallback(async (loginHint?: string) => {
+    await startAuthFlow("login", loginHint);
   }, [startAuthFlow]);
 
-  const register = useCallback(async () => {
-    await startAuthFlow("register");
+  const register = useCallback(async (loginHint?: string) => {
+    await startAuthFlow("register", loginHint);
   }, [startAuthFlow]);
 
   const signOut = useCallback(async () => {
