@@ -45,6 +45,7 @@ export default function SettingsScreen() {
     isAuthenticated,
     isBusy,
     isConfigured,
+    isGoogleConfigured,
     signOut,
   } = useCustomerAuth();
   const apiConfig = resolveApiRuntimeConfig();
@@ -82,6 +83,7 @@ export default function SettingsScreen() {
         </Text>
         <StatusLine label="API modu" value={apiConfig.mode} />
         <StatusLine label="Mobil auth" value={isConfigured ? "Hazır" : "Eksik"} />
+        <StatusLine label="Google giriş" value={isGoogleConfigured ? "Hazır" : "Client ID bekliyor"} />
         <StatusLine label="Konum" value={selectedLocation?.label ?? "Seçilmedi"} />
       </SurfaceCard>
 
@@ -100,8 +102,8 @@ export default function SettingsScreen() {
           Sosyal girişler
         </Text>
         <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 22 }}>
-          Google ve Apple ile devam et seçenekleri şu an yalnızca Yakında placeholder'ı.
-          Gerçek connector kurulumu bu branch kapsamında yapılmadı.
+          Google ile devam et native akışa hazırlandı. Apple ile giriş bir sonraki auth
+          branch'inde ele alınacak.
         </Text>
       </SurfaceCard>
     </AppScrollScreen>

@@ -31,12 +31,17 @@ export default function ProfileScreen() {
     isBackendSessionReady,
     isBusy,
     isConfigured,
+    isGoogleConfigured,
     limitationMessage,
+    cancelOtp,
+    pendingOtp,
     profileWarningMessage,
     register,
     refreshCustomerProfile,
     signIn,
+    signInWithGoogle,
     signOut,
+    verifyOtp,
   } = useCustomerAuth();
   const authFlowCopy = getAuthFlowDisplayCopy({
     errorMessage,
@@ -71,8 +76,13 @@ export default function ProfileScreen() {
         <AuthLandingPanel
           isBusy={isBusy}
           isConfigured={isConfigured}
+          isGoogleConfigured={isGoogleConfigured}
+          onCancelOtp={cancelOtp}
+          onGoogleSignIn={() => void signInWithGoogle()}
           onRegister={(identifier) => void register(identifier)}
           onSignIn={(identifier) => void signIn(identifier)}
+          onVerifyOtp={(code) => void verifyOtp(code)}
+          pendingOtp={pendingOtp}
         />
       ) : null}
 

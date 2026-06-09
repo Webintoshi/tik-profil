@@ -14,7 +14,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-status-bar",
     "expo-image",
     "expo-secure-store",
-    "expo-web-browser",
+    "@react-native-google-signin/google-signin",
     [
       "expo-location",
       {
@@ -47,10 +47,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     apiMode: process.env.EXPO_PUBLIC_API_MODE ?? "mock",
     apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://tikprofil.com",
-    logtoAppId: process.env.EXPO_PUBLIC_LOGTO_APP_ID ?? "",
-    logtoEndpoint: process.env.EXPO_PUBLIC_LOGTO_ENDPOINT ?? "",
-    logtoRedirectUri:
-      process.env.EXPO_PUBLIC_LOGTO_REDIRECT_URI ?? "tikprofil://auth/callback",
+    googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "",
     publicBusinessProfilePathTemplate:
       process.env.EXPO_PUBLIC_BUSINESS_PROFILE_PATH_TEMPLATE ?? "",
   },

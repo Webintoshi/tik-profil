@@ -60,6 +60,19 @@ export interface LogtoMobileRuntimeConfig {
   webSignInPath: string;
 }
 
+export interface NativeCustomerAuthRuntimeConfig {
+  accountPath: string;
+  apiBaseUrl: string;
+  googlePath: string;
+  googleWebClientId: null | string;
+  isGoogleConfigured: boolean;
+  logoutPath: string;
+  mePath: string;
+  otpStartPath: string;
+  otpVerifyPath: string;
+  profilePath: string;
+}
+
 export function resolveLogtoMobileRuntimeConfig(
   overrides: Partial<{
     apiBaseUrl: string;
@@ -101,5 +114,32 @@ export function resolveLogtoMobileRuntimeConfig(
     redirectUri,
     scopes,
     webSignInPath: buildCustomerWebSignInPath(webCallbackPath),
+  };
+}
+
+export function resolveNativeCustomerAuthRuntimeConfig(
+  overrides: Partial<{
+    apiBaseUrl: string;
+    googleWebClientId: string;
+  }> = {},
+): NativeCustomerAuthRuntimeConfig {
+  const apiBaseUrl =
+    normalizeUrl(overrides.apiBaseUrl ?? process.env.EXPO_PUBLIC_API_BASE_URL) ??
+    "https://tikprofil.com";
+  const googleWebClientId = trimToNull(
+    overrides.googleWebClientId ?? process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+  );
+
+  return {
+    accountPath: "/api/account",
+    apiBaseUrl,
+    googlePath: "/api/auth/mobile/customer/google",
+    googleWebClientId,
+    isGoogleConfigured: Boolean(googleWebClientId),
+    logoutPath: "/api/auth/logout",
+    mePath: "/api/auth/logto/me",
+    otpStartPath: "/api/auth/mobile/customer/otp/start",
+    otpVerifyPath: "/api/auth/mobile/customer/otp/verify",
+    profilePath: "/api/kesfet/user/profile",
   };
 }

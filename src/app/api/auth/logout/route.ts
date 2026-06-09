@@ -38,7 +38,7 @@ export async function POST(request: Request) {
             body?.postLogoutRedirect,
             adminSession?.authProvider === "logto"
                 ? "/webintoshi"
-                : customerSession?.authProvider === "logto"
+                : customerSession
                     ? "/kesfet"
                     : "/giris-yap",
         );

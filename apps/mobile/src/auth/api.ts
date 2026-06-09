@@ -7,7 +7,8 @@ export interface CustomerBackendSession {
   displayName?: null | string;
   email?: null | string;
   logtoSub: string;
-  provider: "logto";
+  phone?: null | string;
+  provider: "google" | "logto" | "native_otp";
   role: "customer";
   success: true;
 }
@@ -27,7 +28,7 @@ export interface CustomerAccountProfile {
     notifications?: Record<string, boolean>;
     theme?: string;
   };
-  provider: "logto";
+  provider: "google" | "logto" | "native_otp";
   role: "customer";
   updatedAt?: string;
   uid: string;
@@ -52,6 +53,12 @@ export interface CustomerBackendSyncResult {
   session: CustomerBackendSession | null;
   state: "disconnected" | "profile-warning" | "ready";
   usedBridge: boolean;
+}
+
+export interface CustomerOtpStartResult {
+  expiresInSeconds: number;
+  maskedPhone: string;
+  resendAfterSeconds: number;
 }
 
 interface JsonErrorEnvelope {
@@ -179,7 +186,7 @@ export async function getCurrentSession(input: {
     !("success" in payload) ||
     payload.success !== true ||
     payload.actorType !== "customer" ||
-    payload.provider !== "logto" ||
+    !["logto", "native_otp", "google"].includes(String(payload.provider)) ||
     payload.role !== "customer"
   ) {
     throw new ApiClientError(
@@ -208,6 +215,99 @@ export async function getAccount(input: {
       },
     ),
     "Customer account profile could not be loaded.",
+  );
+}
+
+export async function requestCustomerOtp(input: {
+  apiBaseUrl: string;
+  fetchImpl?: typeof fetch;
+  phone: string;
+  startPath?: string;
+}): Promise<CustomerOtpStartResult> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const response = await fetchImpl(
+    buildApiUrl(
+      input.apiBaseUrl,
+      input.startPath ?? "/api/auth/mobile/customer/otp/start",
+    ),
+    {
+      body: JSON.stringify({
+        phone: input.phone,
+      }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    },
+  );
+
+  return await parseJsonResponse<CustomerOtpStartResult>(
+    response,
+    "Dogrulama kodu gonderilemedi.",
+  );
+}
+
+export async function verifyCustomerOtp(input: {
+  apiBaseUrl: string;
+  code: string;
+  fetchImpl?: typeof fetch;
+  phone: string;
+  verifyPath?: string;
+}): Promise<CustomerBackendSession> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const response = await fetchImpl(
+    buildApiUrl(
+      input.apiBaseUrl,
+      input.verifyPath ?? "/api/auth/mobile/customer/otp/verify",
+    ),
+    {
+      body: JSON.stringify({
+        code: input.code,
+        phone: input.phone,
+      }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    },
+  );
+
+  return await parseJsonResponse<CustomerBackendSession>(
+    response,
+    "Dogrulama kodu onaylanamadi.",
+  );
+}
+
+export async function signInWithGoogleIdToken(input: {
+  apiBaseUrl: string;
+  fetchImpl?: typeof fetch;
+  googlePath?: string;
+  idToken: string;
+}): Promise<CustomerBackendSession> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const response = await fetchImpl(
+    buildApiUrl(
+      input.apiBaseUrl,
+      input.googlePath ?? "/api/auth/mobile/customer/google",
+    ),
+    {
+      body: JSON.stringify({
+        actor: "customer",
+        idToken: input.idToken,
+      }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    },
+  );
+
+  return await parseJsonResponse<CustomerBackendSession>(
+    response,
+    "Google girisi tamamlanamadi.",
   );
 }
 

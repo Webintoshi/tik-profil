@@ -1,7 +1,14 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { AlertCircle, CheckCircle2, LockKeyhole, ShieldCheck, UserRound } from "lucide-react-native";
+import {
+  AlertCircle,
+  CheckCircle2,
+  LockKeyhole,
+  MessageCircle,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react-native";
 import { Text, TextInput, View } from "react-native";
 import { Button } from "@/components/ui/button";
 import { SurfaceCard } from "@/components/ui/surface-card";
@@ -14,11 +21,20 @@ const completionLabels: Record<AccountCompletionField, string> = {
   phone: "Telefon",
 };
 
+interface PendingOtpPanelState {
+  maskedPhone: string;
+  resendAfterSeconds: number;
+}
 interface AuthLandingPanelProps {
   isBusy: boolean;
   isConfigured: boolean;
-  onRegister: (identifier: string) => void;
-  onSignIn: (identifier: string) => void;
+  isGoogleConfigured: boolean;
+  onCancelOtp: () => void;
+  onGoogleSignIn: () => void;
+  onRegister: (phone: string) => void;
+  onSignIn: (phone: string) => void;
+  onVerifyOtp: (code: string) => void;
+  pendingOtp: PendingOtpPanelState | null;
 }
 
 function FieldShell({
@@ -41,10 +57,16 @@ function FieldShell({
 export function AuthLandingPanel({
   isBusy,
   isConfigured,
+  isGoogleConfigured,
+  onCancelOtp,
+  onGoogleSignIn,
   onRegister,
   onSignIn,
+  onVerifyOtp,
+  pendingOtp,
 }: AuthLandingPanelProps) {
-  const [identifier, setIdentifier] = useState("");
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
 
   return (
     <SurfaceCard>
@@ -73,86 +95,153 @@ export function AuthLandingPanel({
           </View>
           <View style={{ gap: 8 }}>
             <Text style={{ color: tokens.colors.white, fontSize: 30, fontWeight: "900" }}>
-              Güvenli giriş
+              SMS ile güvenli giriş
             </Text>
             <Text style={{ color: "rgba(255,255,255,0.78)", fontSize: 15, lineHeight: 22 }}>
-              Favorilerini, QR geçmişini ve kampanyalarını tek Tık Profil hesabında tut.
+              Telefonunu doğrula, Tık Profil hesabını uygulamadan çıkmadan aç.
             </Text>
           </View>
         </LinearGradient>
 
-        <FieldShell label="E-posta veya telefon">
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!isBusy}
-            keyboardType="email-address"
-            onChangeText={setIdentifier}
-            placeholder="ornek@tikprofil.com"
-            placeholderTextColor={tokens.colors.textSoft}
-            style={{
-              minHeight: 58,
-              borderRadius: tokens.radius.lg,
-              borderCurve: "continuous",
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-              backgroundColor: tokens.colors.surfaceMuted,
-              color: tokens.colors.text,
-              fontSize: 16,
-              fontWeight: "700",
-              paddingHorizontal: tokens.spacing.md,
-            }}
-            textContentType="username"
-            value={identifier}
-          />
-        </FieldShell>
-
-        <View style={{ gap: tokens.spacing.sm }}>
-          <Button disabled={!isConfigured || isBusy} onPress={() => onSignIn(identifier)}>
-            {isBusy ? "Giriş hazırlanıyor" : "Giriş Yap"}
-          </Button>
-          <Button
-            disabled={!isConfigured || isBusy}
-            onPress={() => onRegister(identifier)}
-            variant="secondary"
-          >
-            Hesap Oluştur
-          </Button>
-        </View>
-
-        <View style={{ flexDirection: "row", gap: tokens.spacing.sm }}>
-          <View
-            style={{
-              flex: 1,
-              borderRadius: tokens.radius.lg,
-              backgroundColor: tokens.colors.surfaceMuted,
-              padding: tokens.spacing.md,
-              gap: 5,
-            }}
-          >
-            <Text style={{ color: tokens.colors.text, fontSize: 13, fontWeight: "900" }}>
-              Google
+        {pendingOtp ? (
+          <View style={{ gap: tokens.spacing.md }}>
+            <View
+              style={{
+                borderRadius: tokens.radius.lg,
+                backgroundColor: tokens.colors.infoSoft,
+                flexDirection: "row",
+                gap: tokens.spacing.sm,
+                padding: tokens.spacing.md,
+              }}
+            >
+              <MessageCircle color={tokens.colors.primary} size={20} />
+              <Text style={{ color: tokens.colors.text, flex: 1, fontSize: 14, lineHeight: 20 }}>
+                Kod {pendingOtp.maskedPhone} numarasına gönderildi.
+              </Text>
+            </View>
+            <FieldShell label="Doğrulama kodu">
+              <TextInput
+                editable={!isBusy}
+                keyboardType="number-pad"
+                maxLength={6}
+                onChangeText={setCode}
+                placeholder="123456"
+                placeholderTextColor={tokens.colors.textSoft}
+                style={{
+                  minHeight: 58,
+                  borderRadius: tokens.radius.lg,
+                  borderCurve: "continuous",
+                  borderWidth: 1,
+                  borderColor: tokens.colors.border,
+                  backgroundColor: tokens.colors.surfaceMuted,
+                  color: tokens.colors.text,
+                  fontSize: 22,
+                  fontVariant: ["tabular-nums"],
+                  fontWeight: "900",
+                  letterSpacing: 5,
+                  paddingHorizontal: tokens.spacing.md,
+                }}
+                textContentType="oneTimeCode"
+                value={code}
+              />
+            </FieldShell>
+            <Button
+              disabled={!isConfigured || isBusy || code.trim().length !== 6}
+              onPress={() => onVerifyOtp(code)}
+            >
+              {isBusy ? "Giriş tamamlanıyor" : "Kodu doğrula"}
+            </Button>
+            <Button disabled={isBusy} onPress={onCancelOtp} variant="secondary">
+              Telefonu değiştir
+            </Button>
+            <Text style={{ color: tokens.colors.textMuted, fontSize: 12, lineHeight: 18 }}>
+              Yeni kod istemek için yaklaşık {pendingOtp.resendAfterSeconds} saniye bekle.
             </Text>
-            <Text style={{ color: tokens.colors.textMuted, fontSize: 12 }}>Yakında</Text>
           </View>
-          <View
-            style={{
-              flex: 1,
-              borderRadius: tokens.radius.lg,
-              backgroundColor: tokens.colors.surfaceMuted,
-              padding: tokens.spacing.md,
-              gap: 5,
-            }}
-          >
-            <Text style={{ color: tokens.colors.text, fontSize: 13, fontWeight: "900" }}>
-              Apple
-            </Text>
-            <Text style={{ color: tokens.colors.textMuted, fontSize: 12 }}>Yakında</Text>
+        ) : (
+          <View style={{ gap: tokens.spacing.md }}>
+            <FieldShell label="Telefon numarası">
+              <TextInput
+                autoCorrect={false}
+                editable={!isBusy}
+                keyboardType="phone-pad"
+                onChangeText={setPhone}
+                placeholder="05XX XXX XX XX"
+                placeholderTextColor={tokens.colors.textSoft}
+                style={{
+                  minHeight: 58,
+                  borderRadius: tokens.radius.lg,
+                  borderCurve: "continuous",
+                  borderWidth: 1,
+                  borderColor: tokens.colors.border,
+                  backgroundColor: tokens.colors.surfaceMuted,
+                  color: tokens.colors.text,
+                  fontSize: 16,
+                  fontWeight: "800",
+                  paddingHorizontal: tokens.spacing.md,
+                }}
+                textContentType="telephoneNumber"
+                value={phone}
+              />
+            </FieldShell>
+
+            <View style={{ gap: tokens.spacing.sm }}>
+              <Button disabled={!isConfigured || isBusy} onPress={() => onSignIn(phone)}>
+                {isBusy ? "Kod hazırlanıyor" : "SMS kodu gönder"}
+              </Button>
+              <Button
+                disabled={!isConfigured || isBusy}
+                onPress={() => onRegister(phone)}
+                variant="secondary"
+              >
+                Yeni hesap için kod al
+              </Button>
+              <Button
+                disabled={!isConfigured || isBusy || !isGoogleConfigured}
+                onPress={onGoogleSignIn}
+                variant="secondary"
+              >
+                Google ile devam et
+              </Button>
+            </View>
+
+            <View style={{ flexDirection: "row", gap: tokens.spacing.sm }}>
+              <View
+                style={{
+                  flex: 1,
+                  borderRadius: tokens.radius.lg,
+                  backgroundColor: tokens.colors.surfaceMuted,
+                  padding: tokens.spacing.md,
+                  gap: 5,
+                }}
+              >
+                <Text style={{ color: tokens.colors.text, fontSize: 13, fontWeight: "900" }}>
+                  Google
+                </Text>
+                <Text style={{ color: tokens.colors.textMuted, fontSize: 12 }}>
+                  {isGoogleConfigured ? "Hazır" : "Kurulum bekliyor"}
+                </Text>
+              </View>
+              <View
+                style={{
+                  flex: 1,
+                  borderRadius: tokens.radius.lg,
+                  backgroundColor: tokens.colors.surfaceMuted,
+                  padding: tokens.spacing.md,
+                  gap: 5,
+                }}
+              >
+                <Text style={{ color: tokens.colors.text, fontSize: 13, fontWeight: "900" }}>
+                  Apple
+                </Text>
+                <Text style={{ color: tokens.colors.textMuted, fontSize: 12 }}>Sonraki adım</Text>
+              </View>
+            </View>
           </View>
-        </View>
+        )}
 
         <Text style={{ color: tokens.colors.textMuted, fontSize: 13, lineHeight: 19 }}>
-          Çıkış yaptıktan sonra tekrar girişte hesabını doğrulaman istenir.
+          Çıkış yaptıktan sonra tekrar girişte yeni doğrulama kodu istenir.
         </Text>
       </View>
     </SurfaceCard>

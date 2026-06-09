@@ -7,33 +7,33 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
-import { LogtoContext, LogtoProvider, Prompt, useLogto } from "@logto/rn";
+import { ApiClientError } from "@/api/types";
 import {
+  getAccount,
+  getCurrentSession,
+  getCustomerProfile,
   logout,
-  startCustomerLogin,
-  type CustomerAuthIntent,
+  requestCustomerOtp,
+  signInWithGoogleIdToken,
+  verifyCustomerOtp,
   type CustomerAccountProfile,
   type CustomerBackendSession,
-  type CustomerBackendSyncReason,
-  type CustomerLoginOptions,
-  syncCustomerBackendSession,
 } from "@/auth/api";
 import {
   getAccountCompletionStatus,
   type AccountCompletionStatus,
 } from "@/auth/account-completion";
 import {
-  completeCustomerLogtoCallback,
-  logMobileAuthDebug,
-  type CustomerLogtoCallbackResult,
-} from "@/auth/callback";
-import {
   getAuthFlowDisplayError,
   initialCustomerAuthFlowState,
   reduceCustomerAuthFlow,
   type CustomerAuthFlowStatus,
 } from "@/auth/login-flow-state";
-import { resolveLogtoMobileRuntimeConfig } from "@/auth/config";
+import { resolveNativeCustomerAuthRuntimeConfig } from "@/auth/config";
+import {
+  clearNativeGoogleSession,
+  signInWithNativeGoogle,
+} from "@/auth/native-google";
 import { resolveApiRuntimeConfig } from "@/api/config";
 
 type BackendSyncStatus =
@@ -50,14 +50,26 @@ type CustomerProfileSyncOutcome =
   | "profile-warning"
   | "ready";
 
-const PRE_AUTH_TRANSITION_MS = 450;
 const SAFE_LOGIN_FAILURE_MESSAGE = "Giriş tamamlanamadı. Lütfen tekrar deneyin.";
 
-interface CustomerLogtoIdentity {
+interface PendingOtpChallenge {
+  expiresInSeconds: number;
+  maskedPhone: string;
+  phone: string;
+  resendAfterSeconds: number;
+}
+interface CustomerIdentity {
   displayName: string;
   email: null | string;
   identifier: string;
   logtoSub: null | string;
+  phone: null | string;
+}
+
+interface CallbackCompatibilityResult {
+  canRetry?: boolean;
+  errorMessage?: string;
+  state: "error" | "success";
 }
 
 interface CustomerAuthContextValue {
@@ -65,24 +77,29 @@ interface CustomerAuthContextValue {
   authFlowStatus: CustomerAuthFlowStatus;
   backendStatus: BackendSyncStatus;
   canAccessFullApp: boolean;
+  cancelOtp: () => void;
   completeSignInCallback: (
     callbackUrl: null | string | undefined,
-  ) => Promise<CustomerLogtoCallbackResult>;
+  ) => Promise<CallbackCompatibilityResult>;
   customerAccount: CustomerAccountProfile | null;
-  customerIdentity: CustomerLogtoIdentity | null;
+  customerIdentity: CustomerIdentity | null;
   customerSession: CustomerBackendSession | null;
   errorMessage: null | string;
   isAuthenticated: boolean;
   isBackendSessionReady: boolean;
   isBusy: boolean;
   isConfigured: boolean;
+  isGoogleConfigured: boolean;
   isInitialized: boolean;
   limitationMessage: null | string;
+  pendingOtp: PendingOtpChallenge | null;
   profileWarningMessage: null | string;
-  register: (loginHint?: string) => Promise<void>;
+  register: (phone: string) => Promise<void>;
   refreshCustomerProfile: () => Promise<void>;
-  signIn: (loginHint?: string) => Promise<void>;
+  signIn: (phone: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
+  verifyOtp: (code: string) => Promise<void>;
 }
 
 const CustomerAuthContext = createContext<CustomerAuthContextValue | null>(null);
@@ -96,65 +113,59 @@ function trimToNull(value: unknown): null | string {
   return trimmed ? trimmed : null;
 }
 
-function readRecordString(record: null | object | undefined, key: string): null | string {
-  if (!record || !(key in record)) {
-    return null;
-  }
-
-  return trimToNull((record as Record<string, unknown>)[key]);
-}
-
 function buildCustomerIdentity(input: {
-  claims: null | object;
-  userInfo: null | object;
-}): CustomerLogtoIdentity | null {
-  const email =
-    readRecordString(input.userInfo, "email") ??
-    readRecordString(input.claims, "email");
-  const logtoSub =
-    readRecordString(input.userInfo, "sub") ?? readRecordString(input.claims, "sub");
+  account: CustomerAccountProfile | null;
+  session: CustomerBackendSession | null;
+}): CustomerIdentity | null {
+  const email = trimToNull(input.account?.email) ?? trimToNull(input.session?.email);
+  const phone = trimToNull(input.account?.phone) ?? trimToNull(input.session?.phone);
   const displayName =
-    readRecordString(input.userInfo, "name") ??
-    readRecordString(input.claims, "name") ??
-    readRecordString(input.userInfo, "username") ??
-    readRecordString(input.userInfo, "preferred_username") ??
-    readRecordString(input.claims, "username") ??
+    trimToNull(input.account?.displayName) ??
+    trimToNull(input.session?.displayName) ??
     email ??
-    "Customer";
+    phone ??
+    "Tık Profil müşterisi";
+  const logtoSub = trimToNull(input.session?.logtoSub);
 
-  if (!email && !logtoSub) {
+  if (!input.session && !email && !phone) {
     return null;
   }
 
   return {
     displayName,
     email,
-    identifier: email ?? logtoSub ?? "customer",
+    identifier: email ?? phone ?? logtoSub ?? "customer",
     logtoSub,
+    phone,
   };
 }
 
-function getErrorMessage(_error: unknown): string {
-  return "Giriş tamamlanamadı. Lütfen tekrar deneyin.";
-}
-
-function getDisconnectedBackendMessage(
-  reason: CustomerBackendSyncReason | null,
-): string {
-  switch (reason) {
-    case "missing-id-token":
-      return "Oturum doğrulanıyor, lütfen bekleyin.";
-    case "session-cookie-missing":
-      return "Oturum doğrulanıyor, lütfen bekleyin.";
-    default:
-      return "Oturum doğrulanıyor, lütfen bekleyin.";
+function getSafeErrorMessage(error: unknown): string {
+  if (error instanceof ApiClientError) {
+    switch (error.code) {
+      case "INVALID_PHONE":
+        return "Geçerli bir cep telefonu girin.";
+      case "OTP_INVALID":
+      case "OTP_CODE_INVALID":
+      case "OTP_NOT_FOUND":
+        return "Kod doğrulanamadı. Tekrar deneyin.";
+      case "OTP_RESEND_COOLDOWN":
+        return "Yeni kod istemeden önce biraz bekleyin.";
+      case "OTP_RATE_LIMITED":
+        return "Çok fazla kod istendi. Biraz bekleyip tekrar deneyin.";
+      case "GOOGLE_TOKEN_REQUIRED":
+      case "GOOGLE_TOKEN_INVALID":
+        return "Google girişi tamamlanamadı. Tekrar deneyin.";
+      default:
+        return SAFE_LOGIN_FAILURE_MESSAGE;
+    }
   }
+
+  return SAFE_LOGIN_FAILURE_MESSAGE;
 }
 
-async function showPreAuthTransition(): Promise<void> {
-  await new Promise((resolve) => {
-    setTimeout(resolve, PRE_AUTH_TRANSITION_MS);
-  });
+function getDisconnectedBackendMessage(): string {
+  return "Oturum doğrulanıyor, lütfen bekleyin.";
 }
 
 function CustomerAuthDisabledProvider({
@@ -169,6 +180,7 @@ function CustomerAuthDisabledProvider({
       authFlowStatus: "idle",
       backendStatus: "idle",
       canAccessFullApp: false,
+      cancelOtp: () => undefined,
       completeSignInCallback: async () => ({
         errorMessage: reason,
         state: "error",
@@ -181,8 +193,10 @@ function CustomerAuthDisabledProvider({
       isBackendSessionReady: false,
       isBusy: false,
       isConfigured: false,
+      isGoogleConfigured: false,
       isInitialized: true,
       limitationMessage: null,
+      pendingOtp: null,
       profileWarningMessage: null,
       register: async () => {
         throw new Error(reason);
@@ -191,7 +205,13 @@ function CustomerAuthDisabledProvider({
       signIn: async () => {
         throw new Error(reason);
       },
+      signInWithGoogle: async () => {
+        throw new Error(reason);
+      },
       signOut: async () => undefined,
+      verifyOtp: async () => {
+        throw new Error(reason);
+      },
     }),
     [reason],
   );
@@ -203,215 +223,199 @@ function CustomerAuthDisabledProvider({
   );
 }
 
-function CustomerAuthBridgeProvider({
-  children,
-  runtimeConfig,
-}: PropsWithChildren<{
-  runtimeConfig: ReturnType<typeof resolveLogtoMobileRuntimeConfig>;
-}>) {
-  const { setIsAuthenticated } = useContext(LogtoContext);
-  const {
-    client,
-    fetchUserInfo,
-    getIdToken,
-    getIdTokenClaims,
-    isAuthenticated,
-    isInitialized,
-    signIn: logtoSignIn,
-    signOut: logtoSignOut,
-  } = useLogto();
+function CustomerAuthNativeProvider({ children }: PropsWithChildren) {
+  const runtimeConfig = useMemo(() => resolveNativeCustomerAuthRuntimeConfig(), []);
   const [backendStatus, setBackendStatus] = useState<BackendSyncStatus>("idle");
   const [customerAccount, setCustomerAccount] =
     useState<CustomerAccountProfile | null>(null);
   const [customerIdentity, setCustomerIdentity] =
-    useState<CustomerLogtoIdentity | null>(null);
+    useState<CustomerIdentity | null>(null);
   const [customerSession, setCustomerSession] =
     useState<CustomerBackendSession | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [authFlow, setAuthFlow] = useState(initialCustomerAuthFlowState);
   const [profileWarningMessage, setProfileWarningMessage] =
     useState<string | null>(null);
-  const [backendDisconnectReason, setBackendDisconnectReason] =
-    useState<CustomerBackendSyncReason | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pendingOtp, setPendingOtp] = useState<PendingOtpChallenge | null>(null);
 
   const clearCustomerState = useCallback(() => {
     setBackendStatus("idle");
     setCustomerAccount(null);
     setCustomerIdentity(null);
     setCustomerSession(null);
-    setBackendDisconnectReason(null);
     setErrorMessage(null);
     setAuthFlow(initialCustomerAuthFlowState);
     setProfileWarningMessage(null);
+    setPendingOtp(null);
+    setIsAuthenticated(false);
   }, []);
 
   const syncAuthenticatedCustomerProfile =
-    useCallback(async (): Promise<CustomerProfileSyncOutcome> => {
-    setIsBusy(true);
-    setErrorMessage(null);
-    setAuthFlow((current) =>
-      reduceCustomerAuthFlow(current, { type: "CALLBACK_RECEIVED" }),
-    );
-    setProfileWarningMessage(null);
-    setBackendStatus("loading");
+    useCallback(async (knownSession?: CustomerBackendSession | null): Promise<CustomerProfileSyncOutcome> => {
+      setIsBusy(true);
+      setErrorMessage(null);
+      setProfileWarningMessage(null);
+      setBackendStatus("loading");
 
-    try {
-      const [userInfoResult, idTokenResult, claimsResult] = await Promise.allSettled([
-        fetchUserInfo(),
-        getIdToken(),
-        getIdTokenClaims(),
-      ]);
+      try {
+        const session = knownSession ?? await getCurrentSession({
+          apiBaseUrl: runtimeConfig.apiBaseUrl,
+          mePath: runtimeConfig.mePath,
+        });
 
-      const identity = buildCustomerIdentity({
-        claims: claimsResult.status === "fulfilled" ? claimsResult.value : null,
-        userInfo: userInfoResult.status === "fulfilled" ? userInfoResult.value : null,
-      });
+        if (!session) {
+          setCustomerSession(null);
+          setCustomerAccount(null);
+          setCustomerIdentity(null);
+          setBackendStatus("disconnected");
+          setIsAuthenticated(false);
+          return "disconnected";
+        }
 
-      setCustomerIdentity(identity);
+        setCustomerSession(session);
+        setIsAuthenticated(true);
 
-      const backendSync = await syncCustomerBackendSession({
-        accountPath: runtimeConfig.accountPath,
-        apiBaseUrl: runtimeConfig.apiBaseUrl,
-        bridgePath: runtimeConfig.customerSessionBridgePath,
-        idToken: idTokenResult.status === "fulfilled" ? idTokenResult.value : null,
-        mePath: runtimeConfig.mePath,
-        profilePath: runtimeConfig.profilePath,
-      });
+        const [accountResult, profileResult] = await Promise.allSettled([
+          getAccount({
+            accountPath: runtimeConfig.accountPath,
+            apiBaseUrl: runtimeConfig.apiBaseUrl,
+          }),
+          getCustomerProfile({
+            apiBaseUrl: runtimeConfig.apiBaseUrl,
+            profilePath: runtimeConfig.profilePath,
+          }),
+        ]);
+        const account =
+          accountResult.status === "fulfilled" ? accountResult.value : null;
 
-      if (backendSync.state !== "ready") {
-        setCustomerSession(backendSync.session);
-        setCustomerAccount(backendSync.account);
-        setBackendDisconnectReason(backendSync.reason);
+        setCustomerAccount(account);
+        setCustomerIdentity(buildCustomerIdentity({ account, session }));
 
-        if (backendSync.state === "profile-warning") {
+        if (accountResult.status === "rejected" || profileResult.status === "rejected") {
           setBackendStatus("profile-warning");
-          setProfileWarningMessage("Profil bilgileri su anda alinamadi.");
+          setProfileWarningMessage("Profil bilgileri şu anda alınamadı.");
           setAuthFlow((current) =>
-            reduceCustomerAuthFlow(current, { type: "SYNC_SUCCEEDED", needsAccountCompletion: true }),
+            reduceCustomerAuthFlow(current, {
+              needsAccountCompletion: true,
+              type: "SYNC_SUCCEEDED",
+            }),
           );
           return "profile-warning";
         }
 
+        setBackendStatus("ready");
+        setProfileWarningMessage(null);
+        setAuthFlow((current) =>
+          reduceCustomerAuthFlow(current, {
+            needsAccountCompletion:
+              !getAccountCompletionStatus(account).isComplete,
+            type: "SYNC_SUCCEEDED",
+          }),
+        );
+        return "ready";
+      } catch {
         setCustomerSession(null);
         setCustomerAccount(null);
-        setBackendStatus("disconnected");
+        setCustomerIdentity(null);
+        setBackendStatus("error");
+        setIsAuthenticated(false);
         setAuthFlow((current) =>
           reduceCustomerAuthFlow(current, { type: "SYNC_FAILED" }),
         );
-        return "disconnected";
+        setErrorMessage(SAFE_LOGIN_FAILURE_MESSAGE);
+        return "error";
+      } finally {
+        setIsBusy(false);
       }
+    }, [
+      runtimeConfig.accountPath,
+      runtimeConfig.apiBaseUrl,
+      runtimeConfig.mePath,
+      runtimeConfig.profilePath,
+    ]);
 
-      setBackendDisconnectReason(null);
-      setProfileWarningMessage(null);
-      setCustomerSession(backendSync.session);
-      setCustomerAccount(backendSync.account);
-      setBackendStatus("ready");
+  const refreshCustomerProfile = useCallback(async () => {
+    await syncAuthenticatedCustomerProfile();
+  }, [syncAuthenticatedCustomerProfile]);
+
+  const startOtp = useCallback(async (phone: string) => {
+    setErrorMessage(null);
+    setProfileWarningMessage(null);
+    setAuthFlow((current) =>
+      reduceCustomerAuthFlow(current, { type: "START_LOGIN" }),
+    );
+    setIsBusy(true);
+
+    try {
+      const result = await requestCustomerOtp({
+        apiBaseUrl: runtimeConfig.apiBaseUrl,
+        phone,
+        startPath: runtimeConfig.otpStartPath,
+      });
+
+      setPendingOtp({
+        ...result,
+        phone,
+      });
       setAuthFlow((current) =>
-        reduceCustomerAuthFlow(current, {
-          needsAccountCompletion:
-            !getAccountCompletionStatus(backendSync.account).isComplete,
-          type: "SYNC_SUCCEEDED",
-        }),
+        reduceCustomerAuthFlow(current, { type: "OTP_SENT" }),
       );
-      return "ready";
     } catch (error) {
-      setCustomerSession(null);
-      setCustomerAccount(null);
-      setBackendDisconnectReason(null);
-      setProfileWarningMessage(null);
-      setBackendStatus("error");
+      setPendingOtp(null);
       setAuthFlow((current) =>
         reduceCustomerAuthFlow(current, { type: "SYNC_FAILED" }),
       );
-      setErrorMessage(SAFE_LOGIN_FAILURE_MESSAGE);
-      return "error";
+      setErrorMessage(getSafeErrorMessage(error));
+    } finally {
+      setIsBusy(false);
+    }
+  }, [runtimeConfig.apiBaseUrl, runtimeConfig.otpStartPath]);
+
+  const verifyOtp = useCallback(async (code: string) => {
+    if (!pendingOtp) {
+      setErrorMessage("Önce telefon numaranı girip kod iste.");
+      return;
+    }
+
+    setErrorMessage(null);
+    setAuthFlow((current) =>
+      reduceCustomerAuthFlow(current, { type: "CALLBACK_RECEIVED" }),
+    );
+    setIsBusy(true);
+
+    try {
+      const session = await verifyCustomerOtp({
+        apiBaseUrl: runtimeConfig.apiBaseUrl,
+        code,
+        phone: pendingOtp.phone,
+        verifyPath: runtimeConfig.otpVerifyPath,
+      });
+
+      setPendingOtp(null);
+      await syncAuthenticatedCustomerProfile(session);
+    } catch (error) {
+      setAuthFlow((current) =>
+        reduceCustomerAuthFlow(current, { type: "SYNC_FAILED" }),
+      );
+      setErrorMessage(getSafeErrorMessage(error));
     } finally {
       setIsBusy(false);
     }
   }, [
-    fetchUserInfo,
-    getIdToken,
-    getIdTokenClaims,
-    runtimeConfig.accountPath,
+    pendingOtp,
     runtimeConfig.apiBaseUrl,
-    runtimeConfig.customerSessionBridgePath,
-    runtimeConfig.mePath,
-    runtimeConfig.profilePath,
-  ]);
-
-  const refreshCustomerProfile = useCallback(async () => {
-    if (!isAuthenticated) {
-      clearCustomerState();
-      return;
-    }
-
-    await syncAuthenticatedCustomerProfile();
-  }, [
-    clearCustomerState,
-    isAuthenticated,
+    runtimeConfig.otpVerifyPath,
     syncAuthenticatedCustomerProfile,
   ]);
 
-  const completeSignInCallback = useCallback(
-    async (callbackUrl: null | string | undefined) => {
-      setErrorMessage(null);
-      setAuthFlow((current) =>
-        reduceCustomerAuthFlow(current, { type: "CALLBACK_RECEIVED" }),
-      );
-      setIsBusy(true);
-
-      const result = await completeCustomerLogtoCallback({
-        callbackUrl,
-        handleSignInCallback: async (url) => {
-          await client.handleSignInCallback(url);
-        },
-        markAuthenticated: () => {
-          setIsAuthenticated(true);
-        },
-        debugLog: logMobileAuthDebug,
-        isLogtoSessionAvailable: async () => await client.isAuthenticated(),
-        refreshCustomerProfile: async () => {
-          const outcome = await syncAuthenticatedCustomerProfile();
-          return outcome === "ready" || outcome === "profile-warning";
-        },
-      });
-
-      if (result.state === "error") {
-        setCustomerSession(null);
-        setCustomerAccount(null);
-        setBackendDisconnectReason(null);
-        setProfileWarningMessage(null);
-        setBackendStatus("error");
-        setAuthFlow((current) =>
-          reduceCustomerAuthFlow(current, { type: "SYNC_FAILED" }),
-        );
-        setErrorMessage(result.errorMessage ?? SAFE_LOGIN_FAILURE_MESSAGE);
-      }
-
-      setIsBusy(false);
-      return result;
-    },
-    [client, setIsAuthenticated, syncAuthenticatedCustomerProfile],
-  );
-
-  useEffect(() => {
-    if (!isInitialized) {
+  const signInWithGoogle = useCallback(async () => {
+    if (!runtimeConfig.googleWebClientId) {
+      setErrorMessage("Google ile giriş için uygulama ayarı eksik.");
       return;
     }
 
-    if (!isAuthenticated) {
-      clearCustomerState();
-      return;
-    }
-
-    void refreshCustomerProfile().catch(() => undefined);
-  }, [clearCustomerState, isAuthenticated, isInitialized, refreshCustomerProfile]);
-
-  const startAuthFlow = useCallback(async (
-    intent: CustomerAuthIntent,
-    loginHint?: string,
-  ) => {
     setErrorMessage(null);
     setAuthFlow((current) =>
       reduceCustomerAuthFlow(current, { type: "START_LOGIN" }),
@@ -419,37 +423,48 @@ function CustomerAuthBridgeProvider({
     setIsBusy(true);
 
     try {
-      await startCustomerLogin({
-        beforeOpenAuth: showPreAuthTransition,
-        intent,
-        loginHint,
-        redirectUri: runtimeConfig.redirectUri,
-        signIn: async (options: CustomerLoginOptions) =>
-          await logtoSignIn({
-            ...options,
-            prompt: Prompt.Login,
-          }),
+      const google = await signInWithNativeGoogle({
+        webClientId: runtimeConfig.googleWebClientId,
       });
-    } catch (error) {
       setAuthFlow((current) =>
-        reduceCustomerAuthFlow(current, {
-          recoverableViaCallback: true,
-          type: "LOGIN_START_REJECTED",
-        }),
+        reduceCustomerAuthFlow(current, { type: "CALLBACK_RECEIVED" }),
       );
-      return;
+      const session = await signInWithGoogleIdToken({
+        apiBaseUrl: runtimeConfig.apiBaseUrl,
+        googlePath: runtimeConfig.googlePath,
+        idToken: google.idToken,
+      });
+
+      setPendingOtp(null);
+      await syncAuthenticatedCustomerProfile(session);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (/cancel/i.test(message)) {
+        setAuthFlow((current) =>
+          reduceCustomerAuthFlow(current, { type: "LOGIN_CANCELLED" }),
+        );
+        setErrorMessage("Giriş işlemi iptal edildi.");
+      } else {
+        setAuthFlow((current) =>
+          reduceCustomerAuthFlow(current, { type: "SYNC_FAILED" }),
+        );
+        setErrorMessage(getSafeErrorMessage(error));
+      }
     } finally {
       setIsBusy(false);
     }
-  }, [logtoSignIn, runtimeConfig.redirectUri]);
+  }, [
+    runtimeConfig.apiBaseUrl,
+    runtimeConfig.googlePath,
+    runtimeConfig.googleWebClientId,
+    syncAuthenticatedCustomerProfile,
+  ]);
 
-  const signIn = useCallback(async (loginHint?: string) => {
-    await startAuthFlow("login", loginHint);
-  }, [startAuthFlow]);
-
-  const register = useCallback(async (loginHint?: string) => {
-    await startAuthFlow("register", loginHint);
-  }, [startAuthFlow]);
+  const cancelOtp = useCallback(() => {
+    setPendingOtp(null);
+    setErrorMessage(null);
+    setAuthFlow(initialCustomerAuthFlowState);
+  }, []);
 
   const signOut = useCallback(async () => {
     setErrorMessage(null);
@@ -462,33 +477,21 @@ function CustomerAuthBridgeProvider({
         logoutPath: runtimeConfig.logoutPath,
       });
     } catch {
-      // Backend logout is best-effort until mobile cookie bridging exists.
+      // Logout is best-effort; local state must still be cleared.
     }
 
-    try {
-      await logtoSignOut(runtimeConfig.redirectUri);
-    } catch (error) {
-      logMobileAuthDebug("logout.logto_signout_failed");
-      try {
-        await client.clearAllTokens();
-      } catch {
-        logMobileAuthDebug("logout.clear_tokens_failed");
-      }
-      setErrorMessage(getErrorMessage(error));
-    } finally {
-      setIsAuthenticated(false);
-      clearCustomerState();
-      setIsBusy(false);
-    }
+    await clearNativeGoogleSession();
+    clearCustomerState();
+    setIsBusy(false);
   }, [
-    client,
     clearCustomerState,
-    logtoSignOut,
     runtimeConfig.apiBaseUrl,
     runtimeConfig.logoutPath,
-    runtimeConfig.redirectUri,
-    setIsAuthenticated,
   ]);
+
+  useEffect(() => {
+    void refreshCustomerProfile().catch(() => undefined);
+  }, [refreshCustomerProfile]);
 
   const value = useMemo<CustomerAuthContextValue>(
     () => {
@@ -500,7 +503,11 @@ function CustomerAuthBridgeProvider({
         authFlowStatus: authFlow.status,
         backendStatus,
         canAccessFullApp: backendStatus === "ready" && accountCompletion.isComplete,
-        completeSignInCallback,
+        cancelOtp,
+        completeSignInCallback: async () => ({
+          errorMessage: "Bu sürümde giriş telefon doğrulama ile yapılır.",
+          state: "error",
+        }),
         customerAccount,
         customerIdentity,
         customerSession,
@@ -510,35 +517,40 @@ function CustomerAuthBridgeProvider({
           backendStatus === "ready" || backendStatus === "profile-warning",
         isBusy,
         isConfigured: true,
-        isInitialized,
+        isGoogleConfigured: runtimeConfig.isGoogleConfigured,
+        isInitialized: true,
         limitationMessage:
           backendStatus === "disconnected"
-            ? getDisconnectedBackendMessage(backendDisconnectReason)
+            ? getDisconnectedBackendMessage()
             : null,
+        pendingOtp,
         profileWarningMessage,
-        register,
+        register: startOtp,
         refreshCustomerProfile,
-        signIn,
+        signIn: startOtp,
+        signInWithGoogle,
         signOut,
+        verifyOtp,
       };
     },
     [
-      backendStatus,
       authFlow,
-      completeSignInCallback,
+      backendStatus,
+      cancelOtp,
       customerAccount,
       customerIdentity,
       customerSession,
       errorMessage,
       isAuthenticated,
       isBusy,
-      isInitialized,
-      backendDisconnectReason,
+      pendingOtp,
       profileWarningMessage,
-      register,
       refreshCustomerProfile,
-      signIn,
+      runtimeConfig.isGoogleConfigured,
+      signInWithGoogle,
       signOut,
+      startOtp,
+      verifyOtp,
     ],
   );
 
@@ -551,38 +563,16 @@ function CustomerAuthBridgeProvider({
 
 export function CustomerAuthProvider({ children }: PropsWithChildren) {
   const apiConfig = resolveApiRuntimeConfig();
-  const runtimeConfig = resolveLogtoMobileRuntimeConfig();
 
   if (apiConfig.mode !== "real") {
     return (
-      <CustomerAuthDisabledProvider reason="Mobile customer auth sadece real API modunda acilir.">
+      <CustomerAuthDisabledProvider reason="Mobil müşteri girişi real API modunda açılır.">
         {children}
       </CustomerAuthDisabledProvider>
     );
   }
 
-  if (!runtimeConfig.enabled || !runtimeConfig.appId || !runtimeConfig.endpoint) {
-    return (
-      <CustomerAuthDisabledProvider reason="Bu build icin mobile Logto config tanimlanmadi.">
-        {children}
-      </CustomerAuthDisabledProvider>
-    );
-  }
-
-  return (
-    <LogtoProvider
-      config={{
-        appId: runtimeConfig.appId,
-        endpoint: runtimeConfig.endpoint,
-        prompt: [Prompt.Login, Prompt.Consent],
-        scopes: runtimeConfig.scopes,
-      }}
-    >
-      <CustomerAuthBridgeProvider runtimeConfig={runtimeConfig}>
-        {children}
-      </CustomerAuthBridgeProvider>
-    </LogtoProvider>
-  );
+  return <CustomerAuthNativeProvider>{children}</CustomerAuthNativeProvider>;
 }
 
 export function useCustomerAuth(): CustomerAuthContextValue {

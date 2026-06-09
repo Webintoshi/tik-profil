@@ -38,14 +38,14 @@ export async function GET() {
     }
 
     const customerSession = await getCustomerSession();
-    if (customerSession?.authProvider === "logto") {
+    if (customerSession) {
         return NextResponse.json({
             actorType: "customer",
             appUserId: customerSession.appUserId,
             displayName: customerSession.displayName ?? null,
             email: customerSession.email ?? null,
             logtoSub: customerSession.logtoSub,
-            provider: "logto",
+            provider: customerSession.authProvider,
             role: customerSession.role,
             success: true,
         });

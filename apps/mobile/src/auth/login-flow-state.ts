@@ -1,6 +1,7 @@
 export type CustomerAuthFlowStatus =
   | "idle"
   | "startingLogin"
+  | "awaitingOtp"
   | "awaitingCallback"
   | "syncingBackendSession"
   | "authenticated"
@@ -15,6 +16,7 @@ export interface CustomerAuthFlowState {
 
 export type CustomerAuthFlowEvent =
   | { type: "START_LOGIN" }
+  | { type: "OTP_SENT" }
   | { type: "LOGIN_CANCELLED" }
   | { recoverableViaCallback: boolean; type: "LOGIN_START_REJECTED" }
   | { type: "CALLBACK_RECEIVED" }
@@ -44,6 +46,11 @@ export function reduceCustomerAuthFlow(
       return {
         errorMessage: null,
         status: "startingLogin",
+      };
+    case "OTP_SENT":
+      return {
+        errorMessage: null,
+        status: "awaitingOtp",
       };
     case "LOGIN_CANCELLED":
       return {
@@ -105,6 +112,11 @@ export function getAuthFlowDisplayCopy(
       return {
         body: "Oturum doğrulanıyor, lütfen bekleyin.",
         title: "Tık Profil’e dönülüyor",
+      };
+    case "awaitingOtp":
+      return {
+        body: "Telefonuna gelen 6 haneli kodu gir.",
+        title: "Doğrulama kodu gönderildi",
       };
     case "syncingBackendSession":
       return {
