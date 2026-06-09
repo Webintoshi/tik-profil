@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Tık Profil",
+    "slug": "tik-profil-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "tikprofil",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.tikprofil.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#F7A11A"
+      },
+      "package": "com.anonymous.tikprofilmobile"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

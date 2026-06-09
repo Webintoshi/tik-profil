@@ -16,7 +16,9 @@
     "migration:validate:p0-staging": "node scripts/migration/validate-p0-staging.mjs",
     "migration:report:p0-reconciliation": "node scripts/migration/report-p0-reconciliation.mjs",
     "migration:transform:p0-runtime": "node scripts/migration/transform-p0-runtime.mjs",
-    "migration:validate:p0-runtime": "node scripts/migration/validate-p0-runtime.mjs"
+    "migration:validate:p0-runtime": "node scripts/migration/validate-p0-runtime.mjs",
+    "mobile:test": "npm --prefix apps/mobile run test",
+    "mobile:typecheck": "npm --prefix apps/mobile run typecheck"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.969.0",
