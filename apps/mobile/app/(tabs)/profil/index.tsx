@@ -74,6 +74,7 @@ export default function ProfileScreen() {
 
       {!isAuthenticated && !isPreparingLogin ? (
         <AuthLandingPanel
+          errorMessage={errorMessage}
           isBusy={isBusy}
           isConfigured={isConfigured}
           isGoogleConfigured={isGoogleConfigured}

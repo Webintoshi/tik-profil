@@ -1,14 +1,14 @@
 import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
 import { AppSessionProvider } from "@/providers/app-session-provider";
 import { CustomerAuthProvider } from "@/providers/customer-auth-provider";
+import { NativeAppChrome } from "@/system/app-chrome";
 import { tokens } from "@/theme/tokens";
 
 export default function RootLayout() {
   return (
     <CustomerAuthProvider>
       <AppSessionProvider>
-        <StatusBar style="dark" />
+        <NativeAppChrome />
         <Stack
           screenOptions={{
             contentStyle: { backgroundColor: tokens.colors.canvas },

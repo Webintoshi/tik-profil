@@ -7,9 +7,14 @@ import {
   LockKeyhole,
   MessageCircle,
   ShieldCheck,
+  Sparkles,
   UserRound,
 } from "lucide-react-native";
 import { Text, TextInput, View } from "react-native";
+import {
+  formatTurkishPhoneInput,
+  isLikelyTurkishMobilePhone,
+} from "@/auth/phone-input";
 import { Button } from "@/components/ui/button";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { tokens } from "@/theme/tokens";
@@ -26,6 +31,7 @@ interface PendingOtpPanelState {
   resendAfterSeconds: number;
 }
 interface AuthLandingPanelProps {
+  errorMessage?: null | string;
   isBusy: boolean;
   isConfigured: boolean;
   isGoogleConfigured: boolean;
@@ -55,6 +61,7 @@ function FieldShell({
 }
 
 export function AuthLandingPanel({
+  errorMessage,
   isBusy,
   isConfigured,
   isGoogleConfigured,
@@ -67,44 +74,100 @@ export function AuthLandingPanel({
 }: AuthLandingPanelProps) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
+  const canSubmitPhone = isConfigured && !isBusy && isLikelyTurkishMobilePhone(phone);
 
   return (
-    <SurfaceCard>
-      <View style={{ gap: tokens.spacing.lg }}>
-        <LinearGradient
-          colors={tokens.gradients.hero}
+    <View style={{ gap: tokens.spacing.lg }}>
+      <LinearGradient
+        colors={["#07182D", "#0B3A68", "#0E7DB7"]}
+        style={{
+          minHeight: 250,
+          borderRadius: 36,
+          borderCurve: "continuous",
+          overflow: "hidden",
+          padding: 24,
+          gap: tokens.spacing.lg,
+          justifyContent: "space-between",
+          boxShadow: tokens.shadow.strong,
+        }}
+      >
+        <View
           style={{
-            borderRadius: tokens.radius.xl,
-            borderCurve: "continuous",
-            overflow: "hidden",
-            padding: tokens.spacing.xl,
-            gap: tokens.spacing.lg,
+            position: "absolute",
+            right: -44,
+            top: -48,
+            width: 170,
+            height: 170,
+            borderRadius: 85,
+            backgroundColor: "rgba(22,164,224,0.28)",
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            left: -30,
+            bottom: -54,
+            width: 190,
+            height: 190,
+            borderRadius: 95,
+            backgroundColor: "rgba(255,194,71,0.20)",
+          }}
+        />
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
           <View
             style={{
-              width: 56,
-              height: 56,
-              borderRadius: 22,
+              width: 62,
+              height: 62,
+              borderRadius: 24,
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: "rgba(255,255,255,0.16)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.16)",
             }}
           >
-            <LockKeyhole color={tokens.colors.white} size={25} />
+            <LockKeyhole color={tokens.colors.white} size={27} />
           </View>
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: tokens.colors.white, fontSize: 30, fontWeight: "900" }}>
-              SMS ile güvenli giriş
-            </Text>
-            <Text style={{ color: "rgba(255,255,255,0.78)", fontSize: 15, lineHeight: 22 }}>
-              Telefonunu doğrula, Tık Profil hesabını uygulamadan çıkmadan aç.
+          <View
+            style={{
+              borderRadius: tokens.radius.pill,
+              backgroundColor: "rgba(255,255,255,0.14)",
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+            }}
+          >
+            <Text style={{ color: tokens.colors.white, fontSize: 12, fontWeight: "900" }}>
+              Güvenli giriş
             </Text>
           </View>
-        </LinearGradient>
+        </View>
+        <View style={{ gap: 8 }}>
+          <Text
+            style={{
+              color: tokens.colors.white,
+              fontSize: 35,
+              fontWeight: "900",
+              letterSpacing: -0.9,
+              lineHeight: 39,
+            }}
+          >
+            Tık Profil'e hoş geldin
+          </Text>
+          <Text style={{ color: "rgba(255,255,255,0.80)", fontSize: 16, lineHeight: 23 }}>
+            Telefon numaranla uygulamadan çıkmadan güvenli giriş yap. Kod doğrulandıktan sonra hesabın hazırlanır.
+          </Text>
+        </View>
+      </LinearGradient>
 
+      <SurfaceCard>
         {pendingOtp ? (
-          <View style={{ gap: tokens.spacing.md }}>
+          <View style={{ gap: tokens.spacing.lg }}>
             <View
               style={{
                 borderRadius: tokens.radius.lg,
@@ -128,23 +191,36 @@ export function AuthLandingPanel({
                 placeholder="123456"
                 placeholderTextColor={tokens.colors.textSoft}
                 style={{
-                  minHeight: 58,
-                  borderRadius: tokens.radius.lg,
+                  minHeight: 62,
+                  borderRadius: 24,
                   borderCurve: "continuous",
-                  borderWidth: 1,
-                  borderColor: tokens.colors.border,
-                  backgroundColor: tokens.colors.surfaceMuted,
+                  borderWidth: 1.5,
+                  borderColor: tokens.colors.accent,
+                  backgroundColor: tokens.colors.white,
                   color: tokens.colors.text,
-                  fontSize: 22,
+                  fontSize: 24,
                   fontVariant: ["tabular-nums"],
                   fontWeight: "900",
-                  letterSpacing: 5,
-                  paddingHorizontal: tokens.spacing.md,
+                  letterSpacing: 6,
+                  paddingHorizontal: 18,
                 }}
                 textContentType="oneTimeCode"
                 value={code}
               />
             </FieldShell>
+            {errorMessage ? (
+              <View
+                style={{
+                  borderRadius: tokens.radius.lg,
+                  backgroundColor: tokens.colors.dangerSoft,
+                  padding: tokens.spacing.md,
+                }}
+              >
+                <Text style={{ color: tokens.colors.danger, fontSize: 13, fontWeight: "800", lineHeight: 19 }}>
+                  {errorMessage}
+                </Text>
+              </View>
+            ) : null}
             <Button
               disabled={!isConfigured || isBusy || code.trim().length !== 6}
               onPress={() => onVerifyOtp(code)}
@@ -159,49 +235,76 @@ export function AuthLandingPanel({
             </Text>
           </View>
         ) : (
-          <View style={{ gap: tokens.spacing.md }}>
-            <FieldShell label="Telefon numarası">
+          <View style={{ gap: tokens.spacing.lg }}>
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: tokens.colors.text, fontSize: 25, fontWeight: "900" }}>
+                Telefon ile devam et
+              </Text>
+              <Text style={{ color: tokens.colors.textMuted, fontSize: 15, lineHeight: 22 }}>
+                Şifre gerekmez. Sana gelen tek kullanımlık kodla giriş yap.
+              </Text>
+            </View>
+
+            <FieldShell label="Cep telefonu">
               <TextInput
                 autoCorrect={false}
                 editable={!isBusy}
                 keyboardType="phone-pad"
-                onChangeText={setPhone}
+                onChangeText={(value) => setPhone(formatTurkishPhoneInput(value))}
                 placeholder="05XX XXX XX XX"
                 placeholderTextColor={tokens.colors.textSoft}
                 style={{
-                  minHeight: 58,
-                  borderRadius: tokens.radius.lg,
+                  minHeight: 62,
+                  borderRadius: 24,
                   borderCurve: "continuous",
-                  borderWidth: 1,
-                  borderColor: tokens.colors.border,
-                  backgroundColor: tokens.colors.surfaceMuted,
+                  borderWidth: 1.5,
+                  borderColor: isLikelyTurkishMobilePhone(phone)
+                    ? tokens.colors.accent
+                    : tokens.colors.border,
+                  backgroundColor: tokens.colors.white,
                   color: tokens.colors.text,
-                  fontSize: 16,
-                  fontWeight: "800",
-                  paddingHorizontal: tokens.spacing.md,
+                  fontSize: 20,
+                  fontVariant: ["tabular-nums"],
+                  fontWeight: "900",
+                  letterSpacing: 0.3,
+                  paddingHorizontal: 18,
                 }}
                 textContentType="telephoneNumber"
                 value={phone}
               />
             </FieldShell>
 
+            {errorMessage ? (
+              <View
+                style={{
+                  borderRadius: tokens.radius.lg,
+                  backgroundColor: tokens.colors.dangerSoft,
+                  padding: tokens.spacing.md,
+                }}
+              >
+                <Text style={{ color: tokens.colors.danger, fontSize: 13, fontWeight: "800", lineHeight: 19 }}>
+                  {errorMessage}
+                </Text>
+              </View>
+            ) : null}
+
             <View style={{ gap: tokens.spacing.sm }}>
-              <Button disabled={!isConfigured || isBusy} onPress={() => onSignIn(phone)}>
-                {isBusy ? "Kod hazırlanıyor" : "SMS kodu gönder"}
+              <Button disabled={!canSubmitPhone} onPress={() => onSignIn(phone)}>
+                {isBusy ? "Kod hazırlanıyor" : "Telefon ile giriş yap"}
               </Button>
               <Button
-                disabled={!isConfigured || isBusy}
+                disabled={!canSubmitPhone}
                 onPress={() => onRegister(phone)}
                 variant="secondary"
               >
-                Yeni hesap için kod al
+                Yeni hesap oluştur
               </Button>
               <Button
                 disabled={!isConfigured || isBusy || !isGoogleConfigured}
                 onPress={onGoogleSignIn}
                 variant="secondary"
               >
-                Google ile devam et
+                {isGoogleConfigured ? "Google ile devam et" : "Google ile devam et (Yakında)"}
               </Button>
             </View>
 
@@ -219,7 +322,7 @@ export function AuthLandingPanel({
                   Google
                 </Text>
                 <Text style={{ color: tokens.colors.textMuted, fontSize: 12 }}>
-                  {isGoogleConfigured ? "Hazır" : "Kurulum bekliyor"}
+                  {isGoogleConfigured ? "Hazır" : "Yakında"}
                 </Text>
               </View>
               <View
@@ -239,12 +342,23 @@ export function AuthLandingPanel({
             </View>
           </View>
         )}
+      </SurfaceCard>
 
-        <Text style={{ color: tokens.colors.textMuted, fontSize: 13, lineHeight: 19 }}>
+      <View
+        style={{
+          borderRadius: tokens.radius.lg,
+          backgroundColor: tokens.colors.successSoft,
+          flexDirection: "row",
+          gap: tokens.spacing.sm,
+          padding: tokens.spacing.md,
+        }}
+      >
+        <Sparkles color={tokens.colors.success} size={18} />
+        <Text style={{ color: tokens.colors.success, flex: 1, fontSize: 13, fontWeight: "800", lineHeight: 19 }}>
           Çıkış yaptıktan sonra tekrar girişte yeni doğrulama kodu istenir.
         </Text>
       </View>
-    </SurfaceCard>
+    </View>
   );
 }
 

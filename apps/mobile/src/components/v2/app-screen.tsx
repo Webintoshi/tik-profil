@@ -42,8 +42,8 @@ export function AppScreen({
         style={{ flex: 1 }}
         contentContainerStyle={{
           paddingHorizontal: tokens.spacing.lg,
-          paddingTop: Math.max(insets.top, tokens.spacing.md) + tokens.spacing.sm,
-          paddingBottom: Math.max(insets.bottom, tokens.spacing.lg) + tokens.spacing.xxl,
+          paddingTop: Math.max(insets.top + tokens.spacing.sm, tokens.spacing.xl),
+          paddingBottom: Math.max(insets.bottom, tokens.spacing.sm) + 104,
           gap: tokens.spacing.lg,
         }}
       >
@@ -53,4 +53,3 @@ export function AppScreen({
     </View>
   );
 }
-

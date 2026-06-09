@@ -16,6 +16,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-secure-store",
     "@react-native-google-signin/google-signin",
     [
+      "expo-navigation-bar",
+      {
+        enforceContrast: false,
+      },
+    ],
+    [
       "expo-location",
       {
         locationWhenInUsePermission:

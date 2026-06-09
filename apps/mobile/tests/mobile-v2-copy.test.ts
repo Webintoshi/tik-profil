@@ -13,6 +13,8 @@ const root = join(__dirname, "..");
 
 const primaryUserFacingFiles = [
   "app/(onboarding)/intro.tsx",
+  "app/(onboarding)/location-permission.tsx",
+  "app/(onboarding)/manual-location.tsx",
   "app/(tabs)/kesfet/index.tsx",
   "app/(tabs)/profil/index.tsx",
   "src/components/auth/customer-auth-panels.tsx",
@@ -60,6 +62,10 @@ describe("mobile v2 product copy", () => {
       /\bcallback\b/i,
       /\bLogto state\b/i,
       /\bsession sync\b/i,
+      /\bdemo\b/i,
+      /\bfoundation\b/i,
+      /\bplaceholder\b/i,
+      /\bstateful\b/i,
     ];
 
     for (const file of primaryUserFacingFiles) {
@@ -75,7 +81,8 @@ describe("mobile v2 product copy", () => {
   it("presents native SMS OTP and Google auth instead of Logto browser login", () => {
     const authPanel = readMobileFile("src/components/auth/customer-auth-panels.tsx");
 
-    expect(authPanel).toContain("SMS ile güvenli giriş");
+    expect(authPanel).toContain("Telefon ile devam et");
+    expect(authPanel).toContain("Telefon ile giriş yap");
     expect(authPanel).toContain("Google ile devam et");
     expect(authPanel).toContain("Doğrulama kodu");
     expect(authPanel).not.toMatch(/\bLogto\b/i);

@@ -40,7 +40,7 @@ export default function ManualLocationScreen() {
       header={
         <SectionHeader
           title="Konumu elle belirle"
-          subtitle="Şehir ve ilçe seçimi keşfet ekranını doğrudan etkiler. Mahalle alanı bu foundation sürümünde placeholder olarak tutulur."
+          subtitle="Yakındaki işletmeleri gösterebilmemiz için şehir ve ilçeni seç."
         />
       }
     >
@@ -72,8 +72,8 @@ export default function ManualLocationScreen() {
       </SurfaceCard>
       <SurfaceCard>
         <SectionHeader
-          title="Mahalle placeholder"
-          subtitle="Şimdilik seçilen ilçe için örnek mahalle değeri gösteriliyor."
+          title="Seçilen bölge"
+          subtitle="Mahalle seçimi yakında daha detaylı hale gelecek."
         />
         <View
           style={{
@@ -86,7 +86,7 @@ export default function ManualLocationScreen() {
             {neighborhoodPlaceholder}
           </Text>
           <Text style={{ color: tokens.colors.textMuted, fontSize: 13, marginTop: 6 }}>
-            Gerçek mahalle eşlemesi sonraki backend entegrasyonunda netleşecek.
+            Şimdilik bu bölgeyle keşfetmeye devam edebilirsin.
           </Text>
         </View>
       </SurfaceCard>

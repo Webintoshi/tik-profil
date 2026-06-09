@@ -44,7 +44,7 @@ export default function LocationPermissionScreen() {
       city: "İstanbul",
       district: "Kadıköy",
       neighborhood: "Moda",
-      label: "Cihaz konumu · demo yakın bölge",
+      label: "Yakın çevre",
       latitude,
       longitude,
     });
@@ -56,7 +56,7 @@ export default function LocationPermissionScreen() {
       header={
         <SectionHeader
           title="Yakındaki işletmeleri göster"
-          subtitle="Konum izni verildiğinde keşfet akışı demo bölgeden başlar. Gerçek müşteri oturumu ve stateful keşif uçları henüz bağlı değildir."
+          subtitle="Tık Profil, sana yakın işletmeleri ve kampanyaları daha doğru göstermek için konumunu kullanır."
         />
       }
     >
@@ -79,7 +79,7 @@ export default function LocationPermissionScreen() {
               Konum izni
             </Text>
             <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-              Yalnızca keşif listesi ve kategori sonuçlarını bağlamak için kullanılır.
+              Yakınındaki restoran, kafe, mağaza ve hizmetleri daha hızlı bulursun.
             </Text>
           </View>
         </View>
@@ -103,7 +103,7 @@ export default function LocationPermissionScreen() {
               Manuel seçim alternatifi
             </Text>
             <Text style={{ color: tokens.colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-              Mock modda il, ilçe ve mahalle placeholder seçimiyle de ilerleyebilirsin.
+              İzin vermek istemezsen şehir ve ilçeni elle seçerek devam edebilirsin.
             </Text>
           </View>
         </View>
