@@ -13,11 +13,13 @@ import {
   saveSessionSnapshot,
   type AppSessionSnapshot,
 } from "@/storage/app-storage";
+import type { LocationOnboardingStatus } from "@/location/location-onboarding";
 import type { SelectedLocation } from "@/types/location";
 
 interface AppSessionContextValue extends AppSessionSnapshot {
   isHydrated: boolean;
   setHasSeenIntro: (value: boolean) => void;
+  setLocationOnboardingStatus: (value: LocationOnboardingStatus) => void;
   setSelectedLocation: (value: SelectedLocation) => void;
   toggleFavorite: (slug: string) => void;
 }
@@ -55,6 +57,16 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
     }));
   }, []);
 
+  const setLocationOnboardingStatus = useCallback(
+    (value: LocationOnboardingStatus) => {
+      setSnapshot((current) => ({
+        ...current,
+        locationOnboardingStatus: value,
+      }));
+    },
+    [],
+  );
+
   const setSelectedLocation = useCallback((value: SelectedLocation) => {
     setSnapshot((current) => ({
       ...current,
@@ -80,10 +92,18 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
       ...snapshot,
       isHydrated,
       setHasSeenIntro,
+      setLocationOnboardingStatus,
       setSelectedLocation,
       toggleFavorite,
     }),
-    [isHydrated, setHasSeenIntro, setSelectedLocation, snapshot, toggleFavorite],
+    [
+      isHydrated,
+      setHasSeenIntro,
+      setLocationOnboardingStatus,
+      setSelectedLocation,
+      snapshot,
+      toggleFavorite,
+    ],
   );
 
   return (

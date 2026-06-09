@@ -10,11 +10,11 @@ export default function OnboardingLayout() {
       <Stack.Screen name="intro" options={{ headerShown: false }} />
       <Stack.Screen
         name="location-permission"
-        options={{ title: "Konum izni" }}
+        options={{ title: "Konum" }}
       />
       <Stack.Screen
         name="manual-location"
-        options={{ title: "Manuel konum" }}
+        options={{ title: "Konum seç" }}
       />
     </Stack>
   );
