@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server";
 import { NativeCustomerAuthError } from "./errors.ts";
 
-export function nativeCustomerAuthErrorResponse(error: unknown, context: string): NextResponse {
+export function nativeCustomerAuthErrorResponse(error: unknown, context: string): Response {
     if (error instanceof NativeCustomerAuthError) {
-        return NextResponse.json(
+        return Response.json(
             {
                 code: error.code,
                 error: error.message,
@@ -14,7 +13,7 @@ export function nativeCustomerAuthErrorResponse(error: unknown, context: string)
     }
 
     console.error(`[${context}] Unexpected native customer auth error:`, error);
-    return NextResponse.json(
+    return Response.json(
         {
             code: "SERVER_ERROR",
             error: "Sunucu hatasi olustu.",
@@ -24,8 +23,8 @@ export function nativeCustomerAuthErrorResponse(error: unknown, context: string)
     );
 }
 
-export function invalidGoogleTokenResponse(): NextResponse {
-    return NextResponse.json(
+export function invalidGoogleTokenResponse(): Response {
+    return Response.json(
         {
             code: "GOOGLE_TOKEN_INVALID",
             error: "Google oturumu dogrulanamadi.",

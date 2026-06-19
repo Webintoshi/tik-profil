@@ -12,9 +12,19 @@ Owner, admin, and staff Logto auth remain unchanged.
 
 - `POST /api/auth/mobile/customer/otp/start`
 - `POST /api/auth/mobile/customer/otp/verify`
+- `POST /api/auth/customer/otp/start`
+- `POST /api/auth/customer/otp/verify`
 - `POST /api/auth/mobile/customer/google`
 
-OTP verify and Google verify both mint the existing `tikprofil_customer_session` cookie and return safe customer session JSON.
+The `/api/auth/customer/otp/*` routes are web aliases for the same customer-only Netgsm OTP flow used by mobile. OTP verify and Google verify both mint the existing `tikprofil_customer_session` cookie and return safe customer session JSON.
+
+## Web Customer Login
+
+- `GET /kesfet/giris` renders the customer phone OTP login screen.
+- `GET /kesfet/profile` now checks `/api/account`.
+- If no customer session exists, `/kesfet/profile` shows the phone OTP login card.
+- If a customer session exists, `/kesfet/profile` renders the safe customer account profile.
+- This does not change `/giris-yap`, `/webintoshi`, owner, staff, or admin Logto auth.
 
 ## Required Backend Env
 

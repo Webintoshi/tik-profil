@@ -1,4 +1,4 @@
-import { getOptionalEnvValue } from "@/lib/env";
+import { getOptionalEnvValue } from "../../../lib/env.ts";
 import { NativeCustomerAuthError } from "./errors.ts";
 import type { OtpDeliveryProvider } from "./otp.ts";
 
