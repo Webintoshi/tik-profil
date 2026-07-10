@@ -13,6 +13,10 @@ import { getDocumentREST } from "@/lib/documentStore";
 import { getSessionSecretBytes } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { hasPermission, meetsMinRole, type StaffRole } from "@/lib/permissions";
+import {
+    requireCustomer,
+    type CustomerContext,
+} from "./customer-session";
 
 const CONSULTANT_COOKIE = "tikprofil_consultant_session";
 
@@ -167,11 +171,10 @@ export function customerAuthNotReadyResponse(): NextResponse {
     return AppError.customerAuthNotReady().toResponse();
 }
 
-export async function requireCustomer(): Promise<never> {
-    throw AppError.customerAuthNotReady();
-}
-
 export const assertCustomer = requireCustomer;
+
+export { requireCustomer };
+export type { CustomerContext };
 
 export function publicReadOnly() {
     return { access: "public-readonly" as const };

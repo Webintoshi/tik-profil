@@ -1,11 +1,11 @@
-import { customerAuthNotReadyResponse } from "@/server/auth/guards";
+import { requireCustomer } from "@/server/auth/guards";
+import { customerRepository } from "@/server/repositories/customer.repository";
+import { createCustomerHandlers } from "../customer-handlers";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-    return customerAuthNotReadyResponse();
-}
+const handlers = createCustomerHandlers({ repository: customerRepository, requireCustomer });
 
-export async function POST() {
-    return customerAuthNotReadyResponse();
+export async function GET() {
+    return handlers.getReservations();
 }

@@ -116,3 +116,27 @@ export async function verifyLogtoIdToken(
 
     return payload;
 }
+
+export interface LogtoAccessTokenConfig {
+    audience: string;
+    endpoint: string;
+}
+
+export async function verifyLogtoAccessToken(
+    config: LogtoAccessTokenConfig,
+    accessToken: string,
+): Promise<JWTPayload> {
+    const metadata = await fetchLogtoOidcMetadata(config.endpoint);
+    const jwksCache = getJwksCache();
+    const jwksUri = metadata.jwks_uri;
+    const jwks = jwksCache.get(jwksUri) ?? createRemoteJWKSet(new URL(jwksUri));
+
+    jwksCache.set(jwksUri, jwks);
+
+    const { payload } = await jwtVerify(accessToken, jwks, {
+        audience: config.audience,
+        issuer: metadata.issuer,
+    });
+
+    return payload;
+}
