@@ -89,3 +89,75 @@ Coverage includes every required method, authenticated owner propagation, ignore
 
 - Root typecheck remains red due to the documented repository baseline outside Task 2.
 - Migration SQL has static contract coverage but was intentionally not validated against a live PostgreSQL instance.
+
+## Review Fixes
+
+The Task 2 review findings were addressed in one follow-up wave without changing the approved route scope or running a migration.
+
+### Timestamp normalization and global ordering
+
+- PostgreSQL `timestamptz` values returned as JavaScript `Date` objects are normalized with `toISOString()`.
+- Cross-table order and reservation results compare parsed epoch values instead of lexicographic display strings.
+- Repository fixtures use Monday/Sunday `Date` objects chosen so `String(Date)` sorting produces the wrong order.
+
+RED: repository suite reported 5 failures overall; both history cases returned `old, new` instead of `new, old`.
+
+GREEN: repository suite passed 8/8, with ISO timestamps asserted for both history contracts.
+
+### Atomic profile/default-address updates
+
+- Added an injectable transaction runner and `saveProfileWithAddresses()` repository operation.
+- Production checks out one `pg` client and uses `BEGIN`, sequential ownership/default/profile/address statements, `COMMIT`, and `ROLLBACK` on any failure.
+- Existing defaults are cleared for the authenticated owner before sequential address saves, avoiding concurrent writes against the one-default unique index.
+- Address ownership is checked before profile mutation; any later failure rolls the entire transaction back.
+- The profile handler delegates to only this atomic operation and no longer runs `Promise.all` address writes.
+
+RED: repository tests failed because the atomic operation did not exist; handler tests showed the old independent flow could mutate profile state before an address ownership failure.
+
+GREEN: repository rollback/default-switch tests and handler no-partial-state tests pass.
+
+### Ownership and typed repository errors
+
+- Address/favorite tests now assert exact owner predicates and parameter positions in production SQL as well as cross-owner behavior.
+- Removing `app_user_id` ownership clauses from read/update/delete SQL now fails the tests even if the in-memory fixture still enforces ownership.
+- Added typed `CUSTOMER_RESOURCE_NOT_FOUND` (404) and `CUSTOMER_RESOURCE_CONFLICT` (409) repository errors.
+- Handler responses map these operational errors to 404/409 instead of generic 500 responses.
+
+RED: the repository ownership test observed no typed error code; handler ownership/conflict tests returned 500.
+
+GREEN: owner SQL/behavior, 404, and 409 assertions pass.
+
+### Birth-date validation
+
+- Profile input now verifies both `YYYY-MM-DD` shape and UTC calendar round-trip, rejecting impossible dates such as `2023-02-29`.
+
+RED: impossible date returned 200.
+
+GREEN: impossible date returns `VALIDATION_ERROR`/400 without invoking the atomic repository mutation.
+
+### JWT negative matrix
+
+- Local signed-token coverage now rejects wrong audience, wrong issuer, an untrusted signing key, a tampered signature, and an expired token.
+- These tests were immediately GREEN against the existing `jose` verifier; no production JWT change was required. The focused auth file reports 10 passing tests/subtests.
+
+### Offline migration hardening
+
+- Optional-table tests isolate each complete `DO` block and assert all DDL remains under `to_regclass(...) IS NOT NULL`.
+- Second-run contracts assert `IF NOT EXISTS` on tables, indexes, columns, and FK guards.
+- FK idempotence is semantic rather than constraint-name-only: local column, referenced `app_users.id`, FK type, and `ON DELETE SET NULL` must all match.
+
+RED 1: the second-run test failed because the migration only checked the constraint name.
+
+GREEN 1: 4/4 migration contract tests passed after adding semantic local-column/reference checks.
+
+RED 2: stricter self-review assertions failed because referenced-column and delete-action predicates were absent.
+
+GREEN 2: 4/4 passed after adding `confkey` and `confdeltype` checks.
+
+Residual check: these tests prove conditional/idempotent SQL structure offline, but true PostgreSQL execution and a second applied migration still require a disposable/live PostgreSQL validation outside this task. No database migration was run.
+
+### Review Verification
+
+- Focused repository, customer-session/JWT, handler, migration, and existing Logto regression tests: 40/40 passed.
+- Focused Task 2 TypeScript project: passed with exit 0.
+- `git diff --check`: passed before final staging.

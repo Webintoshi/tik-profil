@@ -16,13 +16,26 @@ interface CustomerHandlerDependencies {
         | "listFavorites"
         | "listOrders"
         | "listReservations"
-        | "saveAddress"
-        | "upsertProfile"
+        | "saveProfileWithAddresses"
     >;
     requireCustomer: () => Promise<CustomerContext>;
 }
 
 const nullableText = z.string().trim().max(500).nullable().optional();
+
+function isCalendarDate(value: string): boolean {
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(0);
+    date.setUTCHours(0, 0, 0, 0);
+    date.setUTCFullYear(year, month - 1, day);
+    return date.getUTCFullYear() === year
+        && date.getUTCMonth() === month - 1
+        && date.getUTCDate() === day;
+}
+
+const birthDateSchema = z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine(isCalendarDate, "Birth date must be a real calendar date");
 const addressSchema = z.object({
     city: z.string().trim().min(1).max(100),
     district: z.string().trim().min(1).max(100),
@@ -36,7 +49,7 @@ const addressSchema = z.object({
 const profileSchema = z.object({
     addresses: z.array(addressSchema).max(20).optional(),
     avatarUrl: z.string().trim().url().max(2000).nullable().optional(),
-    birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    birthDate: birthDateSchema.nullable().optional(),
     displayName: z.string().trim().min(1).max(200).nullable().optional(),
     hobbies: z.array(z.string().trim().min(1).max(100)).max(50).optional(),
     maritalStatus: nullableText,
@@ -55,6 +68,22 @@ function errorResponse(error: unknown, context: string): Response {
             code: "UNAUTHORIZED",
             error: "Customer authentication is required.",
         }, { status: 401 });
+    }
+
+    if (error && typeof error === "object" && "code" in error && "statusCode" in error) {
+        const code = error.code;
+        const statusCode = error.statusCode;
+        if (
+            typeof code === "string"
+            && (statusCode === 404 || statusCode === 409)
+            && (code === "CUSTOMER_RESOURCE_NOT_FOUND" || code === "CUSTOMER_RESOURCE_CONFLICT")
+        ) {
+            return Response.json({
+                success: false,
+                code,
+                error: statusCode === 404 ? "Customer resource not found." : "Customer resource conflict.",
+            }, { status: statusCode });
+        }
     }
 
     if (error instanceof z.ZodError || error instanceof SyntaxError) {
@@ -112,16 +141,17 @@ export function createCustomerHandlers(dependencies: CustomerHandlerDependencies
                 const customer = await dependencies.requireCustomer();
                 const update = profileSchema.parse(await request.json());
                 const current = await dependencies.repository.getProfile(customer.appUserId);
-                const profile = await dependencies.repository.upsertProfile(
+                const result = await dependencies.repository.saveProfileWithAddresses(
                     customer.appUserId,
                     profileInputFrom(current, update),
+                    update.addresses ?? [],
                 );
-                const addresses = update.addresses
-                    ? await Promise.all(update.addresses.map((address) =>
-                        dependencies.repository.saveAddress(customer.appUserId, address)
-                    ))
-                    : await dependencies.repository.listAddresses(customer.appUserId);
-                return Response.json({ success: true, profile, email: customer.email, addresses });
+                return Response.json({
+                    success: true,
+                    profile: result.profile,
+                    email: customer.email,
+                    addresses: result.addresses,
+                });
             } catch (error) {
                 return errorResponse(error, "Customer Profile PUT");
             }

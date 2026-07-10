@@ -8,6 +8,30 @@ export type QueryExecutor = (
     values?: readonly unknown[],
 ) => Promise<QueryResultLike>;
 
+export type QueryTransactionRunner = <T>(
+    operation: (execute: QueryExecutor) => Promise<T>,
+) => Promise<T>;
+
+export class CustomerRepositoryOwnershipError extends Error {
+    readonly code = "CUSTOMER_RESOURCE_NOT_FOUND";
+    readonly statusCode = 404;
+
+    constructor(resource: string) {
+        super(`${resource} not found for customer owner`);
+        this.name = "CustomerRepositoryOwnershipError";
+    }
+}
+
+export class CustomerRepositoryConflictError extends Error {
+    readonly code = "CUSTOMER_RESOURCE_CONFLICT";
+    readonly statusCode = 409;
+
+    constructor(message: string) {
+        super(message);
+        this.name = "CustomerRepositoryConflictError";
+    }
+}
+
 export interface CustomerProfile {
     appUserId: string;
     avatarUrl: string | null;
@@ -94,6 +118,15 @@ function asString(value: unknown): string {
     return typeof value === "string" ? value : String(value ?? "");
 }
 
+function asIsoTimestamp(value: unknown): string {
+    const date = value instanceof Date ? value : new Date(asString(value));
+    return Number.isNaN(date.getTime()) ? asString(value) : date.toISOString();
+}
+
+function asDateValue(value: unknown): string {
+    return value instanceof Date ? asIsoTimestamp(value) : asString(value);
+}
+
 function asNumber(value: unknown): number {
     const parsed = typeof value === "number" ? value : Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
@@ -110,21 +143,21 @@ function mapProfile(row: Record<string, unknown>): CustomerProfile {
         appUserId: asString(row.app_user_id),
         avatarUrl: asNullableString(row.avatar_url),
         birthDate: asNullableString(row.birth_date),
-        createdAt: asString(row.created_at),
+        createdAt: asIsoTimestamp(row.created_at),
         displayName: asNullableString(row.display_name),
         hobbies: Array.isArray(row.hobbies) ? row.hobbies.filter((value): value is string => typeof value === "string") : [],
         maritalStatus: asNullableString(row.marital_status),
         occupation: asNullableString(row.occupation),
         phone: asNullableString(row.phone),
         preferences: asObject(row.preferences),
-        updatedAt: asString(row.updated_at),
+        updatedAt: asIsoTimestamp(row.updated_at),
     };
 }
 
 function mapAddress(row: Record<string, unknown>): CustomerAddress {
     return {
         city: asString(row.city),
-        createdAt: asString(row.created_at),
+        createdAt: asIsoTimestamp(row.created_at),
         district: asString(row.district),
         fullAddress: asString(row.full_address),
         id: asString(row.id),
@@ -132,20 +165,24 @@ function mapAddress(row: Record<string, unknown>): CustomerAddress {
         label: asString(row.label),
         latitude: row.latitude === null || row.latitude === undefined ? null : asNumber(row.latitude),
         longitude: row.longitude === null || row.longitude === undefined ? null : asNumber(row.longitude),
-        updatedAt: asString(row.updated_at),
+        updatedAt: asIsoTimestamp(row.updated_at),
     };
 }
 
 function mapFavorite(row: Record<string, unknown>): CustomerFavorite {
     return {
         businessSlug: asString(row.business_slug),
-        createdAt: asString(row.created_at),
+        createdAt: asIsoTimestamp(row.created_at),
         id: asString(row.id),
     };
 }
 
 function isUndefinedTable(error: unknown): boolean {
     return Boolean(error && typeof error === "object" && "code" in error && error.code === "42P01");
+}
+
+function isUniqueViolation(error: unknown): boolean {
+    return Boolean(error && typeof error === "object" && "code" in error && error.code === "23505");
 }
 
 async function queryOptionalTable(
@@ -163,7 +200,10 @@ async function queryOptionalTable(
     }
 }
 
-export function createCustomerRepository(execute: QueryExecutor) {
+export function createCustomerRepository(
+    execute: QueryExecutor,
+    runInTransaction?: QueryTransactionRunner,
+) {
     return {
         async getProfile(appUserId: string): Promise<CustomerProfile | null> {
             const result = await execute(
@@ -232,42 +272,112 @@ export function createCustomerRepository(execute: QueryExecutor) {
         },
 
         async saveAddress(appUserId: string, input: CustomerAddressInput): Promise<CustomerAddress> {
-            const result = await execute(
-                `
-                    INSERT INTO customer_addresses (
-                        id, app_user_id, label, full_address, district, city,
-                        latitude, longitude, is_default
-                    )
-                    VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9)
-                    ON CONFLICT (id) DO UPDATE SET
-                        label = EXCLUDED.label,
-                        full_address = EXCLUDED.full_address,
-                        district = EXCLUDED.district,
-                        city = EXCLUDED.city,
-                        latitude = EXCLUDED.latitude,
-                        longitude = EXCLUDED.longitude,
-                        is_default = EXCLUDED.is_default,
-                        updated_at = now()
-                    WHERE customer_addresses.app_user_id = EXCLUDED.app_user_id
-                    RETURNING id, label, full_address, district, city, latitude, longitude,
-                              is_default, created_at, updated_at
-                `,
-                [
-                    input.id ?? null,
-                    appUserId,
-                    input.label,
-                    input.fullAddress,
-                    input.district,
-                    input.city,
-                    input.latitude,
-                    input.longitude,
-                    input.isDefault,
-                ],
-            );
-            if (!result.rows[0]) {
-                throw new Error("Customer address not found for owner");
+            try {
+                const result = await execute(
+                    `
+                        INSERT INTO customer_addresses (
+                            id, app_user_id, label, full_address, district, city,
+                            latitude, longitude, is_default
+                        )
+                        VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9)
+                        ON CONFLICT (id) DO UPDATE SET
+                            label = EXCLUDED.label,
+                            full_address = EXCLUDED.full_address,
+                            district = EXCLUDED.district,
+                            city = EXCLUDED.city,
+                            latitude = EXCLUDED.latitude,
+                            longitude = EXCLUDED.longitude,
+                            is_default = EXCLUDED.is_default,
+                            updated_at = now()
+                        WHERE customer_addresses.app_user_id = EXCLUDED.app_user_id
+                        RETURNING id, label, full_address, district, city, latitude, longitude,
+                                  is_default, created_at, updated_at
+                    `,
+                    [
+                        input.id ?? null,
+                        appUserId,
+                        input.label,
+                        input.fullAddress,
+                        input.district,
+                        input.city,
+                        input.latitude,
+                        input.longitude,
+                        input.isDefault,
+                    ],
+                );
+                if (!result.rows[0]) {
+                    throw new CustomerRepositoryOwnershipError("Customer address");
+                }
+                return mapAddress(result.rows[0]);
+            } catch (error) {
+                if (isUniqueViolation(error)) {
+                    throw new CustomerRepositoryConflictError("Customer already has a default address");
+                }
+                throw error;
             }
-            return mapAddress(result.rows[0]);
+        },
+
+        async saveProfileWithAddresses(
+            appUserId: string,
+            profileInput: CustomerProfileInput,
+            addresses: CustomerAddressInput[],
+        ): Promise<{ addresses: CustomerAddress[]; profile: CustomerProfile }> {
+            if (!runInTransaction) {
+                throw new Error("Customer repository transaction runner is required");
+            }
+
+            try {
+                return await runInTransaction(async (transactionExecute) => {
+                    const transactionRepository = createCustomerRepository(
+                        transactionExecute,
+                        runInTransaction,
+                    );
+                    const existingIds = addresses
+                        .map((address) => address.id)
+                        .filter((id): id is string => Boolean(id));
+                    if (existingIds.length > 0) {
+                        const conflicts = await transactionExecute(
+                            `
+                                SELECT id
+                                FROM customer_addresses
+                                WHERE id = ANY($2::uuid[])
+                                  AND app_user_id <> $1
+                            `,
+                            [appUserId, existingIds],
+                        );
+                        if (conflicts.rows.length > 0) {
+                            throw new CustomerRepositoryOwnershipError("Customer address");
+                        }
+                    }
+
+                    const profile = await transactionRepository.upsertProfile(appUserId, profileInput);
+                    if (addresses.some((address) => address.isDefault)) {
+                        await transactionExecute(
+                            `
+                                UPDATE customer_addresses
+                                SET is_default = false, updated_at = now()
+                                WHERE app_user_id = $1
+                                  AND is_default = true
+                            `,
+                            [appUserId],
+                        );
+                    }
+
+                    for (const address of addresses) {
+                        await transactionRepository.saveAddress(appUserId, address);
+                    }
+
+                    return {
+                        addresses: await transactionRepository.listAddresses(appUserId),
+                        profile,
+                    };
+                });
+            } catch (error) {
+                if (isUniqueViolation(error)) {
+                    throw new CustomerRepositoryConflictError("Customer already has a default address");
+                }
+                throw error;
+            }
         },
 
         async deleteAddress(appUserId: string, id: string): Promise<boolean> {
@@ -346,7 +456,7 @@ export function createCustomerRepository(execute: QueryExecutor) {
                 .map((row): CustomerOrderSummary => ({
                     businessId: asString(row.business_id),
                     businessName: asNullableString(row.business_name),
-                    createdAt: asString(row.created_at),
+                    createdAt: asIsoTimestamp(row.created_at),
                     id: asString(row.id),
                     itemCount: Array.isArray(row.items) ? row.items.length : 0,
                     orderNumber: asNullableString(row.order_number),
@@ -354,7 +464,7 @@ export function createCustomerRepository(execute: QueryExecutor) {
                     status: asString(row.status),
                     total: asNumber(row.total),
                 }))
-                .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+                .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
         },
 
         async listReservations(appUserId: string): Promise<CustomerReservationSummary[]> {
@@ -381,15 +491,15 @@ export function createCustomerRepository(execute: QueryExecutor) {
             return [...hotelRows, ...vehicleRows]
                 .map((row): CustomerReservationSummary => ({
                     businessId: asString(row.business_id),
-                    createdAt: asString(row.created_at),
-                    endDate: asString(row.end_date),
+                    createdAt: asIsoTimestamp(row.created_at),
+                    endDate: asDateValue(row.end_date),
                     id: asString(row.id),
                     reservationType: row.reservation_type === "vehicle" ? "vehicle" : "hotel",
-                    startDate: asString(row.start_date),
+                    startDate: asDateValue(row.start_date),
                     status: asString(row.status),
                     total: asNumber(row.total),
                 }))
-                .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+                .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
         },
     };
 }
@@ -399,5 +509,23 @@ const defaultExecutor: QueryExecutor = async (text, values) => {
     return query(text, values);
 };
 
-export const customerRepository = createCustomerRepository(defaultExecutor);
+const defaultTransactionRunner: QueryTransactionRunner = async (operation) => {
+    const { getPostgresPool } = await import("../db/postgres.ts");
+    const client = await getPostgresPool().connect();
+    const transactionExecutor: QueryExecutor = async (text, values) =>
+        client.query(text, values ? [...values] : undefined);
+    try {
+        await client.query("BEGIN");
+        const result = await operation(transactionExecutor);
+        await client.query("COMMIT");
+        return result;
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+export const customerRepository = createCustomerRepository(defaultExecutor, defaultTransactionRunner);
 export type CustomerRepository = ReturnType<typeof createCustomerRepository>;

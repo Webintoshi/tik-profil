@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CustomerAuthenticationError } from "../../../server/auth/customer-session.ts";
+import {
+    CustomerRepositoryConflictError,
+    CustomerRepositoryOwnershipError,
+} from "../../../server/repositories/customer.repository.ts";
 import { createCustomerHandlers } from "./customer-handlers.ts";
 
 function createDependencies() {
@@ -43,6 +47,13 @@ function createDependencies() {
             calls.push({ args, method: "upsertProfile" });
             return { ...(args[1] as object), appUserId: args[0] };
         },
+        async saveProfileWithAddresses(...args: unknown[]) {
+            calls.push({ args, method: "saveProfileWithAddresses" });
+            return {
+                addresses: args[2],
+                profile: { ...(args[1] as object), appUserId: args[0] },
+            };
+        },
     };
     const handlers = createCustomerHandlers({
         repository: repository as never,
@@ -70,7 +81,7 @@ test("GET profile returns the authenticated identity and owned addresses", async
     assert.deepEqual(calls.map((call) => call.args), [["session-user"], ["session-user"]]);
 });
 
-test("PUT profile ignores client user ids and writes addresses as the authenticated owner", async () => {
+test("PUT profile ignores client user ids and delegates profile/address changes atomically", async () => {
     const { calls, handlers } = createDependencies();
     const request = new Request("https://tikprofil.test/api/kesfet/user/profile", {
         body: JSON.stringify({
@@ -92,12 +103,66 @@ test("PUT profile ignores client user ids and writes addresses as the authentica
     const response = await handlers.putProfile(request);
 
     assert.equal(response.status, 200);
-    const mutationCalls = calls.filter((call) => call.method === "upsertProfile" || call.method === "saveAddress");
-    assert.equal(mutationCalls.length, 2);
-    assert.equal(mutationCalls[0].args[0], "session-user");
-    assert.equal(mutationCalls[1].args[0], "session-user");
-    assert.equal("appUserId" in (mutationCalls[1].args[1] as object), false);
+    const atomicCall = calls.find((call) => call.method === "saveProfileWithAddresses")!;
+    assert.equal(atomicCall.args[0], "session-user");
+    assert.equal("appUserId" in ((atomicCall.args[2] as object[])[0]), false);
+    assert.equal(calls.some((call) => call.method === "upsertProfile" || call.method === "saveAddress"), false);
 });
+
+test("PUT profile cannot leave profile changes committed when address ownership fails", async () => {
+    let persistedName = "Before";
+    let defaultAddressId = "home";
+    const repository = {
+        async getProfile() {
+            return { ...profileRecord, displayName: persistedName };
+        },
+        async upsertProfile(_appUserId: string, input: { displayName: string | null }) {
+            persistedName = input.displayName ?? persistedName;
+            return { ...profileRecord, displayName: persistedName };
+        },
+        async saveAddress() {
+            defaultAddressId = "other-owner-address";
+            throw new CustomerRepositoryOwnershipError("Customer address");
+        },
+        async saveProfileWithAddresses() {
+            throw new CustomerRepositoryOwnershipError("Customer address");
+        },
+    };
+    const handlers = createCustomerHandlers({
+        repository: repository as never,
+        requireCustomer: async () => ({ appUserId: "session-user", email: null }),
+    });
+    const response = await handlers.putProfile(new Request("https://tikprofil.test/api/kesfet/user/profile", {
+        body: JSON.stringify({
+            displayName: "Must Not Persist",
+            addresses: [{
+                city: "Ordu", district: "Altinordu", fullAddress: "Other", id: "788b5f92-4003-4fe2-bfb0-205f8e828d32",
+                isDefault: true, label: "Other",
+            }],
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+    }));
+
+    assert.equal(response.status, 404);
+    assert.equal((await json(response)).code, "CUSTOMER_RESOURCE_NOT_FOUND");
+    assert.equal(persistedName, "Before");
+    assert.equal(defaultAddressId, "home");
+});
+
+const profileRecord = {
+    appUserId: "session-user",
+    avatarUrl: null,
+    birthDate: null,
+    createdAt: "2026-07-10T10:00:00.000Z",
+    displayName: "Before",
+    hobbies: [],
+    maritalStatus: null,
+    occupation: null,
+    phone: null,
+    preferences: {},
+    updatedAt: "2026-07-10T10:00:00.000Z",
+};
 
 test("favorites handlers list, add idempotently, and delete by authenticated owner", async () => {
     const { calls, handlers } = createDependencies();
@@ -139,6 +204,41 @@ test("invalid customer payloads return typed 400 responses without repository mu
     assert.equal(response.status, 400);
     assert.equal((await json(response)).code, "VALIDATION_ERROR");
     assert.equal(calls.some((call) => call.method === "addFavorite"), false);
+});
+
+test("PUT profile rejects impossible calendar birth dates", async () => {
+    const { calls, handlers } = createDependencies();
+    const response = await handlers.putProfile(new Request("https://tikprofil.test/api/kesfet/user/profile", {
+        body: JSON.stringify({ birthDate: "2023-02-29" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+    }));
+
+    assert.equal(response.status, 400);
+    assert.equal((await json(response)).code, "VALIDATION_ERROR");
+    assert.equal(calls.some((call) => call.method === "saveProfileWithAddresses"), false);
+});
+
+test("repository conflicts return 409 instead of an unexpected 500", async () => {
+    const { handlers } = createDependencies();
+    const conflictHandlers = createCustomerHandlers({
+        repository: {
+            getProfile: async () => profileRecord,
+            saveProfileWithAddresses: async () => {
+                throw new CustomerRepositoryConflictError("Default address conflict");
+            },
+        } as never,
+        requireCustomer: async () => ({ appUserId: "session-user", email: null }),
+    });
+    const response = await conflictHandlers.putProfile(new Request("https://tikprofil.test/api/kesfet/user/profile", {
+        body: JSON.stringify({ displayName: "Conflict" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+    }));
+
+    assert.equal(response.status, 409);
+    assert.equal((await json(response)).code, "CUSTOMER_RESOURCE_CONFLICT");
+    assert.ok(handlers);
 });
 
 test("customer authentication errors return 401 instead of the retired 501 stub", async () => {

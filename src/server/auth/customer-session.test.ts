@@ -82,7 +82,7 @@ test("maps token verification failures and missing subjects to unauthorized", as
     }
 });
 
-test("verifies mobile access-token issuer and audience against Logto discovery", async (t) => {
+test("verifies mobile access-token signature, issuer, audience, and expiry against Logto discovery", async (t) => {
     const { privateKey, publicKey } = await generateKeyPair("RS256");
     const publicJwk = await exportJWK(publicKey);
     Object.assign(publicJwk, { alg: "RS256", kid: "test-key", use: "sig" });
@@ -112,26 +112,62 @@ test("verifies mobile access-token issuer and audience against Logto discovery",
 
     const endpoint = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
     const issuer = `${endpoint}/oidc`;
-    const sign = (audience: string) => new SignJWT({ email: "claim@example.com" })
+    const sign = (input: {
+        audience?: string;
+        expiresAt?: number | string;
+        issuer?: string;
+        signingKey?: CryptoKey;
+    } = {}) => new SignJWT({ email: "claim@example.com" })
         .setProtectedHeader({ alg: "RS256", kid: "test-key" })
-        .setAudience(audience)
-        .setIssuer(issuer)
+        .setAudience(input.audience ?? "https://api.tikprofil.test")
+        .setIssuer(input.issuer ?? issuer)
         .setSubject("logto-user-1")
         .setIssuedAt()
-        .setExpirationTime("5m")
-        .sign(privateKey);
+        .setExpirationTime(input.expiresAt ?? "5m")
+        .sign(input.signingKey ?? privateKey);
 
     const valid = await verifyLogtoAccessToken(
         { audience: "https://api.tikprofil.test", endpoint },
-        await sign("https://api.tikprofil.test"),
+        await sign(),
     );
     assert.equal(valid.sub, "logto-user-1");
 
-    const wrongAudienceToken = await sign("https://api.tikprofil.test");
-    await assert.rejects(
-        () => verifyLogtoAccessToken(
+    await t.test("rejects a wrong audience", async () => assert.rejects(
+        async () => verifyLogtoAccessToken(
             { audience: "https://wrong-audience.test", endpoint },
-            wrongAudienceToken,
+            await sign(),
         ),
-    );
+    ));
+
+    await t.test("rejects a wrong issuer", async () => assert.rejects(
+        async () => verifyLogtoAccessToken(
+            { audience: "https://api.tikprofil.test", endpoint },
+            await sign({ issuer: "https://wrong-issuer.test/oidc" }),
+        ),
+    ));
+
+    const { privateKey: wrongPrivateKey } = await generateKeyPair("RS256");
+    await t.test("rejects a token signed by an untrusted key", async () => assert.rejects(
+        async () => verifyLogtoAccessToken(
+            { audience: "https://api.tikprofil.test", endpoint },
+            await sign({ signingKey: wrongPrivateKey }),
+        ),
+    ));
+
+    const validForTampering = await sign();
+    const [header, payload, signature] = validForTampering.split(".");
+    const tamperedSignature = `${signature[0] === "A" ? "B" : "A"}${signature.slice(1)}`;
+    await t.test("rejects a tampered signature", async () => assert.rejects(
+        async () => verifyLogtoAccessToken(
+            { audience: "https://api.tikprofil.test", endpoint },
+            `${header}.${payload}.${tamperedSignature}`,
+        ),
+    ));
+
+    await t.test("rejects an expired token", async () => assert.rejects(
+        async () => verifyLogtoAccessToken(
+            { audience: "https://api.tikprofil.test", endpoint },
+            await sign({ expiresAt: Math.floor(Date.now() / 1000) - 60 }),
+        ),
+    ));
 });

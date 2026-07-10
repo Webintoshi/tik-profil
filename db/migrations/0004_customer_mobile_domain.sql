@@ -51,8 +51,22 @@ BEGIN
             ADD COLUMN IF NOT EXISTS app_user_id uuid;
         IF NOT EXISTS (
             SELECT 1 FROM pg_constraint
-            WHERE conname = 'ff_orders_app_user_id_fkey'
-              AND conrelid = 'public.ff_orders'::regclass
+            WHERE conrelid = 'public.ff_orders'::regclass
+              AND contype = 'f'
+              AND confrelid = 'public.app_users'::regclass
+              AND confdeltype = 'n'
+              AND conkey = ARRAY[(
+                  SELECT attnum FROM pg_attribute
+                  WHERE attrelid = 'public.ff_orders'::regclass
+                    AND attname = 'app_user_id'
+                    AND NOT attisdropped
+              )]
+              AND confkey = ARRAY[(
+                  SELECT attnum FROM pg_attribute
+                  WHERE attrelid = 'public.app_users'::regclass
+                    AND attname = 'id'
+                    AND NOT attisdropped
+              )]
         ) THEN
             ALTER TABLE ff_orders
                 ADD CONSTRAINT ff_orders_app_user_id_fkey
@@ -71,8 +85,22 @@ BEGIN
             ADD COLUMN IF NOT EXISTS app_user_id uuid;
         IF NOT EXISTS (
             SELECT 1 FROM pg_constraint
-            WHERE conname = 'ecommerce_orders_app_user_id_fkey'
-              AND conrelid = 'public.ecommerce_orders'::regclass
+            WHERE conrelid = 'public.ecommerce_orders'::regclass
+              AND contype = 'f'
+              AND confrelid = 'public.app_users'::regclass
+              AND confdeltype = 'n'
+              AND conkey = ARRAY[(
+                  SELECT attnum FROM pg_attribute
+                  WHERE attrelid = 'public.ecommerce_orders'::regclass
+                    AND attname = 'app_user_id'
+                    AND NOT attisdropped
+              )]
+              AND confkey = ARRAY[(
+                  SELECT attnum FROM pg_attribute
+                  WHERE attrelid = 'public.app_users'::regclass
+                    AND attname = 'id'
+                    AND NOT attisdropped
+              )]
         ) THEN
             ALTER TABLE ecommerce_orders
                 ADD CONSTRAINT ecommerce_orders_app_user_id_fkey
@@ -91,8 +119,22 @@ BEGIN
             ADD COLUMN IF NOT EXISTS app_user_id uuid;
         IF NOT EXISTS (
             SELECT 1 FROM pg_constraint
-            WHERE conname = 'hotel_reservations_app_user_id_fkey'
-              AND conrelid = 'public.hotel_reservations'::regclass
+            WHERE conrelid = 'public.hotel_reservations'::regclass
+              AND contype = 'f'
+              AND confrelid = 'public.app_users'::regclass
+              AND confdeltype = 'n'
+              AND conkey = ARRAY[(
+                  SELECT attnum FROM pg_attribute
+                  WHERE attrelid = 'public.hotel_reservations'::regclass
+                    AND attname = 'app_user_id'
+                    AND NOT attisdropped
+              )]
+              AND confkey = ARRAY[(
+                  SELECT attnum FROM pg_attribute
+                  WHERE attrelid = 'public.app_users'::regclass
+                    AND attname = 'id'
+                    AND NOT attisdropped
+              )]
         ) THEN
             ALTER TABLE hotel_reservations
                 ADD CONSTRAINT hotel_reservations_app_user_id_fkey
@@ -111,8 +153,22 @@ BEGIN
             ADD COLUMN IF NOT EXISTS app_user_id uuid;
         IF NOT EXISTS (
             SELECT 1 FROM pg_constraint
-            WHERE conname = 'vehicle_reservations_app_user_id_fkey'
-              AND conrelid = 'public.vehicle_reservations'::regclass
+            WHERE conrelid = 'public.vehicle_reservations'::regclass
+              AND contype = 'f'
+              AND confrelid = 'public.app_users'::regclass
+              AND confdeltype = 'n'
+              AND conkey = ARRAY[(
+                  SELECT attnum FROM pg_attribute
+                  WHERE attrelid = 'public.vehicle_reservations'::regclass
+                    AND attname = 'app_user_id'
+                    AND NOT attisdropped
+              )]
+              AND confkey = ARRAY[(
+                  SELECT attnum FROM pg_attribute
+                  WHERE attrelid = 'public.app_users'::regclass
+                    AND attname = 'id'
+                    AND NOT attisdropped
+              )]
         ) THEN
             ALTER TABLE vehicle_reservations
                 ADD CONSTRAINT vehicle_reservations_app_user_id_fkey
