@@ -11,6 +11,7 @@ import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { DiscoveryProvider } from "@/state/discovery-store";
+import { CustomerSessionProvider } from "@/auth/auth-store";
 import { colors } from "@/theme/tokens";
 import { ThemeProvider, useThemeMode } from "@/theme/theme-store";
 
@@ -42,9 +43,11 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
-        <AppShell />
-      </ThemeProvider>
+      <CustomerSessionProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </CustomerSessionProvider>
     </GestureHandlerRootView>
   );
 }

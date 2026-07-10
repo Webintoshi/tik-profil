@@ -1,4 +1,5 @@
 import http from "node:http";
+import { buildUpstreamHeaders } from "./proxy-headers.mjs";
 
 const port = Number(process.env.TIKPROFIL_LOCAL_PROXY_PORT || 8787);
 const upstream = process.env.TIKPROFIL_UPSTREAM_URL || "https://tikprofil.com";
@@ -6,6 +7,7 @@ const allowedPrefixes = [
   "/api/cities",
   "/api/fastfood/public-menu",
   "/api/kesfet",
+  "/api/mobile/account",
   "/api/qr-scan",
   "/api/public/checkout",
   "/api/public/ecommerce-settings",
@@ -16,7 +18,7 @@ const allowedPrefixes = [
 
 function writeCorsHeaders(response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
-  response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  response.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 }
 
@@ -250,9 +252,7 @@ const server = http.createServer(async (request, response) => {
     const upstreamUrl = new URL(`${requestUrl.pathname}${requestUrl.search}`, upstream);
     const upstreamResponse = await fetch(upstreamUrl, {
       method: request.method,
-      headers: {
-        "Content-Type": request.headers["content-type"] || "application/json"
-      },
+      headers: buildUpstreamHeaders(request.headers),
       body: request.method === "GET" || request.method === "HEAD"
         ? undefined
         : await readRequestBody(request)

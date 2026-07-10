@@ -32,7 +32,7 @@ function validateAvatar(asset: AccountAvatarAsset): void {
   }
 }
 
-export async function uploadAccountAvatar(asset: AccountAvatarAsset): Promise<string> {
+export async function uploadAccountAvatar(asset: AccountAvatarAsset, accessToken: string): Promise<string> {
   validateAvatar(asset);
 
   const formData = new FormData();
@@ -51,6 +51,7 @@ export async function uploadAccountAvatar(asset: AccountAvatarAsset): Promise<st
 
   const response = await fetch(resolveEndpoint("/api/mobile/account/avatar"), {
     method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
     body: formData,
   });
 

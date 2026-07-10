@@ -47,7 +47,14 @@ if (appConfig.expo.android?.package !== "com.tikprofil.v2") {
   throw new Error("Android package must be com.tikprofil.v2.");
 }
 
-for (const dependency of ["expo-location", "expo-haptics", "expo-image"]) {
+for (const dependency of [
+  "expo-location",
+  "expo-haptics",
+  "expo-image",
+  "expo-auth-session",
+  "expo-web-browser",
+  "expo-secure-store"
+]) {
   if (!packageJson.dependencies?.[dependency]) {
     throw new Error(`Expected Expo Go compatible dependency is missing: ${dependency}`);
   }
@@ -61,8 +68,7 @@ const requiredCopy = [
   "İşletme ara",
   "Son aramalar",
   "Giriş yap",
-  "E-posta",
-  "Devam et",
+  "Güvenli giriş ekranı tarayıcıda açılır.",
   "Hesap oluştur",
   "Ara",
   "WhatsApp",
@@ -159,6 +165,18 @@ if (missingProfileActions.length > 0) {
 
 if (duplicateProfileActions.length > 0) {
   throw new Error(`Mobile profile action coverage has duplicate modules: ${[...new Set(duplicateProfileActions)].join(", ")}`);
+}
+
+for (const expected of [
+  "CustomerSessionProvider",
+  "useCustomerSession",
+  "EXPO_PUBLIC_LOGTO_ENDPOINT",
+  "expo-secure-store",
+  "Authorization: `Bearer ${accessToken}`"
+]) {
+  if (!combined.includes(expected)) {
+    throw new Error(`Expected mobile customer session behavior is missing: ${expected}`);
+  }
 }
 
 function listRouteNames(dir, rootDir = dir) {

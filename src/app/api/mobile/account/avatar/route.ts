@@ -5,6 +5,8 @@ import { NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { uploadBytesToR2WithKey } from "@/lib/r2Storage";
 import { isAllowedMimeType } from "@/lib/uploadConfig";
+import { requireCustomer } from "@/server/auth/guards";
+import { buildCustomerAvatarKey } from "./avatar-ownership";
 
 export const runtime = "nodejs";
 
@@ -18,40 +20,9 @@ function getClientIp(headersList: Headers): string {
   );
 }
 
-function getExtension(fileName: string, contentType: string): string {
-  const currentExtension = fileName.split(".").pop()?.toLowerCase();
-  if (currentExtension && /^[a-z0-9]{2,5}$/.test(currentExtension)) {
-    return currentExtension;
-  }
-
-  switch (contentType) {
-    case "image/png":
-      return "png";
-    case "image/webp":
-      return "webp";
-    case "image/gif":
-      return "gif";
-    case "image/avif":
-      return "avif";
-    default:
-      return "jpg";
-  }
-}
-
-function buildAvatarKey(file: File): string {
-  const extension = getExtension(file.name, file.type);
-  const baseName = file.name
-    .replace(/\.[^/.]+$/, "")
-    .replace(/[^a-zA-Z0-9-]/g, "_")
-    .replace(/_+/g, "_")
-    .slice(0, 48) || "avatar";
-  const dateSegment = new Date().toISOString().slice(0, 7);
-
-  return `account-avatars/pending/${dateSegment}/${Date.now()}_${randomUUID()}_${baseName}.${extension}`;
-}
-
 export async function POST(request: Request) {
   try {
+    const customer = await requireCustomer();
     const headersList = await headers();
     const ip = getClientIp(headersList);
     const rateCheck = checkRateLimit(ip, "account-avatar-upload");
@@ -87,7 +58,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const key = buildAvatarKey(file);
+    const key = buildCustomerAvatarKey(customer.appUserId, file, {
+      now: new Date(),
+      uuid: randomUUID()
+    });
     const { url } = await uploadBytesToR2WithKey({
       key,
       bytes: new Uint8Array(await file.arrayBuffer()),
@@ -96,6 +70,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, imageUrl: url, key });
   } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "UNAUTHORIZED") {
+      return NextResponse.json(
+        { success: false, code: "UNAUTHORIZED", error: "Customer authentication is required." },
+        { status: 401 }
+      );
+    }
     console.error("[Mobile Account Avatar] upload error:", error);
     return NextResponse.json({ success: false, error: "Profil fotoğrafı yüklenemedi" }, { status: 500 });
   }

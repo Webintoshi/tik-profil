@@ -1,0 +1,77 @@
+/// <reference types="node" />
+
+import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
+import test from "node:test";
+
+registerHooks({
+  load(url, context, nextLoad) {
+    if (url.endsWith(".ts")) return nextLoad(url, { ...context, format: "module-typescript" });
+    return nextLoad(url, context);
+  }
+});
+
+const {
+  buildCustomerHeaders,
+  fetchCustomerAccount,
+  saveCustomerProfile,
+  mapCustomerApiError
+}: typeof import("./customer") = await import(new URL("./customer.ts", import.meta.url).href);
+
+test("customer API headers forward the bearer token exactly", () => {
+  assert.deepEqual(buildCustomerHeaders("abc.def.ghi"), {
+    Accept: "application/json",
+    Authorization: "Bearer abc.def.ghi"
+  });
+});
+
+test("customer API error mapping is stable for auth, validation, and server failures", () => {
+  assert.equal(mapCustomerApiError(401, { code: "UNAUTHORIZED" }), "Oturumunuz sona erdi. Yeniden giriş yapın.");
+  assert.equal(mapCustomerApiError(400, { code: "VALIDATION_ERROR" }), "Hesap bilgilerini kontrol edip tekrar deneyin.");
+  assert.equal(mapCustomerApiError(409, { code: "CUSTOMER_RESOURCE_CONFLICT" }), "Bu hesap bilgisi başka bir kayıtla çakışıyor.");
+  assert.equal(mapCustomerApiError(503, null), "Hesap bilgileri şu anda alınamıyor. Tekrar deneyin.");
+});
+
+test("customer account load sends one bearer token to every account endpoint", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: Array<{ authorization: string | null; url: string }> = [];
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    const headers = new Headers(init?.headers);
+    requests.push({ authorization: headers.get("authorization"), url });
+    if (url.endsWith("/user/profile")) {
+      return Response.json({ success: true, profile: null, email: "customer@example.com", addresses: [] });
+    }
+    if (url.endsWith("/orders")) return Response.json({ success: true, orders: [] });
+    return Response.json({ success: true, reservations: [] });
+  };
+
+  try {
+    const account = await fetchCustomerAccount("access-token", "https://example.test");
+    assert.equal(account.email, "customer@example.com");
+    assert.deepEqual(requests.map((request) => request.authorization), [
+      "Bearer access-token",
+      "Bearer access-token",
+      "Bearer access-token"
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("profile save uses PUT JSON and returns the server-owned account fields", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_input, init) => {
+    assert.equal(init?.method, "PUT");
+    assert.equal(new Headers(init?.headers).get("authorization"), "Bearer access-token");
+    assert.deepEqual(JSON.parse(String(init?.body)), { displayName: "Ada" });
+    return Response.json({ success: true, profile: null, email: "ada@example.com", addresses: [] });
+  };
+
+  try {
+    const result = await saveCustomerProfile("access-token", { displayName: "Ada" }, "https://example.test");
+    assert.equal(result.email, "ada@example.com");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
