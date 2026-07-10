@@ -511,3 +511,23 @@ test("customer refresh 500 preserves the rendered customer and valid credentials
   assert.equal(context.controller.getState().customer?.email, "current@example.com");
   assert.equal(context.controller.getState().accessToken, "auth-access");
 });
+
+test("mutation 401 then rotated retry 503 settles recoverably with customer preserved", async () => {
+  const context = harness();
+  await context.controller.signIn();
+  let mutationCalls = 0;
+  await assert.rejects(
+    context.controller.runAuthenticated(async (accessToken) => {
+      mutationCalls += 1;
+      if (mutationCalls === 1) throw new CustomerApiError(401, null);
+      assert.equal(accessToken, "rotated-access");
+      throw new CustomerApiError(503, { code: "UNAVAILABLE" });
+    }),
+    (error: unknown) => error instanceof CustomerApiError && error.status === 503
+  );
+  assert.equal(mutationCalls, 2);
+  assert.equal(context.controller.getState().status, "error");
+  assert.equal(context.controller.getState().accessToken, "rotated-access");
+  assert.equal(context.controller.getState().customer?.email, "auth@example.com");
+  assert.match(context.stored ?? "", /rotated-refresh/);
+});

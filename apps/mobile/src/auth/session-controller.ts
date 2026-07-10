@@ -186,6 +186,9 @@ export function createSessionController(dependencies: SessionControllerDependenc
         await expire(message(error, "Oturum yenilenemedi. Yeniden giriş yapın."), expectedGeneration);
         return undefined;
       }
+      if (isCurrent(expectedGeneration)) {
+        emit({ error: message(error, "İşlem tamamlanamadı. Tekrar deneyin."), type: "FAILED" }, expectedGeneration);
+      }
       throw error;
     }
   };

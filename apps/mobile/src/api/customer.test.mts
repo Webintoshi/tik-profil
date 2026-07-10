@@ -94,3 +94,130 @@ test("profile save uses PUT JSON and returns the server-owned account fields", a
     globalThis.fetch = originalFetch;
   }
 });
+
+const validProfileResponse = {
+  addresses: [{
+    city: "Ordu",
+    createdAt: "2026-07-11T10:00:00.000Z",
+    district: "Altinordu",
+    fullAddress: "Akyazi Mahallesi",
+    id: "address-1",
+    isDefault: true,
+    label: "Ev",
+    latitude: 40.98,
+    longitude: 37.88,
+    updatedAt: "2026-07-11T10:00:00.000Z"
+  }],
+  email: "customer@example.com",
+  profile: {
+    appUserId: "user-1",
+    avatarUrl: null,
+    birthDate: null,
+    createdAt: "2026-07-11T10:00:00.000Z",
+    displayName: "Ada",
+    hobbies: ["Yürüyüş"],
+    maritalStatus: null,
+    occupation: null,
+    phone: null,
+    preferences: {},
+    updatedAt: "2026-07-11T10:00:00.000Z"
+  },
+  success: true
+};
+
+const validOrdersResponse = {
+  orders: [{
+    businessId: "business-1",
+    businessName: null,
+    createdAt: "2026-07-11T10:00:00.000Z",
+    id: "order-1",
+    itemCount: 2,
+    orderNumber: null,
+    recordType: "fastfood",
+    status: "pending",
+    total: 250
+  }],
+  success: true
+};
+
+const validReservationsResponse = {
+  reservations: [{
+    businessId: "business-1",
+    createdAt: "2026-07-11T10:00:00.000Z",
+    endDate: "2026-07-13",
+    id: "reservation-1",
+    reservationType: "hotel",
+    startDate: "2026-07-12",
+    status: "confirmed",
+    total: 1500
+  }],
+  success: true
+};
+
+async function rejectsMalformedAccountResponse(pathSuffix: string, malformed: unknown) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.endsWith(pathSuffix)) return Response.json(malformed);
+    if (url.endsWith("/user/profile")) return Response.json(validProfileResponse);
+    if (url.endsWith("/orders")) return Response.json(validOrdersResponse);
+    return Response.json(validReservationsResponse);
+  };
+  try {
+    await assert.rejects(
+      fetchCustomerAccount("access-token", "https://example.test"),
+      (error: unknown) => error instanceof CustomerApiError
+        && error.status === 200
+        && error.code === "INVALID_RESPONSE"
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+test("success-only customer payloads are rejected for every account endpoint", async () => {
+  await rejectsMalformedAccountResponse("/user/profile", { success: true });
+  await rejectsMalformedAccountResponse("/orders", { success: true });
+  await rejectsMalformedAccountResponse("/reservations", { success: true });
+});
+
+test("malformed profile and address fields throw a status-preserving decode error", async () => {
+  await rejectsMalformedAccountResponse("/user/profile", {
+    ...validProfileResponse,
+    profile: { ...validProfileResponse.profile, hobbies: ["valid", 42] }
+  });
+  await rejectsMalformedAccountResponse("/user/profile", {
+    ...validProfileResponse,
+    addresses: [{ ...validProfileResponse.addresses[0], isDefault: "yes" }]
+  });
+});
+
+test("malformed order and reservation fields throw a status-preserving decode error", async () => {
+  await rejectsMalformedAccountResponse("/orders", {
+    success: true,
+    orders: [{ ...validOrdersResponse.orders[0], itemCount: "2", recordType: "unknown" }]
+  });
+  await rejectsMalformedAccountResponse("/reservations", {
+    success: true,
+    reservations: [{ ...validReservationsResponse.reservations[0], reservationType: "restaurant", total: null }]
+  });
+});
+
+test("valid nested customer payloads are decoded and returned", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.endsWith("/user/profile")) return Response.json(validProfileResponse);
+    if (url.endsWith("/orders")) return Response.json(validOrdersResponse);
+    return Response.json(validReservationsResponse);
+  };
+  try {
+    const account = await fetchCustomerAccount("access-token", "https://example.test");
+    assert.equal(account.profile?.displayName, "Ada");
+    assert.equal(account.addresses[0].isDefault, true);
+    assert.equal(account.orders[0].itemCount, 2);
+    assert.equal(account.reservations[0].reservationType, "hotel");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

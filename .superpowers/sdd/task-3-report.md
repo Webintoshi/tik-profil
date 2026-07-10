@@ -263,3 +263,57 @@ Date: 2026-07-11
 ### Remaining External Gap
 
 Live Logto redirect/token exchange remains unavailable because the public endpoint, native client ID, and API audience are intentionally absent locally. No credential or fake session was introduced.
+
+## Review Fix Cycle: Customer Payload Decoding And Mutation Retry Settlement
+
+Date: 2026-07-11
+
+### Findings Resolved
+
+- Removed the generic successful-payload cast from `customer.ts`. Every profile, address, order, and reservation response is now structurally decoded before it reaches account state.
+- Decoders require the top-level arrays/fields and validate every nested item field the UI dereferences: nullable strings, string arrays, preferences object, booleans, finite numbers, non-negative integer item counts, timestamps/date strings, IDs, and record/reservation enums.
+- Validated values are rebuilt field-by-field; raw response objects are never cast to customer response or model types.
+- Successful HTTP responses with missing or malformed structure throw `CustomerApiError` with the original HTTP status and `code: INVALID_RESPONSE`. The controller treats this as a recoverable non-auth error and retains valid credentials/customer data.
+- Direct authenticated mutations now settle a 401, successful refresh, then retry 503/non-401 into generation-guarded `error` state while preserving rotated credentials and the rendered customer. The original operation error is still rethrown to the caller.
+
+### RED Evidence
+
+1. `node --test ./src/api/customer.test.mts` from `apps/mobile`
+   - FAIL: 3 decoder tests, 6 existing tests passed.
+   - `{ success: true }` for profile, orders, and reservations produced “Missing expected rejection”.
+   - Malformed profile hobbies and address boolean fields produced “Missing expected rejection”.
+   - Malformed order item/record type and reservation type/total fields produced “Missing expected rejection”.
+2. `node --test ./src/auth/session-controller.test.mts` from `apps/mobile`
+   - FAIL: direct mutation 401, rotate, retry 503 ended in actual `refreshing` instead of expected recoverable `error`; 27 existing tests passed.
+
+### GREEN Evidence
+
+1. `node --test ./src/api/customer.test.mts ./src/auth/session-controller.test.mts` from `apps/mobile`
+   - PASS: 37 tests, 0 failures.
+   - Decoder tests use real mocked `fetch` calls returning actual `Response.json(...)` instances, including valid and malformed payloads.
+   - Mutation test calls `runAuthenticated` directly, verifies the retried operation receives `rotated-access`, and confirms customer/rotated SecureStore session preservation after 503.
+2. `npm run typecheck` from `apps/mobile`
+   - PASS: 0 errors.
+
+### Final Verification Commands And Results
+
+1. `npm run test` from `apps/mobile`
+   - PASS: 59 tests, 0 failures; mobile customer discovery smoke test passed.
+2. `node --test ./scripts/task2-server-security.test.mjs` from `apps/mobile`
+   - PASS: 19 tests, 0 failures, no module-type warning.
+3. `node --test ./scripts/proxy-headers.test.mjs ./scripts/proxy-integration.test.mjs ../../src/app/api/mobile/account/avatar/avatar-handler.test.mts ../../src/app/api/mobile/account/avatar/avatar-ownership.test.mts` from `apps/mobile`
+   - PASS: 9 tests, 0 failures.
+4. `npm run export:web` from `apps/mobile`
+   - PASS: Expo/Metro exported 13 static routes; CommonJS Expo configuration remains unchanged.
+5. `npx tsc --noEmit --incremental false` at repository root with avatar-route filtering
+   - Expected unrelated baseline: exit 2 and 265 output lines; `src/app/api/mobile/account/avatar/` has 0 errors.
+6. `git diff --check`
+   - PASS: no whitespace errors; Windows line-ending notices only.
+7. Playwright CLI at `http://localhost:8090/account`, viewport `390x844`
+   - PASS: explicit missing-Logto signed-out state, 0 console errors, no horizontal overflow (`390 == 390`).
+   - localStorage contains only discovery state and the approved non-secret logout marker; no access/refresh material.
+   - The generated `.playwright-cli` directory was removed before staging.
+
+### Remaining External Gap
+
+Live Logto redirect/token exchange remains unavailable because the public endpoint, native client ID, and API audience are intentionally absent locally. No credential or fake session was introduced.
