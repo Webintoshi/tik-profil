@@ -138,7 +138,10 @@
 ### Task 3: Connect Expo Login, Registration and Account Data
 
 **Files:**
+- Modify: `.env.example`
+- Modify: `apps/mobile/app.json`
 - Modify: `apps/mobile/package.json`
+- Modify: `apps/mobile/package-lock.json`
 - Create: `apps/mobile/src/auth/auth-store.tsx`
 - Create: `apps/mobile/src/auth/logto-client.ts`
 - Create: `apps/mobile/src/api/customer.ts`
@@ -146,6 +149,8 @@
 - Modify: `apps/mobile/src/components/account/AuthEntryCard.tsx`
 - Modify: `apps/mobile/app/(tabs)/account.tsx`
 - Modify: `apps/mobile/src/api/account.ts`
+- Modify: `apps/mobile/scripts/dev-admin-api-proxy.mjs`
+- Modify: `src/app/api/mobile/account/avatar/route.ts`
 
 **Interfaces:**
 - Consumes: Customer API contracts from Task 2.
@@ -171,7 +176,7 @@
 
 - [ ] **Step 5: Wire account editing and avatar ownership**
 
-  Move uploaded avatars from `account-avatars/pending/...` to the authenticated customer's key namespace after profile save. Persist profile fields and addresses through `src/api/customer.ts`.
+  Forward `Authorization` through the local proxy and direct API clients. Require the customer session for avatar upload, write new avatars directly to the authenticated customer's key namespace, and persist profile fields and addresses through `src/api/customer.ts`. Registration may defer avatar upload until OIDC sign-up completes; no anonymous pending avatar is attached by client-supplied identity.
 
 - [ ] **Step 6: Verify real session behavior**
 
