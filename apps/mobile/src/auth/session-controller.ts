@@ -16,9 +16,16 @@ interface SessionStorage {
   write(value: string): Promise<void>;
 }
 
+interface LogoutMarkerStorage {
+  clear(): Promise<void>;
+  read(): Promise<boolean>;
+  write(): Promise<void>;
+}
+
 export interface SessionControllerDependencies {
   authorize(mode: "signIn" | "signUp", directSignIn?: DirectSignIn): Promise<StoredSession | null>;
   fetchCustomer(accessToken: string): Promise<CustomerAccount>;
+  logoutMarker: LogoutMarkerStorage;
   now?: () => number;
   refresh(session: StoredSession): Promise<StoredSession>;
   revoke(session: StoredSession): Promise<void>;
@@ -49,7 +56,7 @@ export function createSessionController(dependencies: SessionControllerDependenc
   let session: StoredSession | null = null;
   let generation = 0;
   let activeOperation: symbol | null = null;
-  let cleanupBarrier: Promise<CleanupResult> = Promise.resolve({ warning: null });
+  let storageBarrier: Promise<void> = Promise.resolve();
   const listeners = new Set<Listener>();
 
   const emit = (action: SessionAction, expectedGeneration?: number) => {
@@ -62,9 +69,22 @@ export function createSessionController(dependencies: SessionControllerDependenc
   const isCurrent = (expectedGeneration: number) => expectedGeneration === generation;
   const needsRefresh = (value: StoredSession) => shouldRefresh(value, dependencies.now?.() ?? Date.now());
 
+  const enqueueStorage = <T>(operation: () => Promise<T>): Promise<T> => {
+    const queued = storageBarrier.catch(() => undefined).then(operation);
+    storageBarrier = queued.then(() => undefined, () => undefined);
+    return queued;
+  };
+
   const performCleanup = async (): Promise<CleanupResult> => {
+    let logoutMarked = false;
     let invalidated = false;
     let lastError: unknown;
+    try {
+      await dependencies.logoutMarker.write();
+      logoutMarked = true;
+    } catch (error) {
+      lastError = error;
+    }
     try {
       await dependencies.storage.write(INVALIDATED_SESSION);
       invalidated = true;
@@ -81,27 +101,22 @@ export function createSessionController(dependencies: SessionControllerDependenc
       }
     }
 
-    if (invalidated) return { warning: CLEANUP_WARNING };
+    if (logoutMarked || invalidated) return { warning: CLEANUP_WARNING };
     throw lastError instanceof Error ? lastError : new Error(CLEANUP_FAILURE);
   };
 
   const clearStorage = () => {
-    const queued = cleanupBarrier
-      .catch(() => ({ warning: null }))
-      .then(performCleanup);
-    cleanupBarrier = queued;
-    return queued;
+    return enqueueStorage(performCleanup);
   };
 
-  const persist = async (nextSession: StoredSession, expectedGeneration: number) => {
-    await cleanupBarrier;
-    if (!isCurrent(expectedGeneration)) return false;
-    await dependencies.storage.write(JSON.stringify(nextSession));
-    if (!isCurrent(expectedGeneration)) {
-      await clearStorage().catch(() => undefined);
-      return false;
-    }
-    return true;
+  const persist = (nextSession: StoredSession, expectedGeneration: number, clearLogoutMarker = false) => {
+    return enqueueStorage(async () => {
+      if (!isCurrent(expectedGeneration)) return false;
+      await dependencies.storage.write(JSON.stringify(nextSession));
+      if (!isCurrent(expectedGeneration)) return false;
+      if (clearLogoutMarker) await dependencies.logoutMarker.clear();
+      return isCurrent(expectedGeneration);
+    });
   };
 
   const expire = async (error: string, expectedGeneration: number) => {
@@ -182,6 +197,16 @@ export function createSessionController(dependencies: SessionControllerDependenc
     }
   };
 
+  const loadCustomerRecoverably = async (expectedGeneration: number) => {
+    try {
+      await loadCustomer(expectedGeneration);
+    } catch (error) {
+      if (isCurrent(expectedGeneration)) {
+        emit({ error: message(error, "Hesap bilgileri yüklenemedi. Tekrar deneyin."), type: "FAILED" }, expectedGeneration);
+      }
+    }
+  };
+
   const runExclusive = async <T>(operation: (expectedGeneration: number) => Promise<T>) => {
     if (activeOperation) return undefined;
     const operationToken = Symbol("session-operation");
@@ -202,20 +227,23 @@ export function createSessionController(dependencies: SessionControllerDependenc
     activeOperation = operationToken;
     emit({ type: "AUTH_STARTED" }, expectedGeneration);
     try {
-      await cleanupBarrier;
-      if (!isCurrent(expectedGeneration)) return;
-      const authorized = await dependencies.authorize(mode, directSignIn);
-      if (!isCurrent(expectedGeneration)) return;
-      if (!authorized) {
-        emit({ type: "RESTORE_EMPTY" }, expectedGeneration);
+      try {
+        await storageBarrier;
+        if (!isCurrent(expectedGeneration)) return;
+        const authorized = await dependencies.authorize(mode, directSignIn);
+        if (!isCurrent(expectedGeneration)) return;
+        if (!authorized) {
+          emit({ type: "RESTORE_EMPTY" }, expectedGeneration);
+          return;
+        }
+        session = authorized;
+        emit({ accessToken: authorized.accessToken, type: "TOKEN_RESTORED" }, expectedGeneration);
+        if (!await persist(authorized, expectedGeneration, true)) return;
+      } catch (error) {
+        await expire(message(error, "Giriş tamamlanamadı."), expectedGeneration);
         return;
       }
-      session = authorized;
-      emit({ accessToken: authorized.accessToken, type: "TOKEN_RESTORED" }, expectedGeneration);
-      if (!await persist(authorized, expectedGeneration)) return;
-      await loadCustomer(expectedGeneration);
-    } catch (error) {
-      await expire(message(error, "Giriş tamamlanamadı."), expectedGeneration);
+      await loadCustomerRecoverably(expectedGeneration);
     } finally {
       if (activeOperation === operationToken) activeOperation = null;
     }
@@ -230,8 +258,19 @@ export function createSessionController(dependencies: SessionControllerDependenc
     async restore() {
       await runExclusive(async (expectedGeneration) => {
         try {
-          await cleanupBarrier;
+          await storageBarrier;
           if (!isCurrent(expectedGeneration)) return;
+          const loggedOut = await dependencies.logoutMarker.read();
+          if (!isCurrent(expectedGeneration)) return;
+          if (loggedOut) {
+            session = null;
+            const cleanup = await clearStorage();
+            if (!isCurrent(expectedGeneration)) return;
+            emit(cleanup.warning
+              ? { error: cleanup.warning, type: "SIGNED_OUT_WARNING" }
+              : { type: "RESTORE_EMPTY" }, expectedGeneration);
+            return;
+          }
           const stored = parseStoredSession(await dependencies.storage.read());
           if (!isCurrent(expectedGeneration)) return;
           if (!stored) {
@@ -253,10 +292,11 @@ export function createSessionController(dependencies: SessionControllerDependenc
             const rotated = await rotate(stored, expectedGeneration);
             if (!rotated) return;
           }
-          await loadCustomer(expectedGeneration);
         } catch (error) {
           await expire(message(error, "Oturum yenilenemedi. Yeniden giriş yapın."), expectedGeneration);
+          return;
         }
+        await loadCustomerRecoverably(expectedGeneration);
       });
     },
     signIn: (directSignIn?: DirectSignIn) => authenticate("signIn", directSignIn),
@@ -288,13 +328,7 @@ export function createSessionController(dependencies: SessionControllerDependenc
           return;
         }
         emit({ type: "CUSTOMER_REFRESH_STARTED" }, expectedGeneration);
-        try {
-          await loadCustomer(expectedGeneration);
-        } catch (error) {
-          if (isCurrent(expectedGeneration)) {
-            emit({ error: message(error, "Hesap bilgileri yenilenemedi."), type: "FAILED" }, expectedGeneration);
-          }
-        }
+        await loadCustomerRecoverably(expectedGeneration);
       });
     },
     async runAuthenticated<T>(operation: (accessToken: string) => Promise<T>) {

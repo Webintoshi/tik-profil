@@ -16,6 +16,7 @@ import {
   revokeLogtoSession,
   type DirectSignIn
 } from "./logto-client";
+import { createLogoutMarkerStorage } from "./logout-marker-storage";
 import { createSessionController } from "./session-controller";
 import { createSessionStorage } from "./secure-session-storage";
 import type { SessionStatus } from "./session-state";
@@ -40,13 +41,15 @@ const CustomerSessionContext = createContext<CustomerSession | null>(null);
 
 export function CustomerSessionProvider({ children }: { children: ReactNode }) {
   const storage = useMemo(() => createSessionStorage(Platform.OS), []);
+  const logoutMarker = useMemo(() => createLogoutMarkerStorage(), []);
   const controller = useMemo(() => createSessionController({
     authorize: authorizeWithLogto,
     fetchCustomer: fetchCustomerAccount,
+    logoutMarker,
     refresh: refreshLogtoSession,
     revoke: revokeLogtoSession,
     storage
-  }), [storage]);
+  }), [logoutMarker, storage]);
   const [state, setState] = useState(controller.getState());
 
   useEffect(() => {

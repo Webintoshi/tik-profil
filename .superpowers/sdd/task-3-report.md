@@ -207,3 +207,59 @@ Date: 2026-07-11
 ### Remaining External Gap
 
 Live Logto redirect and token exchange remain unavailable because no public Logto endpoint, native client ID, or API audience is configured locally. The implementation does not invent credentials or fake authentication.
+
+## Review Fix Cycle: Durable Logout Marker And Recoverable Customer Errors
+
+Date: 2026-07-11
+
+### Findings Resolved
+
+- Added an independent, non-secret logout marker backed by AsyncStorage. Its fixed key/value is `tikprofil.customer.logout-marker.v1=signed_out`; the adapter API cannot receive access or refresh tokens.
+- Sign-out and auth-expiry cleanup persist the logout marker before attempting the existing SecureStore tombstone and bounded deletes. Restore checks the marker before reading SecureStore and refuses stale secure credentials whenever it indicates signed-out.
+- Unified secure-session persistence, fresh-login marker removal, and cleanup under one FIFO storage barrier. Fresh authorization writes a complete refreshable session first and removes the marker only afterward; a concurrent sign-out is queued behind both and re-establishes the marker before it completes.
+- Complete SecureStore mutation failure now remains durably signed-out through process restart when the independent marker succeeds. A later valid authorization can persist a fresh secure session and then clear the marker.
+- Split customer data loading from authorization/restoration. Customer 500, network, or malformed-response failures retain valid credentials and expose a recoverable `error`; 401 and refresh failures still clear the session.
+- A 401 followed by successful token rotation and retry 503 now settles in recoverable `error` with rotated credentials instead of expiring or remaining `refreshing`.
+- Existing rendered customer data remains present on refresh 500. When no initial customer is available, the account screen shows an explicit retry/sign-out error state instead of the login form.
+
+### RED Evidence
+
+1. `node --test ./src/auth/session-controller.test.mts` from `apps/mobile`
+   - FAIL: 4 new assertions, 21 existing tests passed.
+   - Complete SecureStore write/delete failure did not write the injected marker (`false !== true`).
+   - Initial customer 500 after authorize produced `signed_out` instead of recoverable `error`.
+   - Initial network failure after restore produced `signed_out` instead of recoverable `error`.
+   - 401, successful refresh, then retry 503 produced `signed_out` instead of recoverable `error` with rotated credentials.
+2. `node --test ./src/auth/logout-marker-storage.test.mts` from `apps/mobile`
+   - FAIL: `ERR_MODULE_NOT_FOUND` for `logout-marker-storage.ts`, proving the independent durable adapter did not exist.
+
+### GREEN Evidence
+
+1. `node --test ./src/auth/logout-marker-storage.test.mts ./src/auth/session-controller.test.mts` from `apps/mobile`
+   - PASS: 28 tests, 0 failures.
+   - Covers marker payload secrecy, total SecureStore mutation failure, restart suppression, fresh recovery, FIFO sign-out during persistence, authorize 500, restore network failure, malformed response, 401-refresh-503, and customer preservation on refresh 500.
+2. `npm run typecheck` from `apps/mobile`
+   - PASS: 0 errors.
+
+### Final Verification Commands And Results
+
+1. `npm run test` from `apps/mobile`
+   - PASS: 54 tests, 0 failures; mobile customer discovery smoke test passed.
+2. `node --test ./scripts/task2-server-security.test.mjs` from `apps/mobile`
+   - PASS: 19 tests, 0 failures, no module-type warning.
+3. `node --test ./scripts/proxy-headers.test.mjs ./scripts/proxy-integration.test.mjs ../../src/app/api/mobile/account/avatar/avatar-handler.test.mts ../../src/app/api/mobile/account/avatar/avatar-ownership.test.mts` from `apps/mobile`
+   - PASS: 9 tests, 0 failures.
+4. `npm run export:web` from `apps/mobile`
+   - PASS: Expo/Metro exported 13 static routes; CommonJS Expo configuration remains unchanged.
+5. `npx tsc --noEmit --incremental false` at repository root with avatar-route filtering
+   - Expected unrelated baseline: exit 2 and 265 output lines; `src/app/api/mobile/account/avatar/` has 0 errors.
+6. `git diff --check`
+   - PASS: no whitespace errors; Windows line-ending notices only.
+7. Playwright CLI at `http://localhost:8090/account`, viewport `390x844`
+   - PASS: explicit missing-Logto signed-out state, 0 console errors, no horizontal overflow (`390 == 390`).
+   - localStorage contains discovery state plus only the allowed non-secret logout marker; no access/refresh token material.
+   - The generated `.playwright-cli` directory was removed before staging.
+
+### Remaining External Gap
+
+Live Logto redirect/token exchange remains unavailable because the public endpoint, native client ID, and API audience are intentionally absent locally. No credential or fake session was introduced.

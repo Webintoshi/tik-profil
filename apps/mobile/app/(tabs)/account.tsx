@@ -46,6 +46,7 @@ export default function AccountScreen() {
   const { mode } = useThemeMode();
   const session = useCustomerSession();
   const hasCustomer = Boolean(session.customer && session.accessToken);
+  const hasRecoverableAccountError = Boolean(session.accessToken && session.error && !session.customer);
 
   return (
     <View style={{ backgroundColor: colors.background, flex: 1 }}>
@@ -58,6 +59,8 @@ export default function AccountScreen() {
           <LoadingState />
         ) : hasCustomer ? (
           <SignedInAccountView />
+        ) : hasRecoverableAccountError ? (
+          <AccountLoadError message={session.error || "Hesap bilgileri yüklenemedi."} />
         ) : (
           <>
             <AuthEntryCard />
@@ -70,6 +73,21 @@ export default function AccountScreen() {
         </Text>
       </ScrollView>
       <ThemeModeButton currentMode={mode} top={insets.top + spacing.md} />
+    </View>
+  );
+}
+
+function AccountLoadError({ message }: { message: string }) {
+  const { refreshCustomer, signOut } = useCustomerSession();
+  return (
+    <View accessibilityRole="alert" style={{ gap: spacing.lg, minHeight: 360, justifyContent: "center", paddingHorizontal: spacing.screen }}>
+      <View style={{ alignItems: "center", gap: spacing.sm }}>
+        <Icon color={colors.danger} name="profile" size={28} />
+        <Text style={{ ...typography.sectionTitle, color: colors.ink, textAlign: "center" }}>Hesap bilgileri alınamadı</Text>
+        <Text style={{ ...typography.body, color: colors.muted, textAlign: "center" }}>{message}</Text>
+      </View>
+      <PrimaryButton label="Tekrar dene" onPress={() => void refreshCustomer()} />
+      <View style={{ height: 48 }}><SecondaryButton label="Çıkış yap" onPress={() => void signOut()} /></View>
     </View>
   );
 }

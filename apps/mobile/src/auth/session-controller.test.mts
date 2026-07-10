@@ -33,11 +33,17 @@ const customer = (email: string) => ({ addresses: [], email, orders: [], profile
 
 function harness(overrides: Record<string, unknown> = {}) {
   let stored: string | null = null;
+  let logoutMarked = false;
   let clearCalls = 0;
   let writeCalls = 0;
   const dependencies = {
     authorize: async () => token("auth"),
     fetchCustomer: async () => customer("auth@example.com"),
+    logoutMarker: {
+      clear: async () => { logoutMarked = false; },
+      read: async () => logoutMarked,
+      write: async () => { logoutMarked = true; }
+    },
     refresh: async () => token("rotated"),
     revoke: async () => undefined,
     storage: {
@@ -51,6 +57,7 @@ function harness(overrides: Record<string, unknown> = {}) {
   return {
     controller,
     get clearCalls() { return clearCalls; },
+    get logoutMarked() { return logoutMarked; },
     get stored() { return stored; },
     set stored(value: string | null) { stored = value; },
     get writeCalls() { return writeCalls; }
@@ -110,7 +117,7 @@ test("sign-out during customer fetch suppresses stale customer", async () => {
   assert.equal(context.controller.getState().customer, null);
 });
 
-test("sign-out during storage write compensates with a final clear", async () => {
+test("sign-out during storage write queues a final clear after persistence", async () => {
   const write = deferred<void>();
   let persisted: string | null = null;
   let clearCalls = 0;
@@ -127,7 +134,8 @@ test("sign-out during storage write compensates with a final clear", async () =>
   write.resolve();
   await Promise.all([signingIn, signingOut]);
   assert.equal(persisted, null);
-  assert.ok(clearCalls >= 2);
+  assert.equal(clearCalls, 1);
+  assert.equal(context.logoutMarked, true);
   assert.equal(context.controller.getState().status, "signed_out");
 });
 
@@ -394,4 +402,112 @@ test("stale expiry cleanup failure cannot overwrite a newer sign-out", async () 
   newerCleanupWrite.resolve();
   await Promise.all([expiring, newerSignOut]);
   assert.equal(context.controller.getState().status, "signed_out");
+});
+
+test("durable logout marker blocks stale SecureStore restoration and permits fresh recovery", async () => {
+  let secureValue: string | null = JSON.stringify(token("stale"));
+  let secureMutationsFail = true;
+  let logoutMarked = false;
+  let fetchCalls = 0;
+  const storage = {
+    clear: async () => {
+      if (secureMutationsFail) throw new Error("SecureStore delete failed");
+      secureValue = null;
+    },
+    read: async () => secureValue,
+    write: async (value: string) => {
+      if (secureMutationsFail) throw new Error("SecureStore write failed");
+      secureValue = value;
+    }
+  };
+  const logoutMarker = {
+    clear: async () => { logoutMarked = false; },
+    read: async () => logoutMarked,
+    write: async () => { logoutMarked = true; }
+  };
+
+  const signingOut = harness({ logoutMarker, storage });
+  await signingOut.controller.signOut();
+  assert.equal(logoutMarked, true);
+  assert.equal(signingOut.controller.getState().status, "signed_out");
+
+  const restarted = harness({
+    fetchCustomer: async () => { fetchCalls += 1; return customer("stale@example.com"); },
+    logoutMarker,
+    storage
+  });
+  await restarted.controller.restore();
+  assert.equal(fetchCalls, 0);
+  assert.equal(restarted.controller.getState().status, "signed_out");
+  assert.equal(restarted.controller.getState().accessToken, null);
+
+  secureMutationsFail = false;
+  const recovered = harness({ authorize: async () => token("fresh"), logoutMarker, storage });
+  await recovered.controller.signIn();
+  assert.equal(logoutMarked, false);
+  assert.match(secureValue ?? "", /fresh-access/);
+  assert.equal(recovered.controller.getState().status, "signed_in");
+});
+
+test("authorize keeps a valid session when initial customer fetch returns 500", async () => {
+  const context = harness({
+    fetchCustomer: async () => { throw new CustomerApiError(500, { code: "SERVER_ERROR" }); }
+  });
+  await context.controller.signIn();
+  assert.equal(context.controller.getState().status, "error");
+  assert.equal(context.controller.getState().accessToken, "auth-access");
+  assert.match(context.stored ?? "", /auth-refresh/);
+});
+
+test("restore keeps a valid session when initial customer fetch fails on the network", async () => {
+  const context = harness({
+    fetchCustomer: async () => { throw new Error("network unavailable"); }
+  });
+  context.stored = JSON.stringify(token("restored"));
+  await context.controller.restore();
+  assert.equal(context.controller.getState().status, "error");
+  assert.equal(context.controller.getState().accessToken, "restored-access");
+  assert.match(context.stored ?? "", /restored-refresh/);
+});
+
+test("authorize keeps a valid session when the customer response is malformed", async () => {
+  const context = harness({
+    fetchCustomer: async () => { throw new CustomerApiError(200, null); }
+  });
+  await context.controller.signIn();
+  assert.equal(context.controller.getState().status, "error");
+  assert.equal(context.controller.getState().accessToken, "auth-access");
+  assert.match(context.stored ?? "", /auth-refresh/);
+});
+
+test("401 refresh followed by retry 503 leaves a recoverable error with rotated credentials", async () => {
+  let fetchCalls = 0;
+  const context = harness({
+    fetchCustomer: async () => {
+      fetchCalls += 1;
+      if (fetchCalls === 1) throw new CustomerApiError(401, null);
+      throw new CustomerApiError(503, { code: "UNAVAILABLE" });
+    }
+  });
+  await context.controller.signIn();
+  assert.equal(fetchCalls, 2);
+  assert.equal(context.controller.getState().status, "error");
+  assert.equal(context.controller.getState().accessToken, "rotated-access");
+  assert.match(context.stored ?? "", /rotated-refresh/);
+});
+
+test("customer refresh 500 preserves the rendered customer and valid credentials", async () => {
+  let fetchCalls = 0;
+  const context = harness({
+    fetchCustomer: async () => {
+      fetchCalls += 1;
+      if (fetchCalls === 1) return customer("current@example.com");
+      throw new CustomerApiError(500, null);
+    }
+  });
+  await context.controller.signIn();
+  await context.controller.refreshCustomer();
+  assert.equal(context.controller.getState().status, "error");
+  assert.equal(context.controller.getState().customer?.email, "current@example.com");
+  assert.equal(context.controller.getState().accessToken, "auth-access");
 });
