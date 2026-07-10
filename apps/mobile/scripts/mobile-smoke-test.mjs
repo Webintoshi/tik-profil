@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const appConfig = JSON.parse(readFileSync(join(root, "app.json"), "utf8"));
@@ -136,6 +136,7 @@ const webModuleRegistryPath = join(root, "..", "..", "src", "lib", "ModuleRegist
 const mobileProfileActionsPath = join(root, "src", "business", "profile-actions.ts");
 const mobileTabBarPath = join(root, "src", "components", "navigation", "MakyajTabBar.tsx");
 const mobileTabsLayoutPath = join(root, "app", "(tabs)", "_layout.tsx");
+const mobileTabsPath = join(root, "app", "(tabs)");
 const webModuleRegistry = readFileSync(webModuleRegistryPath, "utf8");
 const registryStart = webModuleRegistry.indexOf("export const MODULE_REGISTRY");
 const registryModuleIds = [...webModuleRegistry.slice(registryStart).matchAll(/\{\s*id:\s*"([^"]+)"/g)]
@@ -160,12 +161,29 @@ if (duplicateProfileActions.length > 0) {
   throw new Error(`Mobile profile action coverage has duplicate modules: ${[...new Set(duplicateProfileActions)].join(", ")}`);
 }
 
+function listRouteNames(dir, rootDir = dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      return listRouteNames(fullPath, rootDir);
+    }
+
+    const routeName = entry.name.replace(/\.(tsx?|jsx?)$/, "");
+    if (routeName === "_layout" || routeName === entry.name) {
+      return [];
+    }
+
+    return [relative(rootDir, fullPath).replace(/\\/g, "/").replace(/\.(tsx?|jsx?)$/, "")];
+  });
+}
+
 const mobileTabBarSource = readFileSync(mobileTabBarPath, "utf8");
 const mobileTabsLayoutSource = readFileSync(mobileTabsLayoutPath, "utf8");
 const hiddenTabRoutesMatch = /const hiddenTabRoutes = new Set\(\[([\s\S]*?)\]\);/.exec(mobileTabBarSource);
 const visibleRoutesContract = "const visibleRoutes = state.routes.filter((route) => !hiddenTabRoutes.has(route.name));";
-const tabRouteNames = [...mobileTabsLayoutSource.matchAll(/<Tabs\.Screen\s+name="([^"]+)"/g)].map((match) => match[1]);
 const coreTabRoutes = ["index", "explore", "favorites", "account"];
+const expectedHiddenTabRoutes = ["business/[slug]", "qr-scan"];
+const tabRouteNames = listRouteNames(mobileTabsPath);
 
 if (!hiddenTabRoutesMatch || !mobileTabBarSource.includes(visibleRoutesContract)) {
   throw new Error("Mobile bottom navigation route filtering is missing.");
@@ -175,16 +193,14 @@ const hiddenTabRoutes = [...hiddenTabRoutesMatch[1].matchAll(/"([^"]+)"/g)].map(
 const visibleTabRoutes = tabRouteNames.filter((route) => !hiddenTabRoutes.includes(route));
 
 if (
-  !hiddenTabRoutes.includes("business/[slug]")
-  || coreTabRoutes.some((route) => hiddenTabRoutes.includes(route))
-  || coreTabRoutes.some((route) => !tabRouteNames.includes(route))
-  || !tabRouteNames.includes("business/[slug]")
+  hiddenTabRoutes.length !== expectedHiddenTabRoutes.length
+  || expectedHiddenTabRoutes.some((route) => !hiddenTabRoutes.includes(route))
   || visibleTabRoutes.length !== coreTabRoutes.length
   || coreTabRoutes.some((route) => !visibleTabRoutes.includes(route))
   || visibleTabRoutes.some((route) => !coreTabRoutes.includes(route))
   || !mobileTabsLayoutSource.includes("tabBar={(props) => <MakyajTabBar {...props} />}")
 ) {
-  throw new Error("Business profiles must render the four core bottom navigation items.");
+  throw new Error("Business profiles must render exactly the four core bottom navigation items.");
 }
 
 console.log("Mobile customer discovery smoke test passed.");
