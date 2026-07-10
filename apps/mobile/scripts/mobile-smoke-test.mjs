@@ -172,12 +172,16 @@ if (!hiddenTabRoutesMatch || !mobileTabBarSource.includes(visibleRoutesContract)
 }
 
 const hiddenTabRoutes = [...hiddenTabRoutesMatch[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+const visibleTabRoutes = tabRouteNames.filter((route) => !hiddenTabRoutes.includes(route));
 
 if (
   !hiddenTabRoutes.includes("business/[slug]")
   || coreTabRoutes.some((route) => hiddenTabRoutes.includes(route))
   || coreTabRoutes.some((route) => !tabRouteNames.includes(route))
   || !tabRouteNames.includes("business/[slug]")
+  || visibleTabRoutes.length !== coreTabRoutes.length
+  || coreTabRoutes.some((route) => !visibleTabRoutes.includes(route))
+  || visibleTabRoutes.some((route) => !coreTabRoutes.includes(route))
   || !mobileTabsLayoutSource.includes("tabBar={(props) => <MakyajTabBar {...props} />}")
 ) {
   throw new Error("Business profiles must render the four core bottom navigation items.");
