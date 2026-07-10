@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildAllowedUpstreamHeaders, isAllowedProxyPath } from "./proxy-headers.mjs";
+import { buildAllowedUpstreamHeaders, isAllowedProxyPath, shouldForwardAuthorization } from "./proxy-headers.mjs";
 
 test("proxy preserves Authorization exactly and keeps request content type", () => {
   assert.deepEqual(buildAllowedUpstreamHeaders("/api/mobile/account/avatar", {
@@ -31,4 +31,32 @@ test("denied paths cannot receive an Authorization header", () => {
     authorization: "Bearer must-not-leak",
     "content-type": "application/json"
   }), null);
+});
+
+test("Authorization forwarding is limited to authenticated customer endpoints", () => {
+  for (const pathname of [
+    "/api/kesfet/user/profile",
+    "/api/kesfet/user/favorites",
+    "/api/kesfet/orders",
+    "/api/kesfet/reservations",
+    "/api/mobile/account/avatar"
+  ]) {
+    assert.equal(shouldForwardAuthorization(pathname), true, pathname);
+    assert.equal(buildAllowedUpstreamHeaders(pathname, {
+      authorization: "Bearer customer"
+    }).Authorization, "Bearer customer", pathname);
+  }
+});
+
+test("public endpoints strip incoming Authorization", () => {
+  for (const pathname of [
+    "/api/public/profile/bebek-burger-akyazi",
+    "/api/kesfet/search",
+    "/api/public/checkout"
+  ]) {
+    assert.equal(shouldForwardAuthorization(pathname), false, pathname);
+    assert.equal(buildAllowedUpstreamHeaders(pathname, {
+      authorization: "Bearer must-not-leak"
+    }).Authorization, undefined, pathname);
+  }
 });

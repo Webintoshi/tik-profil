@@ -54,7 +54,7 @@ export default function AccountScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {session.status === "loading" || (session.status === "refreshing" && !hasCustomer) ? (
+        {session.status === "loading" || session.status === "signing_out" || (session.status === "refreshing" && !hasCustomer) ? (
           <LoadingState />
         ) : hasCustomer ? (
           <SignedInAccountView />

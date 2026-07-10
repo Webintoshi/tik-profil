@@ -27,6 +27,15 @@ export interface SessionControllerDependencies {
 
 type Listener = (state: SessionState) => void;
 
+const INVALIDATED_SESSION = JSON.stringify({ invalidated: true });
+const CLEAR_ATTEMPTS = 3;
+const CLEANUP_WARNING = "Oturum kapatıldı ancak güvenli cihaz kaydı temizlenemedi; kayıt geçersizleştirildi.";
+const CLEANUP_FAILURE = "Oturum cihazdan güvenli biçimde temizlenemedi. Uygulamayı kapatıp tekrar deneyin.";
+
+interface CleanupResult {
+  warning: string | null;
+}
+
 function message(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
@@ -40,7 +49,7 @@ export function createSessionController(dependencies: SessionControllerDependenc
   let session: StoredSession | null = null;
   let generation = 0;
   let activeOperation: symbol | null = null;
-  let cleanupBarrier: Promise<void> = Promise.resolve();
+  let cleanupBarrier: Promise<CleanupResult> = Promise.resolve({ warning: null });
   const listeners = new Set<Listener>();
 
   const emit = (action: SessionAction, expectedGeneration?: number) => {
@@ -53,10 +62,35 @@ export function createSessionController(dependencies: SessionControllerDependenc
   const isCurrent = (expectedGeneration: number) => expectedGeneration === generation;
   const needsRefresh = (value: StoredSession) => shouldRefresh(value, dependencies.now?.() ?? Date.now());
 
+  const performCleanup = async (): Promise<CleanupResult> => {
+    let invalidated = false;
+    let lastError: unknown;
+    try {
+      await dependencies.storage.write(INVALIDATED_SESSION);
+      invalidated = true;
+    } catch (error) {
+      lastError = error;
+    }
+
+    for (let attempt = 0; attempt < CLEAR_ATTEMPTS; attempt += 1) {
+      try {
+        await dependencies.storage.clear();
+        return { warning: null };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (invalidated) return { warning: CLEANUP_WARNING };
+    throw lastError instanceof Error ? lastError : new Error(CLEANUP_FAILURE);
+  };
+
   const clearStorage = () => {
-    const clearing = dependencies.storage.clear().catch(() => undefined);
-    cleanupBarrier = clearing;
-    return clearing;
+    const queued = cleanupBarrier
+      .catch(() => ({ warning: null }))
+      .then(performCleanup);
+    cleanupBarrier = queued;
+    return queued;
   };
 
   const persist = async (nextSession: StoredSession, expectedGeneration: number) => {
@@ -64,7 +98,7 @@ export function createSessionController(dependencies: SessionControllerDependenc
     if (!isCurrent(expectedGeneration)) return false;
     await dependencies.storage.write(JSON.stringify(nextSession));
     if (!isCurrent(expectedGeneration)) {
-      await clearStorage();
+      await clearStorage().catch(() => undefined);
       return false;
     }
     return true;
@@ -73,10 +107,17 @@ export function createSessionController(dependencies: SessionControllerDependenc
   const expire = async (error: string, expectedGeneration: number) => {
     if (!isCurrent(expectedGeneration)) return;
     generation += 1;
+    const cleanupGeneration = generation;
     activeOperation = null;
     session = null;
-    emit({ error, type: "SESSION_EXPIRED" });
-    await clearStorage();
+    emit({ type: "SIGN_OUT_STARTED" });
+    try {
+      const cleanup = await clearStorage();
+      if (!isCurrent(cleanupGeneration)) return;
+      emit({ error: cleanup.warning ? `${error} ${cleanup.warning}` : error, type: "SESSION_EXPIRED" });
+    } catch {
+      if (isCurrent(cleanupGeneration)) emit({ error: CLEANUP_FAILURE, type: "CLEANUP_FAILED" });
+    }
   };
 
   const rotate = async (current: StoredSession, expectedGeneration: number) => {
@@ -194,8 +235,16 @@ export function createSessionController(dependencies: SessionControllerDependenc
           const stored = parseStoredSession(await dependencies.storage.read());
           if (!isCurrent(expectedGeneration)) return;
           if (!stored) {
-            await clearStorage();
-            emit({ type: "RESTORE_EMPTY" }, expectedGeneration);
+            try {
+              const cleanup = await clearStorage();
+              if (cleanup.warning) {
+                emit({ error: cleanup.warning, type: "SIGNED_OUT_WARNING" }, expectedGeneration);
+              } else {
+                emit({ type: "RESTORE_EMPTY" }, expectedGeneration);
+              }
+            } catch {
+              emit({ error: CLEANUP_FAILURE, type: "CLEANUP_FAILED" }, expectedGeneration);
+            }
             return;
           }
           session = stored;
@@ -214,12 +263,23 @@ export function createSessionController(dependencies: SessionControllerDependenc
     signUp: () => authenticate("signUp"),
     async signOut() {
       generation += 1;
+      const expectedGeneration = generation;
       activeOperation = null;
       const previous = session;
       session = null;
-      emit({ type: "SIGNED_OUT" });
-      await clearStorage();
-      if (previous) await dependencies.revoke(previous).catch(() => undefined);
+      emit({ type: "SIGN_OUT_STARTED" });
+      try {
+        const cleanup = await clearStorage();
+        if (isCurrent(expectedGeneration)) {
+          emit(cleanup.warning
+            ? { error: cleanup.warning, type: "SIGNED_OUT_WARNING" }
+            : { type: "SIGNED_OUT" });
+        }
+      } catch {
+        if (isCurrent(expectedGeneration)) emit({ error: CLEANUP_FAILURE, type: "CLEANUP_FAILED" });
+      } finally {
+        if (previous) await dependencies.revoke(previous).catch(() => undefined);
+      }
     },
     async refreshCustomer() {
       await runExclusive(async (expectedGeneration) => {

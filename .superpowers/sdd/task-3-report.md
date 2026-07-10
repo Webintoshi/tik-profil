@@ -150,3 +150,60 @@ Date: 2026-07-11
 ### Remaining External Gap
 
 The live Logto redirect/token/restart flow remains unverified because the public endpoint, native client ID, and API audience are intentionally absent locally. No credentials or fake session were introduced.
+
+## Review Fix Cycle: Serialized Cleanup, Bearer Scope, And PKCE
+
+Date: 2026-07-11
+
+### Findings Resolved
+
+- Replaced the single replaceable cleanup promise with a FIFO cleanup chain. Every sign-out, expiry cleanup, invalid restore cleanup, and stale-write compensation joins the chain; a later sign-in waits for all cleanup work queued before it persists.
+- Secure cleanup first writes an invalid-session tombstone, then retries SecureStore deletion up to three times. A successful retry exposes normal `signed_out`; permanent deletion failure with a durable tombstone exposes `signed_out` with an explicit warning; failure to both invalidate and delete exposes credential-free `error`, never a usable session.
+- Added `signing_out` so the UI does not claim durable signed-out state while cleanup is pending. Cleanup completion remains generation-guarded, so an older sign-out cannot overwrite a newer operation's state.
+- Split proxy path admission from bearer forwarding. Authorization now reaches only exact customer profile, favorites, orders, reservations, and mobile avatar paths. Public profile, search, checkout, and every other admitted public endpoint receive no bearer token.
+- Extracted injected `authorizeWithAuthSession()` orchestration while retaining dynamic Expo imports in production. Tests now assert PKCE S256, native redirect construction, resource indicator, offline scopes, cancellation, and exact verifier/code exchange propagation without credentials.
+
+### RED Evidence
+
+1. `node --test ./src/auth/session-controller.test.mts`
+   - Failed the overlapping-sign-out reproduction: the slower first clear deleted the newer persisted sign-in.
+   - Failed transient cleanup behavior: signed-out was exposed before bounded cleanup succeeded.
+   - Failed permanent cleanup behavior: deletion failure was swallowed without a durable invalidation warning.
+   - A latched expiry-cleanup reproduction then failed with actual `error` versus expected `signing_out`, proving the rejection branch could overwrite a newer operation before its generation guard was added.
+2. `node --test ./scripts/proxy-headers.test.mjs ./scripts/proxy-integration.test.mjs`
+   - Failed because `shouldForwardAuthorization` did not exist and the running proxy forwarded the supplied bearer to `/api/kesfet/search`.
+3. `node --test ./src/auth/logto-client.test.mts`
+   - Failed three PKCE orchestration cases because there was no injected `authorizeWithAuthSession` boundary.
+
+### GREEN Evidence
+
+1. `node --test ./src/auth/session-controller.test.mts` from `apps/mobile`
+   - PASS: 21 tests, 0 failures. Includes overlapping sign-outs/new sign-in, transient two-failure retry, permanent delete failure plus restart suppression, stale expiry-cleanup rejection suppression, and all existing generation/401/refresh preservation cases.
+2. `node --test ./scripts/proxy-headers.test.mjs ./scripts/proxy-integration.test.mjs` from `apps/mobile`
+   - PASS: 7 tests, 0 failures. The integration test observes no Authorization on public search and the exact bearer on mobile avatar.
+3. `node --test ./src/auth/logto-client.test.mts` from `apps/mobile`
+   - PASS: 6 tests, 0 failures. Covers S256, `tikprofil://`, resource/scopes, cancellation without exchange, and verifier propagation.
+
+### Final Verification Commands And Results
+
+1. `npm run typecheck` from `apps/mobile`
+   - PASS: 0 errors.
+2. `npm run test` from `apps/mobile`
+   - PASS: 47 tests, 0 failures; mobile customer discovery smoke test passed.
+3. `node --test ./scripts/task2-server-security.test.mjs` from `apps/mobile`
+   - PASS: 19 tests, 0 failures, no module-type warning.
+4. `node --test ./scripts/proxy-headers.test.mjs ./scripts/proxy-integration.test.mjs ../../src/app/api/mobile/account/avatar/avatar-handler.test.mts ../../src/app/api/mobile/account/avatar/avatar-ownership.test.mts` from `apps/mobile`
+   - PASS: 9 tests, 0 failures, including unauthorized avatar and server-owned namespace assertions.
+5. `npm run export:web` from `apps/mobile`
+   - PASS: Expo/Metro exported 13 static routes; CommonJS Expo configuration remains unchanged.
+6. `npx tsc --noEmit --incremental false` at the repository root with avatar-route filtering
+   - Expected unrelated baseline: exit 2 and 265 output lines; `src/app/api/mobile/account/avatar/` has 0 errors.
+7. `git diff --check`
+   - PASS: no whitespace errors; Windows line-ending notices only.
+8. Playwright CLI at `http://localhost:8090/account`, viewport `390x844`
+   - PASS: explicit missing-Logto signed-out state, 0 console errors, document width 390 equals viewport width 390, and localStorage contains discovery state only.
+   - The generated `.playwright-cli` directory was removed before staging.
+
+### Remaining External Gap
+
+Live Logto redirect and token exchange remain unavailable because no public Logto endpoint, native client ID, or API audience is configured locally. The implementation does not invent credentials or fake authentication.

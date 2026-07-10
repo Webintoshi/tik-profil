@@ -82,7 +82,7 @@ test("sign-out during authorize suppresses token and storage writes", async () =
   authorize.resolve(token("stale"));
   await signingIn;
   assert.equal(context.controller.getState().status, "signed_out");
-  assert.equal(context.writeCalls, 0);
+  assert.doesNotMatch(context.stored ?? "", /stale-access/);
 });
 
 test("sign-out during refresh suppresses rotated session", async () => {
@@ -95,7 +95,7 @@ test("sign-out during refresh suppresses rotated session", async () => {
   refresh.resolve(token("stale-rotated"));
   await restoring;
   assert.equal(context.controller.getState().status, "signed_out");
-  assert.equal(context.writeCalls, 0);
+  assert.doesNotMatch(context.stored ?? "", /stale-rotated-access/);
 });
 
 test("sign-out during customer fetch suppresses stale customer", async () => {
@@ -277,4 +277,121 @@ test("authenticated mutation receives one 401 refresh and one retry", async () =
   });
   assert.equal(result, "saved");
   assert.equal(calls, 2);
+});
+
+test("overlapping sign-outs chain clears before a newer sign-in persists", async () => {
+  const slowFirstClear = deferred<void>();
+  let clearCalls = 0;
+  let stored: string | null = null;
+  let authorizeCalls = 0;
+  const context = harness({
+    authorize: async () => token(authorizeCalls++ === 0 ? "old" : "new"),
+    storage: {
+      clear: async () => {
+        clearCalls += 1;
+        if (clearCalls === 1) await slowFirstClear.promise;
+        stored = null;
+      },
+      read: async () => stored,
+      write: async (value: string) => { stored = value; }
+    }
+  });
+  await context.controller.signIn();
+  const firstSignOut = context.controller.signOut();
+  await flush();
+  const secondSignOut = context.controller.signOut();
+  const newerSignIn = context.controller.signIn();
+  await flush();
+  slowFirstClear.resolve();
+  await Promise.all([firstSignOut, secondSignOut, newerSignIn]);
+  assert.equal(clearCalls, 2);
+  assert.match(stored ?? "", /new-access/);
+  assert.equal(context.controller.getState().customer?.email, "auth@example.com");
+});
+
+test("transient clear failures retry before exposing signed-out", async () => {
+  let clearCalls = 0;
+  let stored: string | null = null;
+  const context = harness({
+    storage: {
+      clear: async () => {
+        clearCalls += 1;
+        if (clearCalls < 3) throw new Error("temporary secure-store failure");
+        stored = null;
+      },
+      read: async () => stored,
+      write: async (value: string) => { stored = value; }
+    }
+  });
+  await context.controller.signIn();
+  const signingOut = context.controller.signOut();
+  assert.notEqual(context.controller.getState().status, "signed_out");
+  await signingOut;
+  assert.equal(clearCalls, 3);
+  assert.equal(stored, null);
+  assert.equal(context.controller.getState().status, "signed_out");
+  assert.equal(context.controller.getState().error, null);
+});
+
+test("permanent delete failure leaves a durable tombstone and truthful warning", async () => {
+  let stored: string | null = null;
+  let fetchCalls = 0;
+  const storage = {
+    clear: async () => { throw new Error("permanent secure-store delete failure"); },
+    read: async () => stored,
+    write: async (value: string) => { stored = value; }
+  };
+  const context = harness({ storage });
+  await context.controller.signIn();
+  await context.controller.signOut();
+  assert.equal(context.controller.getState().status, "signed_out");
+  assert.match(context.controller.getState().error ?? "", /cihaz kaydı temizlenemedi/i);
+  assert.equal(JSON.parse(stored ?? "{}").invalidated, true);
+
+  const restarted = harness({
+    fetchCustomer: async () => { fetchCalls += 1; return customer("stale@example.com"); },
+    storage
+  });
+  await restarted.controller.restore();
+  assert.equal(fetchCalls, 0);
+  assert.equal(restarted.controller.getState().customer, null);
+  assert.equal(restarted.controller.getState().status, "signed_out");
+});
+
+test("stale expiry cleanup failure cannot overwrite a newer sign-out", async () => {
+  const oldCleanupStarted = deferred<void>();
+  const releaseOldCleanup = deferred<void>();
+  const newerCleanupWrite = deferred<void>();
+  let cleanupWrites = 0;
+  let clearCalls = 0;
+  const context = harness({
+    fetchCustomer: async () => { throw new CustomerApiError(401, null); },
+    storage: {
+      clear: async () => {
+        clearCalls += 1;
+        if (clearCalls === 1) {
+          oldCleanupStarted.resolve();
+          await releaseOldCleanup.promise;
+        }
+        if (clearCalls <= 3) throw new Error("old cleanup failed");
+      },
+      read: async () => null,
+      write: async (value: string) => {
+        if (!value.includes("invalidated")) return;
+        cleanupWrites += 1;
+        if (cleanupWrites === 1) throw new Error("old tombstone failed");
+        await newerCleanupWrite.promise;
+      }
+    }
+  });
+
+  const expiring = context.controller.signIn();
+  await oldCleanupStarted.promise;
+  const newerSignOut = context.controller.signOut();
+  releaseOldCleanup.resolve();
+  await flush();
+  assert.equal(context.controller.getState().status, "signing_out");
+  newerCleanupWrite.resolve();
+  await Promise.all([expiring, newerSignOut]);
+  assert.equal(context.controller.getState().status, "signed_out");
 });

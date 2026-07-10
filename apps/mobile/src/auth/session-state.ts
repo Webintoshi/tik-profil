@@ -4,6 +4,7 @@ export type SessionStatus =
   | "loading"
   | "signed_out"
   | "authenticating"
+  | "signing_out"
   | "refreshing"
   | "signed_in"
   | "error";
@@ -27,6 +28,9 @@ export type SessionAction =
   | { type: "CUSTOMER_REFRESH_STARTED" }
   | { type: "FAILED"; error: string }
   | { type: "RESTORE_EMPTY" }
+  | { type: "SIGN_OUT_STARTED" }
+  | { type: "SIGNED_OUT_WARNING"; error: string }
+  | { type: "CLEANUP_FAILED"; error: string }
   | { type: "SESSION_EXPIRED"; error: string }
   | { type: "SIGNED_OUT" }
   | { type: "TOKEN_RESTORED"; accessToken: string };
@@ -94,6 +98,12 @@ export function reduceSession(state: SessionState, action: SessionAction): Sessi
       return { ...state, error: null, status: "refreshing" };
     case "FAILED":
       return { ...state, error: action.error, status: "error" };
+    case "CLEANUP_FAILED":
+      return { accessToken: null, customer: null, error: action.error, status: "error" };
+    case "SIGN_OUT_STARTED":
+      return { accessToken: null, customer: null, error: null, status: "signing_out" };
+    case "SIGNED_OUT_WARNING":
+      return { ...signedOutState, error: action.error };
     case "RESTORE_EMPTY":
     case "SIGNED_OUT":
       return signedOutState;

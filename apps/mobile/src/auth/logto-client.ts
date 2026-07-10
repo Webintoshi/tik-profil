@@ -17,6 +17,21 @@ interface TokenResponseShape {
   refreshToken?: string;
 }
 
+interface AuthRequestShape {
+  codeVerifier?: string;
+  promptAsync(discovery: unknown): Promise<{
+    params?: Record<string, string>;
+    type: string;
+  }>;
+}
+
+export interface LogtoAuthSessionDependencies {
+  createRequest(config: Record<string, unknown>): AuthRequestShape;
+  exchangeCodeAsync(config: Record<string, unknown>, discovery: unknown): Promise<TokenResponseShape>;
+  fetchDiscoveryAsync(endpoint: string): Promise<unknown>;
+  makeRedirectUri(options: { scheme: string }): string;
+}
+
 export type DirectSignIn = "apple" | "google";
 
 const publicEnvironment: PublicEnvironment = {
@@ -66,31 +81,49 @@ export async function authorizeWithLogto(
 ): Promise<StoredSession | null> {
   const configuration = requireConfiguration();
   const AuthSession = await import("expo-auth-session");
-  const discovery = await AuthSession.fetchDiscoveryAsync(configuration.endpoint);
-  const redirectUri = AuthSession.makeRedirectUri({ scheme: "tikprofil" });
+  return authorizeWithAuthSession(configuration, mode, directSignIn, {
+    createRequest: (config) => new AuthSession.AuthRequest(config as ConstructorParameters<typeof AuthSession.AuthRequest>[0]),
+    exchangeCodeAsync: (config, discovery) => AuthSession.exchangeCodeAsync(
+      config as Parameters<typeof AuthSession.exchangeCodeAsync>[0],
+      discovery as Parameters<typeof AuthSession.exchangeCodeAsync>[1]
+    ),
+    fetchDiscoveryAsync: AuthSession.fetchDiscoveryAsync,
+    makeRedirectUri: AuthSession.makeRedirectUri
+  });
+}
+
+export async function authorizeWithAuthSession(
+  configuration: Extract<LogtoConfiguration, { configured: true }>,
+  mode: "signIn" | "signUp",
+  directSignIn: DirectSignIn | undefined,
+  dependencies: LogtoAuthSessionDependencies
+): Promise<StoredSession | null> {
+  const discovery = await dependencies.fetchDiscoveryAsync(configuration.endpoint);
+  const redirectUri = dependencies.makeRedirectUri({ scheme: "tikprofil" });
   const extraParams: Record<string, string> = { resource: configuration.audience };
   if (mode === "signUp") extraParams.first_screen = "register";
   if (directSignIn) extraParams.direct_sign_in = `social:${directSignIn}`;
 
-  const request = new AuthSession.AuthRequest({
+  const request = dependencies.createRequest({
     clientId: configuration.appId,
-    codeChallengeMethod: AuthSession.CodeChallengeMethod.S256,
+    codeChallengeMethod: "S256",
     extraParams,
-    prompt: AuthSession.Prompt.Consent,
+    prompt: "consent",
     redirectUri,
-    responseType: AuthSession.ResponseType.Code,
+    responseType: "code",
     scopes: ["openid", "profile", "email", "offline_access"],
     usePKCE: true
   });
   const result = await request.promptAsync(discovery);
   if (result.type === "cancel" || result.type === "dismiss") return null;
-  if (result.type !== "success" || !result.params.code || !request.codeVerifier) {
+  const authorizationCode = result.params?.code;
+  if (result.type !== "success" || !authorizationCode || !request.codeVerifier) {
     throw new Error("Logto girişi tamamlanamadı.");
   }
 
-  const token = await AuthSession.exchangeCodeAsync({
+  const token = await dependencies.exchangeCodeAsync({
     clientId: configuration.appId,
-    code: result.params.code,
+    code: authorizationCode,
     extraParams: { code_verifier: request.codeVerifier, resource: configuration.audience },
     redirectUri
   }, discovery);

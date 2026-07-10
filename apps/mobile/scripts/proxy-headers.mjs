@@ -11,20 +11,32 @@ export const allowedPrefixes = [
   "/api/restaurant/public-menu"
 ];
 
+const authenticatedPaths = new Set([
+  "/api/kesfet/user/profile",
+  "/api/kesfet/user/favorites",
+  "/api/kesfet/orders",
+  "/api/kesfet/reservations",
+  "/api/mobile/account/avatar"
+]);
+
 export function isAllowedProxyPath(pathname) {
   return allowedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
-function buildUpstreamHeaders(headers) {
+export function shouldForwardAuthorization(pathname) {
+  return authenticatedPaths.has(pathname);
+}
+
+function buildUpstreamHeaders(pathname, headers) {
   const upstreamHeaders = {
     "Content-Type": headers["content-type"] || "application/json"
   };
-  if (typeof headers.authorization === "string" && headers.authorization) {
+  if (shouldForwardAuthorization(pathname) && typeof headers.authorization === "string" && headers.authorization) {
     upstreamHeaders.Authorization = headers.authorization;
   }
   return upstreamHeaders;
 }
 
 export function buildAllowedUpstreamHeaders(pathname, headers) {
-  return isAllowedProxyPath(pathname) ? buildUpstreamHeaders(headers) : null;
+  return isAllowedProxyPath(pathname) ? buildUpstreamHeaders(pathname, headers) : null;
 }

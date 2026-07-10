@@ -52,16 +52,22 @@ test("running proxy gates paths and never leaks denied Authorization", async () 
     assert.equal(denied.status, 404);
     assert.equal(upstreamRequests.length, 0);
 
+    const publicResponse = await fetch(`http://127.0.0.1:${proxyPort}/api/kesfet/search?q=burger`, {
+      headers: { Authorization: "Bearer public-must-strip" }
+    });
+    assert.equal(publicResponse.status, 200);
+    assert.deepEqual(upstreamRequests, [{ authorization: undefined, url: "/api/kesfet/search?q=burger" }]);
+
     const allowed = await fetch(`http://127.0.0.1:${proxyPort}/api/mobile/account/avatar`, {
       body: JSON.stringify({}),
       headers: { Authorization: "Bearer exact.token", "Content-Type": "application/json" },
       method: "POST"
     });
     assert.equal(allowed.status, 200);
-    assert.deepEqual(upstreamRequests, [{
-      authorization: "Bearer exact.token",
-      url: "/api/mobile/account/avatar"
-    }]);
+    assert.deepEqual(upstreamRequests, [
+      { authorization: undefined, url: "/api/kesfet/search?q=burger" },
+      { authorization: "Bearer exact.token", url: "/api/mobile/account/avatar" }
+    ]);
   } finally {
     child.kill();
     await close(upstreamServer);
