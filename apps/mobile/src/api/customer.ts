@@ -122,6 +122,22 @@ export function mapCustomerApiError(status: number, payload: unknown): string {
   return "Hesap bilgileri şu anda alınamıyor. Tekrar deneyin.";
 }
 
+export class CustomerApiError extends Error {
+  readonly code: string | null;
+  readonly payload: unknown;
+  readonly status: number;
+
+  constructor(status: number, payload: unknown) {
+    super(mapCustomerApiError(status, payload));
+    this.name = "CustomerApiError";
+    this.status = status;
+    this.payload = payload;
+    this.code = payload && typeof payload === "object" && "code" in payload && typeof payload.code === "string"
+      ? payload.code
+      : null;
+  }
+}
+
 function endpoint(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/$/, "")}${path}`;
 }
@@ -140,7 +156,7 @@ async function requestJson<T>(
   const response = await fetch(endpoint(baseUrl, path), { ...options, headers });
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok || !payload || typeof payload !== "object" || !("success" in payload) || !payload.success) {
-    throw new Error(mapCustomerApiError(response.status, payload));
+    throw new CustomerApiError(response.status, payload);
   }
   return payload as T;
 }

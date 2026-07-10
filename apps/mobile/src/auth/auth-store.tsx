@@ -1,7 +1,14 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Platform } from "react-native";
 
-import { fetchCustomerAccount } from "../api/customer";
+import { uploadAccountAvatar, type AccountAvatarAsset } from "../api/account";
+import {
+  fetchCustomerAccount,
+  saveCustomerProfile,
+  type CustomerAccount,
+  type CustomerAddressInput,
+  type CustomerProfileUpdate
+} from "../api/customer";
 import {
   authorizeWithLogto,
   completePendingWebAuthSession,
@@ -9,17 +16,9 @@ import {
   revokeLogtoSession,
   type DirectSignIn
 } from "./logto-client";
+import { createSessionController } from "./session-controller";
 import { createSessionStorage } from "./secure-session-storage";
-import {
-  createOperationGate,
-  initialSessionState,
-  parseStoredSession,
-  reduceSession,
-  shouldRefresh,
-  type SessionStatus,
-  type StoredSession
-} from "./session-state";
-import type { CustomerAccount } from "../api/customer";
+import type { SessionStatus } from "./session-state";
 
 export { isTokenExpired, parseStoredSession, reduceSession, shouldRefresh } from "./session-state";
 
@@ -32,120 +31,65 @@ export interface CustomerSession {
   signUp(): Promise<void>;
   signOut(): Promise<void>;
   refreshCustomer(): Promise<void>;
+  saveAddress(address: CustomerAddressInput): Promise<boolean>;
+  saveProfile(update: CustomerProfileUpdate): Promise<boolean>;
+  updateAvatar(asset: AccountAvatarAsset): Promise<boolean>;
 }
 
 const CustomerSessionContext = createContext<CustomerSession | null>(null);
 
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
 export function CustomerSessionProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reduceSession, initialSessionState);
-  const sessionRef = useRef<StoredSession | null>(null);
-  const operationGate = useRef(createOperationGate());
   const storage = useMemo(() => createSessionStorage(Platform.OS), []);
-
-  const loadCustomer = useCallback(async (session: StoredSession) => {
-    if (sessionRef.current !== session) return;
-    dispatch({ accessToken: session.accessToken, type: "TOKEN_RESTORED" });
-    const customer = await fetchCustomerAccount(session.accessToken);
-    if (sessionRef.current !== session) return;
-    dispatch({ customer, type: "CUSTOMER_LOADED" });
-  }, []);
+  const controller = useMemo(() => createSessionController({
+    authorize: authorizeWithLogto,
+    fetchCustomer: fetchCustomerAccount,
+    refresh: refreshLogtoSession,
+    revoke: revokeLogtoSession,
+    storage
+  }), [storage]);
+  const [state, setState] = useState(controller.getState());
 
   useEffect(() => {
-    let cancelled = false;
+    const unsubscribe = controller.subscribe(setState);
     completePendingWebAuthSession().catch(() => undefined);
+    void controller.restore();
+    return unsubscribe;
+  }, [controller]);
 
-    void operationGate.current.run(async () => {
-      try {
-        const stored = parseStoredSession(await storage.read());
-        if (!stored) {
-          await storage.clear();
-          if (!cancelled) dispatch({ type: "RESTORE_EMPTY" });
-          return;
-        }
+  const saveProfile = useCallback(async (update: CustomerProfileUpdate) => {
+    const result = await controller.runAuthenticated((accessToken) => saveCustomerProfile(accessToken, update));
+    if (!result) return false;
+    await controller.refreshCustomer();
+    return controller.getState().customer !== null;
+  }, [controller]);
 
-        const session = shouldRefresh(stored) ? await refreshLogtoSession(stored) : stored;
-        sessionRef.current = session;
-        if (session !== stored) await storage.write(JSON.stringify(session));
-        if (!cancelled) await loadCustomer(session);
-      } catch (error) {
-        sessionRef.current = null;
-        await storage.clear().catch(() => undefined);
-        if (!cancelled) {
-          dispatch({
-            error: errorMessage(error, "Oturum yenilenemedi. Yeniden giriş yapın."),
-            type: "SESSION_EXPIRED"
-          });
-        }
-      }
-    });
+  const saveAddress = useCallback(
+    (address: CustomerAddressInput) => saveProfile({ addresses: [address] }),
+    [saveProfile]
+  );
 
-    return () => { cancelled = true; };
-  }, [loadCustomer, storage]);
-
-  const authenticate = useCallback(async (mode: "signIn" | "signUp", directSignIn?: DirectSignIn) => {
-    await operationGate.current.run(async () => {
-      dispatch({ type: "AUTH_STARTED" });
-      try {
-        const session = await authorizeWithLogto(mode, directSignIn);
-        if (!session) {
-          dispatch({ type: "RESTORE_EMPTY" });
-          return;
-        }
-        sessionRef.current = session;
-        await storage.write(JSON.stringify(session));
-        await loadCustomer(session);
-      } catch (error) {
-        sessionRef.current = null;
-        await storage.clear().catch(() => undefined);
-        dispatch({ error: errorMessage(error, "Giriş tamamlanamadı."), type: "SESSION_EXPIRED" });
-      }
-    });
-  }, [loadCustomer, storage]);
-
-  const signIn = useCallback((directSignIn?: DirectSignIn) => authenticate("signIn", directSignIn), [authenticate]);
-  const signUp = useCallback(() => authenticate("signUp"), [authenticate]);
-
-  const signOut = useCallback(async () => {
-    const session = sessionRef.current;
-    sessionRef.current = null;
-    dispatch({ type: "SIGNED_OUT" });
-    await storage.clear().catch(() => undefined);
-    if (session) await revokeLogtoSession(session).catch(() => undefined);
-  }, [storage]);
-
-  const refreshCustomer = useCallback(async () => {
-    await operationGate.current.run(async () => {
-      const current = sessionRef.current;
-      if (!current) {
-        dispatch({ type: "RESTORE_EMPTY" });
-        return;
-      }
-      dispatch({ type: "CUSTOMER_REFRESH_STARTED" });
-      try {
-        const session = shouldRefresh(current) ? await refreshLogtoSession(current) : current;
-        sessionRef.current = session;
-        if (session !== current) await storage.write(JSON.stringify(session));
-        await loadCustomer(session);
-      } catch (error) {
-        dispatch({ error: errorMessage(error, "Hesap bilgileri yenilenemedi."), type: "FAILED" });
-      }
-    });
-  }, [loadCustomer, storage]);
+  const updateAvatar = useCallback(async (asset: AccountAvatarAsset) => {
+    const avatarUrl = await controller.runAuthenticated((accessToken) => uploadAccountAvatar(asset, accessToken));
+    if (!avatarUrl) return false;
+    const saved = await controller.runAuthenticated((accessToken) => saveCustomerProfile(accessToken, { avatarUrl }));
+    if (!saved) return false;
+    await controller.refreshCustomer();
+    return controller.getState().customer !== null;
+  }, [controller]);
 
   const value = useMemo<CustomerSession>(() => ({
     accessToken: state.accessToken,
     customer: state.customer,
     error: state.error,
-    refreshCustomer,
-    signIn,
-    signOut,
-    signUp,
-    status: state.status
-  }), [refreshCustomer, signIn, signOut, signUp, state]);
+    refreshCustomer: () => controller.refreshCustomer(),
+    saveAddress,
+    saveProfile,
+    signIn: (directSignIn?: DirectSignIn) => controller.signIn(directSignIn),
+    signOut: () => controller.signOut(),
+    signUp: () => controller.signUp(),
+    status: state.status,
+    updateAvatar
+  }), [controller, saveAddress, saveProfile, state, updateAvatar]);
 
   return <CustomerSessionContext.Provider value={value}>{children}</CustomerSessionContext.Provider>;
 }

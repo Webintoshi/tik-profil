@@ -179,6 +179,25 @@ for (const expected of [
   }
 }
 
+for (const expected of [
+  "buildCheckoutAddresses(customer)",
+  "saveAddress: persistAddress",
+  "updateAvatar"
+]) {
+  if (!combined.includes(expected)) {
+    throw new Error(`Expected authenticated account integration is missing: ${expected}`);
+  }
+}
+
+for (const forbidden of [
+  "Akyazı Mah., Altınordu / Ordu",
+  "Düz Mah., Süleyman Felek Cd. / Ordu"
+]) {
+  if (combined.includes(forbidden)) {
+    throw new Error(`Invented checkout address remains in production source: ${forbidden}`);
+  }
+}
+
 function listRouteNames(dir, rootDir = dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const fullPath = join(dir, entry.name);

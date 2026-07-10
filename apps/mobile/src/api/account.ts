@@ -1,3 +1,5 @@
+import { CustomerApiError } from "./customer";
+
 const API_BASE_URL = process.env.EXPO_PUBLIC_TIKPROFIL_API_URL ?? "https://tikprofil.com";
 const MAX_AVATAR_SIZE = 2 * 1024 * 1024;
 
@@ -57,7 +59,7 @@ export async function uploadAccountAvatar(asset: AccountAvatarAsset, accessToken
 
   const data = await response.json().catch(() => null);
   if (!response.ok || !data?.success || !data?.imageUrl) {
-    throw new Error(data?.error || "Profil fotoğrafı yüklenemedi.");
+    throw new CustomerApiError(response.status, data);
   }
 
   return data.imageUrl as string;

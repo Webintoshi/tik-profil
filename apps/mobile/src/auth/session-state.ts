@@ -101,8 +101,8 @@ export function reduceSession(state: SessionState, action: SessionAction): Sessi
       return { ...signedOutState, error: action.error };
     case "TOKEN_RESTORED":
       return {
+        ...state,
         accessToken: action.accessToken,
-        customer: null,
         error: null,
         status: "refreshing"
       };

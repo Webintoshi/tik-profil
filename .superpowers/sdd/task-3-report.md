@@ -84,3 +84,69 @@ Each customer must resolve through the approved Task 2 identity mapping: an acti
 - A live Logto redirect, token exchange, restart restoration, and signed-in API smoke test could not be run because the required public Logto endpoint, native client ID, and API audience are intentionally not configured locally.
 - `npm install` reported 11 moderate transitive dependency advisories. They were not auto-fixed because `npm audit fix` could introduce unrelated dependency changes.
 - Expo reported a newer SDK 56 patch and package update suggestions during local startup; this task kept the versions selected by `npx expo install` and made no unrelated upgrades.
+
+## Review Fix Cycle: Session Generation And Authenticated Retry
+
+Date: 2026-07-11
+
+### Findings Resolved
+
+- Added an injected `createSessionController()` that owns token/customer state, persistence, authorization, refresh, revocation, and authenticated operations.
+- Added a monotonic generation. Sign-out increments it and clears the active-operation token before clearing rendered state and SecureStore. Every post-await state/session/storage write checks the captured generation.
+- Added a SecureStore cleanup barrier and compensating clear. A stale write that completes after sign-out is cleared again, and a later sign-in waits for the preceding cleanup before persisting.
+- Added status-preserving `CustomerApiError` for customer and avatar APIs.
+- Centralized authenticated execution: a 401 refreshes once and retries once. A repeated 401 or refresh failure clears session, customer, and secure persistence; non-auth API errors remain explicit signed-in errors.
+- Token rotation now preserves the current customer. Account rendering no longer switches to signed-out/full-screen loading during refresh.
+- Account profile drafts initialize once per customer identity. Refreshes preserve draft values and open sections; mutation completion writes are also guarded by component lifetime.
+- Profile, avatar, and address writes now run through provider-owned authenticated commands instead of bypassing session orchestration.
+- Removed `buildOrderSavedAddresses()` and both production demo addresses. Checkout maps only authenticated `customer.addresses`; signed-out/empty sessions pass an empty list and use the existing new-address mode.
+- Added black-box proxy gating tests and injected unauthorized avatar handler tests. New server tests use `.mts` loader hooks, and the Task 2 wrapper runs unchanged `.ts` tests without `MODULE_TYPELESS_PACKAGE_JSON` warnings or package-type changes.
+
+### RED Evidence
+
+1. `node --test ./src/auth/session-controller.test.mts ./src/api/customer.test.mts ./src/business/checkout-addresses.test.mts`
+   - Failed because `session-controller.ts` and `checkout-addresses.ts` did not exist.
+   - The status-preservation assertion failed because `CustomerApiError` was undefined and API failures were plain `Error` values.
+2. `node --test ./scripts/proxy-headers.test.mjs`
+   - Failed at module load because `buildAllowedUpstreamHeaders` and `isAllowedProxyPath` were not exported.
+3. `node --test src/app/api/mobile/account/avatar/avatar-handler.test.mts`
+   - Failed because `avatar-handler.ts` did not exist.
+4. `node --test ./src/api/account.test.mts`
+   - Unauthorized avatar assertion failed: expected a status-preserving `CustomerApiError(401)`, received plain `Error: Profil fotoğrafı yüklenemedi.`
+5. `node --test ./src/auth/session-controller.test.mts`
+   - Proactive refresh-failure assertion failed with actual `signed_in` versus expected `signed_out`, proving expired refresh failure still retained an unusable session.
+
+### GREEN Evidence
+
+- Controller suite reached 17 passing tests covering sign-out during storage read, authorize, refresh, secure write, customer fetch, and profile/avatar/address mutations; stale-fetch suppression; token rotation; single 401 retry; repeated 401 cleanup; proactive and reactive refresh-failure cleanup; and concurrent suppression.
+- Customer/account tests verify preserved HTTP status/code and avatar 401 propagation.
+- Checkout tests verify signed-out empty mode and authenticated-address-only mapping.
+- Proxy tests verify exact prefix gating, denied-header non-leakage, and the running proxy's upstream behavior.
+- Avatar tests verify 401 before rate limiting/form parsing/upload and server-owned key namespaces.
+
+### Final Verification Commands And Results
+
+1. `node --test ./src/auth/session-controller.test.mts ./src/api/account.test.mts ./src/api/customer.test.mts ./src/business/checkout-addresses.test.mts`
+   - PASS: 26 tests, 0 failures.
+2. `npm --prefix apps/mobile run typecheck`
+   - PASS: 0 errors.
+3. `npm --prefix apps/mobile run test`
+   - PASS: 40 tests, 0 failures; mobile smoke test passed.
+4. `node --test ./scripts/task2-server-security.test.mjs` from `apps/mobile`
+   - PASS: 19 Task 2 tests, 0 failures, no module-type warning.
+5. `node --test ./scripts/proxy-headers.test.mjs ./scripts/proxy-integration.test.mjs ../../src/app/api/mobile/account/avatar/avatar-handler.test.mts ../../src/app/api/mobile/account/avatar/avatar-ownership.test.mts` from `apps/mobile`
+   - PASS: 7 tests, 0 failures, no module-type warning.
+6. `npm --prefix apps/mobile run export:web`
+   - PASS: Expo web bundled and exported 13 static routes.
+7. `npx tsc --noEmit --incremental false` with Task 3 route filtering
+   - Root baseline still reports 265 error lines; `src/app/api/mobile/account/avatar/` reports 0 error lines.
+8. `git diff --check`
+   - PASS: no whitespace errors; Windows line-ending notices only.
+9. Playwright at `http://localhost:8090/account`, viewport `390x844`
+   - PASS: 0 console errors, body width equals viewport width, missing Logto configuration is explicit, and local storage contains discovery state only.
+10. Playwright at `http://localhost:8090/business/bebek-burger-akyazi`, viewport `390x844`
+    - PASS: order surface opens, 0 console errors, no horizontal overflow, and neither removed demo address is rendered.
+
+### Remaining External Gap
+
+The live Logto redirect/token/restart flow remains unverified because the public endpoint, native client ID, and API audience are intentionally absent locally. No credentials or fake session were introduced.

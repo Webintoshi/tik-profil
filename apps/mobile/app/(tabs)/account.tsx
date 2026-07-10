@@ -1,13 +1,11 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { uploadAccountAvatar } from "@/api/account";
 import {
-  saveCustomerProfile,
   type CustomerAddress,
   type CustomerAddressInput,
   type CustomerProfileUpdate
@@ -88,15 +86,24 @@ function LoadingState() {
 function SignedInAccountView() {
   const router = useRouter();
   const { mode } = useThemeMode();
-  const { accessToken, customer, error: sessionError, refreshCustomer, signOut, status } = useCustomerSession();
+  const { customer, error: sessionError, refreshCustomer, saveAddress: persistAddress, saveProfile: persistProfile, signOut, status, updateAvatar } = useCustomerSession();
   const [profileDraft, setProfileDraft] = useState<CustomerProfileUpdate>(emptyProfile);
   const [addressDraft, setAddressDraft] = useState<CustomerAddressInput>(emptyAddress);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<"address" | "avatar" | "profile" | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const mounted = useRef(true);
+  const initializedIdentity = useRef<string | null>(null);
 
   useEffect(() => {
+    return () => { mounted.current = false; };
+  }, []);
+
+  const profileIdentity = customer?.profile?.appUserId ?? customer?.email ?? null;
+  useEffect(() => {
+    if (!profileIdentity || initializedIdentity.current === profileIdentity) return;
+    initializedIdentity.current = profileIdentity;
     const profile = customer?.profile;
     setProfileDraft(profile ? {
       birthDate: profile.birthDate,
@@ -106,9 +113,9 @@ function SignedInAccountView() {
       occupation: profile.occupation,
       phone: profile.phone
     } : emptyProfile);
-  }, [customer?.profile]);
+  }, [profileIdentity]);
 
-  if (!customer || !accessToken) return <LoadingState />;
+  if (!customer) return <LoadingState />;
 
   const profile = customer.profile;
   const isDark = mode === "dark";
@@ -120,36 +127,42 @@ function SignedInAccountView() {
     { icon: "clock" as const, label: "Rezervasyon", value: customer.reservations.length }
   ];
 
-  const runSave = async (action: "address" | "avatar" | "profile", operation: () => Promise<void>) => {
+  const runSave = async (
+    action: "address" | "avatar" | "profile",
+    operation: () => Promise<boolean>,
+    onSuccess?: () => void
+  ) => {
     if (busyAction) return;
     setBusyAction(action);
     setLocalError(null);
     try {
-      await operation();
-      await refreshCustomer();
+      const completed = await operation();
+      if (!mounted.current) return;
+      if (completed) onSuccess?.();
     } catch (saveError) {
-      setLocalError(saveError instanceof Error ? saveError.message : "Hesap bilgileri kaydedilemedi.");
+      if (mounted.current) {
+        setLocalError(saveError instanceof Error ? saveError.message : "Hesap bilgileri kaydedilemedi.");
+      }
     } finally {
-      setBusyAction(null);
+      if (mounted.current) setBusyAction(null);
     }
   };
 
-  const saveProfile = () => runSave("profile", async () => {
-    await saveCustomerProfile(accessToken, {
+  const saveProfile = () => runSave("profile", () => persistProfile({
       ...profileDraft,
       birthDate: stringOrNull(profileDraft.birthDate),
       displayName: stringOrNull(profileDraft.displayName),
       maritalStatus: stringOrNull(profileDraft.maritalStatus),
       occupation: stringOrNull(profileDraft.occupation),
       phone: stringOrNull(profileDraft.phone)
-    });
-  });
+    }));
 
   const pickAvatar = async () => {
     if (busyAction) return;
     selectionImpact();
     setLocalError(null);
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!mounted.current) return;
     if (!permission.granted) {
       setLocalError("Profil fotoğrafı seçmek için galeri izni gerekli.");
       return;
@@ -160,18 +173,16 @@ function SignedInAccountView() {
       mediaTypes: ["images"],
       quality: 0.86
     });
+    if (!mounted.current) return;
     const asset = result.canceled ? null : result.assets?.[0];
     if (!asset) return;
-    await runSave("avatar", async () => {
-      const avatarUrl = await uploadAccountAvatar({
+    await runSave("avatar", () => updateAvatar({
         file: asset.file,
         fileName: asset.fileName,
         fileSize: asset.fileSize,
         mimeType: asset.mimeType,
         uri: asset.uri
-      }, accessToken);
-      await saveCustomerProfile(accessToken, { avatarUrl });
-    });
+      }));
   };
 
   const beginAddress = (address?: CustomerAddress) => {
@@ -194,7 +205,8 @@ function SignedInAccountView() {
     if (!addressDraft.label.trim() || !addressDraft.fullAddress.trim() || !addressDraft.district.trim() || !addressDraft.city.trim()) {
       throw new Error("Adres adı, detay, ilçe ve şehir alanlarını doldurun.");
     }
-    await saveCustomerProfile(accessToken, { addresses: [addressDraft] });
+    return persistAddress(addressDraft);
+  }, () => {
     setEditingAddressId(null);
     setAddressDraft(emptyAddress);
   });

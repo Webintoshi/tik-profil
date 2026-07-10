@@ -12,6 +12,7 @@ registerHooks({
 });
 
 const {
+  CustomerApiError,
   buildCustomerHeaders,
   fetchCustomerAccount,
   saveCustomerProfile,
@@ -30,6 +31,24 @@ test("customer API error mapping is stable for auth, validation, and server fail
   assert.equal(mapCustomerApiError(400, { code: "VALIDATION_ERROR" }), "Hesap bilgilerini kontrol edip tekrar deneyin.");
   assert.equal(mapCustomerApiError(409, { code: "CUSTOMER_RESOURCE_CONFLICT" }), "Bu hesap bilgisi başka bir kayıtla çakışıyor.");
   assert.equal(mapCustomerApiError(503, null), "Hesap bilgileri şu anda alınamıyor. Tekrar deneyin.");
+});
+
+test("customer API errors preserve HTTP status and server code", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json(
+    { success: false, code: "UNAUTHORIZED" },
+    { status: 401 }
+  );
+  try {
+    await assert.rejects(
+      fetchCustomerAccount("expired", "https://example.test"),
+      (error: unknown) => error instanceof CustomerApiError
+        && error.status === 401
+        && error.code === "UNAUTHORIZED"
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("customer account load sends one bearer token to every account endpoint", async () => {

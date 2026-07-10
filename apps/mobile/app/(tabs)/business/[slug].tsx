@@ -29,6 +29,8 @@ import {
   submitPublicEcommerceCheckout
 } from "@/api/kesfet";
 import { EmptyState } from "@/components/business/empty-state";
+import { useCustomerSession } from "@/auth/auth-store";
+import { buildCheckoutAddresses } from "@/business/checkout-addresses";
 import { Icon, type IconName } from "@/components/common/Icon";
 import { BusinessCardSkeleton } from "@/components/ui/Skeleton";
 import {
@@ -117,6 +119,7 @@ export default function BusinessDetailScreen() {
   useThemeMode();
   const params = useLocalSearchParams<{ slug?: string }>();
   const discovery = useDiscoveryStore();
+  const { customer } = useCustomerSession();
   const actionColors = getActionColors();
   const [profile, setProfile] = React.useState<PublicProfile | null>(null);
   const [business, setBusiness] = React.useState<KesfetBusiness | null>(null);
@@ -219,8 +222,8 @@ export default function BusinessDetailScreen() {
   const displayProfile = React.useMemo(() => buildDisplayProfile(profile, resolvedBusiness, slug), [profile, resolvedBusiness, slug]);
   const favoriteSource = React.useMemo(() => buildFavoriteBusiness(displayProfile, resolvedBusiness), [displayProfile, resolvedBusiness]);
   const orderSavedAddresses = React.useMemo(
-    () => buildOrderSavedAddresses(discovery.savedAddressLabel),
-    [discovery.savedAddressLabel]
+    () => buildCheckoutAddresses(customer),
+    [customer]
   );
   const isFavorite = favoriteSource ? discovery.isFavorite(favoriteSource.slug) : false;
 
@@ -3230,27 +3233,6 @@ function SocialCard({
       </Text>
     </Pressable>
   );
-}
-
-function buildOrderSavedAddresses(savedAddressLabel?: string | null): FoodSavedAddress[] {
-  const baseAddresses: FoodSavedAddress[] = [
-    { id: "home", label: "Ev", value: "Akyazı Mah., Altınordu / Ordu" },
-    { id: "work", label: "İş", value: "Düz Mah., Süleyman Felek Cd. / Ordu" }
-  ];
-
-  const addresses = savedAddressLabel?.trim()
-    ? [{ id: "selected", label: "Kayıtlı adres", value: savedAddressLabel.trim() }, ...baseAddresses]
-    : baseAddresses;
-
-  const seen = new Set<string>();
-  return addresses.filter((address) => {
-    const key = address.value.toLocaleLowerCase("tr-TR");
-    if (seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
 }
 
 function buildDisplayProfile(

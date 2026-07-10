@@ -1,21 +1,8 @@
 import http from "node:http";
-import { buildUpstreamHeaders } from "./proxy-headers.mjs";
+import { buildAllowedUpstreamHeaders, isAllowedProxyPath } from "./proxy-headers.mjs";
 
 const port = Number(process.env.TIKPROFIL_LOCAL_PROXY_PORT || 8787);
 const upstream = process.env.TIKPROFIL_UPSTREAM_URL || "https://tikprofil.com";
-const allowedPrefixes = [
-  "/api/cities",
-  "/api/fastfood/public-menu",
-  "/api/kesfet",
-  "/api/mobile/account",
-  "/api/qr-scan",
-  "/api/public/checkout",
-  "/api/public/ecommerce-settings",
-  "/api/public/profile",
-  "/api/public/products",
-  "/api/restaurant/public-menu",
-];
-
 function writeCorsHeaders(response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
@@ -236,7 +223,7 @@ const server = http.createServer(async (request, response) => {
   }
 
   const requestUrl = new URL(request.url || "/", `http://localhost:${port}`);
-  const isAllowed = allowedPrefixes.some((prefix) => requestUrl.pathname === prefix || requestUrl.pathname.startsWith(`${prefix}/`));
+  const isAllowed = isAllowedProxyPath(requestUrl.pathname);
 
   if (!isAllowed) {
     writeJson(response, 404, { success: false, error: "Not found" });
@@ -252,7 +239,7 @@ const server = http.createServer(async (request, response) => {
     const upstreamUrl = new URL(`${requestUrl.pathname}${requestUrl.search}`, upstream);
     const upstreamResponse = await fetch(upstreamUrl, {
       method: request.method,
-      headers: buildUpstreamHeaders(request.headers),
+      headers: buildAllowedUpstreamHeaders(requestUrl.pathname, request.headers),
       body: request.method === "GET" || request.method === "HEAD"
         ? undefined
         : await readRequestBody(request)
