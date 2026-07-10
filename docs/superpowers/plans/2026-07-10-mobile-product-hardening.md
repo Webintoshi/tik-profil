@@ -46,15 +46,15 @@
 - Consumes: Existing route tree and `resolvePrimaryProfileAction()`.
 - Produces: `npm run test:unit` and an expanded `npm test` release gate.
 
-- [ ] **Step 1: Add failing coverage for the audited regressions**
+- [ ] **Step 1: Add regression coverage for current stable contracts**
 
-  Assert that business profiles keep four bottom navigation items, category search returns businesses and categories, Ordu guide never resolves to another city, and every supported module resolves to a non-empty action.
+  Assert that business profiles keep four bottom navigation items, category search includes both business and category data in its local fallback, the Ordu local guide identifies itself as Ordu, and every supported module resolves to a non-empty action. City API mismatch and sticky-cart viewport tests are written RED-first in Tasks 6 and 5 respectively.
 
-- [ ] **Step 2: Run tests and record the expected failures**
+- [ ] **Step 2: Run existing and new contract tests**
 
   Run: `npm --prefix apps/mobile run test`
 
-  Expected: FAIL for missing city identity validation and missing cart visibility contract.
+  Expected: PASS. This task adds coverage without changing production behavior.
 
 - [ ] **Step 3: Add a unit-test script**
 
@@ -68,7 +68,7 @@
 
   Run: `npm --prefix apps/mobile run typecheck && npm --prefix apps/mobile run test`
 
-  Expected: Existing checks pass; new regression assertions remain red until their implementation tasks.
+  Expected: Existing and new regression checks pass with clean output.
 
 - [ ] **Step 5: Commit**
 
