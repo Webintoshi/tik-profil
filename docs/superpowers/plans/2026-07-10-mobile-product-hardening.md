@@ -17,7 +17,7 @@
 - Sepete urun eklendiginde sepet CTA'si ilk viewport icinde ve bottom navbar uzerinde sabit gorunecek.
 - Kayitli kullanicinin ad-soyad, telefon ve secili adresi siparis ekranina otomatik aktarilacak.
 - Yeni bir bagimlilik eklenmeden once mevcut Expo/React Native kutuphanesiyle cozum olmadigi dogrulanacak.
-- Her gorev `npm run typecheck`, ilgili birim/entegrasyon testi ve mobil smoke test kapisindan gececek.
+- Mobil gorevler `npm --prefix apps/mobile run typecheck`, ilgili birim/entegrasyon testi ve mobil smoke test kapisindan gececek. Backend gorevleri degisen dosyalari kapsayan odakli testlerle dogrulanacak; kok `npm run typecheck` icin mevcut proje geneli hatalar Task 10 yayin kapisinda ayri olarak temizlenecek.
 
 ---
 
@@ -157,9 +157,9 @@
 
 - [ ] **Step 2: Add Expo OIDC dependencies through Expo**
 
-  Run: `npx expo install expo-auth-session expo-web-browser`
+  Run: `npx expo install expo-auth-session expo-web-browser expo-secure-store`
 
-  Expected: Versions compatible with Expo 56 are installed.
+  Expected: Expo 56 ile uyumlu OIDC, tarayici oturumu ve guvenli cihaz depolama paketleri kurulur.
 
 - [ ] **Step 3: Implement PKCE login and registration**
 
