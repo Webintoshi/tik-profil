@@ -1,9 +1,17 @@
-// @ts-nocheck
+/// <reference types="node" />
+
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
 
 registerHooks({
+  load(url, context, nextLoad) {
+    if (url.endsWith(".ts")) {
+      return nextLoad(url, { ...context, format: "module-typescript" });
+    }
+
+    return nextLoad(url, context);
+  },
   resolve(specifier, context, nextResolve) {
     if (specifier.startsWith("@/")) {
       return nextResolve(new URL(`../${specifier.slice(2)}.ts`, import.meta.url).href, context);
@@ -17,7 +25,7 @@ const {
   fetchCategories,
   fetchCityGuide,
   fetchDiscoveryBusinesses
-} = await import("./kesfet.ts");
+}: typeof import("./kesfet") = await import(new URL("./kesfet.ts", import.meta.url).href);
 
 async function withUnavailableNetwork<T>(run: () => Promise<T>) {
   const originalFetch = globalThis.fetch;

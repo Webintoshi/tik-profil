@@ -135,6 +135,7 @@ for (const expected of [
 const webModuleRegistryPath = join(root, "..", "..", "src", "lib", "ModuleRegistry.ts");
 const mobileProfileActionsPath = join(root, "src", "business", "profile-actions.ts");
 const mobileTabBarPath = join(root, "src", "components", "navigation", "MakyajTabBar.tsx");
+const mobileTabsLayoutPath = join(root, "app", "(tabs)", "_layout.tsx");
 const webModuleRegistry = readFileSync(webModuleRegistryPath, "utf8");
 const registryStart = webModuleRegistry.indexOf("export const MODULE_REGISTRY");
 const registryModuleIds = [...webModuleRegistry.slice(registryStart).matchAll(/\{\s*id:\s*"([^"]+)"/g)]
@@ -160,17 +161,26 @@ if (duplicateProfileActions.length > 0) {
 }
 
 const mobileTabBarSource = readFileSync(mobileTabBarPath, "utf8");
-const visibleTabIconsMatch = /const tabIcons:[\s\S]*?=\s*\{([\s\S]*?)\};/.exec(mobileTabBarSource);
+const mobileTabsLayoutSource = readFileSync(mobileTabsLayoutPath, "utf8");
+const hiddenTabRoutesMatch = /const hiddenTabRoutes = new Set\(\[([\s\S]*?)\]\);/.exec(mobileTabBarSource);
+const visibleRoutesContract = "const visibleRoutes = state.routes.filter((route) => !hiddenTabRoutes.has(route.name));";
+const tabRouteNames = [...mobileTabsLayoutSource.matchAll(/<Tabs\.Screen\s+name="([^"]+)"/g)].map((match) => match[1]);
+const coreTabRoutes = ["index", "explore", "favorites", "account"];
 
-if (!visibleTabIconsMatch) {
-  throw new Error("Mobile bottom navigation items are missing.");
+if (!hiddenTabRoutesMatch || !mobileTabBarSource.includes(visibleRoutesContract)) {
+  throw new Error("Mobile bottom navigation route filtering is missing.");
 }
 
-const visibleTabIds = [...visibleTabIconsMatch[1].matchAll(/^\s*(\w+):/gm)].map((match) => match[1]);
-const expectedVisibleTabIds = ["index", "explore", "favorites", "account"];
+const hiddenTabRoutes = [...hiddenTabRoutesMatch[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
 
-if (visibleTabIds.length !== 4 || expectedVisibleTabIds.some((id) => !visibleTabIds.includes(id))) {
-  throw new Error("Business profiles must keep all four bottom navigation items.");
+if (
+  !hiddenTabRoutes.includes("business/[slug]")
+  || coreTabRoutes.some((route) => hiddenTabRoutes.includes(route))
+  || coreTabRoutes.some((route) => !tabRouteNames.includes(route))
+  || !tabRouteNames.includes("business/[slug]")
+  || !mobileTabsLayoutSource.includes("tabBar={(props) => <MakyajTabBar {...props} />}")
+) {
+  throw new Error("Business profiles must render the four core bottom navigation items.");
 }
 
 console.log("Mobile customer discovery smoke test passed.");

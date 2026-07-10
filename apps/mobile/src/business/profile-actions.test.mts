@@ -1,11 +1,23 @@
-// @ts-nocheck
+/// <reference types="node" />
+
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
 import test from "node:test";
 
-import {
+registerHooks({
+  load(url, context, nextLoad) {
+    if (url.endsWith(".ts")) {
+      return nextLoad(url, { ...context, format: "module-typescript" });
+    }
+
+    return nextLoad(url, context);
+  }
+});
+
+const {
   PROFILE_ACTION_MODULE_IDS,
   resolvePrimaryProfileAction
-} from "./profile-actions.ts";
+}: typeof import("./profile-actions") = await import(new URL("./profile-actions.ts", import.meta.url).href);
 
 test("every supported module resolves to a non-empty primary action", () => {
   for (const moduleId of PROFILE_ACTION_MODULE_IDS) {
