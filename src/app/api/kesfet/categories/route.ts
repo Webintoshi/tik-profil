@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { normalizeBusinessTypeKey, resolveBusinessType } from "@/lib/businessTypeCatalog";
 import { loadKesfetBusinesses, logKesfetPublicApiError } from "../shared";
 
 export const dynamic = "force-dynamic";
@@ -50,20 +51,8 @@ const CATEGORY_EMOJIS: Record<string, string> = {
     other: "\u{1F4CD}",
 };
 
-function normalizeCategoryKey(category: string): string {
-    return category
-        .trim()
-        .toLocaleLowerCase("tr-TR")
-        .replaceAll("\u00E7", "c")
-        .replaceAll("\u011F", "g")
-        .replaceAll("\u0131", "i")
-        .replaceAll("\u00F6", "o")
-        .replaceAll("\u015F", "s")
-        .replaceAll("\u00FC", "u");
-}
-
 function getCategoryEmoji(category: string): string {
-    const lower = normalizeCategoryKey(category);
+    const lower = normalizeBusinessTypeKey(category);
 
     if (CATEGORY_EMOJIS[lower]) {
         return CATEGORY_EMOJIS[lower];
@@ -84,11 +73,15 @@ export async function GET() {
         const categoryCounts: Record<string, { label: string; count: number }> = {};
 
         activeBusinesses.forEach((business) => {
-            const label = business.categoryLabel || business.category || business.industryId || "Diger";
-            const key = normalizeCategoryKey(label).replace(/\s+/g, "_");
+            const resolved = resolveBusinessType(
+                business.category,
+                business.categoryLabel,
+                business.industryId,
+            );
+            const key = resolved.id;
 
             if (!categoryCounts[key]) {
-                categoryCounts[key] = { label, count: 0 };
+                categoryCounts[key] = { label: resolved.label, count: 0 };
             }
             categoryCounts[key].count++;
         });
@@ -98,7 +91,7 @@ export async function GET() {
             .map(([id, data]) => ({
                 id,
                 label: data.label,
-                emoji: getCategoryEmoji(data.label),
+                emoji: getCategoryEmoji(`${id} ${data.label}`),
                 count: data.count,
             }))
             .sort((a, b) => b.count - a.count);

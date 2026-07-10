@@ -78,6 +78,13 @@ export const registerSchema = z.object({
         .nullish()
         .transform(val => val ? sanitizeString(val) : undefined),
 
+    profilePhotoUrl: z
+        .string()
+        .url('Geçerli bir profil fotoğrafı adresi girin')
+        .max(500, 'Profil fotoğrafı adresi çok uzun')
+        .nullish()
+        .transform(val => val ? sanitizeString(val) : undefined),
+
     // Accept null, undefined, or string
     industryId: z.string().nullish().transform(val => val || undefined),
     industryLabel: z.string().nullish().transform(val => val || undefined),

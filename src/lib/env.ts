@@ -50,6 +50,8 @@ const envSchema = z.object({
     LOGTO_APP_ID: optionalString,
     LOGTO_APP_SECRET: optionalString,
     LOGTO_COOKIE_SECRET: optionalString,
+    LOGTO_BASE_URL: optionalString,
+    LOGTO_TEST_PROVISIONING_SECRET: optionalString,
 
     // Analytics foundation
     UMAMI_WEBSITE_ID: optionalString,
@@ -168,4 +170,14 @@ export function getAppUrl(): string | undefined {
     return getTrimmedEnvValue('APP_URL')
         ?? getTrimmedEnvValue('NEXT_PUBLIC_APP_URL')
         ?? getTrimmedEnvValue('NEXT_PUBLIC_BASE_URL');
+}
+
+export function getAuthProvider(): 'legacy' | 'logto' {
+    return getTrimmedEnvValue('AUTH_PROVIDER') === 'logto'
+        ? 'logto'
+        : 'legacy';
+}
+
+export function getLogtoTestProvisioningSecret(): string | undefined {
+    return getTrimmedEnvValue('LOGTO_TEST_PROVISIONING_SECRET');
 }

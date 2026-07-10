@@ -266,25 +266,33 @@ function IndustryTypeModal({
         const fetchActiveModules = async () => {
             try {
                 const response = await fetch("/api/admin/modules");
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.success && data.modules && data.modules.length > 0) {
-                        // Convert module IDs to module objects using MODULE_REGISTRY
-                        const modules = data.modules.map((moduleId: string) => {
-                            const mod = MODULE_REGISTRY.find(m => m.id === moduleId);
-                            return {
-                                id: moduleId,
-                                label: mod?.label || moduleId,
-                                description: mod?.description || "",
-                            };
-                        });
-                        setActiveModules(modules);
-                    }
+                if (!response.ok) {
+                    throw new Error(`Modules API failed: ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (data.success && data.modules && data.modules.length > 0) {
+                    // Convert module IDs to module objects using MODULE_REGISTRY
+                    const modules = data.modules.map((moduleId: string) => {
+                        const mod = MODULE_REGISTRY.find(m => m.id === moduleId);
+                        return {
+                            id: moduleId,
+                            label: mod?.label || moduleId,
+                            description: mod?.description || "",
+                        };
+                    });
+                    setActiveModules(modules);
+                } else {
+                    setActiveModules(MODULE_REGISTRY.map(m => ({
+                        id: m.id,
+                        label: m.label,
+                        description: m.description,
+                    })));
                 }
             } catch (error) {
                 console.error("Failed to fetch active modules:", error);
                 // Fallback to MODULE_REGISTRY if fetch fails
-                setActiveModules(MODULE_REGISTRY.slice(0, 15).map(m => ({
+                setActiveModules(MODULE_REGISTRY.map(m => ({
                     id: m.id,
                     label: m.label,
                     description: m.description,

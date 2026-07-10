@@ -14,7 +14,7 @@ export function PhoneInputRow({ value, onChangeText, error }: PhoneInputRowProps
     <View style={{ gap: spacing.xs }}>
       <View style={{
         alignItems: "center",
-        backgroundColor: colors.surfaceWarm,
+        backgroundColor: colors.surfaceRaised,
         borderColor: error ? colors.danger : colors.borderStrong,
         borderRadius: radii.md,
         borderWidth: 1,
@@ -32,8 +32,8 @@ export function PhoneInputRow({ value, onChangeText, error }: PhoneInputRowProps
           justifyContent: "center",
           paddingHorizontal: spacing.md
         }}>
-          <Icon name="phone" color={colors.navySoft} size={18} />
-          <Text style={{ ...typography.body, color: colors.navy }}>+90</Text>
+          <Icon name="phone" color={colors.inkSoft} size={18} />
+          <Text style={{ ...typography.body, color: colors.ink }}>+90</Text>
         </View>
         <TextInput
           accessibilityLabel="Telefon numarası"
@@ -45,7 +45,7 @@ export function PhoneInputRow({ value, onChangeText, error }: PhoneInputRowProps
           placeholderTextColor={colors.muted}
           style={{
             ...typography.body,
-            color: colors.navy,
+            color: colors.ink,
             flex: 1,
             minHeight: 56,
             paddingHorizontal: spacing.md

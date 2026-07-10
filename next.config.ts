@@ -3,6 +3,7 @@
  */
 
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const securityHeaders = [
     {
@@ -37,9 +38,25 @@ const securityHeaders = [
     },
 ];
 
+const publicApiCorsHeaders = [
+    {
+        key: 'Access-Control-Allow-Origin',
+        value: '*',
+    },
+    {
+        key: 'Access-Control-Allow-Methods',
+        value: 'GET,POST,OPTIONS',
+    },
+    {
+        key: 'Access-Control-Allow-Headers',
+        value: 'Content-Type, Authorization',
+    },
+];
+
 const nextConfig: NextConfig = {
     reactStrictMode: true,
     output: "standalone",
+    outputFileTracingRoot: path.join(process.cwd()),
     typescript: {
         ignoreBuildErrors: true,
     },
@@ -88,6 +105,22 @@ const nextConfig: NextConfig = {
                 // Apply to all routes
                 source: '/:path*',
                 headers: securityHeaders,
+            },
+            {
+                source: '/api/kesfet/:path*',
+                headers: publicApiCorsHeaders,
+            },
+            {
+                source: '/api/kesfet',
+                headers: publicApiCorsHeaders,
+            },
+            {
+                source: '/api/qr-scan',
+                headers: publicApiCorsHeaders,
+            },
+            {
+                source: '/api/public/profile/:path*',
+                headers: publicApiCorsHeaders,
             },
         ];
     },

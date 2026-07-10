@@ -1,3 +1,9 @@
+import {
+    getCanonicalBusinessTypeId,
+    getDefaultModulesForBusinessType,
+    mergeIndustryDefinitions,
+} from "@/lib/businessTypeCatalog";
+
 // Industry Definitions Service
 // Using Supabase-backed data layer
 
@@ -5,7 +11,17 @@
 const INDUSTRY_DEFINITIONS_COLLECTION = "industry_definitions";
 
 // Types
-export type IndustryCategory = "yeme_icme" | "saglik" | "hizmet" | "perakende" | "konaklama" | "ulasim" | "egitim" | "eglence";
+export type IndustryCategory =
+    | "yeme_icme"
+    | "saglik"
+    | "hizmet"
+    | "perakende"
+    | "konaklama"
+    | "ulasim"
+    | "egitim"
+    | "eglence"
+    | "gayrimenkul"
+    | "other";
 
 export interface IndustryDefinition {
     id: string;
@@ -33,6 +49,8 @@ export const CATEGORY_LABELS: Record<IndustryCategory, string> = {
     ulasim: "Ulaşım & Lojistik",
     egitim: "Eğitim & Gelişim",
     eglence: "Eğlence & Medya",
+    gayrimenkul: "Gayrimenkul",
+    other: "Diğer",
 };
 
 // Generate slug from label
@@ -50,21 +68,23 @@ export function generateSlug(label: string): string {
 }
 
 // Convert REST doc to IndustryDefinition
-function docToIndustry(doc: Record<string, unknown>): IndustryDefinition {
+function docToIndustry(doc: unknown): IndustryDefinition {
+    const record = doc as Record<string, unknown>;
+
     return {
-        id: (doc.id as string) || "",
-        label: (doc.label as string) || "",
-        slug: (doc.slug as string) || "",
-        category: (doc.category as IndustryCategory) || "yeme_icme",
-        icon: (doc.icon as string) || "Utensils",
-        iconUrl: doc.iconUrl as string | undefined,
-        color: (doc.color as string) || "#FF9500",
-        description: (doc.description as string) || "",
-        status: (doc.status as "active" | "passive") || "active",
-        isActive: doc.isActive as boolean | undefined,
-        createdAt: doc.createdAt ? new Date(doc.createdAt as string) : new Date(),
-        order: (doc.order as number) || 0,
-        modules: (doc.modules as string[]) || [],
+        id: (record.id as string) || "",
+        label: (record.label as string) || "",
+        slug: (record.slug as string) || "",
+        category: (record.category as IndustryCategory) || "yeme_icme",
+        icon: (record.icon as string) || "Utensils",
+        iconUrl: record.iconUrl as string | undefined,
+        color: (record.color as string) || "#FF9500",
+        description: (record.description as string) || "",
+        status: (record.status as "active" | "passive") || "active",
+        isActive: record.isActive as boolean | undefined,
+        createdAt: record.createdAt ? new Date(record.createdAt as string) : new Date(),
+        order: (record.order as number) || 0,
+        modules: (record.modules as string[]) || [],
     };
 }
 
@@ -78,7 +98,7 @@ export async function getIndustryDefinitions(): Promise<IndustryDefinition[]> {
             // Server-side: Use direct Supabase access
             const { getCollectionREST } = await import('./documentStore');
             const docs = await getCollectionREST(INDUSTRY_DEFINITIONS_COLLECTION);
-            const definitions = docs.map(docToIndustry);
+            const definitions = mergeIndustryDefinitions(docs).map(docToIndustry);
             definitions.sort((a, b) => (a.order || 0) - (b.order || 0));
             return definitions;
         } else {
@@ -90,13 +110,13 @@ export async function getIndustryDefinitions(): Promise<IndustryDefinition[]> {
             }
             const data = await response.json();
             if (data.success && Array.isArray(data.industries)) {
-                return data.industries.map(docToIndustry);
+                return mergeIndustryDefinitions(data.industries).map(docToIndustry);
             }
-            return [];
+            return mergeIndustryDefinitions([]).map(docToIndustry);
         }
     } catch (error) {
         console.error("Industry fetch error:", error);
-        return [];
+        return mergeIndustryDefinitions([]).map(docToIndustry);
     }
 }
 
@@ -304,9 +324,16 @@ export function getModulesForIndustry(industryId: string | null): string[] {
         "ecommerce": ["ecommerce"],
         "retail": ["ecommerce"],
         "market": ["ecommerce"],
+        // Perakende / hizmet
+        "petshop": ["petshop"],
+        "emlak": ["emlak"],
+        "rental": ["rental"],
+        "vehicle-rental": ["rental"],
     };
-    // Return empty array if not found (no hardcoded fallback)
-    return industryModules[industryId?.toLowerCase() || ""] || [];
+    const canonicalId = getCanonicalBusinessTypeId(industryId);
+    return industryModules[industryId?.toLowerCase() || ""] ||
+        industryModules[canonicalId] ||
+        getDefaultModulesForBusinessType(canonicalId);
 }
 
 // Get modules for a given industry ID - ASYNC version that fetches from document store

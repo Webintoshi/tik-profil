@@ -1,4 +1,5 @@
 import { loadKesfetBusinessesForDiscovery } from "@/server/repositories/business-provider";
+import { getCanonicalBusinessTypeId } from "@/lib/businessTypeCatalog";
 import {
     asString,
     isRecord,
@@ -38,6 +39,16 @@ export function matchesCity(business: KesfetPublicBusiness, city: string): boole
 
 export function matchesCategory(business: KesfetPublicBusiness, category: string): boolean {
     const normalizedCategory = normalizeSearchText(category).replace(/\s+/g, "_");
+    const canonicalCategory = getCanonicalBusinessTypeId(category);
+    const businessCanonicalCategory = getCanonicalBusinessTypeId(
+        business.category,
+        business.categoryLabel,
+        business.industryId,
+    );
+
+    if (canonicalCategory !== "other" && businessCanonicalCategory === canonicalCategory) {
+        return true;
+    }
 
     return [
         business.category,

@@ -1,54 +1,54 @@
 import { Tabs } from "expo-router";
 
-import { Icon } from "@/components/common/Icon";
+import { MakyajTabBar } from "@/components/navigation/MakyajTabBar";
 import { colors } from "@/theme/tokens";
+import { useThemeMode } from "@/theme/theme-store";
+import { selectionImpact } from "@/utils/haptics";
 
 export default function TabsLayout() {
+  useThemeMode();
+
   return (
     <Tabs
+      tabBar={(props) => <MakyajTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.navy,
-        tabBarInactiveTintColor: colors.tabInactive,
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: "700"
-        },
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          height: 72,
-          paddingBottom: 10,
-          paddingTop: 8
-        }
+        tabBarActiveTintColor: colors.brandDeep,
+        tabBarInactiveTintColor: colors.tabInactive
+      }}
+      screenListeners={{
+        tabPress: () => selectionImpact()
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: "Keşfet",
-          tabBarIcon: ({ color }) => <Icon name="home" color={String(color)} size={23} />
+          title: "Keşfet"
         }}
       />
       <Tabs.Screen
         name="explore"
         options={{
-          title: "Arama",
-          tabBarIcon: ({ color }) => <Icon name="search" color={String(color)} size={23} />
+          title: "Ara"
         }}
       />
       <Tabs.Screen
         name="favorites"
         options={{
-          title: "Favoriler",
-          tabBarIcon: ({ color }) => <Icon name="heart" color={String(color)} size={23} />
+          title: "Favoriler"
         }}
       />
       <Tabs.Screen
         name="account"
         options={{
-          title: "Hesabım",
-          tabBarIcon: ({ color }) => <Icon name="profile" color={String(color)} size={23} />
+          title: "Hesabım"
+        }}
+      />
+      <Tabs.Screen
+        name="business/[slug]"
+        options={{
+          href: null,
+          title: "İşletme"
         }}
       />
     </Tabs>

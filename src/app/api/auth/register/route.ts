@@ -70,6 +70,7 @@ export async function POST(request: Request) {
             businessName,
             businessSlug,
             businessPhone,
+            profilePhotoUrl,
             industryId,
             industryLabel,
             planId
@@ -133,7 +134,7 @@ export async function POST(request: Request) {
             whatsapp: businessPhone || "",
 
             // Profile Defaults (for public profile rendering)
-            logo: "",
+            logo: profilePhotoUrl || "",
             cover: "",
             slogan: "",
             about: "",

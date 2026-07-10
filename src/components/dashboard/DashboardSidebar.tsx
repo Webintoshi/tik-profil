@@ -74,9 +74,23 @@ export function DashboardSidebar() {
     const handleLogout = async () => {
         setIsLoggingOut(true);
         try {
-            await fetch("/api/auth/logout", { method: "POST" });
+            const response = await fetch("/api/auth/logout", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    postLogoutRedirect: "/webintoshi?logout=success",
+                }),
+            });
+            const data = await response.json().catch(() => null);
+
             localStorage.clear();
             sessionStorage.clear();
+
+            if (data?.redirectUrl) {
+                window.location.href = data.redirectUrl;
+                return;
+            }
+
             router.push("/webintoshi?logout=success");
         } catch (error) {
             console.error("Logout error:", error);

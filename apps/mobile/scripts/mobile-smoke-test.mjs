@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
+const appConfig = JSON.parse(readFileSync(join(root, "app.json"), "utf8"));
+const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const bannedConsumerWords = [
   "backend",
   "sync",
@@ -15,6 +17,7 @@ const bannedConsumerWords = [
   "FEATURE_NOT_READY",
   "debug"
 ];
+const mojibakeMarkers = ["Ä", "Å", "Ã", "�"];
 
 function listSourceFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -31,23 +34,57 @@ const files = [
   ...listSourceFiles(join(root, "src"))
 ];
 const combined = files.map((file) => readFileSync(file, "utf8")).join("\n");
+
+if (appConfig.expo.name !== "Tık Profil") {
+  throw new Error("Expo app name must be Tık Profil.");
+}
+
+if (appConfig.expo.slug !== "tik-profil-v2") {
+  throw new Error("Expo slug must be tik-profil-v2.");
+}
+
+if (appConfig.expo.android?.package !== "com.tikprofil.v2") {
+  throw new Error("Android package must be com.tikprofil.v2.");
+}
+
+for (const dependency of ["expo-location", "expo-haptics", "expo-image"]) {
+  if (!packageJson.dependencies?.[dependency]) {
+    throw new Error(`Expected Expo Go compatible dependency is missing: ${dependency}`);
+  }
+}
+
 const requiredCopy = [
-  "Hesabına giriş yap",
-  "Telefonla devam et",
+  "Yakınındaki işletmeleri keşfet",
+  "Konumunu kullan",
+  "Popüler kategoriler",
+  "Öne çıkan işletmeler",
+  "İşletme ara",
+  "Son aramalar",
+  "Giriş yap",
+  "E-posta",
+  "Devam et",
   "Hesap oluştur",
-  "Yakındaki işletmeler",
-  "Kampanyalar",
-  "QR ile hızlı erişim"
+  "Ara",
+  "WhatsApp",
+  "Konum",
+  "Sipariş Ver",
+  "Instagram",
+  "Yorumlar"
 ];
 
 for (const copy of requiredCopy) {
   if (!combined.includes(copy)) {
-    throw new Error(`Required account entry copy is missing: ${copy}`);
+    throw new Error(`Required customer discovery copy is missing: ${copy}`);
   }
 }
 
 for (const file of files) {
   const text = readFileSync(file, "utf8");
+  for (const marker of mojibakeMarkers) {
+    if (text.includes(marker)) {
+      throw new Error(`Broken Turkish encoding marker found in ${file}: ${marker}`);
+    }
+  }
   for (const word of bannedConsumerWords) {
     if (text.includes(`"${word}"`) || text.includes(`'${word}'`) || text.includes(`>${word}<`)) {
       throw new Error(`Banned consumer copy found in ${file}: ${word}`);
@@ -56,6 +93,14 @@ for (const file of files) {
 }
 
 for (const file of [
+  "app/(tabs)/business/[slug].tsx",
+  "src/api/kesfet.ts",
+  "src/components/business/business-card.tsx",
+  "src/components/business/category-pill.tsx",
+  "src/components/business/empty-state.tsx",
+  "src/components/business/location-banner.tsx",
+  "src/business/profile-actions.ts",
+  "src/state/discovery-store.tsx",
   "src/theme/tokens.ts",
   "src/components/account/AuthEntryCard.tsx",
   "src/components/account/PhoneInputRow.tsx",
@@ -69,4 +114,48 @@ for (const file of [
   }
 }
 
-console.log("Mobile account entry smoke test passed.");
+for (const expected of [
+  "interface KesfetBusiness",
+  "interface KesfetCategory",
+  "interface PaginatedKesfetResponse",
+  "interface SearchResponse",
+  "/api/kesfet",
+  "/api/kesfet/search",
+  "/api/kesfet/categories",
+  "/api/qr-scan",
+  "toggleFavorite",
+  "recentSearches",
+  "lastSelectedCity"
+]) {
+  if (!combined.includes(expected)) {
+    throw new Error(`Expected mobile discovery behavior is missing: ${expected}`);
+  }
+}
+
+const webModuleRegistryPath = join(root, "..", "..", "src", "lib", "ModuleRegistry.ts");
+const mobileProfileActionsPath = join(root, "src", "business", "profile-actions.ts");
+const webModuleRegistry = readFileSync(webModuleRegistryPath, "utf8");
+const registryStart = webModuleRegistry.indexOf("export const MODULE_REGISTRY");
+const registryModuleIds = [...webModuleRegistry.slice(registryStart).matchAll(/\{\s*id:\s*"([^"]+)"/g)]
+  .map((match) => match[1]);
+const profileActionsSource = readFileSync(mobileProfileActionsPath, "utf8");
+const actionIdsMatch = /PROFILE_ACTION_MODULE_IDS\s*=\s*\[([\s\S]*?)\]\s*as const/.exec(profileActionsSource);
+
+if (!actionIdsMatch) {
+  throw new Error("Mobile profile action module coverage list is missing.");
+}
+
+const profileActionModuleIds = [...actionIdsMatch[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+const profileActionModuleSet = new Set(profileActionModuleIds);
+const missingProfileActions = registryModuleIds.filter((moduleId) => !profileActionModuleSet.has(moduleId));
+const duplicateProfileActions = profileActionModuleIds.filter((moduleId, index) => profileActionModuleIds.indexOf(moduleId) !== index);
+
+if (missingProfileActions.length > 0) {
+  throw new Error(`Mobile profile action coverage is missing modules: ${missingProfileActions.join(", ")}`);
+}
+
+if (duplicateProfileActions.length > 0) {
+  throw new Error(`Mobile profile action coverage has duplicate modules: ${[...new Set(duplicateProfileActions)].join(", ")}`);
+}
+
+console.log("Mobile customer discovery smoke test passed.");

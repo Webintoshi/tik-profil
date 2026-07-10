@@ -1,5 +1,6 @@
 // Industries API - Public endpoint for fetching industry definitions
 import { NextResponse } from 'next/server';
+import { mergeIndustryDefinitions } from '@/lib/businessTypeCatalog';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -17,22 +18,22 @@ export async function GET() {
         if (error) {
             console.error('[Industries API] Error:', error);
             return NextResponse.json({
-                success: false,
+                success: true,
                 error: error.message,
-                industries: []
-            }, { status: 500 });
+                industries: mergeIndustryDefinitions([], { activeOnly: true })
+            });
         }
 
         return NextResponse.json({
             success: true,
-            industries: data || []
+            industries: mergeIndustryDefinitions(data || [], { activeOnly: true })
         });
     } catch (error) {
         console.error('[Industries API] Error:', error);
         return NextResponse.json({
-            success: false,
+            success: true,
             error: 'Server error',
-            industries: []
-        }, { status: 500 });
+            industries: mergeIndustryDefinitions([], { activeOnly: true })
+        });
     }
 }

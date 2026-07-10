@@ -833,7 +833,7 @@ function BusinessEditModal({
                                     boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.02)'
                                 }}
                             >
-                                {MODULE_REGISTRY.slice(0, 10).map((mod) => (
+                                {MODULE_REGISTRY.map((mod) => (
                                     <label
                                         key={mod.id}
                                         className={clsx(

@@ -312,7 +312,7 @@ const PANEL_MODULE_CONFIGS: PanelModuleConfig[] = [
         label: "Arac Kiralama",
         icon: "Car",
         routePrefix: "/panel/vehicle-rental",
-        entitlementAliases: ["vehicle-rental", "rentacar", "arac-kiralama", "oto-kiralama", "rent-a-car"],
+        entitlementAliases: ["vehicle-rental", "rental", "rentacar", "arac-kiralama", "oto-kiralama", "rent-a-car"],
         navVisibility: "visible-when-entitled",
         status: "active",
         navItems: [

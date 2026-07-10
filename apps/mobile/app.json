@@ -1,31 +1,51 @@
 {
   "expo": {
     "name": "Tık Profil",
-    "slug": "tik-profil-mobile",
-    "version": "1.0.0",
+    "slug": "tik-profil-v2",
+    "version": "2.0.1",
     "orientation": "portrait",
     "scheme": "tikprofil",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "assetBundlePatterns": [
       "**/*"
     ],
     "android": {
-      "package": "com.tikprofil.mobile",
+      "package": "com.tikprofil.v2",
+      "versionCode": 3,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "INTERNET"
+      ],
       "adaptiveIcon": {
-        "backgroundColor": "#F7A11A"
-      },
-      "package": "com.anonymous.tikprofilmobile"
+        "backgroundColor": "#FA4AAE"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.tikprofil.v2"
     },
     "web": {
       "bundler": "metro",
       "output": "static"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#EE0650",
+          "image": "./src/assets/brand/tik-logo-wordmark-white.png",
+          "imageWidth": 160,
+          "resizeMode": "contain"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "apiUrl": "https://tikprofil.com"
     }
   }
 }
