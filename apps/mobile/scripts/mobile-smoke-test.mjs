@@ -134,6 +134,7 @@ for (const expected of [
 
 const webModuleRegistryPath = join(root, "..", "..", "src", "lib", "ModuleRegistry.ts");
 const mobileProfileActionsPath = join(root, "src", "business", "profile-actions.ts");
+const mobileTabBarPath = join(root, "src", "components", "navigation", "MakyajTabBar.tsx");
 const webModuleRegistry = readFileSync(webModuleRegistryPath, "utf8");
 const registryStart = webModuleRegistry.indexOf("export const MODULE_REGISTRY");
 const registryModuleIds = [...webModuleRegistry.slice(registryStart).matchAll(/\{\s*id:\s*"([^"]+)"/g)]
@@ -156,6 +157,20 @@ if (missingProfileActions.length > 0) {
 
 if (duplicateProfileActions.length > 0) {
   throw new Error(`Mobile profile action coverage has duplicate modules: ${[...new Set(duplicateProfileActions)].join(", ")}`);
+}
+
+const mobileTabBarSource = readFileSync(mobileTabBarPath, "utf8");
+const visibleTabIconsMatch = /const tabIcons:[\s\S]*?=\s*\{([\s\S]*?)\};/.exec(mobileTabBarSource);
+
+if (!visibleTabIconsMatch) {
+  throw new Error("Mobile bottom navigation items are missing.");
+}
+
+const visibleTabIds = [...visibleTabIconsMatch[1].matchAll(/^\s*(\w+):/gm)].map((match) => match[1]);
+const expectedVisibleTabIds = ["index", "explore", "favorites", "account"];
+
+if (visibleTabIds.length !== 4 || expectedVisibleTabIds.some((id) => !visibleTabIds.includes(id))) {
+  throw new Error("Business profiles must keep all four bottom navigation items.");
 }
 
 console.log("Mobile customer discovery smoke test passed.");

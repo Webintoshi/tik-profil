@@ -2,6 +2,7 @@
   "name": "@tikprofil/mobile",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -9,7 +10,8 @@
     "export:web": "expo export --platform web",
     "proxy": "node ./scripts/dev-admin-api-proxy.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node ./scripts/mobile-smoke-test.mjs",
+    "test": "npm run test:unit && node ./scripts/mobile-smoke-test.mjs",
+    "test:unit": "node --test ./src/**/*.test.ts",
     "build:apk": "node ./scripts/build-android-apk.mjs"
   },
   "dependencies": {
