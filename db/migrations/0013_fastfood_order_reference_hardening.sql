@@ -45,6 +45,9 @@ DECLARE
     v_is_unique boolean;
     v_is_valid boolean;
     v_is_ready boolean;
+    v_key_count integer;
+    v_attribute_count integer;
+    v_has_expression_key boolean;
     v_predicate text;
     v_columns text[];
 BEGIN
@@ -52,6 +55,9 @@ BEGIN
         index_meta.indisunique,
         index_meta.indisvalid,
         index_meta.indisready,
+        index_meta.indnkeyatts,
+        index_meta.indnatts,
+        0 = ANY(index_meta.indkey::smallint[]),
         pg_get_expr(index_meta.indpred, index_meta.indrelid),
         ARRAY(
             SELECT attribute.attname
@@ -61,17 +67,22 @@ BEGIN
              AND attribute.attnum = key_column.attnum
             ORDER BY key_column.position
         )
-    INTO v_is_unique, v_is_valid, v_is_ready, v_predicate, v_columns
+    INTO v_is_unique, v_is_valid, v_is_ready, v_key_count, v_attribute_count,
+         v_has_expression_key, v_predicate, v_columns
     FROM pg_index index_meta
     JOIN pg_class index_class ON index_class.oid = index_meta.indexrelid
     JOIN pg_namespace index_namespace ON index_namespace.oid = index_class.relnamespace
     WHERE index_namespace.nspname = 'public'
-      AND index_class.relname = 'idx_ff_orders_business_order_number';
+      AND index_class.relname = 'idx_ff_orders_business_order_number'
+      AND index_meta.indrelid = 'public.ff_orders'::regclass;
 
     IF NOT FOUND
        OR v_is_unique IS NOT TRUE
        OR v_is_valid IS NOT TRUE
        OR v_is_ready IS NOT TRUE
+       OR v_key_count <> 2
+       OR v_attribute_count <> 2
+       OR v_has_expression_key IS TRUE
        OR v_columns IS DISTINCT FROM ARRAY['business_id', 'order_number']::text[]
        OR lower(regexp_replace(COALESCE(v_predicate, ''), '[[:space:]()]', '', 'g')) <> 'order_numberisnotnull'
     THEN

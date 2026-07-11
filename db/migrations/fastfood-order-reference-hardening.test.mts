@@ -19,6 +19,10 @@ test("forward migration repairs duplicate references before adding business-scop
   assert.match(sql, /indisunique/i);
   assert.match(sql, /indisvalid/i);
   assert.match(sql, /indisready/i);
+  assert.match(sql, /indrelid\s*=\s*'public\.ff_orders'::regclass/i);
+  assert.match(sql, /indnkeyatts/i);
+  assert.match(sql, /indnatts/i);
+  assert.match(sql, /ANY\(index_meta\.indkey::smallint\[\]\)/i);
   assert.match(sql, /pg_attribute/i);
   assert.match(sql, /pg_get_expr/i);
   assert.match(sql, /ARRAY\['business_id', 'order_number'\]/i);
