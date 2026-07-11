@@ -23,6 +23,7 @@ export interface BusinessProfileDisplay {
   address: string | null;
   mapsUrl: string | null;
   modules: string[];
+  primaryModuleId: string | null;
   hasRestaurantModule: boolean;
   cartEnabled: boolean;
   social: PublicProfileSocialLinks;

@@ -22,6 +22,7 @@ interface ServiceRow {
     category_id: string | null;
     name: string;
     price: string | number;
+    duration_minutes?: string | number | null;
 }
 
 interface StaffRow {
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
 
         const existingPatient = patientsResult.data && patientsResult.data[0];
         const service = servicesResult.data;
-        const staff = staffResult.data && staffResult.data[0];
+        const staff = staffResult.data as StaffRow | null;
 
         if (!service) {
             return NextResponse.json({
@@ -114,21 +115,45 @@ export async function POST(request: Request) {
             }, { status: 404 });
         }
 
+        if (!staff) {
+            return NextResponse.json({ success: false, error: 'Personel bulunamadı' }, { status: 404 });
+        }
+
+        const durationMinutes = Math.max(5, Number((service as ServiceRow).duration_minutes) || 30);
+        const startsAt = new Date(`${date}T${String(timeSlot).slice(0, 5)}:00+03:00`);
+        if (Number.isNaN(startsAt.getTime())) {
+            return NextResponse.json({ success: false, error: 'Geçersiz tarih veya saat' }, { status: 400 });
+        }
+        const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
         const { data: newAppointment, error: insertError } = await supabase
             .from(TABLE)
             .insert({
+                app_user_id: null,
                 business_id: businessId,
+                business_name: business.name,
+                business_slug: business.slug,
+                customer_email: patientEmail || existingPatient?.email || null,
+                customer_name: existingPatient?.name || patientName,
+                customer_phone: patientPhone || existingPatient?.phone || '',
                 patient_id: existingPatient?.id || null,
-                staff_id: staffId || null,
+                staff_id: staff.id,
+                staff_name: staff.name,
                 service_id: serviceId,
+                service_name: service.name,
+                service_price: Number(service.price) || 0,
                 date: date,
-                time_slot: timeSlot,
+                time_slot: String(timeSlot).slice(0, 5),
+                starts_at: startsAt.toISOString(),
+                ends_at: endsAt.toISOString(),
                 status: 'pending',
                 notes: null,
             })
             .select()
             .single();
 
+        if (insertError?.code === '23P01') {
+            return NextResponse.json({ success: false, error: 'Seçilen personelin bu saatte başka bir randevusu var.' }, { status: 409 });
+        }
         if (insertError) throw insertError;
 
         return NextResponse.json({

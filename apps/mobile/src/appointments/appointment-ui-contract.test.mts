@@ -23,6 +23,7 @@ test("appointment panel has accessible loading, error, empty, submit, and succes
 test("business host gates appointment capability on actual options and keeps other panels isolated", async () => {
   const source = await readFile(routeUrl, "utf8");
   assert.match(source, /fetchAppointmentOptions/);
+  assert.match(source, /primaryModuleId:\s*profile\?\.primaryModuleId/);
   assert.match(source, /nativeEnabled[\s\S]{0,160}appointment-booking|appointment-booking[\s\S]{0,160}nativeEnabled/);
   assert.match(source, /<AppointmentPanel/);
   assert.match(source, /isStaticOrderSurfaceOpen\s*=\s*Boolean\(openMenuKind\s*\|\|\s*isEcommerceOpen\)/);

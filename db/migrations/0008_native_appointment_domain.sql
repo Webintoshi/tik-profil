@@ -1,5 +1,18 @@
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
+CREATE OR REPLACE FUNCTION tikprofil_is_valid_iso_date(value text)
+RETURNS boolean
+LANGUAGE plpgsql
+IMMUTABLE
+STRICT
+AS $$
+BEGIN
+    RETURN value = to_char(value::date, 'YYYY-MM-DD');
+EXCEPTION WHEN OTHERS THEN
+    RETURN false;
+END;
+$$;
+
 CREATE TABLE IF NOT EXISTS clinic_appointments (
     id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
     business_id text NOT NULL,
@@ -100,7 +113,7 @@ SET starts_at = COALESCE(
 FROM clinic_services service
 WHERE service.id = appointment.service_id
   AND appointment.starts_at IS NULL
-  AND appointment.time_slot ~ '^[0-2][0-9]:[0-5][0-9]';
+  AND appointment.time_slot ~ '^(?:[01][0-9]|2[0-3]):[0-5][0-9]$';
 
 UPDATE beauty_appointments appointment
 SET starts_at = COALESCE(
@@ -115,12 +128,23 @@ SET starts_at = COALESCE(
 FROM beauty_services service
 WHERE service.id = appointment.service_id
   AND appointment.starts_at IS NULL
-  AND appointment.time_slot ~ '^[0-2][0-9]:[0-5][0-9]';
+  AND appointment.time_slot ~ '^(?:[01][0-9]|2[0-3]):[0-5][0-9]$';
 
 DO $$
 BEGIN
     IF to_regclass('public.app_documents') IS NOT NULL THEN
         EXECUTE $migration$
+            WITH valid_documents AS MATERIALIZED (
+                SELECT document.*
+                FROM app_documents document
+                WHERE document.collection = 'beauty_appointments'
+                  AND document.data->>'businessId' IS NOT NULL
+                  AND document.data->>'serviceId' IS NOT NULL
+                  AND document.data->>'staffId' IS NOT NULL
+                  AND document.data->>'date' ~ '^\d{4}-\d{2}-\d{2}$'
+                  AND tikprofil_is_valid_iso_date(document.data->>'date')
+                  AND document.data->>'time' ~ '^(?:[01][0-9]|2[0-3]):[0-5][0-9]$'
+            )
             INSERT INTO beauty_appointments (
                 id, business_id, business_name, business_slug, service_id, service_name,
                 service_price, staff_id, staff_name, customer_name, customer_phone,
@@ -154,22 +178,64 @@ BEGIN
                    NULLIF(COALESCE(document.data->>'note', document.data->>'notes'), ''),
                    COALESCE(document.created_at, now()),
                    COALESCE(document.updated_at, now())
-            FROM app_documents document
+            FROM valid_documents document
             LEFT JOIN businesses business ON business.id = document.data->>'businessId'
             LEFT JOIN beauty_services service ON service.id = document.data->>'serviceId'
                 AND service.business_id = document.data->>'businessId'
             LEFT JOIN beauty_staff staff ON staff.id = document.data->>'staffId'
                 AND staff.business_id = document.data->>'businessId'
-            WHERE document.collection = 'beauty_appointments'
-              AND document.data->>'businessId' IS NOT NULL
-              AND document.data->>'serviceId' IS NOT NULL
-              AND document.data->>'staffId' IS NOT NULL
-              AND document.data->>'date' ~ '^\d{4}-\d{2}-\d{2}$'
-              AND document.data->>'time' ~ '^[0-2][0-9]:[0-5][0-9]$'
             ON CONFLICT (id) DO NOTHING
         $migration$;
     END IF;
 END $$;
+
+-- Preserve historical rows but deactivate later active records that would make
+-- the exclusion constraint fail during rollout.
+UPDATE clinic_appointments
+SET starts_at = NULL, ends_at = NULL, updated_at = now()
+WHERE starts_at IS NOT NULL AND ends_at IS NOT NULL AND ends_at <= starts_at;
+
+UPDATE beauty_appointments
+SET starts_at = NULL, ends_at = NULL, updated_at = now()
+WHERE starts_at IS NOT NULL AND ends_at IS NOT NULL AND ends_at <= starts_at;
+
+UPDATE clinic_appointments later
+SET status = 'rejected',
+    notes = concat_ws(E'\n', NULLIF(later.notes, ''), '[migration] overlapping historical appointment'),
+    updated_at = now()
+WHERE later.status IN ('pending', 'confirmed')
+  AND later.starts_at IS NOT NULL
+  AND later.ends_at IS NOT NULL
+  AND later.ends_at > later.starts_at
+  AND EXISTS (
+      SELECT 1 FROM clinic_appointments earlier
+      WHERE earlier.business_id = later.business_id
+        AND earlier.staff_id = later.staff_id
+        AND earlier.status IN ('pending', 'confirmed')
+        AND earlier.starts_at IS NOT NULL
+        AND earlier.ends_at IS NOT NULL
+        AND tstzrange(earlier.starts_at, earlier.ends_at, '[)') && tstzrange(later.starts_at, later.ends_at, '[)')
+        AND (earlier.created_at, earlier.id) < (later.created_at, later.id)
+  );
+
+UPDATE beauty_appointments later
+SET status = 'rejected',
+    notes = concat_ws(E'\n', NULLIF(later.notes, ''), '[migration] overlapping historical appointment'),
+    updated_at = now()
+WHERE later.status IN ('pending', 'confirmed')
+  AND later.starts_at IS NOT NULL
+  AND later.ends_at IS NOT NULL
+  AND later.ends_at > later.starts_at
+  AND EXISTS (
+      SELECT 1 FROM beauty_appointments earlier
+      WHERE earlier.business_id = later.business_id
+        AND earlier.staff_id = later.staff_id
+        AND earlier.status IN ('pending', 'confirmed')
+        AND earlier.starts_at IS NOT NULL
+        AND earlier.ends_at IS NOT NULL
+        AND tstzrange(earlier.starts_at, earlier.ends_at, '[)') && tstzrange(later.starts_at, later.ends_at, '[)')
+        AND (earlier.created_at, earlier.id) < (later.created_at, later.id)
+  );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_clinic_services_business_resource
     ON clinic_services (business_id, id);

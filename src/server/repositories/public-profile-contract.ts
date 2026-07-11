@@ -193,6 +193,7 @@ function buildPublicProfile({
     showHours,
     workingHours,
     modules,
+    primaryModuleId,
     cartEnabled,
     social,
 }: {
@@ -212,6 +213,7 @@ function buildPublicProfile({
     showHours: boolean;
     workingHours: unknown;
     modules: string[];
+    primaryModuleId?: string;
     cartEnabled: boolean;
     social: PublicProfileSocialLinks;
 }): PublicProfile {
@@ -232,6 +234,7 @@ function buildPublicProfile({
         showHours,
         workingHours,
         modules,
+        primaryModuleId: primaryModuleId || modules[0] || null,
         hasRestaurantModule: modules.includes("restaurant"),
         cartEnabled,
         social,
@@ -282,6 +285,11 @@ export function normalizeLegacyPublicProfileSource({
         showHours: asBoolean(fields.showHours) ?? false,
         workingHours: normalizeWorkingHours(fields.workingHours ?? fields.working_hours),
         modules,
+        primaryModuleId:
+            asString(record.active_module) ||
+            asString(fields.active_module) ||
+            asString(fields.activeModule) ||
+            modules[0],
         cartEnabled: asBoolean(fields.cartEnabled) ?? true,
         social,
     });
@@ -338,6 +346,7 @@ export function normalizePostgresPublicProfileRow({
         showHours: asBoolean(legacyFields.showHours) ?? row.show_hours ?? false,
         workingHours: normalizeWorkingHours(legacyFields.workingHours ?? legacyFields.working_hours ?? row.working_hours),
         modules,
+        primaryModuleId: asString(row.active_module) || modules[0],
         cartEnabled: asBoolean(legacyFields.cartEnabled) ?? true,
         social,
     });

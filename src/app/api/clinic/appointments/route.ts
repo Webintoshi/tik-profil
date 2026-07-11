@@ -3,36 +3,24 @@ import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getSessionSecretBytes } from '@/lib/env';
+import type { AppointmentRecord } from '@/server/appointments/appointment-contract';
+import { appointmentRepository } from '@/server/repositories/appointment.repository';
 
 const TABLE = 'clinic_appointments';
 
-interface AppointmentRow {
-    id: string;
-    business_id: string;
-    patient_id: string | null;
-    staff_id: string | null;
-    service_id: string | null;
-    date: string;
-    time_slot: string;
-    status: string;
-    notes: string | null;
-    created_at: string;
-    updated_at: string;
-}
-
-function mapAppointment(row: AppointmentRow) {
+function mapCanonicalAppointment(row: AppointmentRecord) {
     return {
         id: row.id,
-        businessId: row.business_id,
-        patientId: row.patient_id,
-        staffId: row.staff_id,
-        serviceId: row.service_id,
+        businessId: row.businessId,
+        patientId: null,
+        staffId: row.staffId,
+        serviceId: row.serviceId,
         date: row.date,
-        timeSlot: row.time_slot,
+        timeSlot: row.time,
         status: row.status,
-        notes: row.notes,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
+        notes: row.note,
+        createdAt: row.createdAt,
+        updatedAt: row.createdAt,
     };
 }
 
@@ -61,25 +49,10 @@ export async function GET(request: Request) {
         const status = searchParams.get('status');
         const patientId = searchParams.get('patientId');
 
-        const supabase = getSupabaseAdmin();
-        let query = supabase
-            .from(TABLE)
-            .select('*')
-            .eq('business_id', businessId);
-
-        if (status) {
-            query = query.eq('status', status);
-        }
-
         if (patientId) {
-            query = query.eq('patient_id', patientId);
+            return NextResponse.json({ success: false, error: 'patientId filtresi artık desteklenmiyor' }, { status: 400 });
         }
-
-        const { data, error } = await query.order('date', { ascending: false });
-
-        if (error) throw error;
-
-        const appointments = (data || []).map(mapAppointment);
+        const appointments = (await appointmentRepository.listBusiness('clinic', businessId, { status })).map(mapCanonicalAppointment);
 
         return NextResponse.json({ success: true, appointments });
     } catch (error) {
@@ -101,22 +74,58 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: 'Tarih ve saat zorunlu' }, { status: 400 });
         }
 
+        if (!body.serviceId || !body.staffId) {
+            return NextResponse.json({ success: false, error: 'Hizmet ve personel zorunlu' }, { status: 400 });
+        }
+
         const supabase = getSupabaseAdmin();
+        const [businessResult, serviceResult, staffResult, patientResult] = await Promise.all([
+            supabase.from('businesses').select('id,name,slug').eq('id', businessId).maybeSingle(),
+            supabase.from('clinic_services').select('id,name,price,duration_minutes').eq('business_id', businessId).eq('id', body.serviceId).eq('is_active', true).maybeSingle(),
+            supabase.from('clinic_staff').select('id,name').eq('business_id', businessId).eq('id', body.staffId).eq('is_active', true).maybeSingle(),
+            body.patientId ? supabase.from('clinic_patients').select('id,name,phone,email').eq('business_id', businessId).eq('id', body.patientId).maybeSingle() : Promise.resolve({ data: null, error: null }),
+        ]);
+        const dependencyError = businessResult.error || serviceResult.error || staffResult.error || patientResult.error;
+        if (dependencyError) throw dependencyError;
+        if (!businessResult.data || !serviceResult.data || !staffResult.data) {
+            return NextResponse.json({ success: false, error: 'İşletme, hizmet veya personel bulunamadı' }, { status: 404 });
+        }
+        const startsAt = new Date(`${body.date}T${String(body.timeSlot).slice(0, 5)}:00+03:00`);
+        if (Number.isNaN(startsAt.getTime())) {
+            return NextResponse.json({ success: false, error: 'Geçersiz tarih veya saat' }, { status: 400 });
+        }
+        const durationMinutes = Math.max(5, Number(serviceResult.data.duration_minutes) || 30);
+        const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
+        const patient = patientResult.data;
         const { data: newAppointment, error: insertError } = await supabase
             .from(TABLE)
             .insert({
+                app_user_id: null,
                 business_id: businessId,
+                business_name: businessResult.data.name,
+                business_slug: businessResult.data.slug,
+                customer_email: body.customerEmail || patient?.email || null,
+                customer_name: body.customerName || patient?.name || 'Misafir',
+                customer_phone: body.customerPhone || patient?.phone || '',
                 patient_id: body.patientId || null,
-                staff_id: body.staffId || null,
-                service_id: body.serviceId || null,
+                staff_id: staffResult.data.id,
+                staff_name: staffResult.data.name,
+                service_id: serviceResult.data.id,
+                service_name: serviceResult.data.name,
+                service_price: Number(serviceResult.data.price) || 0,
                 date: body.date,
-                time_slot: body.timeSlot,
-                status: body.status || 'pending',
+                time_slot: String(body.timeSlot).slice(0, 5),
+                starts_at: startsAt.toISOString(),
+                ends_at: endsAt.toISOString(),
+                status: 'pending',
                 notes: body.notes || null,
             })
             .select()
             .single();
 
+        if (insertError?.code === '23P01') {
+            return NextResponse.json({ success: false, error: 'Seçilen personelin bu saatte başka bir randevusu var.' }, { status: 409 });
+        }
         if (insertError) throw insertError;
 
         return NextResponse.json({ success: true, appointmentId: newAppointment.id });
@@ -134,41 +143,17 @@ export async function PUT(request: Request) {
         }
 
         const body = await request.json();
-        const { id, ...updateData } = body;
+        const { id, status, note } = body;
 
         if (!id) {
             return NextResponse.json({ success: false, error: 'ID zorunlu' }, { status: 400 });
         }
 
-        const supabase = getSupabaseAdmin();
-
-        const { data: existingData, error: existingError } = await supabase
-            .from(TABLE)
-            .select('id')
-            .eq('id', id)
-            .eq('business_id', businessId)
-            .single();
-
-        if (existingError || !existingData) {
-            return NextResponse.json({ success: false, error: 'Randevu bulunamadı' }, { status: 404 });
+        const validStatuses = ['pending', 'confirmed', 'cancelled', 'rejected', 'completed'];
+        if (!validStatuses.includes(status)) {
+            return NextResponse.json({ success: false, error: 'Geçerli durum zorunlu' }, { status: 400 });
         }
-
-        const updateObj: Record<string, unknown> = {};
-        if (updateData.patientId !== undefined) updateObj.patient_id = updateData.patientId;
-        if (updateData.staffId !== undefined) updateObj.staff_id = updateData.staffId;
-        if (updateData.serviceId !== undefined) updateObj.service_id = updateData.serviceId;
-        if (updateData.date !== undefined) updateObj.date = updateData.date;
-        if (updateData.timeSlot !== undefined) updateObj.time_slot = updateData.timeSlot;
-        if (updateData.status !== undefined) updateObj.status = updateData.status;
-        if (updateData.notes !== undefined) updateObj.notes = updateData.notes;
-
-        const { error: updateError } = await supabase
-            .from(TABLE)
-            .update(updateObj)
-            .eq('id', id)
-            .eq('business_id', businessId);
-
-        if (updateError) throw updateError;
+        await appointmentRepository.updateBusinessStatus('clinic', businessId, id, status, note);
 
         return NextResponse.json({ success: true });
     } catch (error) {
@@ -191,26 +176,7 @@ export async function DELETE(request: Request) {
             return NextResponse.json({ success: false, error: 'ID zorunlu' }, { status: 400 });
         }
 
-        const supabase = getSupabaseAdmin();
-
-        const { data: existingData, error: existingError } = await supabase
-            .from(TABLE)
-            .select('id')
-            .eq('id', id)
-            .eq('business_id', businessId)
-            .single();
-
-        if (existingError || !existingData) {
-            return NextResponse.json({ success: false, error: 'Randevu bulunamadı' }, { status: 404 });
-        }
-
-        const { error: deleteError } = await supabase
-            .from(TABLE)
-            .delete()
-            .eq('id', id)
-            .eq('business_id', businessId);
-
-        if (deleteError) throw deleteError;
+        await appointmentRepository.updateBusinessStatus('clinic', businessId, id, 'cancelled');
 
         return NextResponse.json({ success: true });
     } catch (error) {

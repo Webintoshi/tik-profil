@@ -139,6 +139,7 @@ export interface PublicProfile {
   showHours: boolean;
   workingHours: unknown;
   modules: string[];
+  primaryModuleId: string | null;
   hasRestaurantModule: boolean;
   cartEnabled: boolean;
   social: PublicProfileSocialLinks;
@@ -1192,6 +1193,7 @@ function isPublicProfileResponse(value: unknown): value is PublicProfileResponse
     && typeof profile.showHours === "boolean"
     && Array.isArray(profile.modules)
     && profile.modules.every((module) => typeof module === "string")
+    && (profile.primaryModuleId === null || typeof profile.primaryModuleId === "string")
     && typeof profile.hasRestaurantModule === "boolean"
     && typeof profile.cartEnabled === "boolean"
     && Object.hasOwn(profile, "workingHours")

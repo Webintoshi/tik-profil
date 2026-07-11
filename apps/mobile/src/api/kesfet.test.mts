@@ -62,6 +62,7 @@ const validProfile = {
   workingHours: null,
   modules: ["fastfood"],
   hasRestaurantModule: false,
+  primaryModuleId: "fastfood",
   cartEnabled: true,
   social: {}
 };

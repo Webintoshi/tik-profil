@@ -40,3 +40,20 @@ test("appointment migration remains additive and idempotent", async () => {
     assert.match(sql, /IF NOT EXISTS[\s\S]*pg_constraint/i);
     assert.match(sql, /REFERENCES app_users\s*\(id\) ON DELETE SET NULL/i);
 });
+
+test("appointment migration validates legacy dates and reconciles historical overlap before constraints", async () => {
+    const sql = await readFile(migrationUrl, "utf8").catch(() => "");
+    assert.match(sql, /WITH valid_documents AS MATERIALIZED/i);
+    assert.match(sql, /CREATE OR REPLACE FUNCTION tikprofil_is_valid_iso_date/i);
+    assert.match(sql, /EXCEPTION WHEN OTHERS THEN[\s\S]*RETURN false/i);
+    assert.match(sql, /tikprofil_is_valid_iso_date\(document\.data->>'date'\)/i);
+    assert.doesNotMatch(sql, /pg_input_is_valid/i);
+    assert.match(sql, /\(\?:\[01\]\[0-9\]\|2\[0-3\]\):\[0-5\]\[0-9\]/i);
+    const clinicReconcile = sql.indexOf("UPDATE clinic_appointments later");
+    const clinicConstraint = sql.indexOf("ADD CONSTRAINT clinic_appointments_no_staff_overlap");
+    const beautyReconcile = sql.indexOf("UPDATE beauty_appointments later");
+    const beautyConstraint = sql.indexOf("ADD CONSTRAINT beauty_appointments_no_staff_overlap");
+    assert.ok(clinicReconcile >= 0 && clinicReconcile < clinicConstraint);
+    assert.ok(beautyReconcile >= 0 && beautyReconcile < beautyConstraint);
+    assert.match(sql, /status = 'rejected'[\s\S]*overlapping historical appointment/i);
+});
