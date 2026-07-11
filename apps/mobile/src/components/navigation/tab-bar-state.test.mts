@@ -32,6 +32,7 @@ test("measured tab geometry fits supported viewports with 44 pixel minimum targe
   for (const viewportWidth of [360, 390, 430]) {
     const layout = getTabBarLayout({
       measuredLabelWidth: viewportWidth === 390 ? 112 : 84,
+      routeName: "index",
       viewportWidth
     });
     assert.ok(layout.inactiveWidth >= 44);
@@ -41,7 +42,7 @@ test("measured tab geometry fits supported viewports with 44 pixel minimum targe
 });
 
 test("390 wide 200 percent text retains a measured active label", () => {
-  const layout = getTabBarLayout({ measuredLabelWidth: 112, viewportWidth: 390 });
+  const layout = getTabBarLayout({ measuredLabelWidth: 112, routeName: "index", viewportWidth: 390 });
   assert.equal(layout.showActiveLabel, true);
   assert.ok(layout.activeWidth >= 160);
   assert.ok(layout.totalWidth <= 390);
@@ -49,13 +50,20 @@ test("390 wide 200 percent text retains a measured active label", () => {
 
 test("active label allocation rounds actual text width up with pixel slack", () => {
   for (const measuredLabelWidth of [43.01, 56.5, 112]) {
-    const layout = getTabBarLayout({ measuredLabelWidth, viewportWidth: 390 });
+    const layout = getTabBarLayout({ measuredLabelWidth, routeName: "index", viewportWidth: 390 });
     assert.equal(layout.labelWidth, Math.ceil(measuredLabelWidth) + 2);
-    assert.equal(layout.activeWidth, 20 + 22 + 6 + layout.labelWidth);
+    assert.equal(layout.activeWidth, Math.max(122, 20 + 22 + 6 + layout.labelWidth));
   }
 });
 
-test("selection timing is 180 ms without motion and immediate with reduced motion", () => {
-  assert.equal(getSelectionDuration(false), 180);
+test("selection timing restores the calmer previous transition and respects reduced motion", () => {
+  assert.equal(getSelectionDuration(false), 230);
   assert.equal(getSelectionDuration(true), 0);
+});
+
+test("normal labels restore the previous route-specific active widths", () => {
+  assert.equal(getTabBarLayout({ measuredLabelWidth: 58, routeName: "index", viewportWidth: 390 }).activeWidth, 122);
+  assert.equal(getTabBarLayout({ measuredLabelWidth: 43, routeName: "explore", viewportWidth: 390 }).activeWidth, 102);
+  assert.equal(getTabBarLayout({ measuredLabelWidth: 56, routeName: "favorites", viewportWidth: 390 }).activeWidth, 116);
+  assert.equal(getTabBarLayout({ measuredLabelWidth: 54, routeName: "account", viewportWidth: 390 }).activeWidth, 114);
 });

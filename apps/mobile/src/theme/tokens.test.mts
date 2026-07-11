@@ -31,7 +31,7 @@ function contrastRatio(foreground: string, background: string) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-test("primary pink and secondary amber remain stable across both theme modes", () => {
+test("primary amber remains stable and readable across both theme modes", () => {
   const light = getThemeColors("light");
   const dark = getThemeColors("dark");
 
@@ -41,8 +41,8 @@ test("primary pink and secondary amber remain stable across both theme modes", (
       dark: [dark.brand, dark.brandDeep, dark.onBrand, dark.brandSoft, dark.accent, dark.accentDeep, dark.onAccent]
     },
     {
-      light: ["#D90546", "#A60035", "#FFFFFF", "#FFE8F0", "#FFBF41", "#6B4300", "#172918"],
-      dark: ["#FF4D7F", "#FF8CAB", "#07120F", "rgba(255,77,127,0.16)", "#FFBF41", "#FFD37A", "#172918"]
+      light: ["#FFB347", "#8A4A00", "#2B1800", "#FFF0CC", "#263A5B", "#17233A", "#FFFFFF"],
+      dark: ["#FFC15A", "#FFD58C", "#251500", "rgba(255,193,90,0.16)", "#8FB8FF", "#C6DAFF", "#101722"]
     }
   );
 });
@@ -57,8 +57,8 @@ test("interactive surface border and focus tokens match the Task 8 contract", ()
       dark: [dark.surfacePressed, dark.surfaceSelected, dark.borderStrong, dark.borderBrand, dark.focusRing]
     },
     {
-      light: ["#F2F2F5", "#FFF0F5", "#B9B9C2", "#E684A2", "#C6003E"],
-      dark: ["#1B2C23", "rgba(255,77,127,0.14)", "#557060", "rgba(255,107,149,0.58)", "#FF6B95"]
+      light: ["#F5F1E9", "#FFF6E3", "#B9B2A7", "#D98A16", "#7A4100"],
+      dark: ["#292218", "rgba(255,193,90,0.14)", "#746651", "rgba(255,193,90,0.58)", "#FFC15A"]
     }
   );
 });

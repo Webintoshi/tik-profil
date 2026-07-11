@@ -13,6 +13,7 @@ registerHooks({
 
 const {
   authorizeWithAuthSession,
+  getLogtoRedirectOptions,
   readLogtoConfiguration,
   toStoredSession
 }: typeof import("./logto-client") = await import(new URL("./logto-client.ts", import.meta.url).href);
@@ -31,6 +32,14 @@ const configuredLogto = {
   endpoint: "https://auth.example.test"
 };
 
+test("Logto redirects match the registered web and native callbacks", () => {
+  assert.deepEqual(getLogtoRedirectOptions("native"), {
+    path: "auth/callback",
+    scheme: "tikprofil"
+  });
+  assert.deepEqual(getLogtoRedirectOptions("web"), { path: "account" });
+});
+
 test("PKCE authorization uses S256, native redirect, API resource, and offline scopes", async () => {
   let requestConfig: Record<string, unknown> | undefined;
   let redirectOptions: unknown;
@@ -44,9 +53,9 @@ test("PKCE authorization uses S256, native redirect, API resource, and offline s
     },
     exchangeCodeAsync: async () => ({ accessToken: "access", expiresIn: 900, issuedAt: 1000, refreshToken: "refresh" }),
     fetchDiscoveryAsync: async () => ({ tokenEndpoint: "https://auth.example.test/oidc/token" }),
-    makeRedirectUri(options) { redirectOptions = options; return "tikprofil://"; }
+    makeRedirectUri(options) { redirectOptions = options; return "tikprofil://auth/callback"; }
   });
-  assert.deepEqual(redirectOptions, { scheme: "tikprofil" });
+  assert.deepEqual(redirectOptions, { path: "auth/callback", scheme: "tikprofil" });
   assert.deepEqual(requestConfig, {
     clientId: "mobile-app",
     codeChallengeMethod: "S256",
@@ -56,12 +65,31 @@ test("PKCE authorization uses S256, native redirect, API resource, and offline s
       resource: "https://api.example.test"
     },
     prompt: "consent",
-    redirectUri: "tikprofil://",
+    redirectUri: "tikprofil://auth/callback",
     responseType: "code",
     scopes: ["openid", "profile", "email", "offline_access"],
     usePKCE: true
   });
   assert.equal(session?.refreshToken, "refresh");
+});
+
+test("web authorization uses the account callback registered in Logto", async () => {
+  let redirectOptions: unknown;
+  let requestConfig: Record<string, unknown> | undefined;
+  await authorizeWithAuthSession(configuredLogto, "signIn", undefined, {
+    createRequest(config) {
+      requestConfig = config;
+      return {
+        codeVerifier: "pkce-verifier",
+        promptAsync: async () => ({ params: { code: "authorization-code" }, type: "success" })
+      };
+    },
+    exchangeCodeAsync: async () => ({ accessToken: "access", issuedAt: 1000, refreshToken: "refresh" }),
+    fetchDiscoveryAsync: async () => ({}),
+    makeRedirectUri(options) { redirectOptions = options; return "http://localhost:8082/account"; }
+  }, "web");
+  assert.deepEqual(redirectOptions, { path: "account" });
+  assert.equal(requestConfig?.redirectUri, "http://localhost:8082/account");
 });
 
 test("PKCE cancellation returns null without code exchange", async () => {
@@ -98,7 +126,7 @@ test("PKCE verifier and resource reach authorization-code exchange", async () =>
   });
 });
 
-test("Logto configuration trims values and normalizes the issuer URL", () => {
+test("Logto configuration trims values and normalizes the Logto OIDC issuer URL", () => {
   assert.deepEqual(readLogtoConfiguration({
     EXPO_PUBLIC_LOGTO_API_AUDIENCE: " https://api.example.test ",
     EXPO_PUBLIC_LOGTO_APP_ID: " mobile-app ",
@@ -107,8 +135,17 @@ test("Logto configuration trims values and normalizes the issuer URL", () => {
     appId: "mobile-app",
     audience: "https://api.example.test",
     configured: true,
-    endpoint: "https://auth.example.test"
+    endpoint: "https://auth.example.test/oidc"
   });
+});
+
+test("Logto configuration does not duplicate an explicit OIDC issuer path", () => {
+  const configuration = readLogtoConfiguration({
+    EXPO_PUBLIC_LOGTO_API_AUDIENCE: "https://api.example.test",
+    EXPO_PUBLIC_LOGTO_APP_ID: "mobile-app",
+    EXPO_PUBLIC_LOGTO_ENDPOINT: "https://auth.example.test/oidc/"
+  });
+  assert.equal(configuration.configured && configuration.endpoint, "https://auth.example.test/oidc");
 });
 
 test("token normalization requires refresh material and computes milliseconds", () => {

@@ -113,7 +113,7 @@ function TabItem({ focused, navigation, route, viewportWidth }: {
   const routeName = route.name as CoreTabRoute;
   const label = tabLabels[routeName];
   const [measuredLabelWidth, setMeasuredLabelWidth] = useState(label.length * 7);
-  const layout = getTabBarLayout({ measuredLabelWidth, viewportWidth });
+  const layout = getTabBarLayout({ measuredLabelWidth, routeName, viewportWidth });
   const width = useSharedValue(focused ? layout.activeWidth : interaction.minTouchTarget);
   const labelWidth = useSharedValue(focused && layout.showActiveLabel ? layout.labelWidth : 0);
   const labelMargin = useSharedValue(focused && layout.showActiveLabel ? 6 : 0);
@@ -132,7 +132,7 @@ function TabItem({ focused, navigation, route, viewportWidth }: {
       labelOpacity.value = targetOpacity;
       return;
     }
-    const timing = { duration, easing: Easing.out(Easing.cubic) };
+    const timing = { duration, easing: Easing.bezier(0.2, 0, 0, 1) };
     width.value = withTiming(targetWidth, timing);
     labelWidth.value = withTiming(targetLabelWidth, timing);
     labelMargin.value = withTiming(targetLabelMargin, timing);

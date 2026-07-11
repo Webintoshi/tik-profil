@@ -19,7 +19,7 @@
         "INTERNET"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#FA4AAE"
+        "backgroundColor": "#FFB347"
       }
     },
     "ios": {
@@ -43,7 +43,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#EE0650",
+          "backgroundColor": "#FFB347",
           "image": "./src/assets/brand/tik-logo-wordmark-white.png",
           "imageWidth": 160,
           "resizeMode": "contain"

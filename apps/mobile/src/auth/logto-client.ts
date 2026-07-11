@@ -29,10 +29,11 @@ export interface LogtoAuthSessionDependencies {
   createRequest(config: Record<string, unknown>): AuthRequestShape;
   exchangeCodeAsync(config: Record<string, unknown>, discovery: unknown): Promise<TokenResponseShape>;
   fetchDiscoveryAsync(endpoint: string): Promise<unknown>;
-  makeRedirectUri(options: { scheme: string }): string;
+  makeRedirectUri(options: { path?: string; scheme?: string }): string;
 }
 
 export type DirectSignIn = "apple" | "google";
+export type LogtoAuthPlatform = "native" | "web";
 
 const publicEnvironment: PublicEnvironment = {
   EXPO_PUBLIC_LOGTO_API_AUDIENCE: process.env.EXPO_PUBLIC_LOGTO_API_AUDIENCE,
@@ -41,15 +42,16 @@ const publicEnvironment: PublicEnvironment = {
 };
 
 export function readLogtoConfiguration(environment: PublicEnvironment = publicEnvironment): LogtoConfiguration {
-  const endpoint = environment.EXPO_PUBLIC_LOGTO_ENDPOINT?.trim().replace(/\/$/, "");
+  const configuredEndpoint = environment.EXPO_PUBLIC_LOGTO_ENDPOINT?.trim().replace(/\/$/, "");
   const appId = environment.EXPO_PUBLIC_LOGTO_APP_ID?.trim();
   const audience = environment.EXPO_PUBLIC_LOGTO_API_AUDIENCE?.trim();
-  if (!endpoint || !appId || !audience) {
+  if (!configuredEndpoint || !appId || !audience) {
     return {
       configured: false,
       error: "Giriş yapılandırması eksik. EXPO_PUBLIC_LOGTO_ENDPOINT, EXPO_PUBLIC_LOGTO_APP_ID ve EXPO_PUBLIC_LOGTO_API_AUDIENCE gerekli."
     };
   }
+  const endpoint = configuredEndpoint.endsWith("/oidc") ? configuredEndpoint : `${configuredEndpoint}/oidc`;
   return { appId, audience, configured: true, endpoint };
 }
 
@@ -81,6 +83,7 @@ export async function authorizeWithLogto(
 ): Promise<StoredSession | null> {
   const configuration = requireConfiguration();
   const AuthSession = await import("expo-auth-session");
+  const { Platform } = await import("react-native");
   return authorizeWithAuthSession(configuration, mode, directSignIn, {
     createRequest: (config) => new AuthSession.AuthRequest(config as ConstructorParameters<typeof AuthSession.AuthRequest>[0]),
     exchangeCodeAsync: (config, discovery) => AuthSession.exchangeCodeAsync(
@@ -89,17 +92,24 @@ export async function authorizeWithLogto(
     ),
     fetchDiscoveryAsync: AuthSession.fetchDiscoveryAsync,
     makeRedirectUri: AuthSession.makeRedirectUri
-  });
+  }, Platform.OS === "web" ? "web" : "native");
+}
+
+export function getLogtoRedirectOptions(platform: LogtoAuthPlatform) {
+  return platform === "web"
+    ? { path: "account" } as const
+    : { path: "auth/callback", scheme: "tikprofil" } as const;
 }
 
 export async function authorizeWithAuthSession(
   configuration: Extract<LogtoConfiguration, { configured: true }>,
   mode: "signIn" | "signUp",
   directSignIn: DirectSignIn | undefined,
-  dependencies: LogtoAuthSessionDependencies
+  dependencies: LogtoAuthSessionDependencies,
+  platform: LogtoAuthPlatform = "native"
 ): Promise<StoredSession | null> {
   const discovery = await dependencies.fetchDiscoveryAsync(configuration.endpoint);
-  const redirectUri = dependencies.makeRedirectUri({ scheme: "tikprofil" });
+  const redirectUri = dependencies.makeRedirectUri(getLogtoRedirectOptions(platform));
   const extraParams: Record<string, string> = { resource: configuration.audience };
   if (mode === "signUp") extraParams.first_screen = "register";
   if (directSignIn) extraParams.direct_sign_in = `social:${directSignIn}`;

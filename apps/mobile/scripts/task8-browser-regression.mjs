@@ -95,7 +95,6 @@ async function verifyPreferencePersistence() {
 
     await state.page.goto(`${appUrl}/account`, { waitUntil: "domcontentloaded" });
     await state.page.getByRole("button", { name: "Koyu temaya geç", exact: true }).click();
-    await state.page.waitForFunction(() => localStorage.getItem("tikprofil.themeMode") === "dark");
     await assertTheme(state.page, "dark");
     await state.page.reload({ waitUntil: "domcontentloaded" });
     await state.page.getByRole("button", { name: "Açık temaya geç", exact: true }).waitFor();
@@ -180,8 +179,8 @@ async function verifyKeyboardFocus() {
       const style = getComputedStyle(element);
       return { color: style.outlineColor, offset: style.outlineOffset, style: style.outlineStyle, width: style.outlineWidth };
     });
-    assert.deepEqual(focus, { color: "rgb(198, 0, 62)", offset: "2px", style: "solid", width: "3px" });
-    assert.notEqual(focus.color, "rgb(255, 191, 65)");
+    assert.deepEqual(focus, { color: "rgb(122, 65, 0)", offset: "2px", style: "solid", width: "3px" });
+    assert.notEqual(focus.color, "rgb(38, 58, 91)");
     const targetBox = await requiredBox(target, "focused Explore tab");
     const previousBox = await requiredBox(state.page.getByTestId("bottom-tab-index"), "previous Home tab");
     const nextBox = await requiredBox(state.page.getByTestId("bottom-tab-favorites"), "next Favorites tab");
@@ -423,7 +422,7 @@ async function createPage({ favorites = [], mode = "light", reducedMotion = "no-
 }
 
 async function assertTheme(page, mode) {
-  const expected = mode === "dark" ? "rgb(7, 18, 15)" : "rgb(250, 250, 250)";
+  const expected = mode === "dark" ? "rgb(21, 18, 12)" : "rgb(250, 248, 244)";
   await page.waitForFunction((background) => (
     [...document.querySelectorAll("div")].some((element) => getComputedStyle(element).backgroundColor === background)
   ), expected);

@@ -2,8 +2,7 @@ import { useState } from "react";
 import { Image } from "expo-image";
 import { ActivityIndicator, Text, View } from "react-native";
 
-import tikLogoWordmarkDarkBrand from "@/assets/brand/tik-logo-wordmark-dark-brand.png";
-import tikLogoWordmarkPrimary from "@/assets/brand/tik-logo-wordmark-primary.png";
+import tikLogoWordmarkAmber from "@/assets/brand/tik-logo-wordmark-amber.png";
 import { useCustomerSession } from "@/auth/auth-store";
 import { readLogtoConfiguration } from "@/auth/logto-client";
 import { AnimatedPressable } from "@/components/common/AnimatedPressable";
@@ -21,8 +20,9 @@ export function AuthEntryCard() {
   const configuration = readLogtoConfiguration();
   const isRegister = mode === "register";
   const isBusy = status === "authenticating";
-  const displayedError = configuration.configured ? error : configuration.error;
-  const brandLogo = themeMode === "dark" ? tikLogoWordmarkDarkBrand : tikLogoWordmarkPrimary;
+  const displayedError = configuration.configured
+    ? error
+    : "Giriş hizmetine şu anda ulaşılamıyor. Lütfen biraz sonra tekrar deneyin.";
 
   const submit = async () => {
     if (isBusy || !configuration.configured) return;
@@ -38,7 +38,7 @@ export function AuthEntryCard() {
       paddingVertical: spacing.xl
     }}>
       <View style={{ alignItems: "center", gap: spacing.sm }}>
-        <Image source={brandLogo} style={{ height: 42, width: 112 }} contentFit="contain" transition={120} />
+        <Image source={tikLogoWordmarkAmber} style={{ height: 42, width: 112 }} contentFit="contain" transition={120} />
         <Text style={{ ...typography.cardTitle, color: colors.ink, textAlign: "center" }}>
           {isRegister ? "Tık Profil hesabını oluştur" : "Hesabına giriş yap"}
         </Text>

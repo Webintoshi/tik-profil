@@ -14,14 +14,23 @@ export function resolveActiveTab(routeName: string | undefined): CoreTabRoute | 
 }
 
 export function getSelectionDuration(reducedMotion: boolean) {
-  return reducedMotion ? 0 : 180;
+  return reducedMotion ? 0 : 230;
 }
+
+const PREFERRED_ACTIVE_WIDTH: Record<CoreTabRoute, number> = {
+  account: 114,
+  explore: 102,
+  favorites: 116,
+  index: 122
+};
 
 export function getTabBarLayout({
   measuredLabelWidth,
+  routeName = "index",
   viewportWidth
 }: {
   measuredLabelWidth: number;
+  routeName?: CoreTabRoute;
   viewportWidth: number;
 }) {
   const inactiveWidth = 44;
@@ -30,7 +39,10 @@ export function getTabBarLayout({
     + inactiveWidth * (CORE_TAB_ROUTES.length - 1);
   const maxActiveWidth = Math.max(inactiveWidth, viewportWidth - fixedWidth);
   const labelWidth = Math.ceil(measuredLabelWidth) + LABEL_WIDTH_SLACK;
-  const desiredActiveWidth = ACTIVE_HORIZONTAL_PADDING + ACTIVE_ICON_WIDTH + ACTIVE_ICON_GAP + labelWidth;
+  const desiredActiveWidth = Math.max(
+    PREFERRED_ACTIVE_WIDTH[routeName],
+    ACTIVE_HORIZONTAL_PADDING + ACTIVE_ICON_WIDTH + ACTIVE_ICON_GAP + labelWidth
+  );
   const showActiveLabel = desiredActiveWidth <= maxActiveWidth;
   const activeWidth = showActiveLabel ? Math.max(inactiveWidth, desiredActiveWidth) : inactiveWidth;
 

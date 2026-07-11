@@ -17,15 +17,15 @@ export function HomeHeader({ addressLabel, variant = "default" }: HomeHeaderProp
   const insets = useSafeAreaInsets();
   const { isDark } = useThemeMode();
   const isHero = variant === "hero";
-  const isSoftHero = isHero && colors.brandHero === "#FFD9E6";
+  const isSoftHero = isHero && !isDark;
   const heroTextColor = isDark ? colors.ink : (isSoftHero ? colors.ink : colors.onBrand);
   const heroMutedColor = isDark ? colors.mutedStrong : (isSoftHero ? colors.mutedStrong : "rgba(255,255,255,0.78)");
   const heroIconColor = isDark ? colors.brand : (isSoftHero ? colors.brand : colors.onBrand);
   const heroGlassBg = isDark ? colors.surfaceRaised : (isSoftHero ? "rgba(255,255,255,0.46)" : "rgba(255,255,255,0.16)");
   const heroGlassInnerBg = isDark ? colors.brandSoft : (isSoftHero ? "rgba(255,255,255,0.64)" : "rgba(255,255,255,0.18)");
-  const heroGlassBorder = isDark ? colors.border : (isSoftHero ? "rgba(238,6,80,0.16)" : "rgba(255,255,255,0.28)");
+  const heroGlassBorder = isDark ? colors.border : (isSoftHero ? "rgba(138,74,0,0.18)" : "rgba(255,255,255,0.28)");
   const heroNotificationBg = isDark ? colors.surface : (isSoftHero ? "rgba(255,255,255,0.76)" : "rgba(255,255,255,0.94)");
-  const heroNotificationBorder = isDark ? colors.border : (isSoftHero ? "rgba(238,6,80,0.12)" : "rgba(255,255,255,0.26)");
+  const heroNotificationBorder = isDark ? colors.border : (isSoftHero ? "rgba(138,74,0,0.14)" : "rgba(255,255,255,0.26)");
   const title = addressLabel?.trim() || "Ordu'yu keşfet";
 
   return (
