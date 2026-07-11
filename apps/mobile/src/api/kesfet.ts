@@ -4,7 +4,34 @@ import {
   getCategoryQueryKey
 } from "@/business/category-catalog";
 import { CustomerApiError } from "@/api/customer";
+import { cachedGet, canonicalRequestKey, invalidateRequestCache } from "@/api/request-cache";
 import { normalizeCityName } from "@/city/normalize-city";
+
+const CACHE_TTL = {
+  categories: 5 * 60_000,
+  cityGuide: 5 * 60_000,
+  discovery: 30_000,
+  ecommerce: 20_000,
+  menu: 20_000,
+  profile: 60_000,
+  search: 15_000
+} as const;
+
+export class KesfetHttpError extends Error {
+  readonly body: unknown;
+  readonly status: number;
+
+  constructor(
+    status: number,
+    body: unknown = null,
+    message = `Request failed with HTTP ${status}`
+  ) {
+    super(message);
+    this.name = "KesfetHttpError";
+    this.body = body;
+    this.status = status;
+  }
+}
 
 export interface KesfetBusiness {
   id: string;
@@ -665,40 +692,72 @@ function rewriteBaseUrl(url: string, nextBaseUrl: string) {
   return new URL(`${parsed.pathname}${parsed.search}`, nextBaseUrl).toString();
 }
 
-async function fetchJson<T>(url: string): Promise<T | null> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      return null;
+function getTransportUrls(url: string) {
+  const proxyUrl = getLocalWebProxyUrl();
+  const candidates: string[] = [];
+  if (proxyUrl && BASE_URL === "https://tikprofil.com") {
+    candidates.push(rewriteBaseUrl(url, proxyUrl));
+  }
+  candidates.push(url);
+  if (proxyUrl) candidates.push(rewriteBaseUrl(url, proxyUrl));
+  return [...new Set(candidates)];
+}
+
+async function fetchJsonStrict<T>(url: string): Promise<T> {
+  let lastError: KesfetHttpError | null = null;
+  for (const requestUrl of getTransportUrls(url)) {
+    try {
+      const response = await fetch(requestUrl);
+      const body = await response.json().catch(() => null);
+      if (response.ok) {
+        if (body === null) throw new KesfetHttpError(502, null, "Response body is not valid JSON");
+        return body as T;
+      }
+
+      const error = new KesfetHttpError(response.status, body);
+      if (response.status >= 400 && response.status < 500) throw error;
+      lastError = error;
+    } catch (error) {
+      if (error instanceof KesfetHttpError && error.status >= 400 && error.status < 500) throw error;
+      lastError = error instanceof KesfetHttpError
+        ? error
+        : new KesfetHttpError(0, null, error instanceof Error ? error.message : "Network request failed");
     }
-    return await response.json() as T;
+  }
+  throw lastError ?? new KesfetHttpError(0);
+}
+
+async function getJson<T>(
+  url: string,
+  fallback: T,
+  ttlMs: number,
+  validate?: (value: unknown) => value is T
+): Promise<T> {
+  try {
+    return await cachedGet(canonicalRequestKey(url), async () => {
+      const value = await fetchJsonStrict<unknown>(url);
+      if (validate && !validate(value)) {
+        throw new KesfetHttpError(502, value, "Response body has an invalid shape");
+      }
+      return value as T;
+    }, ttlMs);
   } catch {
-    return null;
+    return fallback;
   }
 }
 
-async function getJson<T>(url: string, fallback: T): Promise<T> {
-  const proxyUrl = getLocalWebProxyUrl();
-  if (proxyUrl && BASE_URL === "https://tikprofil.com") {
-    const proxiedResponse = await fetchJson<T>(rewriteBaseUrl(url, proxyUrl));
-    if (proxiedResponse) {
-      return proxiedResponse;
+async function getJsonOrThrow<T>(
+  url: string,
+  ttlMs: number,
+  validate?: (value: unknown) => value is T
+): Promise<T> {
+  return cachedGet(canonicalRequestKey(url), async () => {
+    const value = await fetchJsonStrict<unknown>(url);
+    if (validate && !validate(value)) {
+      throw new KesfetHttpError(502, value, "Response body has an invalid shape");
     }
-  }
-
-  const response = await fetchJson<T>(url);
-  if (response) {
-    return response;
-  }
-
-  if (proxyUrl && !url.startsWith(proxyUrl)) {
-    const proxiedResponse = await fetchJson<T>(rewriteBaseUrl(url, proxyUrl));
-    if (proxiedResponse) {
-      return proxiedResponse;
-    }
-  }
-
-  return fallback;
+    return value as T;
+  }, ttlMs);
 }
 
 async function postJson<T>(
@@ -821,9 +880,10 @@ export async function fetchPublicProfile(slug: string): Promise<PublicProfileRes
     return { success: false, profile: null, redirectTarget: null };
   }
 
-  return getJson<PublicProfileResponse>(
+  return getJsonOrThrow<PublicProfileResponse>(
     buildUrl(`/api/public/profile/${encodeURIComponent(slug.trim())}`),
-    { success: false, profile: null, redirectTarget: null }
+    CACHE_TTL.profile,
+    isPublicProfileResponse
   );
 }
 
@@ -839,7 +899,9 @@ export async function fetchPublicFoodMenu(
 
   return getJson<PublicFoodMenuResponse>(
     buildUrl(path, { businessSlug: slug.trim() }),
-    { success: false, error: "Menü yüklenemedi" }
+    { success: false, error: "Menü yüklenemedi" },
+    CACHE_TTL.menu,
+    isSuccessResponse
   );
 }
 
@@ -854,6 +916,11 @@ export async function submitPublicFastFoodOrder(
     accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
     Boolean(accessToken)
   );
+}
+
+export function invalidatePublicFoodMenuCache(slug: string, kind: "fastfood" | "restaurant") {
+  const path = kind === "fastfood" ? "/api/fastfood/public-menu" : "/api/restaurant/public-menu";
+  return invalidateRequestCache(buildUrl(path, { businessSlug: slug.trim() }));
 }
 
 export async function validatePublicFastFoodCoupon(
@@ -875,7 +942,9 @@ export async function fetchPublicEcommerceProducts(
 
   return getJson<PublicEcommerceProductsResponse>(
     buildUrl("/api/public/products", { businessId: businessId.trim() }),
-    { success: false, categories: [], products: [], error: "Ürünler yüklenemedi" }
+    { success: false, categories: [], products: [], error: "Ürünler yüklenemedi" },
+    CACHE_TTL.ecommerce,
+    isEcommerceProductsResponse
   );
 }
 
@@ -888,8 +957,17 @@ export async function fetchPublicEcommerceSettings(
 
   return getJson<PublicEcommerceSettings | null>(
     buildUrl("/api/public/ecommerce-settings", { businessId: businessId.trim() }),
-    null
+    null,
+    CACHE_TTL.ecommerce,
+    isNullableObject
   );
+}
+
+export function invalidatePublicEcommerceCache(businessId: string) {
+  const normalizedId = businessId.trim();
+  const productsInvalidated = invalidateRequestCache(buildUrl("/api/public/products", { businessId: normalizedId }));
+  const settingsInvalidated = invalidateRequestCache(buildUrl("/api/public/ecommerce-settings", { businessId: normalizedId }));
+  return productsInvalidated || settingsInvalidated;
 }
 
 export async function submitPublicEcommerceCheckout(
@@ -927,7 +1005,9 @@ export async function fetchDiscoveryBusinesses(params: {
       page,
       limit,
       category: params.category
-    })
+    }),
+    CACHE_TTL.discovery,
+    isDiscoveryResponse
   );
 }
 
@@ -942,14 +1022,18 @@ export async function searchBusinesses(query: string, coordinates?: Coordinates 
       lat: coordinates?.lat,
       lng: coordinates?.lng
     }),
-    buildLocalSearchResponse(query)
+    buildLocalSearchResponse(query),
+    CACHE_TTL.search,
+    isSearchResponse
   );
 }
 
 export async function fetchCategories(): Promise<CategoriesResponse> {
   return getJson<CategoriesResponse>(
     buildUrl("/api/kesfet/categories"),
-    { success: true, categories: LOCAL_ORDU_CATEGORIES, total: LOCAL_ORDU_BUSINESSES.length }
+    { success: true, categories: LOCAL_ORDU_CATEGORIES, total: LOCAL_ORDU_BUSINESSES.length },
+    CACHE_TTL.categories,
+    isCategoriesResponse
   );
 }
 
@@ -963,12 +1047,53 @@ export async function fetchCityGuide(city: string): Promise<CityGuideResponse | 
   const fallback = normalizedCity === "ordu" ? LOCAL_ORDU_CITY_GUIDE : null;
   const response = await getJson<unknown>(
     buildUrl("/api/cities", { name: requestedCity }),
-    null
+    null,
+    CACHE_TTL.cityGuide,
+    (value): value is unknown => isCityGuideResponse(value) && normalizeCityName(value.name) === normalizedCity
   );
 
   return isCityGuideResponse(response) && normalizeCityName(response.name) === normalizedCity
     ? response
     : fallback;
+}
+
+function isSuccessResponse(value: unknown): value is PublicFoodMenuResponse {
+  return typeof value === "object" && value !== null && typeof (value as { success?: unknown }).success === "boolean";
+}
+
+function isPublicProfileResponse(value: unknown): value is PublicProfileResponse {
+  if (typeof value !== "object" || value === null) return false;
+  const response = value as { profile?: unknown; success?: unknown };
+  return typeof response.success === "boolean"
+    && (response.profile === null || typeof response.profile === "object");
+}
+
+function isEcommerceProductsResponse(value: unknown): value is PublicEcommerceProductsResponse {
+  if (typeof value !== "object" || value === null) return false;
+  const response = value as { categories?: unknown; products?: unknown; success?: unknown };
+  return typeof response.success === "boolean" && Array.isArray(response.categories) && Array.isArray(response.products);
+}
+
+function isNullableObject(value: unknown): value is PublicEcommerceSettings | null {
+  return value === null || typeof value === "object";
+}
+
+function isDiscoveryResponse(value: unknown): value is PaginatedKesfetResponse {
+  if (typeof value !== "object" || value === null) return false;
+  const response = value as { businesses?: unknown; success?: unknown };
+  return typeof response.success === "boolean" && Array.isArray(response.businesses);
+}
+
+function isSearchResponse(value: unknown): value is SearchResponse {
+  if (typeof value !== "object" || value === null) return false;
+  const response = value as { businesses?: unknown; success?: unknown };
+  return typeof response.success === "boolean" && Array.isArray(response.businesses);
+}
+
+function isCategoriesResponse(value: unknown): value is CategoriesResponse {
+  if (typeof value !== "object" || value === null) return false;
+  const response = value as { categories?: unknown; success?: unknown };
+  return typeof response.success === "boolean" && Array.isArray(response.categories);
 }
 
 function isCityGuideResponse(value: unknown): value is CityGuideResponse {

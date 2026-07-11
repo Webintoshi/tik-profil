@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   fetchCityGuide,
   fetchDiscoveryBusinesses,
+  getLocalDiscoveryBootstrap,
   type CityGuidePlace,
   type CityGuideResponse,
   type KesfetBusiness
@@ -13,7 +14,7 @@ import {
 import { BusinessCard } from "@/components/business/business-card";
 import { EmptyState } from "@/components/business/empty-state";
 import { Icon } from "@/components/common/Icon";
-import { BusinessCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
+import { BusinessCardSkeleton, CityHeroImageSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { createLatestExploreRequestGuard, resolveExploreCity } from "@/explore/explore-city";
 import { useDiscoveryStore } from "@/state/discovery-store";
 import { colors, radii, shadows, spacing, typography } from "@/theme/tokens";
@@ -22,11 +23,13 @@ import { useThemeMode } from "@/theme/theme-store";
 export default function ExploreScreen() {
   useThemeMode();
   const discovery = useDiscoveryStore();
-  const [cityGuide, setCityGuide] = React.useState<CityGuideResponse | null>(null);
-  const [businesses, setBusinesses] = React.useState<KesfetBusiness[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const initialDiscovery = React.useMemo(() => getLocalDiscoveryBootstrap(), []);
+  const [cityGuide, setCityGuide] = React.useState<CityGuideResponse | null>(initialDiscovery.cityGuide);
+  const [businesses, setBusinesses] = React.useState<KesfetBusiness[]>(initialDiscovery.businesses);
+  const [isLoading, setIsLoading] = React.useState(false);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const requestGuardRef = React.useRef(createLatestExploreRequestGuard());
+  const hasExploreDataRef = React.useRef(true);
 
   const cityName = React.useMemo(
     () => resolveExploreCity(discovery.savedAddressLabel, discovery.lastSelectedCity),
@@ -37,7 +40,7 @@ export default function ExploreScreen() {
     const requestId = requestGuardRef.current.begin();
     if (refreshing) {
       setIsRefreshing(true);
-    } else {
+    } else if (!hasExploreDataRef.current) {
       setIsLoading(true);
     }
 
@@ -52,12 +55,12 @@ export default function ExploreScreen() {
       }
       setCityGuide(guideResponse);
       setBusinesses(businessResponse.businesses);
+      hasExploreDataRef.current = Boolean(guideResponse || businessResponse.businesses.length);
     } catch {
       if (!requestGuardRef.current.isCurrent(requestId)) {
         return;
       }
-      setCityGuide(null);
-      setBusinesses([]);
+      // Keep the last successful city data visible during transient failures.
     } finally {
       if (!requestGuardRef.current.isCurrent(requestId)) {
         return;
@@ -200,6 +203,7 @@ export default function ExploreScreen() {
 function CityHero({ guide }: { guide: CityGuideResponse }) {
   return (
     <View
+      testID="city-hero-loaded"
       style={{
         backgroundColor: colors.surface,
         borderColor: colors.border,
@@ -278,7 +282,7 @@ function GuideSection({
   title: string;
 }) {
   return (
-    <View style={{ gap: spacing.md }}>
+    <View style={{ gap: spacing.md }} testID="explore-guide-section">
       <SectionTitle title={title} subtitle={subtitle} />
       {isLoading ? (
         <HorizontalSkeletonRow />
@@ -361,6 +365,7 @@ function SectionTitle({ subtitle, title }: { subtitle: string; title: string }) 
 }
 
 function CityHeroSkeleton() {
+  const { width } = useWindowDimensions();
   return (
     <View
       style={{
@@ -372,7 +377,7 @@ function CityHeroSkeleton() {
         overflow: "hidden"
       }}
     >
-      <Skeleton borderRadius={0} height={200} width="100%" />
+      <CityHeroImageSkeleton contentWidth={width - spacing.screen * 2 - 2} />
       <View style={{ gap: spacing.sm, padding: spacing.lg }}>
         <Skeleton height={28} width="38%" />
         <Skeleton height={22} width="70%" />

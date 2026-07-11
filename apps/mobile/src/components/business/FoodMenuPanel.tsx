@@ -1,8 +1,10 @@
 import { Image } from "expo-image";
+import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import * as React from "react";
-import { Modal, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Modal, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, type ViewToken } from "react-native";
 
 import {
+  invalidatePublicFoodMenuCache,
   resolveTikProfilAssetUrl,
   submitPublicFastFoodOrder,
   validatePublicFastFoodCoupon,
@@ -45,6 +47,11 @@ import {
   STICKY_CART_BAR_HEIGHT,
   STICKY_CART_GAP
 } from "./menu-layout";
+
+type FoodMenuListRow =
+  | { category: PublicFoodMenuData["categories"][number]; categoryId: string; productCount: number; type: "category" }
+  | { categoryId: string; product: PublicFoodMenuProduct; type: "featured" }
+  | { categoryId: string; product: PublicFoodMenuProduct; type: "product" };
 
 export type FoodOrderStep = "products" | "info" | "confirm" | "success";
 
@@ -177,6 +184,7 @@ export function useFoodMenuController({
 
 export function FoodMenuPanel({
   accessToken,
+  businessSlug,
   controller,
   data,
   error,
@@ -189,6 +197,7 @@ export function FoodMenuPanel({
   selectedCategoryId
 }: {
   accessToken: string | null;
+  businessSlug: string;
   controller: FoodMenuController;
   data: PublicFoodMenuData | null;
   error: string | null;
@@ -233,8 +242,19 @@ export function FoodMenuPanel({
   }, [allProducts, categories]);
   const activeCategoryId = selectedCategoryId || categorySections[0]?.category.id || categories[0]?.id || null;
   const activeCategoryRef = React.useRef(activeCategoryId);
-  const menuScrollRef = React.useRef<ScrollView | null>(null);
-  const categoryOffsetsRef = React.useRef<Record<string, number>>({});
+  const menuListRef = React.useRef<FlashListRef<FoodMenuListRow> | null>(null);
+  const menuRows = React.useMemo<FoodMenuListRow[]>(() => categorySections.flatMap((section) => {
+    const [featuredProduct, ...restProducts] = section.products;
+    return [
+      { category: section.category, categoryId: section.category.id, productCount: section.products.length, type: "category" as const },
+      ...(featuredProduct ? [{ categoryId: section.category.id, product: featuredProduct, type: "featured" as const }] : []),
+      ...restProducts.map((product) => ({ categoryId: section.category.id, product, type: "product" as const }))
+    ];
+  }), [categorySections]);
+  const categoryRowIndices = React.useMemo(() => menuRows.reduce<Record<string, number>>((indices, row, index) => {
+    if (row.type === "category") indices[row.categoryId] = index;
+    return indices;
+  }, {}), [menuRows]);
   const { cartItems, setCartItems, setStep, step } = controller;
   const {
     coupon: appliedCoupon,
@@ -603,30 +623,19 @@ export function FoodMenuPanel({
   function scrollToCategory(categoryId: string) {
     lightImpact();
     onSelectCategory(categoryId);
-    const offset = categoryOffsetsRef.current[categoryId] ?? 0;
-    menuScrollRef.current?.scrollTo({ animated: true, y: Math.max(offset - spacing.sm, 0) });
-  }
-
-  function handleMenuScroll(event: { nativeEvent: { contentOffset: { y: number } } }) {
-    const scrollY = event.nativeEvent.contentOffset.y + spacing.lg;
-    const activeSection = categorySections
-      .map((section) => ({
-        id: section.category.id,
-        offset: categoryOffsetsRef.current[section.category.id]
-      }))
-      .filter((item): item is { id: string; offset: number } => typeof item.offset === "number")
-      .reduce<{ id: string; offset: number } | null>((current, item) => {
-        if (item.offset <= scrollY && (!current || item.offset >= current.offset)) {
-          return item;
-        }
-        return current;
-      }, null);
-
-    if (activeSection && activeSection.id !== activeCategoryRef.current) {
-      activeCategoryRef.current = activeSection.id;
-      onSelectCategory(activeSection.id);
+    const index = categoryRowIndices[categoryId];
+    if (typeof index === "number") {
+      void menuListRef.current?.scrollToIndex({ animated: true, index, viewOffset: spacing.sm });
     }
   }
+
+  const handleMenuViewability = React.useCallback(({ viewableItems }: { viewableItems: ViewToken<FoodMenuListRow>[] }) => {
+    const nextCategoryId = viewableItems.find((item) => item.isViewable)?.item.categoryId;
+    if (nextCategoryId && nextCategoryId !== activeCategoryRef.current) {
+      activeCategoryRef.current = nextCategoryId;
+      onSelectCategory(nextCategoryId);
+    }
+  }, [onSelectCategory]);
 
   async function submitFastFoodOrder() {
     if (!data || !canSubmitOrder || !paymentMethod || submitGuardRef.current.isSubmitting()) {
@@ -679,6 +688,7 @@ export function FoodMenuPanel({
       }
 
       if (response?.success && response.orderId && response.orderNumber && response.status) {
+        invalidatePublicFoodMenuCache(businessSlug, kind);
         setOrderNumber(response.orderNumber);
         setCartItems({});
         setAppliedCoupon(null);
@@ -824,78 +834,64 @@ export function FoodMenuPanel({
             })}
           </ScrollView>
 
-          <ScrollView
-            ref={menuScrollRef}
+          <View style={{ height: menuViewportHeight, minHeight: menuViewportHeight, overflow: "hidden" }}>
+          <FlashList
+            ref={menuListRef}
             contentContainerStyle={{
-              gap: spacing.lg,
               padding: spacing.md,
-              paddingBottom: spacing.md + (cartRows.length > 0 ? STICKY_CART_BAR_HEIGHT + STICKY_CART_GAP : 0),
+              paddingBottom: spacing.lg + (cartRows.length > 0 ? STICKY_CART_BAR_HEIGHT + STICKY_CART_GAP : 0),
               paddingTop: spacing.sm
             }}
-            nestedScrollEnabled
-            onScroll={handleMenuScroll}
-            scrollEventThrottle={32}
-            showsVerticalScrollIndicator={false}
-            style={cartEnabled ? { height: menuViewportHeight, minHeight: menuViewportHeight } : undefined}
-            testID="food-menu-scroll"
-          >
-            {categorySections.length ? (
-              categorySections.map((section) => {
-                const [featuredProduct, ...restProducts] = section.products;
-
+            data={menuRows}
+            drawDistance={200}
+            getItemType={(item) => item.type}
+            keyExtractor={(item) => item.type === "category" ? `category:${item.categoryId}` : `${item.type}:${item.product.id}`}
+            onViewableItemsChanged={handleMenuViewability}
+            renderItem={({ item }) => {
+              if (item.type === "category") {
                 return (
-                  <View
-                    key={section.category.id}
-                    onLayout={(event) => {
-                      categoryOffsetsRef.current[section.category.id] = event.nativeEvent.layout.y;
-                    }}
-                    style={{ gap: spacing.sm }}
-                  >
-                    <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between" }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
-                        {section.category.icon ? <Text style={{ fontSize: 15 }}>{section.category.icon}</Text> : null}
-                        <Text style={{ ...typography.title, color: colors.ink, fontSize: 15 }}>
-                          {section.category.name}
-                        </Text>
-                      </View>
-                      <Text style={{ ...typography.small, color: colors.brand, fontWeight: "900" }}>
-                        {section.products.length} ürün
-                      </Text>
+                  <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm, marginTop: spacing.md }}>
+                    <View style={{ alignItems: "center", flexDirection: "row", gap: spacing.xs }}>
+                      {item.category.icon ? <Text style={{ fontSize: 15 }}>{item.category.icon}</Text> : null}
+                      <Text style={{ ...typography.title, color: colors.ink, fontSize: 15 }}>{item.category.name}</Text>
                     </View>
-
-                    {featuredProduct ? (
-                      <FeaturedFoodOrderProductCard
-                        canOrder={cartEnabled}
-                        onAdd={() => addProductToCart(featuredProduct)}
-                        onRemove={() => removeProductFromCart(featuredProduct.id)}
-                        product={featuredProduct}
-                        quantity={productQuantities[featuredProduct.id] ?? 0}
-                        showPrice={kind === "fastfood"}
-                      />
-                    ) : null}
-
-                    {restProducts.length ? (
-                      <View style={{ gap: spacing.sm }}>
-                        {restProducts.map((product) => (
-                          <CompactFoodOrderProductCard
-                            key={product.id}
-                            canOrder={cartEnabled}
-                            onAdd={() => addProductToCart(product)}
-                            onRemove={() => removeProductFromCart(product.id)}
-                            product={product}
-                            quantity={productQuantities[product.id] ?? 0}
-                            showPrice={kind === "fastfood"}
-                          />
-                        ))}
-                      </View>
-                    ) : null}
+                    <Text style={{ ...typography.small, color: colors.brand, fontWeight: "900" }}>{item.productCount} ürün</Text>
                   </View>
                 );
-              })
-            ) : (
-              <Text style={{ ...typography.body, color: colors.muted }}>Bu menüde ürün yok.</Text>
-            )}
-          </ScrollView>
+              }
+              if (item.type === "featured") {
+                return (
+                  <View style={{ marginBottom: spacing.sm }}>
+                    <FeaturedFoodOrderProductCard
+                      canOrder={cartEnabled}
+                      onAdd={() => addProductToCart(item.product)}
+                      onRemove={() => removeProductFromCart(item.product.id)}
+                      product={item.product}
+                      quantity={productQuantities[item.product.id] ?? 0}
+                      showPrice={kind === "fastfood"}
+                    />
+                  </View>
+                );
+              }
+              return (
+                <View style={{ marginBottom: spacing.sm }}>
+                  <CompactFoodOrderProductCard
+                    canOrder={cartEnabled}
+                    onAdd={() => addProductToCart(item.product)}
+                    onRemove={() => removeProductFromCart(item.product.id)}
+                    product={item.product}
+                    quantity={productQuantities[item.product.id] ?? 0}
+                    showPrice={kind === "fastfood"}
+                  />
+                </View>
+              );
+            }}
+            showsVerticalScrollIndicator={false}
+            style={{ flex: 1 }}
+            testID="food-menu-scroll"
+            ListEmptyComponent={<Text style={{ ...typography.body, color: colors.muted }}>Bu menüde ürün yok.</Text>}
+          />
+          </View>
         </>
       ) : data && step === "info" ? (
         <ScrollView
@@ -1686,7 +1682,14 @@ function FeaturedFoodOrderProductCard({
         })}
       >
         {imageUri ? (
-          <Image source={{ uri: imageUri }} style={{ height: "100%", width: "100%" }} contentFit="cover" transition={180} />
+          <Image
+            cachePolicy="memory-disk"
+            contentFit="cover"
+            recyclingKey={product.id}
+            source={{ uri: imageUri }}
+            style={{ height: "100%", width: "100%" }}
+            transition={0}
+          />
         ) : (
           <View style={{ alignItems: "center", flex: 1, justifyContent: "center" }}>
             <Icon name="utensils" color={actionColors.order.fg} size={28} />
@@ -1761,7 +1764,14 @@ function CompactFoodOrderProductCard({
           }}
         >
           {imageUri ? (
-            <Image source={{ uri: imageUri }} style={{ height: "100%", width: "100%" }} contentFit="cover" transition={180} />
+            <Image
+              cachePolicy="memory-disk"
+              contentFit="cover"
+              recyclingKey={product.id}
+              source={{ uri: imageUri }}
+              style={{ height: "100%", width: "100%" }}
+              transition={0}
+            />
           ) : (
             <View style={{ alignItems: "center", flex: 1, justifyContent: "center" }}>
               <Icon name="utensils" color={colors.muted} size={20} />

@@ -33,7 +33,7 @@ export function FeaturedBusinessesBanner({ businesses }: FeaturedBusinessesBanne
   }
 
   return (
-    <View style={{ gap: spacing.md, marginHorizontal: spacing.screen }}>
+    <View style={{ gap: spacing.md, marginHorizontal: spacing.screen }} testID="featured-business-loaded">
       <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between" }}>
         <Text style={{ ...typography.label, color: colors.ink }}>
           Öne çıkan işletmeler
@@ -74,10 +74,11 @@ export function FeaturedBusinessesBanner({ businesses }: FeaturedBusinessesBanne
         <View style={{ backgroundColor: colors.brandSoft, height: 214, position: "relative" }}>
           {primary.coverImage || primary.logoUrl ? (
             <Image
+              cachePolicy="memory-disk"
               source={{ uri: primary.coverImage ?? primary.logoUrl ?? undefined }}
               style={{ height: "100%", width: "100%" }}
               contentFit="cover"
-              transition={220}
+              transition={180}
             />
           ) : (
             <LinearGradient
@@ -189,7 +190,7 @@ function BusinessLogo({ uri }: { uri: string | null }) {
       }}
     >
       {uri ? (
-        <Image source={{ uri }} style={{ height: "100%", width: "100%" }} contentFit="cover" />
+        <Image cachePolicy="memory-disk" source={{ uri }} style={{ height: "100%", width: "100%" }} contentFit="cover" transition={180} />
       ) : (
         <Icon name="store" color={colors.brand} size={28} />
       )}

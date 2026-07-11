@@ -6,6 +6,7 @@ import { Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } fro
 import type { KesfetBusiness, KesfetCategory } from "@/api/kesfet";
 import { resolveBusinessCategory } from "@/business/category-catalog";
 import { Icon } from "@/components/common/Icon";
+import { CATEGORY_PAGE_SIZE, getCategoryGridGeometry, getCategoryTileHeight } from "@/performance/geometry";
 import { colors, radii, shadows, spacing, typography } from "@/theme/tokens";
 import { selectionImpact } from "@/utils/haptics";
 
@@ -27,8 +28,6 @@ interface CategoryTileData {
   label: string;
 }
 
-const PAGE_SIZE = 9;
-
 export function CategoryRail({
   businesses = [],
   categories,
@@ -47,9 +46,9 @@ export function CategoryRail({
   const scrollRef = React.useRef<ScrollView>(null);
   const canonicalCategories = React.useMemo(() => mergeCategories(categories), [categories]);
   const totalCount = canonicalCategories.reduce((sum, category) => sum + category.count, 0);
-  const columns = 3;
-  const gap = spacing.md;
-  const tileWidth = Math.floor((width - spacing.screen * 2 - gap * (columns - 1)) / columns);
+  const categoryGeometry = getCategoryGridGeometry(width);
+  const gap = categoryGeometry.gap;
+  const tileWidth = categoryGeometry.tileWidth;
   const normalizedQuery = normalizeCategoryId(query.trim());
 
   const tiles = React.useMemo<CategoryTileData[]>(() => [
@@ -100,7 +99,7 @@ export function CategoryRail({
       .slice(0, 4);
   }, [businesses, normalizedQuery]);
 
-  const pages = React.useMemo(() => visibleTiles.length ? chunkTiles(visibleTiles, PAGE_SIZE) : [], [visibleTiles]);
+  const pages = React.useMemo(() => visibleTiles.length ? chunkTiles(visibleTiles, CATEGORY_PAGE_SIZE) : [], [visibleTiles]);
 
   const updateActivePage = React.useCallback((page: number) => {
     const maxPage = Math.max(0, pages.length - 1);
@@ -158,7 +157,7 @@ export function CategoryRail({
   }
 
   return (
-    <View style={{ gap: spacing.md, paddingHorizontal: spacing.screen }}>
+    <View style={{ gap: spacing.md, paddingHorizontal: spacing.screen }} testID="category-grid-loaded">
       <View
         style={{
           alignItems: "center",
@@ -283,7 +282,7 @@ export function CategoryRail({
                 ) : (
                   <View
                     key={`category-empty-${pageIndex}-${slotIndex}`}
-                    style={{ height: Math.round(tileWidth * 0.94), opacity: 0, pointerEvents: "none", width: tileWidth }}
+                    style={{ height: categoryGeometry.tileHeight, opacity: 0, pointerEvents: "none", width: tileWidth }}
                   />
                 )
               ))}
@@ -376,7 +375,7 @@ function chunkTiles(tiles: CategoryTileData[], size: number) {
 }
 
 function buildPageSlots(page: CategoryTileData[]) {
-  return Array.from({ length: PAGE_SIZE }, (_, index) => page[index] ?? null);
+  return Array.from({ length: CATEGORY_PAGE_SIZE }, (_, index) => page[index] ?? null);
 }
 
 function mergeCategories(categories: KesfetCategory[]) {
@@ -417,7 +416,7 @@ function CategoryTile({
 }) {
   const iconSize = Math.round(width * 0.44);
   const iconFrameSize = Math.round(width * 0.62);
-  const tileHeight = Math.round(width * 0.94);
+  const tileHeight = getCategoryTileHeight(width);
   const selectedFrameColor = colors.brand;
   const selectedGlyphColor = colors.onBrand;
   const selectedGlowColor = colors.brandGlow;

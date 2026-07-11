@@ -112,7 +112,7 @@ export function BusinessProfileCard({
       >
         <View style={{ height: coverHeight, overflow: "hidden", position: "relative" }}>
           {coverUri ? (
-            <Image source={{ uri: coverUri }} style={{ height: "100%", width: "100%" }} contentFit="cover" transition={220} />
+            <Image cachePolicy="memory-disk" source={{ uri: coverUri }} style={{ height: "100%", width: "100%" }} contentFit="cover" recyclingKey={`${business.id}:cover`} transition={0} />
           ) : (
             <LinearGradient
               colors={[colors.brandDeep, colors.brand]}
@@ -156,6 +156,7 @@ export function BusinessProfileCard({
           <View style={{ flexDirection: "row", gap: density === "compact" ? spacing.sm : spacing.md }}>
             <BusinessLogoMark
               uri={logoUri}
+              recyclingKey={`${business.id}:logo`}
               size={avatarSize}
               style={{ marginTop: -Math.round(avatarSize * 0.42) }}
               verified={isPopular}
@@ -266,7 +267,7 @@ function DenseBusinessListCard({
         }}
       >
         {profileUri ? (
-          <Image source={{ uri: profileUri }} style={{ height: "100%", width: "100%" }} contentFit="cover" transition={180} />
+          <Image cachePolicy="memory-disk" source={{ uri: profileUri }} style={{ height: "100%", width: "100%" }} contentFit="cover" recyclingKey={`${business.id}:logo`} transition={0} />
         ) : (
           <CategoryFallbackIcon name={categoryIcon} />
         )}
@@ -373,7 +374,7 @@ function HorizontalBusinessCard({
       >
         <View style={{ height: 140, position: "relative" }}>
         {imageUri ? (
-          <Image source={{ uri: imageUri }} style={{ height: "100%", width: "100%" }} contentFit="cover" transition={200} />
+          <Image cachePolicy="memory-disk" source={{ uri: imageUri }} style={{ height: "100%", width: "100%" }} contentFit="cover" recyclingKey={`${business.id}:horizontal`} transition={0} />
         ) : (
           <View style={{ alignItems: "center", backgroundColor: colors.brandSoft, flex: 1, justifyContent: "center" }}>
             <Icon name="store" color={colors.brandDeep} size={36} />
@@ -385,7 +386,7 @@ function HorizontalBusinessCard({
             <Text style={{ ...typography.small, color: colors.inverseText }}>{rating}</Text>
           </View>
         ) : null}
-        <BusinessLogoMark uri={logoUri} size={42} style={{ bottom: spacing.sm, right: spacing.sm }} />
+        <BusinessLogoMark uri={logoUri} recyclingKey={`${business.id}:horizontal-logo`} size={42} style={{ bottom: spacing.sm, right: spacing.sm }} />
         </View>
         <View style={{ gap: 4, padding: spacing.md }}>
         <Text numberOfLines={1} style={{ ...typography.cardTitle, color: colors.ink }}>{business.name}</Text>
@@ -410,11 +411,13 @@ function HorizontalBusinessCard({
 
 function BusinessLogoMark({
   uri,
+  recyclingKey,
   size,
   style,
   verified = false
 }: {
   uri: string | null;
+  recyclingKey: string;
   size: number;
   style: ViewStyle;
   verified?: boolean;
@@ -438,7 +441,7 @@ function BusinessLogoMark({
     >
       <View style={{ borderRadius: radii.pill, height: "100%", overflow: "hidden", width: "100%" }}>
         {uri ? (
-          <Image source={{ uri }} style={{ height: "100%", width: "100%" }} contentFit="cover" transition={180} />
+          <Image cachePolicy="memory-disk" source={{ uri }} style={{ height: "100%", width: "100%" }} contentFit="cover" recyclingKey={recyclingKey} transition={0} />
         ) : (
           <View style={{ alignItems: "center", backgroundColor: colors.brandSoft, flex: 1, justifyContent: "center" }}>
             <Icon name="store" color={colors.brandDeep} size={Math.round(size * 0.36)} />

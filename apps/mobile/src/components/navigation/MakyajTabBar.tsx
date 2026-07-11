@@ -1,6 +1,6 @@
 import type { BottomTabBarProps } from "expo-router/build/react-navigation/bottom-tabs";
 import { useEffect, useRef } from "react";
-import { Animated, Easing, Pressable, Text, View } from "react-native";
+import { Animated, Easing, Platform, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Icon, type IconName } from "@/components/common/Icon";
@@ -151,7 +151,7 @@ function TabItem({
       mass: 0.8,
       stiffness: 220,
       toValue,
-      useNativeDriver: true
+      useNativeDriver: Platform.OS !== "web"
     }).start();
   }
 
@@ -175,6 +175,7 @@ function TabItem({
       }}
     >
       <Pressable
+        accessibilityLabel={label}
         accessibilityRole="button"
         accessibilityState={focused ? { selected: true } : {}}
         onPress={onPress}

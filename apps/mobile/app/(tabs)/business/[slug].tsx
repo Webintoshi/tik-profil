@@ -1,5 +1,6 @@
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
+import { FlashList } from "@shopify/flash-list";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as React from "react";
 import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -11,6 +12,8 @@ import {
   fetchDiscoveryBusinesses,
   fetchPublicFoodMenu,
   fetchPublicProfile,
+  invalidatePublicEcommerceCache,
+  KesfetHttpError,
   getLocalDiscoveryBootstrap,
   resolveTikProfilAssetUrl,
   type KesfetBusiness,
@@ -42,7 +45,7 @@ import {
   resolveActiveProductPrice
 } from "@/checkout/checkout-state";
 import { Icon, type IconName } from "@/components/common/Icon";
-import { BusinessCardSkeleton } from "@/components/ui/Skeleton";
+import { BusinessProfileSkeleton } from "@/components/ui/Skeleton";
 import {
   resolvePrimaryProfileAction,
   type FoodMenuKind
@@ -88,6 +91,7 @@ export default function BusinessDetailScreen() {
   const [isMenuLoading, setIsMenuLoading] = React.useState(false);
   const [menuError, setMenuError] = React.useState<string | null>(null);
   const [selectedMenuCategoryId, setSelectedMenuCategoryId] = React.useState<string | null>(null);
+  const menuRequestRef = React.useRef(0);
   const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const localBusiness = React.useMemo(() => {
     if (!slug) {
@@ -109,7 +113,25 @@ export default function BusinessDetailScreen() {
 
       setIsLoading(true);
 
-      const profileResponse = await fetchPublicProfile(slug);
+      let profileResponse: Awaited<ReturnType<typeof fetchPublicProfile>>;
+      try {
+        profileResponse = await fetchPublicProfile(slug);
+      } catch (error) {
+        if (!isMounted) return;
+        const isAuthoritativeNotFound = error instanceof KesfetHttpError && error.status === 404;
+        if (!isAuthoritativeNotFound) {
+          setIsLoading(false);
+          return;
+        }
+
+        const businessesResponse = await fetchDiscoveryBusinesses({ limit: 100 });
+        if (!isMounted) return;
+        const matchedBusiness = businessesResponse.businesses.find((item) => item.slug === slug) ?? null;
+        setProfile(null);
+        setBusiness(matchedBusiness);
+        setIsLoading(false);
+        return;
+      }
 
       if (!isMounted) {
         return;
@@ -129,15 +151,8 @@ export default function BusinessDetailScreen() {
         return;
       }
 
-      const businessesResponse = await fetchDiscoveryBusinesses({ limit: 100 });
-
-      if (!isMounted) {
-        return;
-      }
-
-      const matchedBusiness = businessesResponse.businesses.find((item) => item.slug === slug) ?? null;
       setProfile(null);
-      setBusiness(matchedBusiness);
+      setBusiness(null);
       setIsLoading(false);
 
     }
@@ -154,6 +169,7 @@ export default function BusinessDetailScreen() {
   }, [router, slug]);
 
   React.useEffect(() => {
+    menuRequestRef.current += 1;
     setOpenMenuKind(null);
     setIsEcommerceOpen(false);
     setLoadedMenu(null);
@@ -205,11 +221,7 @@ export default function BusinessDetailScreen() {
   }
 
   if (isLoading && !localBusiness) {
-    return (
-      <View style={{ backgroundColor: colors.background, flex: 1, padding: spacing.screen, paddingTop: insets.top + spacing.xl }}>
-        <BusinessCardSkeleton />
-      </View>
-    );
+    return <BusinessProfileSkeleton topInset={insets.top} />;
   }
 
   if (!displayProfile) {
@@ -246,7 +258,7 @@ export default function BusinessDetailScreen() {
   const socialCards = buildSocialCards(displayProfile, mapUrl);
   const currentProfile = displayProfile;
   const isOrderSurfaceOpen = Boolean(openMenuKind || isEcommerceOpen);
-  const isProfileCompact = Boolean(openMenuKind);
+  const isProfileCompact = isOrderSurfaceOpen;
   const hasStickyCart = Boolean(
     openMenuKind === "fastfood"
       && activeMenuData
@@ -273,6 +285,7 @@ export default function BusinessDetailScreen() {
       setIsEcommerceOpen(false);
 
       const nextMenuKind = openMenuKind === primaryAction.menuKind ? null : primaryAction.menuKind;
+      const requestId = ++menuRequestRef.current;
       setOpenMenuKind(nextMenuKind);
 
       if (!nextMenuKind) {
@@ -288,6 +301,7 @@ export default function BusinessDetailScreen() {
       setMenuError(null);
 
       const response = await fetchPublicFoodMenu(currentProfile.slug, nextMenuKind);
+      if (requestId !== menuRequestRef.current) return;
       if (response.success && response.data) {
         setLoadedMenu({ kind: nextMenuKind, slug: currentProfile.slug, data: response.data });
         setSelectedMenuCategoryId(response.data.categories[0]?.id ?? null);
@@ -304,13 +318,8 @@ export default function BusinessDetailScreen() {
     await openExternal(primaryAction.url);
   }
 
-  return (
-    <View style={{ backgroundColor: colors.background, flex: 1 }}>
-      <ScrollView
-        contentContainerStyle={{ backgroundColor: colors.background, paddingBottom: contentBottomPadding }}
-        showsVerticalScrollIndicator={false}
-        testID="business-profile-scroll"
-      >
+  const profileContent = (
+    <>
         <BusinessProfileHeader
           compact={isProfileCompact}
           isFavorite={isFavorite}
@@ -347,6 +356,7 @@ export default function BusinessDetailScreen() {
           {openMenuKind ? (
             <FoodMenuPanel
               accessToken={accessToken}
+              businessSlug={displayProfile.slug}
               controller={foodMenuController}
               data={activeMenuData}
               error={menuError}
@@ -369,7 +379,24 @@ export default function BusinessDetailScreen() {
           ) : null}
         </View>
 
-      </ScrollView>
+    </>
+  );
+
+  return (
+    <View style={{ backgroundColor: colors.background, flex: 1 }}>
+      {isOrderSurfaceOpen ? (
+        <View style={{ backgroundColor: colors.background, flex: 1, paddingBottom: contentBottomPadding }} testID="business-profile-static">
+          {profileContent}
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ backgroundColor: colors.background, paddingBottom: contentBottomPadding }}
+          showsVerticalScrollIndicator={false}
+          testID="business-profile-scroll"
+        >
+          {profileContent}
+        </ScrollView>
+      )}
       {hasStickyCart ? (
         <StickyCartBar
           itemCount={foodMenuController.cart.itemCount}
@@ -390,6 +417,7 @@ function EcommerceOrderPanel({
   businessId: string;
   businessName: string;
 }) {
+  const { height: screenHeight } = useWindowDimensions();
   const actionColors = getActionColors();
   const [categories, setCategories] = React.useState<PublicEcommerceCategory[]>([]);
   const [products, setProducts] = React.useState<PublicEcommerceProduct[]>([]);
@@ -532,6 +560,7 @@ function EcommerceOrderPanel({
     setIsSubmitting(false);
 
     if (response.success && response.orderNumber) {
+      invalidatePublicEcommerceCache(businessId);
       setOrderNumber(response.orderNumber);
       setCartItems({});
       setStep("success");
@@ -732,20 +761,30 @@ function EcommerceOrderPanel({
             </View>
           ) : null}
 
-          <View style={{ gap: spacing.md, padding: spacing.md, paddingTop: categories.length ? 0 : spacing.md }}>
-            {activeProducts.length ? (
-              activeProducts.map((product) => (
+          <View style={{ height: Math.max(420, Math.round(screenHeight * 0.62)), overflow: "hidden" }}>
+          <FlashList
+            contentContainerStyle={{ padding: spacing.md, paddingTop: categories.length ? 0 : spacing.md }}
+            data={activeProducts}
+            drawDistance={200}
+            getItemType={() => "ecommerce-product"}
+            keyExtractor={(product) => product.id}
+            renderItem={({ item: product }) => (
+              <View style={{ marginBottom: spacing.md }}>
                 <EcommerceProductCard
-                  key={product.id}
                   onAdd={() => updateQuantity(product.id, 1)}
                   onRemove={() => updateQuantity(product.id, -1)}
                   product={product}
                   quantity={cartItems[product.id] ?? 0}
                 />
-              ))
-            ) : (
+              </View>
+            )}
+            ListEmptyComponent={(
               <Text style={{ ...typography.body, color: colors.muted }}>Bu mağazada henüz ürün yok.</Text>
             )}
+            showsVerticalScrollIndicator={false}
+            style={{ flex: 1 }}
+            testID="ecommerce-product-list"
+          />
           </View>
         </>
       ) : step === "info" ? (
@@ -866,7 +905,14 @@ function EcommerceProductCard({
       }}
     >
       {imageUri ? (
-        <Image source={{ uri: imageUri }} style={{ aspectRatio: 1.8, width: "100%" }} contentFit="cover" transition={180} />
+        <Image
+          cachePolicy="memory-disk"
+          contentFit="cover"
+          recyclingKey={product.id}
+          source={{ uri: imageUri }}
+          style={{ aspectRatio: 1.8, width: "100%" }}
+          transition={0}
+        />
       ) : null}
       <View style={{ gap: spacing.sm, padding: spacing.md }}>
         <View style={{ flexDirection: "row", gap: spacing.md, justifyContent: "space-between" }}>

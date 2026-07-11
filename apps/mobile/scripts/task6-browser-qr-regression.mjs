@@ -1,20 +1,16 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import net from "node:net";
 import process from "node:process";
 
 import { chromium } from "playwright";
+import { cleanupBrowserTestProcesses, getFreePort, spawnManagedNode, waitForUrl } from "./browser-test-processes.mjs";
 
 const expoPort = await getFreePort();
 const appUrl = `http://127.0.0.1:${expoPort}`;
-const expoCommand = process.platform === "win32" ? (process.env.ComSpec || "cmd.exe") : "npx";
-const expoArgs = process.platform === "win32"
-  ? ["/d", "/s", "/c", `npx expo start --web --port ${expoPort}`]
-  : ["expo", "start", "--web", "--port", String(expoPort)];
-const expoProcess = spawnProcess(expoCommand, expoArgs, { CI: "1" });
+let expoProcess;
 let browser;
 
 try {
+  expoProcess = spawnManagedNode(["node_modules/expo/bin/cli", "start", "--web", "--port", String(expoPort)], { CI: "1" });
   await waitForUrl(`${appUrl}/qr-scan`, 120_000);
   browser = await chromium.launch({ headless: true });
   await verifyDeniedPermissionState(browser);
@@ -22,7 +18,7 @@ try {
   process.stdout.write("Task 6 QR permission and camera-error browser regressions passed.\n");
 } finally {
   await browser?.close();
-  await stopProcess(expoProcess);
+  await cleanupBrowserTestProcesses(expoProcess ? [expoProcess] : [], [expoPort]);
 }
 
 async function verifyDeniedPermissionState(browserInstance) {
@@ -91,60 +87,4 @@ async function assertHealthyQrPage(page, pageErrors) {
   );
   assert.equal(await page.getByRole("button", { name: "Geri dön" }).count(), 1);
   assert.deepEqual(pageErrors, []);
-}
-
-function spawnProcess(command, args, extraEnv) {
-  const child = spawn(command, args, {
-    cwd: process.cwd(),
-    detached: process.platform !== "win32",
-    env: { ...process.env, ...extraEnv },
-    stdio: ["ignore", "pipe", "pipe"]
-  });
-  child.stdout.on("data", (chunk) => process.stdout.write(chunk));
-  child.stderr.on("data", (chunk) => process.stderr.write(chunk));
-  return child;
-}
-
-function stopProcess(child) {
-  if (!child.pid || child.exitCode !== null) return Promise.resolve();
-  if (process.platform === "win32") {
-    return new Promise((resolve) => {
-      const killer = spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
-      killer.on("error", () => resolve());
-      killer.on("exit", () => resolve());
-    });
-  }
-  try {
-    process.kill(-child.pid, "SIGTERM");
-  } catch {
-    child.kill("SIGTERM");
-  }
-  return Promise.resolve();
-}
-
-async function waitForUrl(url, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  let lastError;
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) return;
-    } catch (error) {
-      lastError = error;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error(`Timed out waiting for ${url}: ${lastError?.message || "not ready"}`);
-}
-
-function getFreePort() {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.unref();
-    server.on("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      server.close(() => resolve(address.port));
-    });
-  });
 }

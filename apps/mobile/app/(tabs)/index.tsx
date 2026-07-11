@@ -1,6 +1,6 @@
 import * as Location from "expo-location";
 import * as React from "react";
-import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from "react-native";
 
 import {
   fetchCategories,
@@ -12,6 +12,7 @@ import {
   type KesfetBusiness,
   type KesfetCategory
 } from "@/api/kesfet";
+import { createLatestRequestGuard } from "@/api/request-guard";
 import { BusinessCard } from "@/components/business/business-card";
 import { EmptyState } from "@/components/business/empty-state";
 import { CategoryRail } from "@/components/home/CategoryRail";
@@ -19,17 +20,16 @@ import { DiscoveryBrief } from "@/components/home/DiscoveryBrief";
 import { FeaturedBusinessesBanner } from "@/components/home/featured-businesses-banner";
 import { HomeHeader } from "@/components/home/HomeHeader";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { BusinessCardSkeleton } from "@/components/ui/Skeleton";
+import { CategoryGridSkeleton, DenseBusinessListSkeleton, FeaturedBusinessSkeleton } from "@/components/ui/Skeleton";
 import { PILOT_CITY, PILOT_DISTRICT } from "@/data/ordu-discovery";
 import { useDiscoveryStore } from "@/state/discovery-store";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { useThemeMode } from "@/theme/theme-store";
 
-const fallbackCategories: KesfetCategory[] = [];
-
 export default function DiscoverScreen() {
   const { isDark } = useThemeMode();
   const discovery = useDiscoveryStore();
+  const { width } = useWindowDimensions();
   const initialDiscovery = React.useMemo(() => getLocalDiscoveryBootstrap(), []);
   const [businesses, setBusinesses] = React.useState<KesfetBusiness[]>(initialDiscovery.businesses);
   const [categories, setCategories] = React.useState<KesfetCategory[]>(initialDiscovery.categories);
@@ -44,24 +44,20 @@ export default function DiscoverScreen() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [isLocating, setIsLocating] = React.useState(false);
+  const requestGuardRef = React.useRef(createLatestRequestGuard());
 
   const loadDiscovery = React.useCallback(async (refreshing = false) => {
+    const requestId = requestGuardRef.current.begin();
     if (refreshing) {
       setIsRefreshing(true);
-    } else {
-      const bootstrap = getLocalDiscoveryBootstrap(selectedCategory);
-      setCategories(bootstrap.categories);
-      setBusinesses(bootstrap.businesses);
-      setCityGuide(bootstrap.cityGuide);
-      setIsLoading(false);
     }
 
     try {
       const [categoryResponse, businessResponse, cityGuideResponse] = await Promise.all([
         fetchCategories(),
         fetchDiscoveryBusinesses({
-          limit: 24,
-          city: null,
+          limit: 16,
+          city: PILOT_CITY,
           category: selectedCategory,
           coordinates,
           distance: coordinates ? 30 : null
@@ -69,20 +65,23 @@ export default function DiscoverScreen() {
         fetchCityGuide(PILOT_CITY)
       ]);
 
-      setCategories(categoryResponse.categories.length ? categoryResponse.categories : fallbackCategories);
+      if (!requestGuardRef.current.isCurrent(requestId)) return;
+
+      setCategories((current) => categoryResponse.categories.length ? categoryResponse.categories : current);
       setBusinesses(businessResponse.businesses);
-      setCityGuide(cityGuideResponse);
+      setCityGuide((current) => cityGuideResponse ?? current);
     } catch {
-      setCategories(fallbackCategories);
-      setBusinesses([]);
+      if (!requestGuardRef.current.isCurrent(requestId)) return;
     } finally {
+      if (!requestGuardRef.current.isCurrent(requestId)) return;
       setIsLoading(false);
       setIsRefreshing(false);
     }
   }, [coordinates, selectedCategory]);
 
   React.useEffect(() => {
-    loadDiscovery();
+    void loadDiscovery();
+    return () => requestGuardRef.current.invalidate();
   }, [loadDiscovery]);
 
   async function requestLocation() {
@@ -199,7 +198,7 @@ export default function DiscoverScreen() {
           />
         </View>
 
-        <View style={{ gap: spacing.md }}>
+        <View style={{ gap: spacing.md }} testID="home-category-section">
           <SectionHeader
             title="Kategoriler"
             rightSlot={categoryPageCount > 1 ? (
@@ -212,7 +211,7 @@ export default function DiscoverScreen() {
             actionLabel={selectedCategory ? "Tümünü göster" : undefined}
             onAction={selectedCategory ? () => setSelectedCategory(null) : undefined}
           />
-          <CategoryRail
+          {isLoading && !categories.length ? <CategoryGridSkeleton viewportWidth={width} /> : <CategoryRail
             businesses={businesses}
             categories={categories}
             selectedId={selectedCategory}
@@ -221,18 +220,18 @@ export default function DiscoverScreen() {
             requestedPageKey={requestedCategoryPageKey}
             onPageChange={setCategoryPage}
             onPageCountChange={handleCategoryPageCountChange}
-          />
+          />}
         </View>
 
         {isLoading ? (
           <View style={{ gap: spacing.md, paddingHorizontal: spacing.screen }}>
-            <BusinessCardSkeleton />
+            <FeaturedBusinessSkeleton />
           </View>
         ) : (
           <FeaturedBusinessesBanner businesses={featured} />
         )}
 
-        <View style={{ gap: spacing.md }}>
+        <View style={{ gap: spacing.md }} testID="home-business-list-section">
           <SectionHeader
             title={selectedCategoryLabel ? `${selectedCategoryLabel} işletmeleri` : "Ordu işletmeleri"}
             actionLabel={selectedCategory ? "Filtreyi kaldır" : undefined}
@@ -240,9 +239,9 @@ export default function DiscoverScreen() {
           />
           {isLoading ? (
             <View style={{ gap: spacing.md, paddingHorizontal: spacing.screen }}>
-              <BusinessCardSkeleton compact />
-              <BusinessCardSkeleton compact />
-              <BusinessCardSkeleton compact />
+              <DenseBusinessListSkeleton />
+              <DenseBusinessListSkeleton />
+              <DenseBusinessListSkeleton />
             </View>
           ) : nearby.length ? (
             <View style={{ gap: spacing.md, paddingHorizontal: spacing.screen }}>

@@ -1,6 +1,7 @@
 import { useRef, type ReactNode } from "react";
 import {
   Animated,
+  Platform,
   Pressable,
   type GestureResponderEvent,
   type PressableProps,
@@ -32,7 +33,7 @@ export function AnimatedPressable({
       mass: 0.8,
       stiffness: 240,
       toValue,
-      useNativeDriver: true
+      useNativeDriver: Platform.OS !== "web"
     }).start();
   }
 

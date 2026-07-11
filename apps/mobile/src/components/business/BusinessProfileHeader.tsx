@@ -92,7 +92,7 @@ export function BusinessProfileHeader({
     <>
       <View testID="business-profile-cover" style={{ height: 150 + topInset, position: "relative" }}>
         {coverUri ? (
-          <Image source={{ uri: coverUri }} style={{ height: "100%", width: "100%" }} contentFit="cover" transition={220} />
+          <Image cachePolicy="memory-disk" source={{ uri: coverUri }} style={{ height: "100%", width: "100%" }} contentFit="cover" transition={180} />
         ) : (
           <LinearGradient colors={[...colors.heroGradient]} style={{ flex: 1 }} />
         )}
@@ -161,7 +161,7 @@ function ProfileLogo({ logoUri, name, size }: { logoUri: string | null; name: st
       }}
     >
       {logoUri ? (
-        <Image source={{ uri: logoUri }} style={{ height: "100%", width: "100%" }} contentFit="cover" transition={180} />
+        <Image cachePolicy="memory-disk" source={{ uri: logoUri }} style={{ height: "100%", width: "100%" }} contentFit="cover" transition={180} />
       ) : (
         <Text style={{ ...typography.title, color: colors.ink, fontSize: size >= 90 ? 20 : 14 }}>{getInitials(name)}</Text>
       )}
