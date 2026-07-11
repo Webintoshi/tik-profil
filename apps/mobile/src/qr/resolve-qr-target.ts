@@ -1,5 +1,6 @@
 const PROFILE_SLUG_PATTERN = /^[a-z0-9-]{2,50}$/;
 const ALLOWED_AUTHORITIES = new Set(["tikprofil.com", "www.tikprofil.com"]);
+const RAW_PROFILE_URL_PATTERN = /^https:\/\/(tikprofil\.com|www\.tikprofil\.com)\/([a-z0-9-]{2,50})\/?$/;
 
 export interface QrTarget {
   slug: string;
@@ -19,8 +20,8 @@ export function resolveQrTarget(rawValue: unknown): QrTarget | null {
     return { slug: value };
   }
 
-  const authorityMatch = /^https:\/\/([^/?#]+)/.exec(value);
-  if (!authorityMatch || !ALLOWED_AUTHORITIES.has(authorityMatch[1])) {
+  const rawUrlMatch = RAW_PROFILE_URL_PATTERN.exec(value);
+  if (!rawUrlMatch || !isCanonicalProfileSlug(rawUrlMatch[2])) {
     return null;
   }
 
@@ -43,8 +44,8 @@ export function resolveQrTarget(rawValue: unknown): QrTarget | null {
     return null;
   }
 
-  const pathMatch = /^\/([a-z0-9-]{2,50})\/?$/.exec(url.pathname);
-  return pathMatch && isCanonicalProfileSlug(pathMatch[1])
-    ? { slug: pathMatch[1] }
+  const slug = rawUrlMatch[2];
+  return url.pathname === `/${slug}` || url.pathname === `/${slug}/`
+    ? { slug }
     : null;
 }

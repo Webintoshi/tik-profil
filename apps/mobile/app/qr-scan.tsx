@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fetchPublicProfile, logQrScan } from "@/api/kesfet";
 import { Icon } from "@/components/common/Icon";
 import { processQrScan } from "@/qr/qr-scan-flow";
-import { createScanGate } from "@/qr/scan-gate";
+import { createScanSession } from "@/qr/scan-session";
 import { colors, radii, shadows, spacing, typography } from "@/theme/tokens";
 import { useThemeMode } from "@/theme/theme-store";
 import { lightImpact } from "@/utils/haptics";
@@ -20,61 +20,47 @@ export default function QrScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [isFocused, setIsFocused] = React.useState(false);
   const [scannerState, setScannerState] = React.useState<ScannerState>("scanning");
-  const scanGateRef = React.useRef(createScanGate());
-  const attemptRef = React.useRef(0);
-  const focusedRef = React.useRef(false);
-  const mountedRef = React.useRef(true);
+  const scanSessionRef = React.useRef(createScanSession());
   useThemeMode();
 
   React.useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      attemptRef.current += 1;
-    };
+    scanSessionRef.current.mount();
+    return () => scanSessionRef.current.unmount();
   }, []);
 
   useFocusEffect(React.useCallback(() => {
-    focusedRef.current = true;
+    scanSessionRef.current.focus();
     setIsFocused(true);
 
     return () => {
-      focusedRef.current = false;
       setIsFocused(false);
-      attemptRef.current += 1;
-      if (scanGateRef.current.state() === "locked") {
-        setScannerState("unresolved");
+      if (scanSessionRef.current.blur()) {
+        setScannerState("scanning");
       }
     };
   }, []));
 
   const handleBarcodeScanned = React.useCallback((result: BarcodeScanningResult) => {
-    if (!scanGateRef.current.acquire()) {
+    const attemptId = scanSessionRef.current.begin();
+    if (attemptId === null) {
       return;
     }
 
-    const attemptId = ++attemptRef.current;
     setScannerState("resolving");
 
     void processQrScan(result.data, {
       fetchProfile: fetchPublicProfile,
-      isCurrent: () => (
-        mountedRef.current
-        && focusedRef.current
-        && attemptRef.current === attemptId
-      ),
+      isCurrent: () => scanSessionRef.current.isCurrent(attemptId),
       logScan: logQrScan,
       replace: (href) => {
         router.replace(href as never);
-        scanGateRef.current.markNavigated();
+        scanSessionRef.current.markNavigated(attemptId);
       }
     }).then((outcome) => {
       if (
         outcome.status === "navigated"
         || outcome.status === "stale"
-        || !mountedRef.current
-        || !focusedRef.current
-        || attemptRef.current !== attemptId
+        || !scanSessionRef.current.isCurrent(attemptId)
       ) {
         return;
       }
@@ -87,12 +73,12 @@ export default function QrScanScreen() {
     permission?.granted
     && isFocused
     && scannerState === "scanning"
-    && scanGateRef.current.state() === "ready"
+    && scanSessionRef.current.state() === "ready"
   );
 
   function goBack() {
     lightImpact();
-    attemptRef.current += 1;
+    scanSessionRef.current.blur();
     try {
       if (router.canGoBack()) {
         router.back();
@@ -105,16 +91,15 @@ export default function QrScanScreen() {
   }
 
   function retryScan() {
-    if (!scanGateRef.current.retry()) {
+    if (!scanSessionRef.current.retry()) {
       return;
     }
     lightImpact();
-    attemptRef.current += 1;
     setScannerState("scanning");
   }
 
   function handleCameraMountError() {
-    if (scanGateRef.current.acquire()) {
+    if (scanSessionRef.current.begin() !== null) {
       setScannerState("camera-error");
     }
   }
@@ -163,27 +148,30 @@ export default function QrScanScreen() {
             title={permission.canAskAgain ? "Kamera izni gerekli" : "Kamera erişimi kapalı"}
           />
         ) : isScannerActive ? (
-          <CameraView
-            active={isScannerActive}
-            barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-            facing="back"
-            onBarcodeScanned={isScannerActive ? handleBarcodeScanned : undefined}
-            onMountError={handleCameraMountError}
-            style={{ flex: 1 }}
-          >
+          <View style={{ flex: 1 }}>
+            <CameraView
+              active={isScannerActive}
+              barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+              facing="back"
+              onBarcodeScanned={isScannerActive ? handleBarcodeScanned : undefined}
+              onMountError={handleCameraMountError}
+              style={{ height: "100%", width: "100%" }}
+            />
             <View
-              pointerEvents="none"
               style={{
-                alignSelf: "center",
                 borderColor: colors.onBrand,
                 borderRadius: radii.xl,
                 borderWidth: 3,
                 height: 250,
-                marginTop: "30%",
+                left: "50%",
+                marginLeft: -125,
+                pointerEvents: "none",
+                position: "absolute",
+                top: "30%",
                 width: 250
               }}
             />
-          </CameraView>
+          </View>
         ) : scannerState === "resolving" ? (
           <StatusView title="Profil açılıyor" loading />
         ) : scannerState === "invalid" ? (

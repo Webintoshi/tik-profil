@@ -17,34 +17,80 @@ let browser;
 try {
   await waitForUrl(`${appUrl}/qr-scan`, 120_000);
   browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ permissions: [], viewport: { width: 390, height: 844 } });
+  await verifyDeniedPermissionState(browser);
+  await verifyCameraMountError(browser);
+  process.stdout.write("Task 6 QR permission and camera-error browser regressions passed.\n");
+} finally {
+  await browser?.close();
+  await stopProcess(expoProcess);
+}
+
+async function verifyDeniedPermissionState(browserInstance) {
+  const context = await browserInstance.newContext({
+    permissions: [],
+    viewport: { width: 390, height: 844 }
+  });
   const page = await context.newPage();
+  const pageErrors = monitorPageErrors(page);
+
+  try {
+    await page.goto(`${appUrl}/qr-scan`, { waitUntil: "networkidle" });
+    await page.getByText("QR kod okut", { exact: true }).waitFor();
+
+    const askable = page.getByRole("button", { name: "Kamera izni ver" });
+    const settings = page.getByRole("button", { name: "Ayarları aç" });
+    await askable.or(settings).waitFor();
+
+    assert.equal(await askable.count() + await settings.count(), 1);
+    assert.equal(await page.getByText("Kamera açılamadı", { exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Tekrar dene" }).count(), 0);
+    await assertHealthyQrPage(page, pageErrors);
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyCameraMountError(browserInstance) {
+  const context = await browserInstance.newContext({
+    permissions: ["camera"],
+    viewport: { width: 390, height: 844 }
+  });
+  const page = await context.newPage();
+  const pageErrors = monitorPageErrors(page);
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+      configurable: true,
+      value: async () => {
+        throw new DOMException("No camera is available", "NotFoundError");
+      }
+    });
+  });
+
+  try {
+    await page.goto(`${appUrl}/qr-scan`, { waitUntil: "networkidle" });
+    await page.getByText("Kamera açılamadı", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Tekrar dene" }).count(), 1);
+    assert.equal(await page.getByRole("button", { name: "Kamera izni ver" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Ayarları aç" }).count(), 0);
+    await assertHealthyQrPage(page, pageErrors);
+  } finally {
+    await context.close();
+  }
+}
+
+function monitorPageErrors(page) {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
+  return pageErrors;
+}
 
-  await page.goto(`${appUrl}/qr-scan`, { waitUntil: "networkidle" });
-  await page.getByText("QR kod okut", { exact: true }).waitFor();
-
-  const askable = page.getByRole("button", { name: "Kamera izni ver" });
-  const settings = page.getByRole("button", { name: "Ayarları aç" });
-  const cameraError = page.getByRole("button", { name: "Tekrar dene" });
-  await Promise.race([
-    askable.waitFor(),
-    settings.waitFor(),
-    cameraError.waitFor()
-  ]);
-
+async function assertHealthyQrPage(page, pageErrors) {
   assert.equal(
     await page.getByText("Kamera ile QR profil açma akışı bu kısa yola bağlanacak.", { exact: true }).count(),
     0
   );
   assert.equal(await page.getByRole("button", { name: "Geri dön" }).count(), 1);
   assert.deepEqual(pageErrors, []);
-  await context.close();
-  process.stdout.write("Task 6 QR browser fallback regression passed.\n");
-} finally {
-  await browser?.close();
-  await stopProcess(expoProcess);
 }
 
 function spawnProcess(command, args, extraEnv) {
