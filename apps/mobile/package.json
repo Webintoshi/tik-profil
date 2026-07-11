@@ -12,7 +12,8 @@
     "export:web": "expo export --platform web",
     "proxy": "node ./scripts/dev-admin-api-proxy.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:unit && node ./scripts/mobile-smoke-test.mjs",
+    "test": "npm run test:unit && node ./scripts/mobile-smoke-test.mjs && npm run test:browser:task5",
+    "test:browser:task5": "node ./scripts/task5-browser-regression.mjs",
     "test:unit": "node --test ./src/**/*.test.mts",
     "build:apk": "node ./scripts/build-android-apk.mjs"
   },
@@ -50,6 +51,7 @@
     "@types/node": "22.19.3",
     "@types/react": "19.2.7",
     "babel-preset-expo": "56.0.14",
+    "playwright": "^1.55.0",
     "typescript": "6.0.3"
   }
 }

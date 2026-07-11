@@ -9,11 +9,11 @@ const products = Array.from({ length: 14 }, (_, index) => ({
   imageUrl: null,
   inStock: true,
   name: index === 0 ? "Büyük Karışık Menü" : `Test Ürünü ${index + 1}`,
-  price: index === 0 ? 987654.32 : 100 + index,
+  price: index === 0 ? 101 : index === 13 ? 987654.32 : 100 + index,
   sortOrder: index
 }));
 
-const profile = {
+const baseProfile = {
   id: "11111111-1111-4111-8111-111111111111",
   slug: "task5-fixture",
   name: "Task 5 Test Mutfağı",
@@ -33,9 +33,9 @@ const profile = {
   social: {}
 };
 
-const menu = {
-  businessId: profile.id,
-  businessName: profile.name,
+const baseMenu = {
+  businessId: baseProfile.id,
+  businessName: baseProfile.name,
   categories: [
     { id: "popular", name: "Popüler", icon: "*", sortOrder: 0 },
     { id: "meals", name: "Menüler", icon: "+", sortOrder: 1 }
@@ -49,14 +49,14 @@ const menu = {
     cardOnDelivery: true,
     deliveryEnabled: true,
     deliveryFee: 25,
-    freeDeliveryAbove: 1000,
+    freeDeliveryAbove: 200,
     minOrderAmount: 0,
     onlinePayment: false,
     pickupEnabled: true
   }
 };
 
-const server = http.createServer((request, response) => {
+const server = http.createServer(async (request, response) => {
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   response.setHeader("Access-Control-Allow-Origin", "*");
@@ -69,12 +69,22 @@ const server = http.createServer((request, response) => {
   const url = new URL(request.url || "/", `http://127.0.0.1:${port}`);
   let body;
 
-  if (url.pathname === "/api/public/profile/task5-fixture") {
-    body = { profile, redirectTarget: null, success: true };
-  } else if (url.pathname === "/api/fastfood/public-menu") {
-    body = url.searchParams.get("businessSlug") === profile.slug
-      ? { data: menu, success: true }
-      : { error: "Fixture not found", success: false };
+  if (url.pathname.startsWith("/api/public/profile/")) {
+    const slug = decodeURIComponent(url.pathname.slice("/api/public/profile/".length));
+    const profile = buildProfile(slug);
+    body = profile
+      ? { profile, redirectTarget: null, success: true }
+      : { profile: null, redirectTarget: null, success: false };
+  } else if (url.pathname === "/api/fastfood/public-menu" || url.pathname === "/api/restaurant/public-menu") {
+    const slug = url.searchParams.get("businessSlug") || "";
+    body = await buildMenuResponse(slug, url.pathname.includes("restaurant"));
+  } else if (url.pathname === "/api/fastfood/validate-coupon" && request.method === "POST") {
+    body = {
+      coupon: { code: "TASK5", discountType: "fixed", id: "task5-coupon" },
+      discount: 10,
+      message: "10 TL indirim",
+      valid: true
+    };
   } else if (url.pathname === "/api/fastfood/orders" && request.method === "POST") {
     body = { orderId: "fixture-order", orderNumber: "T5-001", status: "pending", success: true };
   } else {
@@ -97,3 +107,51 @@ function close() {
 
 process.on("SIGINT", close);
 process.on("SIGTERM", close);
+
+function buildProfile(slug) {
+  const knownSlugs = new Set([
+    "task5-fixture",
+    "task5-loading",
+    "task5-error",
+    "task5-empty",
+    "task5-cart-disabled",
+    "task5-restaurant"
+  ]);
+  if (!knownSlugs.has(slug)) return null;
+
+  const isRestaurant = slug === "task5-restaurant";
+  return {
+    ...baseProfile,
+    hasRestaurantModule: isRestaurant,
+    industry: isRestaurant ? "restaurant" : "fastfood",
+    industryLabel: isRestaurant ? "Restoran" : "Fast Food",
+    modules: [isRestaurant ? "restaurant" : "fastfood"],
+    slug
+  };
+}
+
+async function buildMenuResponse(slug, restaurantRequest) {
+  const profile = buildProfile(slug);
+  if (!profile || restaurantRequest !== (slug === "task5-restaurant")) {
+    return { error: "Fixture not found", success: false };
+  }
+  if (slug === "task5-loading") {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  if (slug === "task5-error") {
+    return { error: "Deterministic menu error", success: false };
+  }
+
+  return {
+    data: {
+      ...baseMenu,
+      businessName: profile.name,
+      products: slug === "task5-empty" ? [] : products,
+      settings: {
+        ...baseMenu.settings,
+        cartEnabled: slug !== "task5-cart-disabled" && slug !== "task5-restaurant"
+      }
+    },
+    success: true
+  };
+}

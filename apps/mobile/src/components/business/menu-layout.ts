@@ -2,6 +2,7 @@ import { getBottomNavigationHeight } from "../navigation/tab-bar-metrics";
 
 export const STICKY_CART_BAR_HEIGHT = 64;
 export const STICKY_CART_GAP = 8;
+export const STICKY_CART_ENTRY_TRANSLATE_Y = 8;
 
 export function getCompactMenuMinHeight(viewportHeight: number): number {
   return Math.round(viewportHeight * 0.65);

@@ -18,13 +18,10 @@ import type { FoodMenuKind } from "@/business/profile-actions";
 import {
   applyCoupon,
   buildFastFoodOrderPayload,
-  calculateCheckoutTotals,
-  calculateDeliveryFee,
   createCheckoutSubmitGuard,
   getPaymentMethodLabel,
   isDeliveryModeAvailable,
   listAvailablePaymentMethods,
-  reconcileCouponForDelivery,
   removeCoupon,
   resolveActiveProductPrice,
   resolveCheckoutIdempotency,
@@ -34,12 +31,14 @@ import {
   type AppliedCoupon,
   type CheckoutIdempotencyState,
   type CheckoutPrefill,
+  type DeliveryType,
   type PaymentMethod
 } from "@/checkout/checkout-state";
 import { Icon, type IconName } from "@/components/common/Icon";
 import { colors, radii, shadows, spacing, typography } from "@/theme/tokens";
 import { useThemeMode } from "@/theme/theme-store";
 import { lightImpact } from "@/utils/haptics";
+import { calculateFoodMenuPayableModel } from "./food-menu-pricing";
 import {
   getCompactMenuMinHeight,
   getFoodQuantityDecreaseIcon,
@@ -71,6 +70,15 @@ export interface FoodMenuController {
     subtotal: number;
   };
   cartItems: Record<string, FoodCartItem>;
+  checkout: {
+    coupon: AppliedCoupon | null;
+    deliveryFee: number;
+    deliveryType: DeliveryType;
+    payableTotal: number;
+    setCoupon: React.Dispatch<React.SetStateAction<AppliedCoupon | null>>;
+    setDeliveryType: React.Dispatch<React.SetStateAction<DeliveryType>>;
+    totals: ReturnType<typeof calculateFoodMenuPayableModel>["totals"];
+  };
   clearCart: () => void;
   openCart: () => void;
   setCartItems: React.Dispatch<React.SetStateAction<Record<string, FoodCartItem>>>;
@@ -100,6 +108,8 @@ export function useFoodMenuController({
 }): FoodMenuController {
   const [cartItems, setCartItems] = React.useState<Record<string, FoodCartItem>>({});
   const [step, setStep] = React.useState<FoodOrderStep>("products");
+  const [deliveryType, setDeliveryType] = React.useState<DeliveryType>("delivery");
+  const [storedCoupon, setStoredCoupon] = React.useState<AppliedCoupon | null>(null);
   const cart = React.useMemo(() => {
     const items = Object.values(cartItems);
     return {
@@ -108,22 +118,54 @@ export function useFoodMenuController({
       subtotal: items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
     };
   }, [cartItems]);
+  const payableModel = React.useMemo(() => calculateFoodMenuPayableModel({
+    coupon: storedCoupon,
+    deliveryType,
+    settings: data?.settings,
+    subtotal: cart.subtotal
+  }), [cart.subtotal, data?.settings, deliveryType, storedCoupon]);
 
   React.useEffect(() => {
     setCartItems({});
+    setStoredCoupon(null);
     setStep("products");
   }, [data?.businessId, kind]);
 
   React.useEffect(() => {
     if (kind === "fastfood" && data?.settings?.cartEnabled !== false) return;
     setCartItems({});
+    setStoredCoupon(null);
     setStep("products");
   }, [data?.settings?.cartEnabled, kind]);
+
+  React.useEffect(() => {
+    if (!data) return;
+    setDeliveryType((current) => resolveDeliveryMode({
+      deliveryEnabled: data.settings?.deliveryEnabled !== false,
+      pickupEnabled: data.settings?.pickupEnabled !== false,
+      preferred: current
+    }));
+  }, [data]);
+
+  React.useEffect(() => {
+    if (deliveryType === "pickup" && storedCoupon?.discountType === "free_delivery") {
+      setStoredCoupon(null);
+    }
+  }, [deliveryType, storedCoupon?.discountType]);
 
   return {
     cart,
     cartItems,
     clearCart: () => setCartItems({}),
+    checkout: {
+      coupon: payableModel.coupon,
+      deliveryFee: payableModel.deliveryFee,
+      deliveryType,
+      payableTotal: payableModel.totals.total,
+      setCoupon: setStoredCoupon,
+      setDeliveryType,
+      totals: payableModel.totals
+    },
     openCart: () => {
       if (cart.itemCount > 0) setStep("info");
     },
@@ -194,14 +236,20 @@ export function FoodMenuPanel({
   const menuScrollRef = React.useRef<ScrollView | null>(null);
   const categoryOffsetsRef = React.useRef<Record<string, number>>({});
   const { cartItems, setCartItems, setStep, step } = controller;
+  const {
+    coupon: appliedCoupon,
+    deliveryFee,
+    deliveryType,
+    setCoupon: setAppliedCoupon,
+    setDeliveryType,
+    totals
+  } = controller.checkout;
   const [productDetail, setProductDetail] = React.useState<FoodProductDetailState | null>(null);
-  const [deliveryType, setDeliveryType] = React.useState<"pickup" | "delivery">("delivery");
   const [selectedAddressId, setSelectedAddressId] = React.useState<string | null>(prefill.selectedAddressId);
   const [isAddingAddress, setIsAddingAddress] = React.useState(prefill.addressMode === "new");
   const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod | null>("cash");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isCouponLoading, setIsCouponLoading] = React.useState(false);
-  const [appliedCoupon, setAppliedCoupon] = React.useState<AppliedCoupon | null>(null);
   const [couponMessage, setCouponMessage] = React.useState<string | null>(null);
   const [orderNumber, setOrderNumber] = React.useState("");
   const [orderError, setOrderError] = React.useState<string | null>(null);
@@ -228,8 +276,6 @@ export function FoodMenuPanel({
     onlineEnabled: onlinePayment
   });
   const minOrderAmount = settings?.minOrderAmount ?? 0;
-  const freeDeliveryAbove = settings?.freeDeliveryAbove ?? 0;
-  const deliveryFeeSetting = settings?.deliveryFee ?? 0;
 
   const getProductExtraGroups = React.useCallback((product: PublicFoodMenuProduct) => {
     const groupIds = product.extraGroupIds ?? [];
@@ -329,14 +375,7 @@ export function FoodMenuPanel({
     }, {});
   }, [cartRows]);
 
-  const subtotal = cartRows.reduce((sum, item) => sum + item.total, 0);
-  const deliveryFee = calculateDeliveryFee({
-    deliveryFee: deliveryFeeSetting,
-    deliveryType,
-    freeDeliveryAbove,
-    subtotal
-  });
-  const totals = calculateCheckoutTotals({ coupon: appliedCoupon, deliveryFee, subtotal });
+  const subtotal = controller.cart.subtotal;
   const total = totals.total;
   const cartCount = cartRows.reduce((sum, item) => sum + item.quantity, 0);
   const hasMinimumOrder = minOrderAmount <= 0 || subtotal >= minOrderAmount;
@@ -369,9 +408,8 @@ export function FoodMenuPanel({
   }, [couponCartKey]);
 
   React.useEffect(() => {
-    setAppliedCoupon((current) => reconcileCouponForDelivery(current, deliveryType, deliveryFee));
     if (deliveryType === "pickup") setCouponMessage(null);
-  }, [deliveryFee, deliveryType]);
+  }, [deliveryType]);
 
   function createInitialSelections(product: PublicFoodMenuProduct) {
     return getProductExtraGroups(product).reduce<Record<string, string[]>>((initial, group) => {
@@ -694,6 +732,7 @@ export function FoodMenuPanel({
           borderColor: colors.border,
           borderRadius: 24,
           borderWidth: 1,
+          minHeight: menuViewportHeight,
           overflow: "hidden",
           ...shadows.soft
         }}
@@ -865,6 +904,7 @@ export function FoodMenuPanel({
           nestedScrollEnabled
           showsVerticalScrollIndicator={false}
           style={{ maxHeight: orderFormMaxHeight }}
+          testID="food-order-form-scroll"
         >
           {(pickupEnabled || deliveryEnabled) ? (
             <View style={{ gap: spacing.sm }}>
@@ -936,12 +976,12 @@ export function FoodMenuPanel({
                 />
               ))}
               {isAddingAddress || !savedAddresses.length ? (
-                <FoodCheckoutInput label="Yeni adres" multiline value={form.address} onChangeText={(value) => setForm((current) => ({ ...current, address: value }))} />
+                <FoodCheckoutInput label="Yeni adres" multiline testID="food-address-input" value={form.address} onChangeText={(value) => setForm((current) => ({ ...current, address: value }))} />
               ) : null}
             </View>
           ) : null}
-          <FoodCheckoutInput label="Ad Soyad" value={form.name} onChangeText={(value) => setForm((current) => ({ ...current, name: value }))} />
-          <FoodCheckoutInput label="Telefon" keyboardType="phone-pad" value={form.phone} onChangeText={(value) => setForm((current) => ({ ...current, phone: value }))} />
+          <FoodCheckoutInput label="Ad Soyad" testID="food-name-input" value={form.name} onChangeText={(value) => setForm((current) => ({ ...current, name: value }))} />
+          <FoodCheckoutInput label="Telefon" keyboardType="phone-pad" testID="food-phone-input" value={form.phone} onChangeText={(value) => setForm((current) => ({ ...current, phone: value }))} />
           <View style={{ gap: spacing.sm }}>
             <Text style={{ ...typography.small, color: colors.mutedStrong }}>Kupon</Text>
             <View style={{ alignItems: "center", flexDirection: "row", gap: spacing.sm }}>
@@ -949,6 +989,7 @@ export function FoodMenuPanel({
                 <FoodCheckoutInput
                   autoCapitalize="characters"
                   label="Kupon kodu"
+                  testID="food-coupon-input"
                   value={form.couponCode}
                   onChangeText={(value) => setForm((current) => ({ ...current, couponCode: value }))}
                 />
@@ -992,7 +1033,7 @@ export function FoodMenuPanel({
               </View>
             </View>
           ) : null}
-          <FoodCheckoutInput label="Sipariş notu" multiline value={form.notes} onChangeText={(value) => setForm((current) => ({ ...current, notes: value }))} />
+          <FoodCheckoutInput label="Sipariş notu" multiline testID="food-notes-input" value={form.notes} onChangeText={(value) => setForm((current) => ({ ...current, notes: value }))} />
         </ScrollView>
       ) : data && step === "confirm" ? (
         <View style={{ gap: spacing.md, padding: spacing.lg }}>
@@ -1032,6 +1073,7 @@ export function FoodMenuPanel({
 
       {cartEnabled && step !== "success" && step !== "products" && cartRows.length > 0 ? (
         <View
+          testID="food-checkout-footer"
           style={{
             backgroundColor: colors.surfaceRaised,
             borderTopColor: colors.brandSoft,
@@ -1063,7 +1105,7 @@ export function FoodMenuPanel({
               paddingHorizontal: spacing.lg
             })}
           >
-            <Text style={{ ...typography.button, color: actionColors.order.fg }}>
+            <Text testID="food-checkout-footer-total" style={{ ...typography.button, color: actionColors.order.fg }}>
               {formatMenuPrice(total)}
             </Text>
             <Text style={{ ...typography.button, color: actionColors.order.fg }}>
@@ -1770,6 +1812,7 @@ function FoodCheckoutInput({
   label,
   multiline = false,
   onChangeText,
+  testID,
   value
 }: {
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
@@ -1777,6 +1820,7 @@ function FoodCheckoutInput({
   label: string;
   multiline?: boolean;
   onChangeText: (value: string) => void;
+  testID?: string;
   value: string;
 }) {
   return (
@@ -1788,6 +1832,7 @@ function FoodCheckoutInput({
         multiline={multiline}
         onChangeText={onChangeText}
         placeholderTextColor={colors.muted}
+        testID={testID}
         style={{
           ...typography.body,
           backgroundColor: colors.surface,

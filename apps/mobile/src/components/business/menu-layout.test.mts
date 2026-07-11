@@ -25,6 +25,7 @@ const {
   getFoodQuantityDecreaseIcon,
   getOrderSurfaceBottomPadding,
   STICKY_CART_BAR_HEIGHT,
+  STICKY_CART_ENTRY_TRANSLATE_Y,
   STICKY_CART_GAP
 } = layout;
 const { getBottomNavigationHeight } = navigation;
@@ -54,4 +55,9 @@ test("order surface clearance includes navigation, sticky cart, and gap", () => 
 test("decrement uses minus above one and trash at one", () => {
   assert.equal(getFoodQuantityDecreaseIcon(2), "minus");
   assert.equal(getFoodQuantityDecreaseIcon(1), "trash");
+});
+
+test("sticky entrance translation stays within the inter-bar gap", () => {
+  assert.ok(STICKY_CART_ENTRY_TRANSLATE_Y >= 0);
+  assert.ok(STICKY_CART_ENTRY_TRANSLATE_Y <= STICKY_CART_GAP);
 });

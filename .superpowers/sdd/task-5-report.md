@@ -56,13 +56,13 @@ Browser flow: `/business/task5-fixture` -> open `Siparis Ver` -> add `Buyuk Kari
    PASS: 0 errors.
 4. Full mobile test gate:
    `npm test`
-   PASS: 88 tests, 0 failures; mobile discovery smoke passed.
+   PASS: 93 tests, 0 failures; mobile discovery smoke and committed Task 5 rendered browser regression passed.
 5. Web export:
    `npm run export:web`
    PASS: 13 static routes exported.
-6. Deterministic browser setup:
-   `node scripts/task5-fixture-server.mjs`
-   `EXPO_PUBLIC_TIKPROFIL_API_URL=http://127.0.0.1:4176 npx expo start --web --port 8087`
+6. Deterministic browser regression:
+   `npx playwright install chromium`
+   `npm run test:browser:task5`
 7. Final whitespace gate:
    `git diff --check`
 
@@ -70,6 +70,9 @@ Browser flow: `/business/task5-fixture` -> open `Siparis Ver` -> add `Buyuk Kari
 
 - `.superpowers/sdd/task-5-report.md`
 - `apps/mobile/app/(tabs)/business/[slug].tsx`
+- `apps/mobile/package-lock.json`
+- `apps/mobile/package.json`
+- `apps/mobile/scripts/task5-browser-regression.mjs`
 - `apps/mobile/scripts/task5-fixture-server.mjs`
 - `apps/mobile/src/checkout/checkout-ui-contract.test.mts`
 - `apps/mobile/src/components/business/BusinessProfileHeader.tsx`
@@ -77,11 +80,30 @@ Browser flow: `/business/task5-fixture` -> open `Siparis Ver` -> add `Buyuk Kari
 - `apps/mobile/src/components/business/ProfileActionBar.tsx`
 - `apps/mobile/src/components/business/StickyCartBar.tsx`
 - `apps/mobile/src/components/business/business-profile-components.contract.test.mts`
+- `apps/mobile/src/components/business/food-menu-pricing.test.mts`
+- `apps/mobile/src/components/business/food-menu-pricing.ts`
 - `apps/mobile/src/components/business/menu-layout.test.mts`
 - `apps/mobile/src/components/business/menu-layout.ts`
 - `apps/mobile/src/components/common/Icon.tsx`
 - `apps/mobile/src/components/navigation/MakyajTabBar.tsx`
 - `apps/mobile/src/components/navigation/tab-bar-metrics.ts`
+
+## Review Fixes
+
+### RED
+
+1. The payable-model test failed because no shared pricing model existed; the route still passed `foodMenuController.cart.subtotal` to `StickyCartBar`.
+2. The entrance-translation test failed because the sticky animation used an inline 10 px translation and exposed no bounded geometry constant.
+3. The first real Playwright state-matrix run measured the loading menu panel at 334 px on `390x844`, below the required 549 px 65vh minimum. The normal sticky rectangle/stability/last-product scenarios had already passed at all three viewports before this failure.
+
+### GREEN
+
+- `calculateFoodMenuPayableModel` now composes the Task 4 delivery-fee, coupon-reconciliation and checkout-total helpers. The shared controller owns delivery mode and active coupon state and exposes `checkout.payableTotal`; panel summaries/payloads and the root sticky bar read the same model.
+- Deterministic pricing transitions pass: delivery `101 + 25 = 126`, free-delivery threshold `202`, pickup `101`, delivery restored `126`, fixed coupon `116`, and free-delivery coupon reconciliation.
+- The open menu panel has a root 65vh minimum for fast-food, restaurant, loading, error, empty, cart-disabled and success states.
+- Sticky entrance translation is 8 px, equal to and never larger than the inter-bar gap.
+- `scripts/task5-browser-regression.mjs` starts isolated fixture/Expo servers on free ports, runs headless Chromium, and cleans the full process tree. It verifies all three required viewports, inner/outer scroll stability, rectangle ordering, compact chrome, persistent bottom nav, last-product/form clearance, payable transitions, and sticky absence for empty/loading/error/cart-disabled/success states.
+- `npm test` invokes this rendered browser regression after unit and smoke tests. A fresh environment must run `npx playwright install chromium` once after installing dependencies.
 
 ## Remaining Android Manual Gap
 

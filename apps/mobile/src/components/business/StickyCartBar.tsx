@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getBottomNavigationHeight } from "@/components/navigation/tab-bar-metrics";
 import { colors, radii, shadows, spacing, typography } from "@/theme/tokens";
-import { STICKY_CART_BAR_HEIGHT, STICKY_CART_GAP } from "./menu-layout";
+import { STICKY_CART_BAR_HEIGHT, STICKY_CART_ENTRY_TRANSLATE_Y, STICKY_CART_GAP } from "./menu-layout";
 
 export function StickyCartBar({ itemCount, total, onPress }: { itemCount: number; total: number; onPress: () => void }) {
   const insets = useSafeAreaInsets();
@@ -30,7 +30,7 @@ export function StickyCartBar({ itemCount, total, onPress }: { itemCount: number
         pointerEvents: "box-none",
         position: "absolute",
         right: spacing.screen,
-        transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
+        transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [STICKY_CART_ENTRY_TRANSLATE_Y, 0] }) }],
         zIndex: 30
       }}
     >

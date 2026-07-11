@@ -43,3 +43,14 @@ test("bottom tab bar consumes shared geometry and exposes a stable test ID", asy
   assert.match(tabBar, /from "@\/components\/navigation\/tab-bar-metrics"/);
   assert.match(tabBar, /testID="bottom-tab-bar"/);
 });
+
+test("sticky cart renders the controller payable total instead of subtotal", async () => {
+  const [route, menu] = await Promise.all([
+    readFile(routeUrl, "utf8"),
+    readFile(new URL("FoodMenuPanel.tsx", businessComponentsUrl), "utf8")
+  ]);
+
+  assert.match(route, /total=\{foodMenuController\.checkout\.payableTotal\}/);
+  assert.doesNotMatch(route, /total=\{foodMenuController\.cart\.subtotal\}/);
+  assert.match(menu, /calculateFoodMenuPayableModel/);
+});

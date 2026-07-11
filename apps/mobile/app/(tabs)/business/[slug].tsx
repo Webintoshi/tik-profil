@@ -378,7 +378,7 @@ export default function BusinessDetailScreen() {
         <StickyCartBar
           itemCount={foodMenuController.cart.itemCount}
           onPress={foodMenuController.openCart}
-          total={foodMenuController.cart.subtotal}
+          total={foodMenuController.checkout.payableTotal}
         />
       ) : null}
     </View>
