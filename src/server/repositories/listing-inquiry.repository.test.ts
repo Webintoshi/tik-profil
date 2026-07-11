@@ -93,7 +93,9 @@ if (repositoryModule) {
             nativeEnabled: true,
         });
         assert.match(calls.find((call) => call.text.includes("FROM em_listings"))!.text, /business_id::text = \$1/i);
-        assert.doesNotMatch(calls.find((call) => call.text.includes("FROM em_listings"))!.text, /WHERE[\s\S]*status/i);
+        const physicalIdQuery = calls.find((call) => call.text.includes("FROM em_listings") && !call.text.includes("to_jsonb"));
+        assert.ok(physicalIdQuery, "physical shadow IDs must be loaded independently");
+        assert.doesNotMatch(physicalIdQuery.text, /\bLIMIT\b/i);
         assert.match(calls.find((call) => call.text.includes("FROM app_documents"))!.text, /collection = 'em_listings'[\s\S]*businessId[\s\S]*isActive/i);
         assert.ok(calls.slice(1).every((call) => call.values[0] === "business-1"));
     });

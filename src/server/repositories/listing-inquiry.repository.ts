@@ -178,8 +178,17 @@ function physicalListingsQuery(): string {
         SELECT listing.id::text AS id, to_jsonb(listing) AS data
         FROM em_listings listing
         WHERE listing.business_id::text = $1
+          AND lower(COALESCE(listing.status::text, '')) = 'active'
         ORDER BY listing.created_at DESC
         LIMIT 500
+    `;
+}
+
+function physicalListingIdsQuery(): string {
+    return `
+        SELECT listing.id::text AS id
+        FROM em_listings listing
+        WHERE listing.business_id::text = $1
     `;
 }
 
@@ -221,13 +230,14 @@ async function loadOptions(execute: ListingInquiryQueryExecutor, businessSlug: s
     const moduleId = business?.module_id as ListingModuleId | undefined;
     if (!business || (moduleId !== "emlak" && moduleId !== "realestate")) return DISABLED_LISTING_OPTIONS;
     const businessId = asText(business.id);
-    const [physicalRows, legacyRows] = await Promise.all([
+    const [physicalRows, physicalIdRows, legacyRows] = await Promise.all([
         optionalRows(execute, physicalListingsQuery(), [businessId]),
+        optionalRows(execute, physicalListingIdsQuery(), [businessId]),
         optionalRows(execute, legacyListingsQuery(), [businessId]),
     ]);
     const listings = new Map<string, ListingOption>();
     const physicalKeys = new Set(
-        physicalRows
+        physicalIdRows
             .map((row) => asText(row.id).trim())
             .filter(Boolean)
             .map((id) => `${businessId}:${id}`),
