@@ -48,8 +48,30 @@ export interface CustomerReservation {
   total: number;
 }
 
+export interface CustomerAppointment {
+  businessName: string;
+  businessSlug: string;
+  cancellable: boolean;
+  createdAt: string;
+  customerEmail: string | null;
+  customerName: string;
+  customerPhone: string;
+  date: string;
+  id: string;
+  note: string | null;
+  serviceId: string;
+  serviceName: string;
+  servicePrice: number;
+  staffId: string;
+  staffName: string;
+  status: "cancelled" | "completed" | "confirmed" | "pending" | "rejected";
+  time: string;
+  vertical: "beauty" | "clinic";
+}
+
 export interface CustomerAccount {
   addresses: CustomerAddress[];
+  appointments: CustomerAppointment[];
   email: string | null;
   orders: CustomerOrder[];
   profile: CustomerProfile | null;
@@ -298,6 +320,24 @@ function decodeReservationsResponse(payload: JsonObject, status: number): Reserv
   };
 }
 
+function decodeAppointment(value: unknown): CustomerAppointment | null {
+  if (!isObject(value)
+    || !string(value.businessName) || !string(value.businessSlug) || typeof value.cancellable !== "boolean"
+    || !string(value.createdAt) || !nullableString(value.customerEmail) || !string(value.customerName)
+    || !string(value.customerPhone) || !string(value.date) || !string(value.id) || !nullableString(value.note)
+    || !string(value.serviceId) || !string(value.serviceName) || !finiteNumber(value.servicePrice)
+    || !string(value.staffId) || !string(value.staffName)
+    || !["cancelled", "completed", "confirmed", "pending", "rejected"].includes(String(value.status))
+    || !string(value.time) || (value.vertical !== "beauty" && value.vertical !== "clinic")) return null;
+  return value as unknown as CustomerAppointment;
+}
+
+function decodeAppointmentsResponse(payload: JsonObject, status: number) {
+  const appointments = Array.isArray(payload.appointments) ? payload.appointments.map(decodeAppointment) : null;
+  if (!appointments || appointments.some((appointment) => appointment === null)) throw decodeError(status, payload);
+  return { appointments: appointments.filter((appointment): appointment is CustomerAppointment => appointment !== null), success: true };
+}
+
 async function requestJson<T>(
   accessToken: string,
   path: string,
@@ -323,14 +363,16 @@ export async function fetchCustomerAccount(
   accessToken: string,
   baseUrl = DEFAULT_API_BASE_URL
 ): Promise<CustomerAccount> {
-  const [profile, orders, reservations] = await Promise.all([
+  const [profile, appointments, orders, reservations] = await Promise.all([
     requestJson(accessToken, "/api/kesfet/user/profile", decodeProfileResponse, {}, baseUrl),
+    requestJson(accessToken, "/api/kesfet/appointments", decodeAppointmentsResponse, {}, baseUrl),
     requestJson(accessToken, "/api/kesfet/orders", decodeOrdersResponse, {}, baseUrl),
     requestJson(accessToken, "/api/kesfet/reservations", decodeReservationsResponse, {}, baseUrl)
   ]);
 
   return {
     addresses: profile.addresses,
+    appointments: appointments.appointments,
     email: profile.email,
     orders: orders.orders,
     profile: profile.profile,

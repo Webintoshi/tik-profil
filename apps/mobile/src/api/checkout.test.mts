@@ -94,7 +94,7 @@ function sessionHarness() {
   const token = (name: string) => ({ accessToken: `${name}-access`, expiresAt: Date.now() + 600_000, refreshToken: `${name}-refresh` });
   const controller = createSessionController({
     authorize: async () => token("initial"),
-    fetchCustomer: async () => ({ addresses: [], email: "customer@example.com", orders: [], profile: null, reservations: [] }),
+    fetchCustomer: async () => ({ addresses: [], appointments: [], email: "customer@example.com", orders: [], profile: null, reservations: [] }),
     logoutMarker: { clear: async () => undefined, read: async () => false, write: async () => undefined },
     refresh: async () => { refreshCalls += 1; return token("rotated"); },
     revoke: async () => undefined,

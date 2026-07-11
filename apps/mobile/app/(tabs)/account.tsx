@@ -10,6 +10,7 @@ import {
   type CustomerAddressInput,
   type CustomerProfileUpdate
 } from "@/api/customer";
+import { cancelAppointment } from "@/api/appointments";
 import { getAccountLayout, resolveAccountFontScale } from "@/account/account-layout";
 import { useCustomerSession } from "@/auth/auth-store";
 import { AuthEntryCard } from "@/components/account/AuthEntryCard";
@@ -114,13 +115,14 @@ function SignedInAccountView() {
   );
   const accountLayout = getAccountLayout(fontScale);
   const { mode } = useThemeMode();
-  const { customer, error: sessionError, refreshCustomer, saveAddress: persistAddress, saveProfile: persistProfile, signOut, status, updateAvatar } = useCustomerSession();
+  const { customer, error: sessionError, refreshCustomer, runAuthenticated, saveAddress: persistAddress, saveProfile: persistProfile, signOut, status, updateAvatar } = useCustomerSession();
   const [profileDraft, setProfileDraft] = useState<CustomerProfileUpdate>(emptyProfile);
   const [addressDraft, setAddressDraft] = useState<CustomerAddressInput>(emptyAddress);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<"address" | "avatar" | "profile" | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [cancellingAppointmentId, setCancellingAppointmentId] = useState<string | null>(null);
   const mounted = useRef(true);
   const initializedIdentity = useRef<string | null>(null);
 
@@ -353,6 +355,45 @@ function SignedInAccountView() {
       <AccountSection icon="clock" isOpen={openSection === "reservations"} onToggle={() => setOpenSection(openSection === "reservations" ? null : "reservations")} summary={customer.reservations.length ? `${customer.reservations.length} rezervasyon` : "Rezervasyon yok"} title="Rezervasyonlar">
         <DataList empty="Henüz rezervasyon yok" icon="clock">
           {customer.reservations.map((reservation) => <DataRow key={reservation.id} icon="clock" meta={`${formatDate(reservation.startDate)} · ${reservation.reservationType === "hotel" ? "Otel" : "Araç"}`} status={reservation.status} title={`Rezervasyon ${reservation.id.slice(0, 8)}`} />)}
+        </DataList>
+      </AccountSection>
+
+      <AccountSection icon="clock" isOpen={openSection === "appointments"} onToggle={() => {
+        const isOpening = openSection !== "appointments";
+        setOpenSection(isOpening ? "appointments" : null);
+        if (isOpening) void refreshCustomer();
+      }} summary={customer.appointments.length ? `${customer.appointments.length} randevu` : "Randevu yok"} title="Randevular">
+        <DataList empty="Henüz randevu yok" icon="clock">
+          {customer.appointments.map((appointment) => (
+            <View key={appointment.id} style={{ borderBottomColor: colors.border, borderBottomWidth: 1, gap: spacing.sm, paddingVertical: spacing.md }}>
+              <DataRow
+                icon="clock"
+                meta={`${formatDate(appointment.date)} · ${appointment.time} · ${appointment.staffName}`}
+                status={appointment.status}
+                title={`${appointment.businessName} · ${appointment.serviceName}`}
+              />
+              {appointment.cancellable ? (
+                <AnimatedPressable
+                  accessibilityLabel={`${appointment.serviceName} randevusunu iptal et`}
+                  accessibilityRole="button"
+                  disabled={cancellingAppointmentId === appointment.id}
+                  onPress={() => {
+                    setCancellingAppointmentId(appointment.id);
+                    setLocalError(null);
+                    void runAuthenticated((accessToken) => cancelAppointment(accessToken, appointment.id))
+                      .then(() => refreshCustomer())
+                      .catch((error) => setLocalError(error instanceof Error ? error.message : "Randevu iptal edilemedi."))
+                      .finally(() => setCancellingAppointmentId(null));
+                  }}
+                  style={{ alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.brandSoft, borderRadius: radii.pill, minHeight: 38, justifyContent: "center", paddingHorizontal: spacing.md }}
+                >
+                  <Text style={{ ...typography.label, color: colors.brandDeep }}>
+                    {cancellingAppointmentId === appointment.id ? "İptal ediliyor" : "Randevuyu iptal et"}
+                  </Text>
+                </AnimatedPressable>
+              ) : null}
+            </View>
+          ))}
         </DataList>
       </AccountSection>
 

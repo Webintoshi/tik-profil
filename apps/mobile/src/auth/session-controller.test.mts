@@ -29,7 +29,7 @@ function deferred<T>() {
 
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 const token = (name: string, expiresAt = Date.now() + 600_000) => ({ accessToken: `${name}-access`, expiresAt, refreshToken: `${name}-refresh` });
-const customer = (email: string) => ({ addresses: [], email, orders: [], profile: null, reservations: [] });
+const customer = (email: string) => ({ addresses: [], appointments: [], email, orders: [], profile: null, reservations: [] });
 
 function harness(overrides: Record<string, unknown> = {}) {
   let stored: string | null = null;

@@ -298,3 +298,12 @@ test("returns null for unknown and empty module inputs", () => {
     assert.equal(resolveModuleFamilyDefinition(value), null);
   }
 });
+
+test("enables native appointment booking only for clinic and beauty definitions", () => {
+  assert.deepEqual(resolveModuleFamilyDefinition("clinic")?.nativeCapabilities, ["appointment-booking"]);
+  assert.deepEqual(resolveModuleFamilyDefinition("beauty")?.nativeCapabilities, ["appointment-booking"]);
+
+  for (const moduleId of APPOINTMENT_IDS.filter((id) => id !== "clinic" && id !== "beauty")) {
+    assert.deepEqual(resolveModuleFamilyDefinition(moduleId)?.nativeCapabilities, [], `${moduleId} stays fallback-only`);
+  }
+});

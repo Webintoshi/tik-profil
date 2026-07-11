@@ -10,7 +10,7 @@ import {
 } from "../modules/module-family-registry";
 
 export type FoodMenuKind = "fastfood" | "restaurant";
-export type NativeProfilePanelKind = FoodMenuKind | "ecommerce";
+export type NativeProfilePanelKind = FoodMenuKind | "appointment" | "ecommerce";
 
 export interface ProfileActionInput {
   name: string;
@@ -44,6 +44,11 @@ interface NativeActionPresentation {
 }
 
 const NATIVE_ACTIONS: Readonly<Record<NativeCapability, NativeActionPresentation>> = {
+  "appointment-booking": {
+    icon: "clock",
+    label: "Randevu Al",
+    panelKind: "appointment"
+  },
   "fastfood-order": {
     icon: "utensils",
     label: "Sipariş Ver",
@@ -67,7 +72,8 @@ const LEGACY_NATIVE_CAPABILITIES = Object.freeze(Object.keys(NATIVE_ACTIONS) as 
 const NATIVE_CAPABILITY_PRECEDENCE = [
   "fastfood-order",
   "restaurant-menu",
-  "ecommerce-order"
+  "ecommerce-order",
+  "appointment-booking"
 ] as const satisfies readonly NativeCapability[];
 const registryOrder = new Map(MODULE_FAMILY_DEFINITIONS.map((definition, index) => [definition.id, index]));
 
@@ -163,10 +169,14 @@ function buildDefinitionFallbackUrl(
     return buildCallUrl(profile.phone || profile.whatsapp);
   }
 
-  return buildWhatsappUrl(
-    profile.whatsapp || profile.phone,
-    buildFallbackMessage(profile, definition.fallback.messageKind)
-  );
+  if (profile.whatsapp) {
+    return buildWhatsappUrl(
+      profile.whatsapp,
+      buildFallbackMessage(profile, definition.fallback.messageKind)
+    );
+  }
+
+  return buildCallUrl(profile.phone);
 }
 
 function buildFallbackMessage(profile: ProfileActionInput, messageKind?: ModuleMessageKind) {

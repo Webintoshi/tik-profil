@@ -29,6 +29,7 @@ const storedSession = {
 
 const customer = {
   addresses: [],
+  appointments: [],
   email: "customer@example.com",
   orders: [],
   profile: null,

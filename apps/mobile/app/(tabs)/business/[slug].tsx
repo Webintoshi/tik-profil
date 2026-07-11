@@ -6,6 +6,8 @@ import * as React from "react";
 import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { fetchAppointmentOptions, type AppointmentOptions } from "@/api/appointments";
+
 import {
   fetchPublicEcommerceProducts,
   fetchPublicEcommerceSettings,
@@ -27,6 +29,7 @@ import {
   submitPublicEcommerceCheckout
 } from "@/api/kesfet";
 import { EmptyState } from "@/components/business/empty-state";
+import { AppointmentPanel } from "@/components/business/AppointmentPanel";
 import {
   BusinessProfileHeader,
   type BusinessProfileDisplay
@@ -50,6 +53,7 @@ import {
   resolvePrimaryProfileAction,
   type FoodMenuKind
 } from "@/business/profile-actions";
+import { resolveModuleFamilyDefinition, type NativeCapability } from "@/modules/module-family-registry";
 import { useDiscoveryStore } from "@/state/discovery-store";
 import { colors, radii, shadows, spacing, typography } from "@/theme/tokens";
 import { useThemeMode } from "@/theme/theme-store";
@@ -87,6 +91,9 @@ export default function BusinessDetailScreen() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [openMenuKind, setOpenMenuKind] = React.useState<FoodMenuKind | null>(null);
   const [isEcommerceOpen, setIsEcommerceOpen] = React.useState(false);
+  const [isAppointmentOpen, setIsAppointmentOpen] = React.useState(false);
+  const [appointmentOptions, setAppointmentOptions] = React.useState<AppointmentOptions | null>(null);
+  const [isAppointmentOptionsLoading, setIsAppointmentOptionsLoading] = React.useState(false);
   const [loadedMenu, setLoadedMenu] = React.useState<LoadedFoodMenu | null>(null);
   const [isMenuLoading, setIsMenuLoading] = React.useState(false);
   const [menuError, setMenuError] = React.useState<string | null>(null);
@@ -173,6 +180,8 @@ export default function BusinessDetailScreen() {
     menuRequestRef.current += 1;
     setOpenMenuKind(null);
     setIsEcommerceOpen(false);
+    setIsAppointmentOpen(false);
+    setAppointmentOptions(null);
     setLoadedMenu(null);
     setMenuError(null);
     setSelectedMenuCategoryId(null);
@@ -191,6 +200,28 @@ export default function BusinessDetailScreen() {
   }, [loadedMenu, selectedMenuCategoryId]);
 
   const displayProfile = React.useMemo(() => buildDisplayProfile(profile, resolvedBusiness, slug), [profile, resolvedBusiness, slug]);
+  const appointmentCandidate = React.useMemo(() => {
+    if (!displayProfile) return false;
+    return [...displayProfile.modules, displayProfile.industry, displayProfile.industryLabel]
+      .map(resolveModuleFamilyDefinition)
+      .some((definition) => definition?.nativeCapabilities.includes("appointment-booking"));
+  }, [displayProfile]);
+
+  React.useEffect(() => {
+    let active = true;
+    if (!displayProfile || !appointmentCandidate) {
+      setAppointmentOptions(null);
+      setIsAppointmentOptionsLoading(false);
+      return () => { active = false; };
+    }
+    setIsAppointmentOptionsLoading(true);
+    void fetchAppointmentOptions(displayProfile.slug).then((result) => {
+      if (active) setAppointmentOptions(result);
+    }).finally(() => {
+      if (active) setIsAppointmentOptionsLoading(false);
+    });
+    return () => { active = false; };
+  }, [appointmentCandidate, displayProfile?.slug]);
   const activeMenuData = openMenuKind && loadedMenu && loadedMenu.slug === displayProfile?.slug && loadedMenu.kind === openMenuKind
     ? loadedMenu.data
     : null;
@@ -255,10 +286,12 @@ export default function BusinessDetailScreen() {
   const callUrl = displayProfile.phone ? `tel:${displayProfile.phone}` : null;
   const whatsappUrl = buildWhatsappUrl(displayProfile.whatsapp || displayProfile.phone);
   const mapUrl = buildMapUrl(displayProfile, resolvedBusiness);
-  const primaryAction = resolvePrimaryProfileAction(displayProfile);
+  const readyCapabilities: NativeCapability[] = ["fastfood-order", "restaurant-menu", "ecommerce-order"];
+  if (appointmentOptions?.nativeEnabled) readyCapabilities.push("appointment-booking");
+  const primaryAction = resolvePrimaryProfileAction({ ...displayProfile, nativeCapabilities: readyCapabilities });
   const socialCards = buildSocialCards(displayProfile, mapUrl);
   const currentProfile = displayProfile;
-  const isOrderSurfaceOpen = Boolean(openMenuKind || isEcommerceOpen);
+  const isOrderSurfaceOpen = Boolean(openMenuKind || isEcommerceOpen || isAppointmentOpen);
   const isProfileCompact = isOrderSurfaceOpen;
   const hasStickyCart = Boolean(
     openMenuKind === "fastfood"
@@ -274,9 +307,18 @@ export default function BusinessDetailScreen() {
     : spacing.tabBar + spacing.xxl;
 
   async function handlePrimaryActionPress() {
+    if (primaryAction.panelKind === "appointment") {
+      lightImpact();
+      setOpenMenuKind(null);
+      setIsEcommerceOpen(false);
+      setIsAppointmentOpen((current) => !current);
+      return;
+    }
+
     if (primaryAction.panelKind === "ecommerce") {
       lightImpact();
       setOpenMenuKind(null);
+      setIsAppointmentOpen(false);
       setIsEcommerceOpen((current) => !current);
       return;
     }
@@ -284,6 +326,7 @@ export default function BusinessDetailScreen() {
     if (primaryAction.menuKind) {
       lightImpact();
       setIsEcommerceOpen(false);
+      setIsAppointmentOpen(false);
 
       const nextMenuKind = openMenuKind === primaryAction.menuKind ? null : primaryAction.menuKind;
       const requestId = ++menuRequestRef.current;
@@ -337,7 +380,9 @@ export default function BusinessDetailScreen() {
           <ProfileActionBar
             compact={isProfileCompact}
             isExpanded={
-              primaryAction.panelKind === "ecommerce"
+              primaryAction.panelKind === "appointment"
+                ? isAppointmentOpen
+                : primaryAction.panelKind === "ecommerce"
                 ? isEcommerceOpen
                 : openMenuKind === primaryAction.menuKind
             }
@@ -347,6 +392,13 @@ export default function BusinessDetailScreen() {
             onWhatsapp={() => void openExternal(whatsappUrl)}
             primaryAction={primaryAction}
           />
+          {isAppointmentOpen ? (
+            <AppointmentPanel
+              businessSlug={displayProfile.slug}
+              isLoading={isAppointmentOptionsLoading}
+              options={appointmentOptions}
+            />
+          ) : null}
           {isEcommerceOpen ? (
             <EcommerceOrderPanel
               businessId={displayProfile.id}

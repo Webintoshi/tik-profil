@@ -18,7 +18,7 @@ export type RegistryModuleId = Exclude<SupportedModuleId, "food" | "beauty" | "v
 export type ModuleFamily = "appointment" | "reservation" | "catalog-order" | "listing-inquiry";
 export type ModuleFallbackKind = "whatsapp" | "call";
 export type ModuleMessageKind = "appointment" | "reservation" | "order" | "product" | "service" | "quote";
-export type NativeCapability = "fastfood-order" | "ecommerce-order" | "restaurant-menu";
+export type NativeCapability = "appointment-booking" | "fastfood-order" | "ecommerce-order" | "restaurant-menu";
 
 export interface ModuleFamilyDefinition {
   readonly id: SupportedModuleId;
@@ -53,7 +53,17 @@ function assignMetadata(ids: readonly SupportedModuleId[], metadata: DefinitionM
 }
 
 assignMetadata(
-  ["clinic", "dentist", "veteriner", "physiotherapy", "psychology", "nutrition", "laboratory", "hospital", "salon", "barber", "spa", "photo", "tattoo", "beauty"],
+  ["clinic", "beauty"],
+  {
+    family: "appointment",
+    label: "Randevu Al",
+    icon: "phone",
+    fallback: { kind: "whatsapp", messageKind: "appointment" },
+    nativeCapabilities: ["appointment-booking"]
+  }
+);
+assignMetadata(
+  ["dentist", "veteriner", "physiotherapy", "psychology", "nutrition", "laboratory", "hospital", "salon", "barber", "spa", "photo", "tattoo"],
   { family: "appointment", label: "Randevu Al", icon: "phone", fallback: { kind: "whatsapp", messageKind: "appointment" } }
 );
 assignMetadata(

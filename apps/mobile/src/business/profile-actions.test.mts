@@ -98,6 +98,37 @@ test("fastfood native readiness outranks restaurant menu on mixed profiles", () 
   }
 });
 
+test("appointment capability becomes native only after canonical options report readiness", () => {
+  const fallback = resolvePrimaryProfileAction(profile({ modules: ["clinic"] }));
+  const native = resolvePrimaryProfileAction(profile({
+    modules: ["clinic"],
+    nativeCapabilities: ["appointment-booking"]
+  }));
+
+  assert.equal(fallback.mode, "fallback");
+  assert.equal(native.mode, "native");
+  assert.equal(native.nativeCapability, "appointment-booking");
+  assert.equal(native.panelKind, "appointment");
+  assert.equal(native.url, null);
+});
+
+test("appointment fallback uses configured WhatsApp and otherwise calls the phone", () => {
+  const whatsapp = resolvePrimaryProfileAction(profile({
+    modules: ["clinic"],
+    phone: "05321234567",
+    whatsapp: "05431234567"
+  }));
+  assert.match(whatsapp.url ?? "", /^https:\/\/wa\.me\/905431234567/);
+
+  const phoneOnly = resolvePrimaryProfileAction(profile({
+    modules: ["clinic"],
+    phone: "05321234567",
+    whatsapp: null
+  }));
+  assert.equal(phoneOnly.url, "tel:05321234567");
+  assert.doesNotMatch(phoneOnly.url ?? "", /wa\.me/);
+});
+
 test("fastfood native readiness outranks ecommerce on mixed profiles", () => {
   for (const modules of [["ecommerce", "fastfood"], ["fastfood", "ecommerce"]]) {
     const action = resolvePrimaryProfileAction(profile({

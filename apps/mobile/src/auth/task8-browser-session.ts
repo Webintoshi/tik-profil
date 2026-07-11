@@ -8,6 +8,7 @@ export function createTask8BrowserCustomer(): CustomerAccount {
       { city: "Ordu", createdAt, district: "Altınordu", fullAddress: "Sahil Mahallesi 52", id: "task8-address-home", isDefault: true, label: "Ev", latitude: null, longitude: null, updatedAt: createdAt },
       { city: "Ordu", createdAt, district: "Altınordu", fullAddress: "İsmet Paşa Caddesi 8", id: "task8-address-work", isDefault: false, label: "İş", latitude: null, longitude: null, updatedAt: createdAt }
     ],
+    appointments: [],
     email: "task8@example.test",
     orders: [
       { businessId: "task8-business-1", businessName: "Ordu Kahve Atölyesi", createdAt, id: "task8-order-1", itemCount: 2, orderNumber: "T8-001", recordType: "fastfood", status: "Hazırlanıyor", total: 286 },
