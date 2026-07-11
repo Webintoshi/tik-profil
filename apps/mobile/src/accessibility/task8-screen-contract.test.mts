@@ -30,9 +30,18 @@ test("Account exposes focus busy wrapping and tab-navigation semantics", async (
   assert.match(source, /outlineColor: focused \? colors\.focusRing/);
   assert.doesNotMatch(source, /outlineStyle: "none"/);
   assert.doesNotMatch(source, /adjustsFontSizeToFit/);
-  const support = source.slice(source.indexOf("function SupportLinksSection"), source.indexOf("function ThemeModeButton"));
+  const support = source.slice(source.indexOf("function SupportLinksSection")).split("function ThemeMode")[0];
   assert.doesNotMatch(support, /AnimatedPressable|accessibilityRole="button"|onPress=/);
-  const theme = source.slice(source.indexOf("function ThemeModeButton"));
+  const theme = source.slice(source.indexOf("function ThemeModeFloatingButton"));
+  assert.match(theme, /function ThemeModeFloatingButton/);
+  assert.match(theme, /function ThemeOrbGraphic/);
+  assert.match(theme, /height: 44/);
+  assert.match(theme, /width: 44/);
+  assert.match(theme, /<ThemeOrbGraphic isDarkMode=\{isDarkMode\} \/>/);
+  assert.match(theme, /<Svg width=\{32\} height=\{32\}/);
+  assert.match(theme, /const ground = isDarkMode \? colors\.backgroundAlt : colors\.brandSoft/);
+  assert.match(theme, /const wave = isDarkMode \? colors\.surfaceRaised : colors\.surface/);
+  assert.match(theme, /selectionImpact\(\);\s*setMode\(/s);
   assert.doesNotMatch(theme, /shadows\./);
 });
 

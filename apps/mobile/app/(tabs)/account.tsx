@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
 import { ActivityIndicator, Alert, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
+import Svg, { Circle, ClipPath, Defs, G, Line, Path, RadialGradient, Stop } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -18,7 +19,7 @@ import { useCustomerSession } from "@/auth/auth-store";
 import { AuthEntryCard } from "@/components/account/AuthEntryCard";
 import { AnimatedPressable } from "@/components/common/AnimatedPressable";
 import { Icon, type IconName } from "@/components/common/Icon";
-import { colors, interaction, radii, shadows, spacing, typography } from "@/theme/tokens";
+import { colors, interaction, radii, shadows, spacing, typography, type ThemeMode } from "@/theme/tokens";
 import { useThemeMode } from "@/theme/theme-store";
 import { selectionImpact } from "@/utils/haptics";
 
@@ -76,7 +77,7 @@ export default function AccountScreen() {
           Tık Profil v2 · Yerel işletmeleri keşfet
         </Text>
       </ScrollView>
-      <ThemeModeButton currentMode={mode} top={insets.top + spacing.md} />
+      <ThemeModeFloatingButton currentMode={mode} top={insets.top + spacing.md} />
     </View>
   );
 }
@@ -633,8 +634,90 @@ function SupportLinksSection({ compact = false }: { compact?: boolean }) {
   return <View style={{ marginHorizontal: compact ? 0 : spacing.screen }}>{links.map((link) => <View key={link.label} style={{ alignItems: "center", borderBottomColor: colors.border, borderBottomWidth: 1, flexDirection: "row", gap: spacing.md, minHeight: 52 }}><Icon color={colors.muted} name={link.icon} size={18} /><Text style={{ ...typography.body, color: colors.muted, flex: 1 }}>{link.label}</Text></View>)}</View>;
 }
 
-function ThemeModeButton({ currentMode, top }: { currentMode: "light" | "dark"; top: number }) {
+function ThemeModeFloatingButton({ currentMode, top }: { currentMode: ThemeMode; top: number }) {
   const { setMode } = useThemeMode();
-  const isDark = currentMode === "dark";
-  return <AnimatedPressable accessibilityLabel={isDark ? "Açık temaya geç" : "Koyu temaya geç"} accessibilityRole="button" onPress={() => setMode(isDark ? "light" : "dark")} style={{ alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radii.pill, borderWidth: 1, height: 44, justifyContent: "center", position: "absolute", right: spacing.screen, top, width: 44 }}><Icon color={colors.brand} name={isDark ? "sun" : "moon"} size={19} /></AnimatedPressable>;
+  const isDarkMode = currentMode === "dark";
+
+  return (
+    <AnimatedPressable
+      accessibilityLabel={isDarkMode ? "Gece modu aktif" : "Gündüz modu aktif"}
+      accessibilityRole="button"
+      onPress={() => {
+        selectionImpact();
+        setMode(isDarkMode ? "light" : "dark");
+      }}
+      style={({ pressed }) => ({
+        alignItems: "center",
+        opacity: pressed ? 0.84 : 1,
+        position: "absolute",
+        right: spacing.screen,
+        top,
+        height: 44,
+        width: 44,
+        zIndex: 20
+      })}
+    >
+      <View style={{
+        alignItems: "center",
+        backgroundColor: isDarkMode ? colors.backgroundAlt : colors.surface,
+        borderColor: isDarkMode ? "rgba(255,191,65,0.42)" : "rgba(238,6,80,0.30)",
+        borderRadius: radii.pill,
+        borderWidth: 1,
+        height: 36,
+        justifyContent: "center",
+        width: 36,
+        boxShadow: isDarkMode
+          ? "0 3px 10px rgba(0,0,0,0.20), 0 0 0 1px rgba(255,191,65,0.12)"
+          : "0 7px 16px rgba(238,6,80,0.18)"
+      }}>
+        <ThemeOrbGraphic isDarkMode={isDarkMode} />
+      </View>
+    </AnimatedPressable>
+  );
+}
+
+function ThemeOrbGraphic({ isDarkMode }: { isDarkMode: boolean }) {
+  const sky = isDarkMode ? "#000000" : "#EE0650";
+  const wave = isDarkMode ? colors.surfaceRaised : colors.surface;
+  const ground = isDarkMode ? colors.backgroundAlt : colors.brandSoft;
+  const bodyId = isDarkMode ? "nightOrbGlow" : "dayOrbGlow";
+  const clipId = isDarkMode ? "nightOrbClip" : "dayOrbClip";
+
+  return (
+    <Svg width={32} height={32} viewBox="0 0 48 48">
+      <Defs>
+        <RadialGradient id={bodyId} cx="35%" cy="24%" r="75%">
+          <Stop offset="0%" stopColor={isDarkMode ? "#2B2B2B" : "#FF4B86"} />
+          <Stop offset="100%" stopColor={sky} />
+        </RadialGradient>
+        <ClipPath id={clipId}>
+          <Circle cx="24" cy="24" r="22.4" />
+        </ClipPath>
+      </Defs>
+      <G clipPath={`url(#${clipId})`}>
+        <Circle cx="24" cy="24" r="23" fill={`url(#${bodyId})`} />
+        <Path d="M1.2 29.5 C9 27.5 14.5 25.8 21 27.2 C27 28.5 31 32.4 37 30.3 C40.8 29 44.5 28.7 46.8 29.5 L46.8 46.8 L1.2 46.8 Z" fill={wave} opacity={isDarkMode ? 0.78 : 0.9} />
+        <Path d="M1.2 33.2 C10 31.7 16 32.5 23 34.5 C30 36.5 37.5 35.5 46.8 32.7 L46.8 46.8 L1.2 46.8 Z" fill={ground} opacity={0.96} />
+        {isDarkMode ? (
+          <>
+            <Circle cx="34.8" cy="16.2" r="5.4" fill="#FFBF41" />
+            <Circle cx="37" cy="14.4" r="5.4" fill={sky} />
+          </>
+        ) : (
+          <>
+            <Circle cx="35" cy="16" r="4.2" fill="#FFFFFF" />
+            <Line x1="35" y1="8.7" x2="35" y2="6.2" stroke="#FFFFFF" strokeLinecap="round" strokeWidth="1.4" />
+            <Line x1="35" y1="25.8" x2="35" y2="23.3" stroke="#FFFFFF" strokeLinecap="round" strokeWidth="1.4" />
+            <Line x1="27.7" y1="16" x2="25.2" y2="16" stroke="#FFFFFF" strokeLinecap="round" strokeWidth="1.4" />
+            <Line x1="44.8" y1="16" x2="42.3" y2="16" stroke="#FFFFFF" strokeLinecap="round" strokeWidth="1.4" />
+            <Line x1="29.8" y1="10.8" x2="28.1" y2="9.1" stroke="#FFFFFF" strokeLinecap="round" strokeWidth="1.4" />
+            <Line x1="41.9" y1="22.9" x2="40.2" y2="21.2" stroke="#FFFFFF" strokeLinecap="round" strokeWidth="1.4" />
+            <Line x1="40.2" y1="10.8" x2="41.9" y2="9.1" stroke="#FFFFFF" strokeLinecap="round" strokeWidth="1.4" />
+            <Line x1="28.1" y1="22.9" x2="29.8" y2="21.2" stroke="#FFFFFF" strokeLinecap="round" strokeWidth="1.4" />
+          </>
+        )}
+      </G>
+      <Circle cx="24" cy="24" r="23" fill="none" stroke="#FFFFFF" strokeWidth="1.5" />
+    </Svg>
+  );
 }
