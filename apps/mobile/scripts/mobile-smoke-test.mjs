@@ -1,6 +1,17 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
+import { registerHooks } from "node:module";
 import { fileURLToPath } from "node:url";
 import { join, relative } from "node:path";
+
+registerHooks({
+  load(url, context, nextLoad) {
+    if (url.endsWith(".ts")) {
+      return nextLoad(url, { ...context, format: "module-typescript" });
+    }
+
+    return nextLoad(url, context);
+  }
+});
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const appConfig = JSON.parse(readFileSync(join(root, "app.json"), "utf8"));
@@ -145,7 +156,6 @@ for (const expected of [
 }
 
 const webModuleRegistryPath = join(root, "..", "..", "src", "lib", "ModuleRegistry.ts");
-const mobileProfileActionsPath = join(root, "src", "business", "profile-actions.ts");
 const mobileTabBarPath = join(root, "src", "components", "navigation", "MakyajTabBar.tsx");
 const mobileTabsLayoutPath = join(root, "app", "(tabs)", "_layout.tsx");
 const mobileTabsPath = join(root, "app", "(tabs)");
@@ -153,24 +163,31 @@ const webModuleRegistry = readFileSync(webModuleRegistryPath, "utf8");
 const registryStart = webModuleRegistry.indexOf("export const MODULE_REGISTRY");
 const registryModuleIds = [...webModuleRegistry.slice(registryStart).matchAll(/\{\s*id:\s*"([^"]+)"/g)]
   .map((match) => match[1]);
-const profileActionsSource = readFileSync(mobileProfileActionsPath, "utf8");
-const actionIdsMatch = /PROFILE_ACTION_MODULE_IDS\s*=\s*\[([\s\S]*?)\]\s*as const/.exec(profileActionsSource);
+const { SUPPORTED_MODULE_IDS } = await import(
+  new URL("../src/modules/module-family-registry.ts", import.meta.url).href
+);
+const expectedSupportedModuleIds = [
+  ...registryModuleIds,
+  "food",
+  "beauty",
+  "vehicle-rental"
+];
+const duplicateRegistryIds = registryModuleIds.filter((moduleId, index) => registryModuleIds.indexOf(moduleId) !== index);
+const duplicateSupportedIds = SUPPORTED_MODULE_IDS.filter((moduleId, index) => SUPPORTED_MODULE_IDS.indexOf(moduleId) !== index);
 
-if (!actionIdsMatch) {
-  throw new Error("Mobile profile action module coverage list is missing.");
+if (registryModuleIds.length !== 65 || duplicateRegistryIds.length > 0) {
+  throw new Error(`Central module registry must contain exactly 65 unique IDs; found ${registryModuleIds.length}.`);
 }
 
-const profileActionModuleIds = [...actionIdsMatch[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
-const profileActionModuleSet = new Set(profileActionModuleIds);
-const missingProfileActions = registryModuleIds.filter((moduleId) => !profileActionModuleSet.has(moduleId));
-const duplicateProfileActions = profileActionModuleIds.filter((moduleId, index) => profileActionModuleIds.indexOf(moduleId) !== index);
-
-if (missingProfileActions.length > 0) {
-  throw new Error(`Mobile profile action coverage is missing modules: ${missingProfileActions.join(", ")}`);
+if (SUPPORTED_MODULE_IDS.length !== 68 || duplicateSupportedIds.length > 0) {
+  throw new Error(`Mobile module family contract must contain exactly 68 unique IDs; found ${SUPPORTED_MODULE_IDS.length}.`);
 }
 
-if (duplicateProfileActions.length > 0) {
-  throw new Error(`Mobile profile action coverage has duplicate modules: ${[...new Set(duplicateProfileActions)].join(", ")}`);
+if (
+  expectedSupportedModuleIds.length !== SUPPORTED_MODULE_IDS.length
+  || expectedSupportedModuleIds.some((moduleId, index) => SUPPORTED_MODULE_IDS[index] !== moduleId)
+) {
+  throw new Error("Mobile module family contract must exactly equal the central 65 IDs plus food, beauty, and vehicle-rental.");
 }
 
 const cameraPlugin = appConfig.expo.plugins?.find((plugin) => (
