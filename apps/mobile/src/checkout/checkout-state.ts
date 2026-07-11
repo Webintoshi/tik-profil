@@ -30,12 +30,13 @@ export interface CheckoutPrefill {
 export interface AppliedCoupon {
   code: string;
   discount: number;
+  discountType?: "fixed" | "free_delivery" | "percentage";
   id: string;
   message: string;
 }
 
 interface CouponValidation {
-  coupon?: { code: string; id: string };
+  coupon?: { code: string; discountType?: "fixed" | "free_delivery" | "percentage"; id: string };
   discount?: number;
   message?: string;
   valid: boolean;
@@ -46,6 +47,11 @@ export interface CheckoutTotals {
   deliveryFee: number;
   subtotal: number;
   total: number;
+}
+
+export interface CheckoutIdempotencyState {
+  fingerprint: string;
+  key: string;
 }
 
 interface CheckoutValidationInput {
@@ -81,6 +87,7 @@ interface FastFoodPayloadInput {
   coupon: AppliedCoupon | null;
   deliveryType: DeliveryType;
   items: FastFoodPayloadItem[];
+  idempotencyKey: string;
   name: string;
   note: string;
   paymentMethod: PaymentMethod;
@@ -100,6 +107,7 @@ export interface FastFoodOrderPayload {
   deliveryFee: number;
   deliveryType: DeliveryType;
   items: FastFoodPayloadItem[];
+  idempotencyKey: string;
   paymentMethod: PaymentMethod;
   subtotal: number;
   total: number;
@@ -160,6 +168,7 @@ export function applyCoupon(validation: CouponValidation, subtotal: number): App
   return {
     code: validation.coupon.code,
     discount: Math.min(Math.max(0, validation.discount ?? 0), Math.max(0, subtotal)),
+    ...(validation.coupon.discountType ? { discountType: validation.coupon.discountType } : {}),
     id: validation.coupon.id,
     message: validation.message ?? ""
   };
@@ -167,6 +176,45 @@ export function applyCoupon(validation: CouponValidation, subtotal: number): App
 
 export function removeCoupon(): null {
   return null;
+}
+
+export function createCheckoutIdempotencyKey(): string {
+  const cryptoApi = globalThis.crypto as { randomUUID?: () => string } | undefined;
+  if (cryptoApi?.randomUUID) return cryptoApi.randomUUID();
+  return `checkout-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function resolveCheckoutIdempotency(
+  state: CheckoutIdempotencyState | null,
+  fingerprint: string,
+  createKey: () => string = createCheckoutIdempotencyKey
+): { key: string; state: CheckoutIdempotencyState } {
+  if (state?.fingerprint === fingerprint) return { key: state.key, state };
+  const next = { fingerprint, key: createKey() };
+  return { key: next.key, state: next };
+}
+
+export function reconcileCouponForDelivery(
+  coupon: AppliedCoupon | null,
+  deliveryType: DeliveryType,
+  deliveryFee: number
+): AppliedCoupon | null {
+  if (coupon?.discountType !== "free_delivery") return coupon;
+  return deliveryType === "delivery" ? { ...coupon, discount: Math.max(0, deliveryFee) } : null;
+}
+
+export function resolveActiveProductPrice(
+  product: { discountPrice?: number | null; discountUntil?: string | null; price: number },
+  now = Date.now()
+): number {
+  const expiry = Date.parse(product.discountUntil ?? "");
+  return product.discountPrice !== null
+    && product.discountPrice !== undefined
+    && Number.isFinite(product.discountPrice)
+    && Number.isFinite(expiry)
+    && expiry > now
+    ? product.discountPrice
+    : product.price;
 }
 
 export function calculateCheckoutTotals(input: {
@@ -208,6 +256,7 @@ export function buildFastFoodOrderPayload(input: FastFoodPayloadInput): FastFood
     deliveryFee: input.totals.deliveryFee,
     deliveryType: input.deliveryType,
     items: input.items,
+    idempotencyKey: input.idempotencyKey,
     paymentMethod: input.paymentMethod,
     subtotal: input.totals.subtotal,
     total: input.totals.total

@@ -17,6 +17,7 @@ function input(overrides: Record<string, unknown> = {}) {
   return {
     appUserId: "attacker-selected-user",
     businessId: "business-1",
+    idempotencyKey: "checkout-key-1234567890",
     couponCode: null,
     couponDiscount: 0,
     couponId: null,
@@ -44,12 +45,14 @@ function dependencies(overrides: Record<string, unknown> = {}) {
   const inserted: Record<string, unknown>[] = [];
   return {
     deps: {
-      createOrder: async (record: Record<string, unknown>) => {
+      commitOrder: async (record: Record<string, unknown>) => {
         inserted.push(record);
-        return { id: "order-1" };
+        return { orderId: "order-1", orderNumber: "#1234", status: "pending" };
       },
+      findCommittedOrder: async () => null,
       getBusiness: async () => ({ id: "business-1", name: "Burger Shop" }),
       getCatalog: async () => ({
+        extraGroups: [{ id: "group-1", isActive: true, isRequired: false, maxSelections: 3, selectionType: "multiple" }],
         extras: [{ groupId: "group-1", id: "extra-1", isActive: true, name: "Cheese", priceModifier: 15 }],
         products: [{
           categoryId: "category-1",
@@ -70,13 +73,13 @@ function dependencies(overrides: Record<string, unknown> = {}) {
           freeDeliveryAbove: 500,
           isActive: true,
           minOrderAmount: 50,
+          onlinePayment: true,
           pickupEnabled: true
         }
       }),
       getCoupon: async () => null,
       now: () => new Date("2026-07-11T12:00:00.000Z"),
       orderNumber: () => "#1234",
-      recordCouponUsage: async () => undefined,
       resolveCustomer: async () => ({ appUserId: "session-user" }),
       ...overrides
     },
@@ -159,7 +162,6 @@ test("client product prices, subtotal, delivery fee, discount, and total must ma
 });
 
 test("valid coupons are recalculated server-side and persisted with their authoritative fields", async () => {
-  let usage: Record<string, unknown> | null = null;
   const { deps, inserted } = dependencies({
     getCoupon: async () => ({
       applicableCategoryIds: [],
@@ -176,8 +178,7 @@ test("valid coupons are recalculated server-side and persisted with their author
       minOrderAmount: 0,
       validFrom: null,
       validUntil: null
-    }),
-    recordCouponUsage: async (record: Record<string, unknown>) => { usage = record; }
+    })
   });
   const response = await orders.createFastFoodOrder(input({
     couponCode: "save10",
@@ -188,7 +189,7 @@ test("valid coupons are recalculated server-side and persisted with their author
   assert.equal(response.orderId, "order-1");
   assert.equal(inserted[0].couponCode, "SAVE10");
   assert.equal(inserted[0].couponDiscount, 10);
-  assert.equal(usage?.orderId, "order-1");
+  assert.equal(inserted[0].couponId, "coupon-1");
 });
 
 test("invalid coupon codes and forged coupon discounts are rejected", async () => {
@@ -257,4 +258,146 @@ test("legacy web item shapes are canonicalized without weakening total validatio
     items: [{ ...item, unitPrice: 100 }]
   }), inline.deps as never);
   assert.equal((inline.inserted[0].items as Array<Record<string, unknown>>)[0].unitPrice, 115);
+});
+
+test("same idempotency key returns its stable committed response before catalog or coupon checks", async () => {
+  let catalogCalls = 0;
+  const { deps } = dependencies({
+    findCommittedOrder: async () => ({ orderId: "existing-order", orderNumber: "#7777", status: "pending" }),
+    getCatalog: async () => { catalogCalls += 1; throw new Error("must not load catalog"); }
+  });
+  const response = await orders.createFastFoodOrder(input(), deps as never);
+  assert.deepEqual(response, { orderId: "existing-order", orderNumber: "#7777", status: "pending" });
+  assert.equal(catalogCalls, 0);
+});
+
+test("database commit owns order coupon writes and propagates rollback failures without a second insert path", async () => {
+  const base = dependencies();
+  const deps = {
+    ...base.deps,
+    createOrder: undefined,
+    recordCouponUsage: undefined,
+    findCommittedOrder: async () => null,
+    commitOrder: async () => { throw new Error("atomic transaction rolled back"); }
+  };
+  await assert.rejects(() => orders.createFastFoodOrder(input(), deps as never), /atomic transaction rolled back/);
+  assert.equal(base.inserted.length, 0);
+});
+
+test("atomic commit receives authoritative customer identity phone and idempotency fingerprint", async () => {
+  let committed: Record<string, unknown> | null = null;
+  const base = dependencies();
+  const deps = {
+    ...base.deps,
+    createOrder: undefined,
+    recordCouponUsage: undefined,
+    findCommittedOrder: async () => null,
+    commitOrder: async (record: Record<string, unknown>) => {
+      committed = record;
+      return { orderId: "atomic-order", orderNumber: "#8888", status: "pending" };
+    }
+  };
+  await orders.createFastFoodOrder(input(), deps as never);
+  assert.equal(committed?.appUserId, "session-user");
+  assert.equal(committed?.customerPhone, "05551112233");
+  assert.equal(committed?.idempotencyKey, "checkout-key-1234567890");
+  assert.match(String(committed?.idempotencyFingerprint), /^[a-f0-9]{64}$/);
+});
+
+test("required single and max-selection extra group rules are enforced", async () => {
+  const base = dependencies();
+  const catalog = await base.deps.getCatalog();
+  const configuredCatalog = {
+    ...catalog,
+    extraGroups: [{ id: "group-1", isActive: true, isRequired: true, maxSelections: 1, selectionType: "single" }],
+    extras: [
+      ...catalog.extras,
+      { groupId: "group-1", id: "extra-2", isActive: true, name: "Sauce", priceModifier: 5 }
+    ]
+  };
+  for (const selectedExtras of [
+    [],
+    [
+      { id: "extra-1", name: "Cheese", priceModifier: 15 },
+      { id: "extra-2", name: "Sauce", priceModifier: 5 }
+    ]
+  ]) {
+    const { deps } = dependencies({ getCatalog: async () => configuredCatalog });
+    await assert.rejects(() => orders.createFastFoodOrder(input({
+      items: [{ ...input().items[0], selectedExtras, totalPrice: selectedExtras.length ? 240 : 200, unitPrice: selectedExtras.length ? 120 : 100 }],
+      subtotal: selectedExtras.length ? 240 : 200,
+      total: selectedExtras.length ? 250 : 210
+    }), deps as never), (error: unknown) => {
+      assert.equal((error as { code?: string }).code, "EXTRA_SELECTION_INVALID");
+      return true;
+    });
+  }
+});
+
+test("online payment follows the authoritative online_payment setting", async () => {
+  const base = dependencies();
+  const catalog = await base.deps.getCatalog();
+  const { deps } = dependencies({
+    getCatalog: async () => ({ ...catalog, settings: { ...catalog.settings, onlinePayment: false } })
+  });
+  await assert.rejects(() => orders.createFastFoodOrder(input({ paymentMethod: "online" }), deps as never), (error: unknown) => {
+    assert.equal((error as { code?: string }).code, "PAYMENT_DISABLED");
+    return true;
+  });
+});
+
+test("legacy free-delivery zero fields are accepted but atomic persistence receives authoritative amounts", async () => {
+  let committed: Record<string, unknown> | null = null;
+  const base = dependencies();
+  const deps = {
+    ...base.deps,
+    createOrder: undefined,
+    recordCouponUsage: undefined,
+    findCommittedOrder: async () => null,
+    getCoupon: async () => ({
+      applicableCategoryIds: [], applicableProductIds: [], applicableTo: "all", code: "FREE",
+      currentUsageCount: 0, discountType: "free_delivery", discountValue: 0, id: "coupon-free",
+      isActive: true, maxDiscountAmount: 0, maxUsageCount: 0, minOrderAmount: 0,
+      validFrom: null, validUntil: null
+    }),
+    commitOrder: async (record: Record<string, unknown>) => {
+      committed = record;
+      return { orderId: "free-order", orderNumber: "#9999", status: "pending" };
+    }
+  };
+  await orders.createFastFoodOrder(input({
+    couponCode: "FREE",
+    couponDiscount: 0,
+    couponId: "coupon-free",
+    deliveryFee: 0,
+    total: 230
+  }), deps as never);
+  assert.equal(committed?.deliveryFee, 10);
+  assert.equal(committed?.couponDiscount, 10);
+  assert.equal(committed?.total, 230);
+});
+
+test("server discount pricing applies only discounts whose expiry is in the future", async () => {
+  const base = dependencies();
+  const catalog = await base.deps.getCatalog();
+  for (const [discountUntil, basePrice] of [
+    ["2026-07-12T00:00:00.000Z", 80],
+    ["2026-07-11T11:00:00.000Z", 100],
+    [null, 100]
+  ] as const) {
+    const unitPrice = basePrice + 15;
+    const subtotal = unitPrice * 2;
+    const { deps, inserted } = dependencies({
+      getCatalog: async () => ({
+        ...catalog,
+        products: catalog.products.map((product) => ({ ...product, discountPrice: 80, discountUntil }))
+      })
+    });
+    await orders.createFastFoodOrder(input({
+      items: [{ ...input().items[0], totalPrice: subtotal, unitPrice }],
+      subtotal,
+      total: subtotal + 10
+    }), deps as never);
+    assert.equal((inserted[0].items as Array<Record<string, unknown>>)[0].unitPrice, unitPrice);
+  }
 });

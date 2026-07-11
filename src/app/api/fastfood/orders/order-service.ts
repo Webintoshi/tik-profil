@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { resolveActiveProductPrice } from "../../../../lib/fastfood/checkout-client.ts";
+
 export type FastFoodDeliveryType = "delivery" | "pickup" | "table";
 export type FastFoodPaymentMethod = "card" | "cash" | "online";
 
@@ -22,6 +25,14 @@ export interface FastFoodCatalogExtra {
     priceModifier: number;
 }
 
+export interface FastFoodExtraGroup {
+    id: string;
+    isActive: boolean;
+    isRequired: boolean;
+    maxSelections: number;
+    selectionType: "multiple" | "single";
+}
+
 export interface FastFoodSettings {
     cardOnDelivery: boolean;
     cashPayment: boolean;
@@ -30,6 +41,7 @@ export interface FastFoodSettings {
     freeDeliveryAbove: number;
     isActive: boolean;
     minOrderAmount: number;
+    onlinePayment: boolean;
     pickupEnabled: boolean;
 }
 
@@ -65,6 +77,8 @@ export interface FastFoodOrderRecord {
     deliveryFee: number;
     deliveryType: FastFoodDeliveryType;
     items: AuthoritativeOrderItem[];
+    idempotencyFingerprint: string;
+    idempotencyKey: string;
     orderNumber: string;
     paymentMethod: FastFoodPaymentMethod;
     status: "pending";
@@ -74,9 +88,15 @@ export interface FastFoodOrderRecord {
 }
 
 export interface FastFoodOrderDependencies {
-    createOrder(record: FastFoodOrderRecord): Promise<{ id: string }>;
+    commitOrder(record: FastFoodOrderRecord): Promise<{ orderId: string; orderNumber: string; status: "pending" }>;
+    findCommittedOrder(input: {
+        businessId: string;
+        idempotencyFingerprint: string;
+        idempotencyKey: string;
+    }): Promise<{ orderId: string; orderNumber: string; status: "pending" } | null>;
     getBusiness(businessId: string): Promise<{ id: string; name: string } | null>;
     getCatalog(businessId: string): Promise<{
+        extraGroups: FastFoodExtraGroup[];
         extras: FastFoodCatalogExtra[];
         products: FastFoodCatalogProduct[];
         settings: FastFoodSettings | null;
@@ -84,14 +104,6 @@ export interface FastFoodOrderDependencies {
     getCoupon(businessId: string, code: string): Promise<FastFoodCoupon | null>;
     now(): Date;
     orderNumber(): string;
-    recordCouponUsage(record: {
-        businessId: string;
-        couponId: string;
-        customerPhone: string;
-        discountAmount: number;
-        orderId: string;
-        usedAt: string;
-    }): Promise<void>;
     resolveCustomer(): Promise<{ appUserId: string } | null>;
 }
 
@@ -117,6 +129,7 @@ interface ParsedOrderInput {
     deliveryFee: number;
     deliveryType: FastFoodDeliveryType;
     items: ClientOrderItem[];
+    idempotencyKey: string;
     paymentMethod: FastFoodPaymentMethod;
     subtotal: number;
     tableId: string | null;
@@ -223,10 +236,14 @@ export function parseFastFoodOrderInput(value: unknown): ParsedOrderInput {
     const customerPhone = text(body.customerPhone);
     const deliveryType = body.deliveryType;
     const paymentMethod = body.paymentMethod;
+    const idempotencyKey = text(body.idempotencyKey)?.trim() ?? "";
     if (!businessId || !customerName || customerName.trim().length < 2
         || !customerPhone || !["delivery", "pickup", "table"].includes(String(deliveryType))
         || !["card", "cash", "online"].includes(String(paymentMethod))) {
         validation("VALIDATION_ERROR", "Siparis bilgileri gecersiz");
+    }
+    if (idempotencyKey.length < 16 || idempotencyKey.length > 128) {
+        validation("IDEMPOTENCY_KEY_INVALID", "Siparis anahtari gecersiz");
     }
     if (customerPhone.replace(/\D/g, "").length < 10) validation("PHONE_INVALID", "Gecersiz telefon numarasi");
     const subtotal = amount(body.subtotal);
@@ -250,6 +267,7 @@ export function parseFastFoodOrderInput(value: unknown): ParsedOrderInput {
         deliveryFee,
         deliveryType: deliveryType as FastFoodDeliveryType,
         items: parseItems(body.items),
+        idempotencyKey,
         paymentMethod: paymentMethod as FastFoodPaymentMethod,
         subtotal,
         tableId: text(body.tableId)?.trim() || null,
@@ -257,12 +275,10 @@ export function parseFastFoodOrderInput(value: unknown): ParsedOrderInput {
     };
 }
 
-function activeProductPrice(product: FastFoodCatalogProduct, now: Date): number {
-    if (product.discountPrice !== null && product.discountPrice >= 0
-        && (!product.discountUntil || new Date(product.discountUntil) >= now)) {
-        return product.discountPrice;
-    }
-    return product.price;
+function idempotencyFingerprint(input: ParsedOrderInput, appUserId: string | null): string {
+    return createHash("sha256")
+        .update(JSON.stringify({ appUserId, input }))
+        .digest("hex");
 }
 
 function calculateCouponDiscount(
@@ -296,10 +312,18 @@ export async function createFastFoodOrder(
     dependencies: FastFoodOrderDependencies,
 ): Promise<{ orderId: string; orderNumber: string; status: "pending" }> {
     const input = parseFastFoodOrderInput(rawInput);
-    const [business, catalog, customer] = await Promise.all([
+    const customer = await dependencies.resolveCustomer();
+    const fingerprint = idempotencyFingerprint(input, customer?.appUserId ?? null);
+    const committed = await dependencies.findCommittedOrder({
+        businessId: input.businessId,
+        idempotencyFingerprint: fingerprint,
+        idempotencyKey: input.idempotencyKey,
+    });
+    if (committed) return committed;
+
+    const [business, catalog] = await Promise.all([
         dependencies.getBusiness(input.businessId),
         dependencies.getCatalog(input.businessId),
-        dependencies.resolveCustomer(),
     ]);
     if (!business) throw new FastFoodOrderError("BUSINESS_NOT_FOUND", "Isletme bulunamadi", 404);
     const settings = catalog.settings;
@@ -308,9 +332,11 @@ export async function createFastFoodOrder(
     if (input.deliveryType === "pickup" && !settings.pickupEnabled) validation("PICKUP_DISABLED", "Magazadan teslim kapali");
     if (input.paymentMethod === "cash" && !settings.cashPayment) validation("PAYMENT_DISABLED", "Nakit odeme kapali");
     if (input.paymentMethod === "card" && !settings.cardOnDelivery) validation("PAYMENT_DISABLED", "Kartla odeme kapali");
+    if (input.paymentMethod === "online" && !settings.onlinePayment) validation("PAYMENT_DISABLED", "Online odeme kapali");
 
     const productsById = new Map(catalog.products.map((product) => [product.id, product]));
     const extrasById = new Map(catalog.extras.map((extra) => [extra.id, extra]));
+    const groupsById = new Map(catalog.extraGroups.map((group) => [group.id, group]));
     const usedProducts: FastFoodCatalogProduct[] = [];
     const items = input.items.map((clientItem): AuthoritativeOrderItem => {
         const product = productsById.get(clientItem.productId);
@@ -326,13 +352,28 @@ export async function createFastFoodOrder(
             if (!matches(clientExtra.priceModifier, extra.priceModifier)) validation("PRICE_MISMATCH", "Urun fiyati degisti");
             return { id: extra.id, name: extra.name, priceModifier: extra.priceModifier };
         });
+        const selectedCountByGroup = selectedExtras.reduce<Map<string, number>>((counts, extra) => {
+            const groupId = extrasById.get(extra.id)?.groupId;
+            if (groupId) counts.set(groupId, (counts.get(groupId) ?? 0) + 1);
+            return counts;
+        }, new Map());
+        for (const groupId of product.extraGroupIds) {
+            const group = groupsById.get(groupId);
+            if (!group?.isActive) continue;
+            const selectedCount = selectedCountByGroup.get(groupId) ?? 0;
+            if ((group.isRequired && selectedCount === 0)
+                || (group.selectionType === "single" && selectedCount > 1)
+                || (group.maxSelections > 0 && selectedCount > group.maxSelections)) {
+                validation("EXTRA_SELECTION_INVALID", "Urun secenekleri gecersiz");
+            }
+        }
         const selectedSize = clientItem.selectedSize
             ? product.sizes?.find((size) => size.id === clientItem.selectedSize?.id) ?? null
             : null;
         if (clientItem.selectedSize && (!selectedSize || !matches(clientItem.selectedSize.priceModifier, selectedSize.priceModifier))) {
             validation("PRICE_MISMATCH", "Urun boyutu fiyati degisti");
         }
-        const basePrice = round(activeProductPrice(product, dependencies.now()));
+        const basePrice = round(resolveActiveProductPrice(product, dependencies.now().getTime()));
         const unitPrice = round(basePrice
             + (selectedSize?.priceModifier ?? 0)
             + selectedExtras.reduce((sum, extra) => sum + extra.priceModifier, 0));
@@ -365,14 +406,20 @@ export async function createFastFoodOrder(
         couponDiscount = round(calculateCouponDiscount(coupon, subtotal, deliveryFee, usedProducts, dependencies.now()));
     }
     const total = round(Math.max(0, subtotal + deliveryFee - couponDiscount));
-    if (!matches(input.subtotal, subtotal) || !matches(input.deliveryFee, deliveryFee)
-        || !matches(input.couponDiscount, couponDiscount) || !matches(input.total, total)) {
+    const legacyFreeDelivery = coupon?.discountType === "free_delivery"
+        && matches(input.deliveryFee, 0)
+        && matches(input.couponDiscount, 0)
+        && matches(input.total, total);
+    if (!matches(input.subtotal, subtotal)
+        || (!legacyFreeDelivery && !matches(input.deliveryFee, deliveryFee))
+        || (!legacyFreeDelivery && !matches(input.couponDiscount, couponDiscount))
+        || !matches(input.total, total)) {
         validation("PRICE_MISMATCH", "Siparis toplami degisti");
     }
 
     const createdAt = dependencies.now().toISOString();
     const orderNumber = dependencies.orderNumber();
-    const created = await dependencies.createOrder({
+    return dependencies.commitOrder({
         appUserId: customer?.appUserId ?? null,
         businessId: business.id,
         businessName: business.name,
@@ -387,6 +434,8 @@ export async function createFastFoodOrder(
         deliveryFee,
         deliveryType: input.deliveryType,
         items,
+        idempotencyFingerprint: fingerprint,
+        idempotencyKey: input.idempotencyKey,
         orderNumber,
         paymentMethod: input.paymentMethod,
         status: "pending",
@@ -394,15 +443,4 @@ export async function createFastFoodOrder(
         tableId: input.tableId,
         total,
     });
-    if (coupon) {
-        await dependencies.recordCouponUsage({
-            businessId: business.id,
-            couponId: coupon.id,
-            customerPhone: input.customerPhone,
-            discountAmount: couponDiscount,
-            orderId: created.id,
-            usedAt: createdAt,
-        });
-    }
-    return { orderId: created.id, orderNumber, status: "pending" };
 }

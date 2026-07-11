@@ -28,6 +28,7 @@ const CheckoutSchema = z.object({
         }).optional(),
         note: z.string().optional(),
     })).min(1, 'Sepet boş'),
+    idempotencyKey: z.string().min(16).max(128),
     customer: z.object({
         name: z.string().min(2, 'İsim gerekli'),
         phone: z.string().min(10, 'Telefon gerekli'),

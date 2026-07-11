@@ -15,6 +15,11 @@ import { toast } from "sonner";
 import { getCachedMenuData, prefetchMenuData } from "@/lib/menuCache";
 import { ALLERGEN_OPTIONS, TAG_OPTIONS, type AllergenId, type TagId, type TaxRate, type SizeOption } from "@/types/fastfood";
 import { useFastfoodMenuSubscription } from "@/hooks/useMenuRealtime";
+import {
+    resolveActiveProductPrice,
+    resolveCheckoutIdempotency,
+    type CheckoutIdempotencyState,
+} from "@/lib/fastfood/checkout-client";
 
 // ============================================
 // TYPES
@@ -173,7 +178,8 @@ function ProductDetailModal({
         return total;
     };
 
-    const totalPrice = (product.price + getExtraPrice()) * quantity;
+    const activeProductPrice = resolveActiveProductPrice(product);
+    const totalPrice = (activeProductPrice + getExtraPrice()) * quantity;
 
     const handleAdd = () => {
         const extras: CartItem['selectedExtras'] = [];
@@ -193,7 +199,7 @@ function ProductDetailModal({
                 });
             }
         });
-        onAddToCart(product, quantity, extras);
+        onAddToCart({ ...product, price: activeProductPrice }, quantity, extras);
         onClose();
     };
 
@@ -252,9 +258,9 @@ function ProductDetailModal({
                                     {/* Price Row */}
                                     <div className="flex items-center gap-2 mt-2">
                                         <span className="text-lg font-bold text-gray-900">
-                                            {formatPrice(product.price)}
+                                            {formatPrice(activeProductPrice)}
                                         </span>
-                                        {product.discountPrice && product.discountUntil && new Date(product.discountUntil) > new Date() && (
+                                        {activeProductPrice < product.price && product.discountPrice && (
                                             <>
                                                 <span className="text-sm text-gray-400 line-through">
                                                     {formatPrice(product.price)}
@@ -438,6 +444,7 @@ function CheckoutModal({
     );
     const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">(cashPayment ? "cash" : "card");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const idempotencyStateRef = useRef<CheckoutIdempotencyState | null>(null);
     // Coupon state
     const [couponCode, setCouponCode] = useState("");
     const [appliedCoupon, setAppliedCoupon] = useState<{ id: string; code: string; title: string; discountType: string } | null>(null);
@@ -507,7 +514,7 @@ function CheckoutModal({
 
         setIsSubmitting(true);
         try {
-            const orderData = {
+            const orderPayload = {
                 businessId,
                 customerName: customerName.trim(),
                 customerPhone: customerPhone.trim(),
@@ -537,10 +544,13 @@ function CheckoutModal({
                 couponCode: appliedCoupon?.code || null,
                 couponDiscount: couponDiscount || 0,
             };
+            const idempotency = resolveCheckoutIdempotency(idempotencyStateRef.current, JSON.stringify(orderPayload));
+            idempotencyStateRef.current = idempotency.state;
+            const orderData = { ...orderPayload, idempotencyKey: idempotency.key };
 
             const res = await fetch("/api/fastfood/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(orderData) });
             const data = await res.json();
-            if (data.success) { onOrderSuccess(data.orderNumber); }
+            if (data.success) { idempotencyStateRef.current = null; onOrderSuccess(data.orderNumber); }
             else { alert(data.error || "Sipariş gönderilemedi."); }
         } catch (error) { console.error("Order error:", error); alert("Bir hata oluştu."); }
         setIsSubmitting(false);
@@ -1359,8 +1369,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                                             <div className="space-y-2">
                                                 {catProducts.map((product) => {
                                                     const productImage = product.image || product.imageUrl;
-                                                    const hasDiscount = product.discountPrice && product.discountUntil && new Date(product.discountUntil) > new Date();
-                                                    const displayPrice = hasDiscount ? product.discountPrice : product.price;
+                                                    const displayPrice = resolveActiveProductPrice(product);
 
                                                     return (
                                                         <div
@@ -1387,7 +1396,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                                                                     <span className="text-[15px] font-bold text-[#9333ea]">
                                                                         {formatPrice(displayPrice!)}
                                                                     </span>
-                                                                    {hasDiscount && (
+                                                                    {displayPrice < product.price && (
                                                                         <span className="text-xs text-gray-400 line-through">
                                                                             {formatPrice(product.price)}
                                                                         </span>

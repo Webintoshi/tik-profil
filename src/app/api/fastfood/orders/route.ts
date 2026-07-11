@@ -10,6 +10,7 @@ import {
     type FastFoodCatalogExtra,
     type FastFoodCatalogProduct,
     type FastFoodCoupon,
+    type FastFoodExtraGroup,
     type FastFoodOrderDependencies,
     type FastFoodOrderRecord,
     type FastFoodSettings,
@@ -82,6 +83,7 @@ function generateOrderNumber(): string {
 }
 
 async function loadCatalog(businessId: string): Promise<{
+    extraGroups: FastFoodExtraGroup[];
     extras: FastFoodCatalogExtra[];
     products: FastFoodCatalogProduct[];
     settings: FastFoodSettings;
@@ -89,7 +91,7 @@ async function loadCatalog(businessId: string): Promise<{
     const supabase = getSupabaseAdmin();
     const [productsResult, groupsResult, settingsResult] = await Promise.all([
         supabase.from('ff_products').select('id, category_id, name, price, discount_price, discount_until, is_active, in_stock, extra_group_ids, sizes').eq('business_id', businessId),
-        supabase.from('ff_extra_groups').select('id').eq('business_id', businessId).eq('is_active', true),
+        supabase.from('ff_extra_groups').select('id, selection_type, is_required, max_selections, is_active').eq('business_id', businessId).eq('is_active', true),
         supabase.from('ff_settings').select('*').eq('business_id', businessId).maybeSingle(),
     ]);
     if (productsResult.error || groupsResult.error || settingsResult.error) {
@@ -105,6 +107,13 @@ async function loadCatalog(businessId: string): Promise<{
     }
     const settings = settingsResult.data as Record<string, unknown> | null;
     return {
+        extraGroups: ((groupsResult.data || []) as Record<string, unknown>[]).map((group) => ({
+            id: String(group.id),
+            isActive: group.is_active !== false,
+            isRequired: group.is_required === true,
+            maxSelections: number(group.max_selections, 1),
+            selectionType: group.selection_type === 'multiple' ? 'multiple' : 'single',
+        })),
         extras: extrasData.map((extra) => ({
             groupId: String(extra.group_id),
             id: String(extra.id),
@@ -137,6 +146,7 @@ async function loadCatalog(businessId: string): Promise<{
             freeDeliveryAbove: number(settings?.free_delivery_above),
             isActive: settings?.is_active !== false,
             minOrderAmount: number(settings?.min_order_amount),
+            onlinePayment: settings?.online_payment === true,
             pickupEnabled: settings?.pickup_enabled !== false,
         },
     };
@@ -166,43 +176,64 @@ function mapCoupon(row: Record<string, unknown>): FastFoodCoupon {
 function createOrderDependencies(request: Request): FastFoodOrderDependencies {
     const supabase = getSupabaseAdmin();
     return {
-        async createOrder(record: FastFoodOrderRecord) {
-            const { data, error } = await supabase.from(TABLE).insert({
-                app_user_id: record.appUserId,
-                business_id: record.businessId,
-                business_name: record.businessName,
-                coupon_code: record.couponCode,
-                coupon_discount: record.couponDiscount,
-                coupon_id: record.couponId,
-                created_at: record.createdAt,
-                customer_address: record.customerAddress,
-                customer_name: record.customerName,
-                customer_note: record.customerNote,
-                customer_phone: record.customerPhone,
-                delivery: record.deliveryType === 'table'
-                    ? { tableId: record.tableId, type: 'table' }
-                    : { address: record.customerAddress, type: record.deliveryType },
-                delivery_fee: record.deliveryFee,
-                delivery_type: record.deliveryType,
-                items: record.items,
-                order_number: record.orderNumber,
-                payment: { method: record.paymentMethod },
-                payment_method: record.paymentMethod,
-                pricing: {
-                    couponDiscount: record.couponDiscount,
-                    deliveryFee: record.deliveryFee,
-                    subtotal: record.subtotal,
-                    total: record.total,
-                },
-                status: record.status,
-                status_history: [{ status: record.status, timestamp: record.createdAt }],
-                subtotal: record.subtotal,
-                table_id: record.tableId,
-                total: record.total,
-                updated_at: record.createdAt,
-            }).select('id').single();
-            if (error || !data?.id) throw error || new Error('Order insert did not return an id');
-            return { id: String(data.id) };
+        async commitOrder(record: FastFoodOrderRecord) {
+            const { data, error } = await supabase.rpc('create_fastfood_order_atomic', {
+                p_app_user_id: record.appUserId,
+                p_business_id: record.businessId,
+                p_business_name: record.businessName,
+                p_coupon_code: record.couponCode,
+                p_coupon_discount: record.couponDiscount,
+                p_coupon_id: record.couponId,
+                p_created_at: record.createdAt,
+                p_customer_address: record.customerAddress,
+                p_customer_name: record.customerName,
+                p_customer_note: record.customerNote,
+                p_customer_phone: record.customerPhone,
+                p_delivery_fee: record.deliveryFee,
+                p_delivery_type: record.deliveryType,
+                p_idempotency_fingerprint: record.idempotencyFingerprint,
+                p_idempotency_key: record.idempotencyKey,
+                p_items: record.items,
+                p_order_number: record.orderNumber,
+                p_payment_method: record.paymentMethod,
+                p_subtotal: record.subtotal,
+                p_table_id: record.tableId,
+                p_total: record.total,
+            });
+            if (error) {
+                const knownCode = [
+                    'IDEMPOTENCY_CONFLICT', 'COUPON_INVALID', 'COUPON_USER_LIMIT',
+                    'COUPON_FIRST_ORDER_ONLY', 'PRICE_MISMATCH',
+                ].find((code) => error.message.includes(code));
+                if (knownCode) {
+                    throw new FastFoodOrderError(knownCode, error.message, knownCode === 'IDEMPOTENCY_CONFLICT' ? 409 : 400);
+                }
+                throw error;
+            }
+            const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+            if (!row?.order_id || !row.order_number) throw new Error('Atomic order RPC did not return an order');
+            return {
+                orderId: String(row.order_id),
+                orderNumber: String(row.order_number),
+                status: 'pending' as const,
+            };
+        },
+        async findCommittedOrder(input) {
+            const { data, error } = await supabase.from(TABLE)
+                .select('id, order_number, status, idempotency_fingerprint')
+                .eq('business_id', input.businessId)
+                .eq('idempotency_key', input.idempotencyKey)
+                .maybeSingle();
+            if (error) throw error;
+            if (!data) return null;
+            if (data.idempotency_fingerprint !== input.idempotencyFingerprint) {
+                throw new FastFoodOrderError('IDEMPOTENCY_CONFLICT', 'Siparis anahtari farkli bir istekle kullanildi', 409);
+            }
+            return {
+                orderId: String(data.id),
+                orderNumber: String(data.order_number || ''),
+                status: 'pending' as const,
+            };
         },
         async getBusiness(businessId) {
             const { data, error } = await supabase.from('businesses').select('id, name').eq('id', businessId).maybeSingle();
@@ -217,24 +248,6 @@ function createOrderDependencies(request: Request): FastFoodOrderDependencies {
         },
         now: () => new Date(),
         orderNumber: generateOrderNumber,
-        async recordCouponUsage(record) {
-            const { data: coupon, error: readError } = await supabase.from('ff_coupons').select('current_usage_count').eq('id', record.couponId).maybeSingle();
-            if (readError) throw readError;
-            const { error: updateError } = await supabase.from('ff_coupons').update({
-                current_usage_count: number(coupon?.current_usage_count) + 1,
-                updated_at: record.usedAt,
-            }).eq('id', record.couponId);
-            if (updateError) throw updateError;
-            const { error: usageError } = await supabase.from('ff_coupon_usages').insert({
-                business_id: record.businessId,
-                coupon_id: record.couponId,
-                customer_phone: record.customerPhone,
-                discount_amount: record.discountAmount,
-                order_id: record.orderId,
-                used_at: record.usedAt,
-            });
-            if (usageError) throw usageError;
-        },
         async resolveCustomer() {
             if (!request.headers.get('authorization')) return null;
             const customer = await requireCustomer();

@@ -134,6 +134,7 @@ export interface PublicFoodMenuProduct {
   sortOrder?: number;
   order?: number;
   discountPrice?: number | null;
+  discountUntil?: string | null;
   extraGroupIds?: string[];
 }
 
@@ -181,6 +182,7 @@ export interface PublicFoodMenuData {
     estimatedDeliveryTime?: string | null;
     cashPayment?: boolean;
     cardOnDelivery?: boolean;
+    onlinePayment?: boolean;
   };
 }
 
@@ -289,6 +291,7 @@ export interface PublicEcommerceCheckoutResponse {
 
 export interface PublicFastFoodOrderInput {
   businessId: string;
+  idempotencyKey: string;
   customerName: string;
   customerPhone: string;
   customerAddress?: string;
@@ -337,7 +340,7 @@ export interface PublicFastFoodCouponValidationResponse {
   valid: boolean;
   coupon?: {
     code: string;
-    discountType: string;
+    discountType: "fixed" | "free_delivery" | "percentage";
     discountValue: number;
     id: string;
     title: string;

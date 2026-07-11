@@ -14,6 +14,7 @@ export interface LegacyCheckoutInput {
     deliveryFee: number;
     discountAmount: number;
     items: LegacyCheckoutItem[];
+    idempotencyKey: string;
     orderNote?: string;
     payment: { method: "cash" | "credit_card" | "online" };
     subtotal: number;
@@ -50,6 +51,7 @@ export function adaptLegacyCheckoutInput(businessId: string, input: LegacyChecko
                 unitPrice,
             };
         }),
+        idempotencyKey: input.idempotencyKey,
         paymentMethod: input.payment.method === "credit_card" ? "card" : input.payment.method,
         subtotal: input.subtotal,
         tableId: input.delivery.tableNumber,

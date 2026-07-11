@@ -102,6 +102,7 @@ test("order payload includes coupon fields and never includes client identity", 
     businessId: "business-1",
     coupon: { code: "SAVE20", discount: 20, id: "coupon-1", message: "Applied" },
     deliveryType: "delivery",
+    idempotencyKey: "checkout-key-1234567890",
     items: [{
       productId: "p1",
       productName: "Burger",
@@ -117,6 +118,7 @@ test("order payload includes coupon fields and never includes client identity", 
     totals: { couponDiscount: 20, deliveryFee: 15, subtotal: 200, total: 195 }
   });
   assert.equal("appUserId" in payload, false);
+  assert.equal(payload.idempotencyKey, "checkout-key-1234567890");
   assert.equal(payload.couponId, "coupon-1");
   assert.equal(payload.couponCode, "SAVE20");
   assert.equal(payload.couponDiscount, 20);
@@ -135,4 +137,34 @@ test("submit guard suppresses duplicates and resets after rejection", async () =
   await assert.rejects(() => guard.run(async () => { throw new Error("server failed"); }), /server failed/);
   assert.equal(guard.isSubmitting(), false);
   assert.deepEqual(await guard.run(async () => "retry"), { accepted: true, value: "retry" });
+});
+
+test("idempotency state reuses the key for retries and rotates when the payload changes", () => {
+  let generated = 0;
+  const createKey = () => `checkout-key-${++generated}-1234567890`;
+  const first = checkout.resolveCheckoutIdempotency(null, "payload-a", createKey);
+  const retry = checkout.resolveCheckoutIdempotency(first.state, "payload-a", createKey);
+  const changed = checkout.resolveCheckoutIdempotency(retry.state, "payload-b", createKey);
+  assert.equal(retry.key, first.key);
+  assert.notEqual(changed.key, first.key);
+  assert.equal(generated, 2);
+});
+
+test("free-delivery coupon follows the current delivery fee and is removed for pickup", () => {
+  const coupon = {
+    code: "FREE",
+    discount: 10,
+    discountType: "free_delivery" as const,
+    id: "coupon-free",
+    message: "Free delivery"
+  };
+  assert.deepEqual(checkout.reconcileCouponForDelivery(coupon, "delivery", 25), { ...coupon, discount: 25 });
+  assert.equal(checkout.reconcileCouponForDelivery(coupon, "pickup", 0), null);
+});
+
+test("mobile discount pricing applies only a discount with a future expiry", () => {
+  const now = Date.parse("2026-07-11T12:00:00.000Z");
+  assert.equal(checkout.resolveActiveProductPrice({ price: 100, discountPrice: 80, discountUntil: "2026-07-12T00:00:00.000Z" }, now), 80);
+  assert.equal(checkout.resolveActiveProductPrice({ price: 100, discountPrice: 80, discountUntil: "2026-07-11T11:00:00.000Z" }, now), 100);
+  assert.equal(checkout.resolveActiveProductPrice({ price: 100, discountPrice: 80, discountUntil: null }, now), 100);
 });

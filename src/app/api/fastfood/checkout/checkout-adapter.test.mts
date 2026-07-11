@@ -21,6 +21,7 @@ test("legacy checkout input maps to the authoritative order contract without cli
     delivery: { address: "Valid address", type: "delivery" },
     deliveryFee: 10,
     discountAmount: 10,
+    idempotencyKey: "web-checkout-key-1234567890",
     items: [{
       basePrice: 100,
       name: "Burger",
@@ -36,6 +37,7 @@ test("legacy checkout input maps to the authoritative order contract without cli
   });
   assert.equal("appUserId" in result, false);
   assert.equal(result.businessId, "business-1");
+  assert.equal(result.idempotencyKey, "web-checkout-key-1234567890");
   assert.equal(result.paymentMethod, "card");
   assert.deepEqual(result.items[0], {
     productId: "p1",

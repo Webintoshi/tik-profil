@@ -39,11 +39,15 @@ import {
   calculateCheckoutTotals,
   calculateDeliveryFee,
   createCheckoutSubmitGuard,
+  reconcileCouponForDelivery,
   removeCoupon,
+  resolveActiveProductPrice,
+  resolveCheckoutIdempotency,
   resolveDeliveryMode,
   resolvePaymentMethod,
   validateCheckout,
   type AppliedCoupon,
+  type CheckoutIdempotencyState,
   type CheckoutPrefill
 } from "@/checkout/checkout-state";
 import { Icon, type IconName } from "@/components/common/Icon";
@@ -1404,6 +1408,7 @@ function FoodMenuPanel({
     phone: prefill.phone
   });
   const submitGuardRef = React.useRef(createCheckoutSubmitGuard());
+  const idempotencyStateRef = React.useRef<CheckoutIdempotencyState | null>(null);
 
   const settings = data?.settings;
   const cartEnabled = kind === "fastfood";
@@ -1545,6 +1550,11 @@ function FoodMenuPanel({
     setCouponMessage(null);
   }, [couponCartKey]);
 
+  React.useEffect(() => {
+    setAppliedCoupon((current) => reconcileCouponForDelivery(current, deliveryType, deliveryFee));
+    if (deliveryType === "pickup") setCouponMessage(null);
+  }, [deliveryFee, deliveryType]);
+
   function createInitialSelections(product: PublicFoodMenuProduct) {
     return getProductExtraGroups(product).reduce<Record<string, string[]>>((initial, group) => {
       const defaults = group.extras.filter((extra) => extra.isDefault).map((extra) => extra.id);
@@ -1583,7 +1593,7 @@ function FoodMenuPanel({
     const sortedExtraIds = selectedExtras.map((extra) => extra.id).sort();
     const key = [product.id, ...sortedExtraIds].join("::");
     const extraTotal = selectedExtras.reduce((sum, extra) => sum + (extra.priceModifier ?? 0), 0);
-    const unitPrice = (product.discountPrice || product.price) + extraTotal;
+    const unitPrice = resolveActiveProductPrice(product) + extraTotal;
 
     setCartItems((current) => ({
       ...current,
@@ -1772,7 +1782,7 @@ function FoodMenuPanel({
     setOrderError(null);
 
     try {
-      const guarded = await submitGuardRef.current.run(() => submitPublicFastFoodOrder(buildFastFoodOrderPayload({
+      const payloadInput = {
         address: form.address,
         businessId: data.businessId,
         coupon: appliedCoupon,
@@ -1794,6 +1804,12 @@ function FoodMenuPanel({
         name: form.name,
         phone: form.phone,
         totals
+      };
+      const idempotency = resolveCheckoutIdempotency(idempotencyStateRef.current, JSON.stringify(payloadInput));
+      idempotencyStateRef.current = idempotency.state;
+      const guarded = await submitGuardRef.current.run(() => submitPublicFastFoodOrder(buildFastFoodOrderPayload({
+        ...payloadInput,
+        idempotencyKey: idempotency.key
       }), accessToken));
 
       if (!guarded.accepted) return;
@@ -1803,6 +1819,7 @@ function FoodMenuPanel({
         setOrderNumber(response.orderNumber);
         setCartItems({});
         setAppliedCoupon(null);
+        idempotencyStateRef.current = null;
         setStep("success");
         if (accessToken) await onOrderSuccess();
         lightImpact();
@@ -1838,7 +1855,7 @@ function FoodMenuPanel({
   const footerDisabled = isSubmitting || (step !== "products" && !canSubmitOrder);
   const detailExtraGroups = productDetail ? getProductExtraGroups(productDetail.product) : [];
   const detailSelectedExtras = productDetail ? getSelectedExtras(productDetail.product, productDetail.selections) : [];
-  const detailBasePrice = productDetail ? (productDetail.product.discountPrice || productDetail.product.price) : 0;
+  const detailBasePrice = productDetail ? resolveActiveProductPrice(productDetail.product) : 0;
   const detailUnitPrice = detailBasePrice + detailSelectedExtras.reduce((sum, extra) => sum + extra.priceModifier, 0);
   const detailTotal = detailUnitPrice * (productDetail?.quantity ?? 1);
   const detailSelectionValid = productDetail ? isProductSelectionValid(productDetail.product, productDetail.selections) : false;
@@ -2275,7 +2292,7 @@ function FoodProductDetailModal({
 
   const product = productDetail.product;
   const imageUri = resolveTikProfilAssetUrl(product.imageUrl || product.image);
-  const basePrice = product.discountPrice || product.price;
+  const basePrice = resolveActiveProductPrice(product);
 
   return (
     <Modal animationType="fade" transparent visible onRequestClose={onClose}>
@@ -2732,7 +2749,7 @@ function FeaturedFoodOrderProductCard({
   const actionColors = getActionColors();
   const { isDark } = useThemeMode();
   const imageUri = resolveTikProfilAssetUrl(product.imageUrl || product.image);
-  const price = product.discountPrice || product.price;
+  const price = resolveActiveProductPrice(product);
   const descriptionColor = isDark ? "rgba(23,41,24,0.72)" : "rgba(255,255,255,0.78)";
   const imageFallbackBg = isDark ? "rgba(7,18,15,0.12)" : "rgba(255,255,255,0.18)";
 
@@ -2822,7 +2839,7 @@ function CompactFoodOrderProductCard({
 }) {
   const actionColors = getActionColors();
   const imageUri = resolveTikProfilAssetUrl(product.imageUrl || product.image);
-  const price = product.discountPrice || product.price;
+  const price = resolveActiveProductPrice(product);
 
   return (
     <View
@@ -2901,7 +2918,7 @@ function FoodOrderProductCard({
 }) {
   const actionColors = getActionColors();
   const imageUri = resolveTikProfilAssetUrl(product.imageUrl || product.image);
-  const price = product.discountPrice || product.price;
+  const price = resolveActiveProductPrice(product);
 
   return (
     <View
@@ -3041,7 +3058,7 @@ function LegacyFoodMenuPanel({
 
         return {
           count: summary.count + quantity,
-          total: summary.total + (product.discountPrice || product.price) * quantity
+          total: summary.total + resolveActiveProductPrice(product) * quantity
         };
       },
       { count: 0, total: 0 }
@@ -3215,7 +3232,7 @@ function FoodMenuProductCard({
 }) {
   const actionColors = getActionColors();
   const imageUri = resolveTikProfilAssetUrl(product.imageUrl || product.image);
-  const price = product.discountPrice || product.price;
+  const price = resolveActiveProductPrice(product);
 
   return (
     <View
@@ -3310,13 +3327,13 @@ function buildCartMessage(data: PublicFoodMenuData, cartItems: Record<string, nu
         return null;
       }
 
-      const unitPrice = product.discountPrice || product.price;
+      const unitPrice = resolveActiveProductPrice(product);
       return `- ${quantity} x ${product.name} (${formatMenuPrice(unitPrice * quantity)})`;
     })
     .filter(Boolean);
   const total = data.products.reduce((sum, product) => {
     const quantity = cartItems[product.id] ?? 0;
-    return sum + (product.discountPrice || product.price) * quantity;
+    return sum + resolveActiveProductPrice(product) * quantity;
   }, 0);
 
   return [

@@ -9,6 +9,7 @@ import {
 import clsx from "clsx";
 import { toR2ProxyUrl } from "@/lib/publicImage";
 import { useFastfoodMenuSubscription } from "@/hooks/useMenuRealtime";
+import { resolveCheckoutIdempotency, type CheckoutIdempotencyState } from "@/lib/fastfood/checkout-client";
 
 // ============================================
 // TYPES
@@ -67,6 +68,7 @@ export function FastFoodMenu({
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isCheckout, setIsCheckout] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const idempotencyStateRef = useRef<CheckoutIdempotencyState | null>(null);
     const [orderSuccess, setOrderSuccess] = useState<{ orderNumber: string } | null>(null);
 
     // Customer info
@@ -181,7 +183,7 @@ export function FastFoodMenu({
         setIsSubmitting(true);
 
         try {
-            const orderData = {
+            const orderPayload = {
                 businessId: fetchedBusinessId,
                 customerName: customerName.trim(),
                 customerPhone: customerPhone.trim(),
@@ -199,6 +201,9 @@ export function FastFoodMenu({
                 total,
                 customerNote: customerNote.trim()
             };
+            const idempotency = resolveCheckoutIdempotency(idempotencyStateRef.current, JSON.stringify(orderPayload));
+            idempotencyStateRef.current = idempotency.state;
+            const orderData = { ...orderPayload, idempotencyKey: idempotency.key };
 
             const res = await fetch("/api/fastfood/orders", {
                 method: "POST",
@@ -209,6 +214,7 @@ export function FastFoodMenu({
             const data = await res.json();
 
             if (data.success) {
+                idempotencyStateRef.current = null;
                 setOrderSuccess({ orderNumber: data.orderNumber });
                 clearCart();
             } else {

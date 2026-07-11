@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Loader2, Check, MapPin, CreditCard, Phone, ShoppingCart } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { toast } from "sonner";
 import { calculateItemTotal } from "@/contexts/CartContext";
+import { resolveCheckoutIdempotency, type CheckoutIdempotencyState } from "@/lib/fastfood/checkout-client";
 
 interface CheckoutSheetProps {
     isOpen: boolean;
@@ -15,6 +16,7 @@ interface CheckoutSheetProps {
 export default function CheckoutSheet({ isOpen, onClose, theme = "modern" }: CheckoutSheetProps) {
     const cart = useCart();
     const [loading, setLoading] = useState(false);
+    const idempotencyStateRef = useRef<CheckoutIdempotencyState | null>(null);
     const [step, setStep] = useState<"delivery" | "payment" | "confirm">("delivery");
     const isDark = theme === "modern";
 
@@ -141,37 +143,41 @@ export default function CheckoutSheet({ isOpen, onClose, theme = "modern" }: Che
 
         setLoading(true);
         try {
+            const checkoutPayload = {
+                businessSlug: cart.businessSlug,
+                items: cart.items,
+                customer: {
+                    name: customerName,
+                    phone: customerPhone,
+                    email: customerEmail || undefined
+                },
+                delivery: {
+                    type: deliveryType,
+                    address: deliveryType === "delivery" ? deliveryAddress : undefined,
+                    tableNumber: deliveryType === "table" ? tableNumber : undefined
+                },
+                payment: {
+                    method: paymentMethod
+                },
+                couponCode: couponCode || undefined,
+                orderNote: cart.orderNote,
+                subtotal,
+                discountAmount: discount,
+                deliveryFee,
+                total
+            };
+            const idempotency = resolveCheckoutIdempotency(idempotencyStateRef.current, JSON.stringify(checkoutPayload));
+            idempotencyStateRef.current = idempotency.state;
             const res = await fetch("/api/fastfood/checkout", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    businessSlug: cart.businessSlug,
-                    items: cart.items,
-                    customer: {
-                        name: customerName,
-                        phone: customerPhone,
-                        email: customerEmail || undefined
-                    },
-                    delivery: {
-                        type: deliveryType,
-                        address: deliveryType === "delivery" ? deliveryAddress : undefined,
-                        tableNumber: deliveryType === "table" ? tableNumber : undefined
-                    },
-                    payment: {
-                        method: paymentMethod
-                    },
-                    couponCode: couponCode || undefined,
-                    orderNote: cart.orderNote,
-                    subtotal,
-                    discountAmount: discount,
-                    deliveryFee,
-                    total
-                })
+                body: JSON.stringify({ ...checkoutPayload, idempotencyKey: idempotency.key })
             });
 
             const data = await res.json();
 
             if (data.success) {
+                idempotencyStateRef.current = null;
                 localStorage.setItem("ff_customer_name", customerName);
                 localStorage.setItem("ff_customer_phone", customerPhone);
                 cart.clearCart();

@@ -31,6 +31,7 @@ const order = {
   customerPhone: "05551112233",
   deliveryFee: 10,
   deliveryType: "delivery" as const,
+  idempotencyKey: "checkout-key-1234567890",
   items: [{ productId: "p1", productName: "Burger", quantity: 1, selectedExtras: [], totalPrice: 100, unitPrice: 100 }],
   paymentMethod: "cash" as const,
   subtotal: 100,
