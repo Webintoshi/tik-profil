@@ -122,7 +122,7 @@ export async function POST(request: Request) {
             .from(TABLE)
             .select('id')
             .eq('business_id', businessId)
-            .ilike('code', codeUpper)
+            .eq('normalized_code', codeUpper)
             .maybeSingle();
 
         if (duplicateError) {
@@ -265,7 +265,7 @@ export async function PUT(request: Request) {
                 .from(TABLE)
                 .select('id')
                 .eq('business_id', businessId)
-                .ilike('code', codeUpper)
+                .eq('normalized_code', codeUpper)
                 .maybeSingle();
 
             if (duplicateError) {

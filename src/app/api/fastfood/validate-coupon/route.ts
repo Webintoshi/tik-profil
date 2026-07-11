@@ -45,17 +45,16 @@ export async function POST(request: Request) {
 
         // Find the coupon
         const supabase = getSupabaseAdmin();
-        const { data: coupons, error: couponsError } = await supabase
+        const { data: coupon, error: couponsError } = await supabase
             .from('ff_coupons')
             .select('*')
             .eq('business_id', businessId)
-            .ilike('code', codeUpper);
+            .eq('normalized_code', codeUpper)
+            .maybeSingle();
 
         if (couponsError) {
             throw couponsError;
         }
-
-        const coupon = coupons?.[0];
 
         if (!coupon) {
             return NextResponse.json({

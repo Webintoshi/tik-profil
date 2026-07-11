@@ -26,3 +26,35 @@ export function mapAtomicOrderError(error: { message: string }) {
         status: code === "IDEMPOTENCY_CONFLICT" ? 409 : 400,
     };
 }
+
+type SafeOrderLogger = (message: string, metadata: { code: string; correlationId: string }) => void;
+
+function safeToken(value: unknown, fallback: string): string {
+    return typeof value === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(value) ? value : fallback;
+}
+
+export function createSafeUnknownOrderFailure(
+    error: unknown,
+    correlationId: string,
+    logger: SafeOrderLogger = console.error,
+    operation: "GET" | "POST" | "PUT" = "POST",
+) {
+    const databaseCode = safeToken(
+        error && typeof error === "object" ? (error as Record<string, unknown>).code : undefined,
+        "UNKNOWN",
+    );
+    const safeCorrelationId = safeToken(correlationId, "unavailable");
+    logger(`[FF Orders ${operation}] Unexpected database error`, {
+        code: databaseCode,
+        correlationId: safeCorrelationId,
+    });
+    return {
+        body: {
+            code: "SERVER_ERROR" as const,
+            correlationId: safeCorrelationId,
+            error: "Sunucu hatası oluştu.",
+            success: false as const,
+        },
+        status: 500,
+    };
+}

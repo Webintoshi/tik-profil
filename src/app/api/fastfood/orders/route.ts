@@ -15,7 +15,7 @@ import {
     type FastFoodOrderRecord,
     type FastFoodSettings,
 } from './order-service';
-import { mapAtomicOrderError } from './order-error';
+import { createSafeUnknownOrderFailure, mapAtomicOrderError } from './order-error';
 import { finalizeFastFoodOrder } from './order-response';
 
 const TABLE = 'ff_orders';
@@ -244,7 +244,11 @@ function createOrderDependencies(request: Request): FastFoodOrderDependencies {
         },
         getCatalog: loadCatalog,
         async getCoupon(businessId, code) {
-            const { data, error } = await supabase.from('ff_coupons').select('*').eq('business_id', businessId).ilike('code', code).maybeSingle();
+            const { data, error } = await supabase.from('ff_coupons')
+                .select('*')
+                .eq('business_id', businessId)
+                .eq('normalized_code', code.trim().toUpperCase())
+                .maybeSingle();
             if (error) throw error;
             return data ? mapCoupon(data as Record<string, unknown>) : null;
         },
@@ -259,6 +263,7 @@ function createOrderDependencies(request: Request): FastFoodOrderDependencies {
 }
 
 export async function GET(request: Request) {
+    const correlationId = crypto.randomUUID();
     try {
         const authResult = await requireAuth();
         if (!authResult.authorized || !authResult.user) return AppError.unauthorized().toResponse();
@@ -270,11 +275,14 @@ export async function GET(request: Request) {
         if (error) throw error;
         return Response.json({ success: true, orders: ((data || []) as OrderRow[]).map(mapOrder) });
     } catch (error) {
-        return AppError.toResponse(error, 'FF Orders GET');
+        if (error instanceof AppError) return error.toResponse();
+        const failure = createSafeUnknownOrderFailure(error, correlationId, undefined, 'GET');
+        return Response.json(failure.body, { status: failure.status });
     }
 }
 
 export async function POST(request: Request) {
+    const correlationId = crypto.randomUUID();
     try {
         const body: unknown = await request.json();
         const result = await createFastFoodOrder(body, createOrderDependencies(request));
@@ -289,11 +297,14 @@ export async function POST(request: Request) {
         if (error instanceof CustomerAuthenticationError) {
             return Response.json({ success: false, code: error.code, error: error.message }, { status: error.statusCode });
         }
-        return AppError.toResponse(error, 'FF Orders POST');
+        if (error instanceof AppError) return error.toResponse();
+        const failure = createSafeUnknownOrderFailure(error, correlationId);
+        return Response.json(failure.body, { status: failure.status });
     }
 }
 
 export async function PUT(request: Request) {
+    const correlationId = crypto.randomUUID();
     try {
         const authResult = await requireAuth();
         if (!authResult.authorized || !authResult.user) return AppError.unauthorized().toResponse();
@@ -319,6 +330,8 @@ export async function PUT(request: Request) {
         if (updateError) throw updateError;
         return Response.json({ success: true });
     } catch (error) {
-        return AppError.toResponse(error, 'FF Orders PUT');
+        if (error instanceof AppError) return error.toResponse();
+        const failure = createSafeUnknownOrderFailure(error, correlationId, undefined, 'PUT');
+        return Response.json(failure.body, { status: failure.status });
     }
 }

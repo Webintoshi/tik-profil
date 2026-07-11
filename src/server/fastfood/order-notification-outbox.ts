@@ -1,6 +1,7 @@
 export interface FastFoodNotificationOutboxEvent {
     attemptCount: number;
     businessId: string;
+    claimToken: string;
     eventType: "order.created";
     id: string;
     idempotencyKey: string;
@@ -22,8 +23,8 @@ export interface FastFoodNotificationProvider {
 
 interface OutboxDependencies {
     claim(limit: number): Promise<FastFoodNotificationOutboxEvent[]>;
-    markFailed(input: { error: string; id: string; idempotencyKey: string }): Promise<void>;
-    markSent(input: { id: string; idempotencyKey: string; providerMessageId: string | null }): Promise<void>;
+    markFailed(input: { claimToken: string; error: string; id: string; idempotencyKey: string }): Promise<boolean>;
+    markSent(input: { claimToken: string; id: string; idempotencyKey: string; providerMessageId: string | null }): Promise<boolean>;
     prepare(input: { businessId: string; orderId: string; status: "pending" }): Promise<{
         customerPhone?: string;
         disabled?: boolean;
@@ -51,6 +52,7 @@ export async function dispatchFastFoodNotificationOutbox(
 ) {
     const events = await dependencies.claim(options.limit ?? 20);
     let failed = 0;
+    let lostClaims = 0;
     let sent = 0;
 
     for (const event of events) {
@@ -61,12 +63,14 @@ export async function dispatchFastFoodNotificationOutbox(
                 status: "pending",
             });
             if (!notification.success || notification.disabled || !notification.customerPhone || !notification.message) {
-                failed += 1;
-                await dependencies.markFailed({
+                const updated = await dependencies.markFailed({
+                    claimToken: event.claimToken,
                     error: failureCode(notification.error || (notification.disabled ? "NOTIFICATION_DISABLED" : undefined)),
                     id: event.id,
                     idempotencyKey: event.idempotencyKey,
                 });
+                if (updated) failed += 1;
+                else lostClaims += 1;
                 continue;
             }
 
@@ -76,34 +80,41 @@ export async function dispatchFastFoodNotificationOutbox(
                 message: notification.message,
             });
             if (!providerResult.confirmed) {
-                failed += 1;
-                await dependencies.markFailed({
+                const updated = await dependencies.markFailed({
+                    claimToken: event.claimToken,
                     error: failureCode(providerResult.error),
                     id: event.id,
                     idempotencyKey: event.idempotencyKey,
                 });
+                if (updated) failed += 1;
+                else lostClaims += 1;
                 continue;
             }
 
-            await dependencies.markSent({
+            const updated = await dependencies.markSent({
+                claimToken: event.claimToken,
                 id: event.id,
                 idempotencyKey: event.idempotencyKey,
                 providerMessageId: providerResult.providerMessageId ?? null,
             });
-            sent += 1;
+            if (updated) sent += 1;
+            else lostClaims += 1;
         } catch (error) {
-            failed += 1;
-            await dependencies.markFailed({
+            const updated = await dependencies.markFailed({
+                claimToken: event.claimToken,
                 error: failureCode(error instanceof Error ? error.message : error),
                 id: event.id,
                 idempotencyKey: event.idempotencyKey,
             });
+            if (updated) failed += 1;
+            else lostClaims += 1;
         }
     }
 
     return {
         claimed: events.length,
         failed,
+        lostClaims,
         providerConfigured: dependencies.provider.configured,
         sent,
     };

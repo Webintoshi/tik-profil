@@ -14,6 +14,7 @@ function mapClaimedEvent(row: Record<string, unknown>): FastFoodNotificationOutb
     return {
         attemptCount: Number(row.attempt_count || 0),
         businessId: String(row.business_id || ""),
+        claimToken: String(row.claim_token || ""),
         eventType: "order.created",
         id: String(row.id || ""),
         idempotencyKey: String(row.idempotency_key || ""),
@@ -33,8 +34,9 @@ export async function dispatchStoredFastFoodNotificationOutbox(
         },
         async markFailed(input) {
             const now = new Date();
-            const { error } = await supabase.from(OUTBOX_TABLE).update({
+            const { data, error } = await supabase.from(OUTBOX_TABLE).update({
                 available_at: new Date(now.getTime() + 60_000).toISOString(),
+                claim_token: null,
                 last_error: input.error,
                 locked_at: null,
                 status: "pending",
@@ -42,12 +44,17 @@ export async function dispatchStoredFastFoodNotificationOutbox(
             })
                 .eq("id", input.id)
                 .eq("idempotency_key", input.idempotencyKey)
-                .eq("status", "processing");
+                .eq("claim_token", input.claimToken)
+                .eq("status", "processing")
+                .select("id")
+                .maybeSingle();
             if (error) throw error;
+            return Boolean(data);
         },
         async markSent(input) {
             const now = new Date().toISOString();
-            const { error } = await supabase.from(OUTBOX_TABLE).update({
+            const { data, error } = await supabase.from(OUTBOX_TABLE).update({
+                claim_token: null,
                 last_error: null,
                 locked_at: null,
                 provider_message_id: input.providerMessageId,
@@ -57,8 +64,12 @@ export async function dispatchStoredFastFoodNotificationOutbox(
             })
                 .eq("id", input.id)
                 .eq("idempotency_key", input.idempotencyKey)
-                .eq("status", "processing");
+                .eq("claim_token", input.claimToken)
+                .eq("status", "processing")
+                .select("id")
+                .maybeSingle();
             if (error) throw error;
+            return Boolean(data);
         },
         prepare: prepareStoredFastFoodOrderNotification,
         provider: options.provider ?? unconfiguredFastFoodNotificationProvider,
