@@ -48,10 +48,12 @@ test("latest request guard rejects stale and invalidated loads", () => {
 test("Explore screen couples guide and discovery city and checks request freshness", async () => {
   const source = await readFile(new URL("../../app/(tabs)/explore.tsx", import.meta.url), "utf8");
 
+  assert.match(source, /import \{ PILOT_CITY \} from "@\/data\/ordu-discovery"/);
+  assert.match(source, /const cityName = PILOT_CITY;/);
   assert.match(source, /fetchDiscoveryBusinesses\(\{\s*city: cityName,\s*limit: 16\s*\},\s*\{\s*force: refreshing\s*\}\)/);
   assert.match(source, /fetchCityGuide\(cityName,\s*\{\s*force: refreshing\s*\}\)/);
   assert.match(source, /requestGuardRef\.current\.begin\(\)/);
   assert.match(source, /requestGuardRef\.current\.isCurrent\(requestId\)/);
   assert.match(source, /requestGuardRef\.current\.invalidate\(\)/);
-  assert.doesNotMatch(source, /discovery\.lastSelectedCity \?\? PILOT_CITY/);
+  assert.doesNotMatch(source, /resolveExploreCity|discovery\.savedAddressLabel|discovery\.lastSelectedCity/);
 });

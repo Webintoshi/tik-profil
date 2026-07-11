@@ -16,7 +16,8 @@ import { BusinessCard } from "@/components/business/business-card";
 import { EmptyState } from "@/components/business/empty-state";
 import { Icon } from "@/components/common/Icon";
 import { BusinessCardSkeleton, CityHeroImageSkeleton, Skeleton } from "@/components/ui/Skeleton";
-import { createLatestExploreRequestGuard, resolveExploreCity } from "@/explore/explore-city";
+import { PILOT_CITY } from "@/data/ordu-discovery";
+import { createLatestExploreRequestGuard } from "@/explore/explore-city";
 import { getExplorePresentation } from "@/explore/explore-presentation";
 import { useDiscoveryStore } from "@/state/discovery-store";
 import { colors, radii, shadows, spacing, typography } from "@/theme/tokens";
@@ -34,10 +35,7 @@ export default function ExploreScreen() {
   const requestGuardRef = React.useRef(createLatestExploreRequestGuard());
   const hasExploreDataRef = React.useRef(true);
 
-  const cityName = React.useMemo(
-    () => resolveExploreCity(discovery.savedAddressLabel, discovery.lastSelectedCity),
-    [discovery.lastSelectedCity, discovery.savedAddressLabel]
-  );
+  const cityName = PILOT_CITY;
 
   const loadExplore = React.useCallback(async (refreshing = false) => {
     const requestId = requestGuardRef.current.begin();
