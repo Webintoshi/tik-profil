@@ -329,7 +329,11 @@ function SignedInAccountView() {
         </View>
       </AccountSection>
 
-      <AccountSection icon="store" isOpen={openSection === "orders"} onToggle={() => setOpenSection(openSection === "orders" ? null : "orders")} summary={customer.orders.length ? `${customer.orders.length} sipariş` : "Sipariş yok"} title="Siparişler">
+      <AccountSection icon="store" isOpen={openSection === "orders"} onToggle={() => {
+        const isOpening = openSection !== "orders";
+        setOpenSection(isOpening ? "orders" : null);
+        if (isOpening) void refreshCustomer();
+      }} summary={customer.orders.length ? `${customer.orders.length} sipariş` : "Sipariş yok"} title="Siparişler">
         <DataList empty="Henüz sipariş yok" icon="store">
           {customer.orders.map((order) => <DataRow key={order.id} icon="store" meta={`${order.itemCount} ürün · ${formatDate(order.createdAt)}`} status={order.status} title={order.businessName || order.orderNumber || "Sipariş"} />)}
         </DataList>

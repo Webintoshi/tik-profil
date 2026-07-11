@@ -22,3 +22,9 @@ test("signed-in checkout maps only authenticated customer addresses", () => {
     addresses: [{ id: "owned", label: "Ev", fullAddress: "Gerçek adres", district: "Altınordu", city: "Ordu" }]
   }), [{ id: "owned", label: "Ev", value: "Gerçek adres, Altınordu / Ordu" }]);
 });
+
+test("saved checkout addresses preserve the authenticated default flag", () => {
+  assert.deepEqual(buildCheckoutAddresses({
+    addresses: [{ city: "Ordu", district: "Altinordu", fullAddress: "Default address", id: "default", isDefault: true, label: "Home" }]
+  }), [{ id: "default", isDefault: true, label: "Home", value: "Default address, Altinordu / Ordu" }]);
+});

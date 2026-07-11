@@ -1,6 +1,8 @@
 export const allowedPrefixes = [
   "/api/cities",
+  "/api/fastfood/orders",
   "/api/fastfood/public-menu",
+  "/api/fastfood/validate-coupon",
   "/api/kesfet",
   "/api/mobile/account",
   "/api/qr-scan",
@@ -12,6 +14,7 @@ export const allowedPrefixes = [
 ];
 
 const authenticatedPaths = new Set([
+  "/api/fastfood/orders",
   "/api/kesfet/user/profile",
   "/api/kesfet/user/favorites",
   "/api/kesfet/orders",

@@ -320,7 +320,30 @@ export interface PublicFastFoodOrderResponse {
   success?: boolean;
   orderId?: string;
   orderNumber?: string;
+  status?: string;
   error?: string;
+}
+
+export interface PublicFastFoodCouponValidationInput {
+  businessId: string;
+  categoryIds?: string[];
+  code: string;
+  customerPhone?: string;
+  productIds?: string[];
+  subtotal: number;
+}
+
+export interface PublicFastFoodCouponValidationResponse {
+  valid: boolean;
+  coupon?: {
+    code: string;
+    discountType: string;
+    discountValue: number;
+    id: string;
+    title: string;
+  };
+  discount?: number;
+  message?: string;
 }
 
 const BASE_URL = process.env.EXPO_PUBLIC_TIKPROFIL_API_URL ?? "https://tikprofil.com";
@@ -673,7 +696,12 @@ async function getJson<T>(url: string, fallback: T): Promise<T> {
   return fallback;
 }
 
-async function postJson<T>(url: string, body: unknown, fallback: T): Promise<T> {
+async function postJson<T>(
+  url: string,
+  body: unknown,
+  fallback: T,
+  extraHeaders: Record<string, string> = {}
+): Promise<T> {
   const proxyUrl = getLocalWebProxyUrl();
   const requestUrl = proxyUrl && BASE_URL === "https://tikprofil.com"
     ? rewriteBaseUrl(url, proxyUrl)
@@ -683,7 +711,8 @@ async function postJson<T>(url: string, body: unknown, fallback: T): Promise<T> 
     const response = await fetch(requestUrl, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        ...extraHeaders
       },
       body: JSON.stringify(body)
     });
@@ -802,12 +831,24 @@ export async function fetchPublicFoodMenu(
 }
 
 export async function submitPublicFastFoodOrder(
-  input: PublicFastFoodOrderInput
+  input: PublicFastFoodOrderInput,
+  accessToken?: string | null
 ): Promise<PublicFastFoodOrderResponse> {
   return postJson<PublicFastFoodOrderResponse>(
     buildUrl("/api/fastfood/orders"),
     input,
-    { success: false, error: "Sipariş gönderilemedi" }
+    { success: false, error: "Sipariş gönderilemedi" },
+    accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+  );
+}
+
+export async function validatePublicFastFoodCoupon(
+  input: PublicFastFoodCouponValidationInput
+): Promise<PublicFastFoodCouponValidationResponse> {
+  return postJson<PublicFastFoodCouponValidationResponse>(
+    buildUrl("/api/fastfood/validate-coupon"),
+    input,
+    { valid: false, message: "Kupon doğrulanamadı" }
   );
 }
 

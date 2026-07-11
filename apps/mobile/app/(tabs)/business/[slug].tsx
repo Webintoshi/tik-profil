@@ -15,6 +15,7 @@ import {
   logQrScan,
   resolveTikProfilAssetUrl,
   submitPublicFastFoodOrder,
+  validatePublicFastFoodCoupon,
   type KesfetBusiness,
   type PublicEcommerceCategory,
   type PublicEcommerceProduct,
@@ -31,6 +32,20 @@ import {
 import { EmptyState } from "@/components/business/empty-state";
 import { useCustomerSession } from "@/auth/auth-store";
 import { buildCheckoutAddresses } from "@/business/checkout-addresses";
+import {
+  applyCoupon,
+  buildCheckoutPrefill,
+  buildFastFoodOrderPayload,
+  calculateCheckoutTotals,
+  calculateDeliveryFee,
+  createCheckoutSubmitGuard,
+  removeCoupon,
+  resolveDeliveryMode,
+  resolvePaymentMethod,
+  validateCheckout,
+  type AppliedCoupon,
+  type CheckoutPrefill
+} from "@/checkout/checkout-state";
 import { Icon, type IconName } from "@/components/common/Icon";
 import { BusinessCardSkeleton } from "@/components/ui/Skeleton";
 import {
@@ -119,7 +134,7 @@ export default function BusinessDetailScreen() {
   useThemeMode();
   const params = useLocalSearchParams<{ slug?: string }>();
   const discovery = useDiscoveryStore();
-  const { customer } = useCustomerSession();
+  const { accessToken, customer, refreshCustomer } = useCustomerSession();
   const actionColors = getActionColors();
   const [profile, setProfile] = React.useState<PublicProfile | null>(null);
   const [business, setBusiness] = React.useState<KesfetBusiness | null>(null);
@@ -223,6 +238,10 @@ export default function BusinessDetailScreen() {
   const favoriteSource = React.useMemo(() => buildFavoriteBusiness(displayProfile, resolvedBusiness), [displayProfile, resolvedBusiness]);
   const orderSavedAddresses = React.useMemo(
     () => buildCheckoutAddresses(customer),
+    [customer]
+  );
+  const orderCheckoutPrefill = React.useMemo(
+    () => buildCheckoutPrefill(customer, customer?.addresses ?? []),
     [customer]
   );
   const isFavorite = favoriteSource ? discovery.isFavorite(favoriteSource.slug) : false;
@@ -471,10 +490,13 @@ export default function BusinessDetailScreen() {
 
           {openMenuKind ? (
             <FoodMenuPanel
+              accessToken={accessToken}
               data={activeMenuData}
               error={menuError}
               isLoading={isMenuLoading}
               kind={openMenuKind}
+              onOrderSuccess={refreshCustomer}
+              prefill={orderCheckoutPrefill}
               savedAddresses={orderSavedAddresses}
               selectedCategoryId={selectedMenuCategoryId}
               onSelectCategory={setSelectedMenuCategoryId}
@@ -1299,24 +1321,31 @@ interface FoodProductDetailState {
 
 interface FoodSavedAddress {
   id: string;
+  isDefault?: boolean;
   label: string;
   value: string;
 }
 
 function FoodMenuPanel({
+  accessToken,
   data,
   error,
   isLoading,
   kind,
+  onOrderSuccess,
   onSelectCategory,
+  prefill,
   savedAddresses,
   selectedCategoryId
 }: {
+  accessToken: string | null;
   data: PublicFoodMenuData | null;
   error: string | null;
   isLoading: boolean;
   kind: FoodMenuKind;
+  onOrderSuccess: () => Promise<void>;
   onSelectCategory: (categoryId: string) => void;
+  prefill: CheckoutPrefill;
   savedAddresses: FoodSavedAddress[];
   selectedCategoryId: string | null;
 }) {
@@ -1357,19 +1386,24 @@ function FoodMenuPanel({
   const [cartItems, setCartItems] = React.useState<Record<string, FoodCartItem>>({});
   const [productDetail, setProductDetail] = React.useState<FoodProductDetailState | null>(null);
   const [step, setStep] = React.useState<FoodOrderStep>("products");
-  const [deliveryType, setDeliveryType] = React.useState<"pickup" | "delivery">("pickup");
-  const [selectedAddressId, setSelectedAddressId] = React.useState<string | null>(savedAddresses[0]?.id ?? null);
-  const [isAddingAddress, setIsAddingAddress] = React.useState(false);
+  const [deliveryType, setDeliveryType] = React.useState<"pickup" | "delivery">("delivery");
+  const [selectedAddressId, setSelectedAddressId] = React.useState<string | null>(prefill.selectedAddressId);
+  const [isAddingAddress, setIsAddingAddress] = React.useState(prefill.addressMode === "new");
   const [paymentMethod, setPaymentMethod] = React.useState<"cash" | "card">("cash");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isCouponLoading, setIsCouponLoading] = React.useState(false);
+  const [appliedCoupon, setAppliedCoupon] = React.useState<AppliedCoupon | null>(null);
+  const [couponMessage, setCouponMessage] = React.useState<string | null>(null);
   const [orderNumber, setOrderNumber] = React.useState("");
   const [orderError, setOrderError] = React.useState<string | null>(null);
   const [form, setForm] = React.useState({
-    address: "",
-    name: "",
+    address: prefill.address,
+    couponCode: "",
+    name: prefill.name,
     notes: "",
-    phone: ""
+    phone: prefill.phone
   });
+  const submitGuardRef = React.useRef(createCheckoutSubmitGuard());
 
   const settings = data?.settings;
   const cartEnabled = kind === "fastfood";
@@ -1413,24 +1447,35 @@ function FoodMenuPanel({
     setStep("products");
     setOrderNumber("");
     setOrderError(null);
-    setIsAddingAddress(false);
+    setAppliedCoupon(null);
+    setCouponMessage(null);
   }, [data?.businessId, kind]);
 
   React.useEffect(() => {
     if (!data) return;
 
-    setDeliveryType(deliveryEnabled ? "delivery" : "pickup");
-    setPaymentMethod(cashPayment ? "cash" : "card");
-  }, [cashPayment, data, deliveryEnabled]);
+    setDeliveryType((current) => resolveDeliveryMode({
+      deliveryEnabled,
+      pickupEnabled,
+      preferred: current
+    }));
+    setPaymentMethod((current) => resolvePaymentMethod({
+      cardEnabled: cardOnDelivery,
+      cashEnabled: cashPayment,
+      preferred: current
+    }));
+  }, [cardOnDelivery, cashPayment, data, deliveryEnabled, pickupEnabled]);
 
   React.useEffect(() => {
-    const firstAddress = savedAddresses[0] ?? null;
-    setSelectedAddressId(firstAddress?.id ?? null);
+    setSelectedAddressId(prefill.selectedAddressId);
+    setIsAddingAddress(prefill.addressMode === "new");
     setForm((current) => ({
       ...current,
-      address: firstAddress?.value ?? ""
+      address: prefill.address,
+      name: prefill.name,
+      phone: prefill.phone
     }));
-  }, [data?.businessId, savedAddresses]);
+  }, [data?.businessId, prefill]);
 
   const cartRows = React.useMemo(() => {
     if (!data) return [];
@@ -1461,17 +1506,31 @@ function FoodMenuPanel({
   }, [cartRows]);
 
   const subtotal = cartRows.reduce((sum, item) => sum + item.total, 0);
-  const deliveryFee = deliveryType === "delivery" && subtotal > 0
-    ? (freeDeliveryAbove > 0 && subtotal >= freeDeliveryAbove ? 0 : deliveryFeeSetting)
-    : 0;
-  const total = subtotal + deliveryFee;
+  const deliveryFee = calculateDeliveryFee({
+    deliveryFee: deliveryFeeSetting,
+    deliveryType,
+    freeDeliveryAbove,
+    subtotal
+  });
+  const totals = calculateCheckoutTotals({ coupon: appliedCoupon, deliveryFee, subtotal });
+  const total = totals.total;
   const cartCount = cartRows.reduce((sum, item) => sum + item.quantity, 0);
   const hasMinimumOrder = minOrderAmount <= 0 || subtotal >= minOrderAmount;
-  const canSubmitCustomer = form.name.trim().length >= 2
-    && form.phone.replace(/\D/g, "").length >= 10
-    && (deliveryType !== "delivery" || form.address.trim().length > 4)
-    && cartRows.length > 0;
-  const canSubmitOrder = canSubmitCustomer && hasMinimumOrder;
+  const checkoutValidation = validateCheckout({
+    address: form.address,
+    deliveryType,
+    items: cartRows.map((item) => ({
+      available: item.product.inStock !== false,
+      productId: item.product.id,
+      quantity: item.quantity
+    })),
+    minOrderAmount,
+    name: form.name,
+    phone: form.phone,
+    subtotal
+  });
+  const canSubmitOrder = checkoutValidation === null;
+  const couponCartKey = `${subtotal}:${cartRows.map((item) => `${item.product.id}:${item.quantity}`).join("|")}`;
   const menuMaxHeight = cartRows.length > 0
     ? Math.max(520, Math.round(screenHeight * 0.64))
     : Math.max(640, Math.round(screenHeight * 0.82));
@@ -1480,6 +1539,11 @@ function FoodMenuPanel({
   React.useEffect(() => {
     activeCategoryRef.current = activeCategoryId;
   }, [activeCategoryId]);
+
+  React.useEffect(() => {
+    setAppliedCoupon(null);
+    setCouponMessage(null);
+  }, [couponCartKey]);
 
   function createInitialSelections(product: PublicFoodMenuProduct) {
     return getProductExtraGroups(product).reduce<Record<string, string[]>>((initial, group) => {
@@ -1632,6 +1696,44 @@ function FoodMenuPanel({
     setForm((current) => ({ ...current, address: "" }));
   }
 
+  async function applyCheckoutCoupon() {
+    const code = form.couponCode.trim();
+    if (!data || !code || !cartRows.length || isCouponLoading) return;
+
+    setIsCouponLoading(true);
+    setCouponMessage(null);
+    try {
+      const response = await validatePublicFastFoodCoupon({
+        businessId: data.businessId,
+        categoryIds: [...new Set(cartRows.map((item) => item.product.categoryId).filter((id): id is string => Boolean(id)))],
+        code,
+        customerPhone: form.phone.trim() || undefined,
+        productIds: [...new Set(cartRows.map((item) => item.product.id))],
+        subtotal
+      });
+      if (!response.valid) {
+        setAppliedCoupon(null);
+        setCouponMessage(response.message || "Kupon kullanılamadı");
+        return;
+      }
+
+      const coupon = applyCoupon({
+        ...response,
+        discount: response.coupon?.discountType === "free_delivery" ? deliveryFee : response.discount
+      }, subtotal + deliveryFee);
+      setAppliedCoupon(coupon);
+      setCouponMessage(coupon?.message || response.message || "Kupon uygulandı");
+    } finally {
+      setIsCouponLoading(false);
+    }
+  }
+
+  function clearCheckoutCoupon() {
+    setAppliedCoupon(removeCoupon());
+    setCouponMessage(null);
+    setForm((current) => ({ ...current, couponCode: "" }));
+  }
+
   function scrollToCategory(categoryId: string) {
     lightImpact();
     onSelectCategory(categoryId);
@@ -1661,7 +1763,7 @@ function FoodMenuPanel({
   }
 
   async function submitFastFoodOrder() {
-    if (!data || !canSubmitOrder || isSubmitting) {
+    if (!data || !canSubmitOrder || submitGuardRef.current.isSubmitting()) {
       lightImpact();
       return;
     }
@@ -1669,42 +1771,50 @@ function FoodMenuPanel({
     setIsSubmitting(true);
     setOrderError(null);
 
-    const response = await submitPublicFastFoodOrder({
-      businessId: data.businessId,
-      customerName: form.name.trim(),
-      customerPhone: form.phone.trim(),
-      customerAddress: deliveryType === "delivery" ? form.address.trim() : undefined,
-      deliveryType,
-      paymentMethod,
-      items: cartRows.map((item) => ({
-        productId: item.product.id,
-        productName: item.product.name,
-        quantity: item.quantity,
-        selectedExtras: item.selectedExtras.map((extra) => ({
-          id: extra.id,
-          name: extra.name,
-          priceModifier: extra.priceModifier
+    try {
+      const guarded = await submitGuardRef.current.run(() => submitPublicFastFoodOrder(buildFastFoodOrderPayload({
+        address: form.address,
+        businessId: data.businessId,
+        coupon: appliedCoupon,
+        deliveryType,
+        paymentMethod,
+        items: cartRows.map((item) => ({
+          productId: item.product.id,
+          productName: item.product.name,
+          quantity: item.quantity,
+          selectedExtras: item.selectedExtras.map((extra) => ({
+            id: extra.id,
+            name: extra.name,
+            priceModifier: extra.priceModifier
+          })),
+          totalPrice: item.total,
+          unitPrice: item.unitPrice
         })),
-        totalPrice: item.total,
-        unitPrice: item.unitPrice
-      })),
-      subtotal,
-      deliveryFee,
-      total,
-      customerNote: form.notes.trim() || undefined
-    });
+        note: form.notes,
+        name: form.name,
+        phone: form.phone,
+        totals
+      }), accessToken));
 
-    setIsSubmitting(false);
+      if (!guarded.accepted) return;
+      const response = guarded.value;
 
-    if (response.success && response.orderNumber) {
-      setOrderNumber(response.orderNumber);
-      setCartItems({});
-      setStep("success");
-      lightImpact();
-      return;
+      if (response.success && response.orderId && response.orderNumber && response.status) {
+        setOrderNumber(response.orderNumber);
+        setCartItems({});
+        setAppliedCoupon(null);
+        setStep("success");
+        if (accessToken) await onOrderSuccess();
+        lightImpact();
+        return;
+      }
+
+      setOrderError(response.error || "Sipariş gönderilemedi");
+    } catch {
+      setOrderError("Sipariş gönderilemedi");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setOrderError(response.error || "Sipariş gönderilemedi");
   }
 
   function handleFooterPress() {
@@ -1983,6 +2093,40 @@ function FoodMenuPanel({
           ) : null}
           <EcommerceInput label="Ad Soyad" value={form.name} onChangeText={(value) => setForm((current) => ({ ...current, name: value }))} />
           <EcommerceInput label="Telefon" keyboardType="phone-pad" value={form.phone} onChangeText={(value) => setForm((current) => ({ ...current, phone: value }))} />
+          <View style={{ gap: spacing.sm }}>
+            <Text style={{ ...typography.small, color: colors.mutedStrong }}>Kupon</Text>
+            <View style={{ alignItems: "center", flexDirection: "row", gap: spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <EcommerceInput
+                  autoCapitalize="characters"
+                  label="Kupon kodu"
+                  value={form.couponCode}
+                  onChangeText={(value) => setForm((current) => ({ ...current, couponCode: value }))}
+                />
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isCouponLoading || !form.couponCode.trim() || !cartRows.length}
+                onPress={appliedCoupon ? clearCheckoutCoupon : () => void applyCheckoutCoupon()}
+                style={({ pressed }) => ({
+                  alignItems: "center",
+                  backgroundColor: appliedCoupon ? colors.backgroundAlt : colors.brandSoft,
+                  borderRadius: radii.lg,
+                  justifyContent: "center",
+                  minHeight: 48,
+                  opacity: pressed || isCouponLoading ? 0.7 : 1,
+                  paddingHorizontal: spacing.md
+                })}
+              >
+                <Text style={{ ...typography.label, color: colors.brand }}>
+                  {isCouponLoading ? "Kontrol" : appliedCoupon ? "Kaldır" : "Uygula"}
+                </Text>
+              </Pressable>
+            </View>
+            {couponMessage ? (
+              <Text style={{ ...typography.small, color: appliedCoupon ? colors.brand : colors.coral }}>{couponMessage}</Text>
+            ) : null}
+          </View>
           {(cashPayment || cardOnDelivery) ? (
             <View style={{ gap: spacing.sm }}>
               <Text style={{ ...typography.small, color: colors.mutedStrong }}>Ödeme yöntemi</Text>
@@ -2018,6 +2162,7 @@ function FoodMenuPanel({
           <View style={{ borderTopColor: colors.border, borderTopWidth: 1, gap: spacing.sm, paddingTop: spacing.md }}>
             <SummaryRow label="Ara toplam" value={formatMenuPrice(subtotal)} />
             {deliveryType === "delivery" ? <SummaryRow label="Teslimat" value={deliveryFee ? formatMenuPrice(deliveryFee) : "Ücretsiz"} /> : null}
+            {totals.couponDiscount > 0 ? <SummaryRow label="Kupon indirimi" value={`-${formatMenuPrice(totals.couponDiscount)}`} /> : null}
             <SummaryRow strong label="Toplam" value={formatMenuPrice(total)} />
           </View>
           <View style={{ backgroundColor: colors.backgroundAlt, borderRadius: radii.lg, gap: 3, padding: spacing.md }}>

@@ -20,6 +20,8 @@ test("proxy omits Authorization when the request did not provide it", () => {
 });
 
 test("proxy path gate allows only exact configured prefixes", () => {
+  assert.equal(isAllowedProxyPath("/api/fastfood/orders"), true);
+  assert.equal(isAllowedProxyPath("/api/fastfood/validate-coupon"), true);
   assert.equal(isAllowedProxyPath("/api/kesfet/orders"), true);
   assert.equal(isAllowedProxyPath("/api/mobile/account/avatar"), true);
   assert.equal(isAllowedProxyPath("/api/kesfet-malicious"), false);
@@ -35,6 +37,7 @@ test("denied paths cannot receive an Authorization header", () => {
 
 test("Authorization forwarding is limited to authenticated customer endpoints", () => {
   for (const pathname of [
+    "/api/fastfood/orders",
     "/api/kesfet/user/profile",
     "/api/kesfet/user/favorites",
     "/api/kesfet/orders",
@@ -50,6 +53,7 @@ test("Authorization forwarding is limited to authenticated customer endpoints", 
 
 test("public endpoints strip incoming Authorization", () => {
   for (const pathname of [
+    "/api/fastfood/validate-coupon",
     "/api/public/profile/bebek-burger-akyazi",
     "/api/kesfet/search",
     "/api/public/checkout"
