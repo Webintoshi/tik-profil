@@ -7,10 +7,10 @@ export const revalidate = 0;
 
 const handlers = createReservationHandlers({ repository: reservationRepository, requireBusinessMember, requireCustomer });
 
-export async function GET() {
-    return handlers.list();
+export async function GET(request: Request) {
+    return handlers.listBusiness(request);
 }
 
-export async function POST(request: Request) {
-    return handlers.create(request);
+export async function PATCH(request: Request) {
+    return handlers.updateBusinessStatus(request);
 }

@@ -11,6 +11,7 @@ import {
   type CustomerProfileUpdate
 } from "@/api/customer";
 import { cancelAppointment } from "@/api/appointments";
+import { cancelReservation } from "@/api/reservations";
 import { getAccountLayout, resolveAccountFontScale } from "@/account/account-layout";
 import { useCustomerSession } from "@/auth/auth-store";
 import { AuthEntryCard } from "@/components/account/AuthEntryCard";
@@ -123,6 +124,7 @@ function SignedInAccountView() {
   const [busyAction, setBusyAction] = useState<"address" | "avatar" | "profile" | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [cancellingAppointmentId, setCancellingAppointmentId] = useState<string | null>(null);
+  const [cancellingReservationId, setCancellingReservationId] = useState<string | null>(null);
   const mounted = useRef(true);
   const initializedIdentity = useRef<string | null>(null);
 
@@ -352,9 +354,60 @@ function SignedInAccountView() {
         </DataList>
       </AccountSection>
 
-      <AccountSection icon="clock" isOpen={openSection === "reservations"} onToggle={() => setOpenSection(openSection === "reservations" ? null : "reservations")} summary={customer.reservations.length ? `${customer.reservations.length} rezervasyon` : "Rezervasyon yok"} title="Rezervasyonlar">
+      <AccountSection icon="clock" isOpen={openSection === "reservations"} onToggle={() => {
+        const isOpening = openSection !== "reservations";
+        setOpenSection(isOpening ? "reservations" : null);
+        if (isOpening) void refreshCustomer();
+      }} summary={customer.reservations.length ? `${customer.reservations.length} rezervasyon` : "Rezervasyon yok"} title="Rezervasyonlar">
         <DataList empty="Henüz rezervasyon yok" icon="clock">
-          {customer.reservations.map((reservation) => <DataRow key={reservation.id} icon="clock" meta={`${formatDate(reservation.startDate)} · ${reservation.reservationType === "hotel" ? "Otel" : "Araç"}`} status={reservation.status} title={`Rezervasyon ${reservation.id.slice(0, 8)}`} />)}
+          {customer.reservations.map((reservation) => (
+            <View key={reservation.id} style={{ borderBottomColor: colors.border, borderBottomWidth: 1, gap: spacing.sm, paddingVertical: spacing.md }}>
+              <DataRow
+                icon="clock"
+                meta={`${formatDate(reservation.startDate)} · ${reservation.reservationType === "hotel" ? "Otel" : reservation.reservationType === "restaurant" ? "Restoran" : "Araç"}`}
+                status={reservation.status}
+                title={`${reservation.businessName} · ${reservation.resourceName}`}
+              />
+              {reservation.cancellable ? (
+                <AnimatedPressable
+                  accessibilityLabel={`${reservation.resourceName} rezervasyonunu iptal et`}
+                  accessibilityRole="button"
+                  disabled={cancellingReservationId === reservation.id}
+                  onPress={() => {
+                    Alert.alert(
+                      "Rezervasyonu iptal et",
+                      `${reservation.resourceName} rezervasyonunu iptal etmek istediğinize emin misiniz?`,
+                      [
+                        { style: "cancel", text: "Vazgeç" },
+                        {
+                          style: "destructive",
+                          text: "İptal et",
+                          onPress: () => {
+                            setCancellingReservationId(reservation.id);
+                            setLocalError(null);
+                            void (async () => {
+                              try {
+                                const cancelled = await runAuthenticated((accessToken) => cancelReservation(accessToken, reservation.id));
+                                if (!cancelled) throw new Error("Oturum doğrulanamadı. Yeniden giriş yapın.");
+                                await refreshCustomer();
+                              } catch (error) {
+                                setLocalError(error instanceof Error ? error.message : "Rezervasyon iptal edilemedi.");
+                              } finally {
+                                setCancellingReservationId(null);
+                              }
+                            })();
+                          }
+                        }
+                      ]
+                    );
+                  }}
+                  style={{ alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.brandSoft, borderRadius: radii.pill, justifyContent: "center", minHeight: 38, paddingHorizontal: spacing.md }}
+                >
+                  <Text style={{ ...typography.label, color: colors.brandDeep }}>{cancellingReservationId === reservation.id ? "İptal ediliyor" : "Rezervasyonu iptal et"}</Text>
+                </AnimatedPressable>
+              ) : null}
+            </View>
+          ))}
         </DataList>
       </AccountSection>
 

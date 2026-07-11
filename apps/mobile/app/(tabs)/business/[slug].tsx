@@ -7,6 +7,7 @@ import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, Text, TextInp
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { fetchAppointmentOptions, type AppointmentOptions } from "@/api/appointments";
+import { fetchReservationOptions, type ReservationOptions } from "@/api/reservations";
 
 import {
   fetchPublicEcommerceProducts,
@@ -30,6 +31,7 @@ import {
 } from "@/api/kesfet";
 import { EmptyState } from "@/components/business/empty-state";
 import { AppointmentPanel } from "@/components/business/AppointmentPanel";
+import { ReservationPanel } from "@/components/business/ReservationPanel";
 import {
   BusinessProfileHeader,
   type BusinessProfileDisplay
@@ -94,6 +96,9 @@ export default function BusinessDetailScreen() {
   const [isAppointmentOpen, setIsAppointmentOpen] = React.useState(false);
   const [appointmentOptions, setAppointmentOptions] = React.useState<AppointmentOptions | null>(null);
   const [isAppointmentOptionsLoading, setIsAppointmentOptionsLoading] = React.useState(false);
+  const [isReservationOpen, setIsReservationOpen] = React.useState(false);
+  const [reservationOptions, setReservationOptions] = React.useState<ReservationOptions | null>(null);
+  const [isReservationOptionsLoading, setIsReservationOptionsLoading] = React.useState(false);
   const [loadedMenu, setLoadedMenu] = React.useState<LoadedFoodMenu | null>(null);
   const [isMenuLoading, setIsMenuLoading] = React.useState(false);
   const [menuError, setMenuError] = React.useState<string | null>(null);
@@ -182,6 +187,8 @@ export default function BusinessDetailScreen() {
     setIsEcommerceOpen(false);
     setIsAppointmentOpen(false);
     setAppointmentOptions(null);
+    setIsReservationOpen(false);
+    setReservationOptions(null);
     setLoadedMenu(null);
     setMenuError(null);
     setSelectedMenuCategoryId(null);
@@ -206,6 +213,12 @@ export default function BusinessDetailScreen() {
       .map(resolveModuleFamilyDefinition)
       .some((definition) => definition?.nativeCapabilities.includes("appointment-booking"));
   }, [displayProfile]);
+  const reservationCandidate = React.useMemo(() => {
+    if (!displayProfile) return false;
+    return [...displayProfile.modules, displayProfile.industry, displayProfile.industryLabel]
+      .map(resolveModuleFamilyDefinition)
+      .some((definition) => definition?.nativeCapabilities.includes("reservation-booking"));
+  }, [displayProfile]);
 
   React.useEffect(() => {
     let active = true;
@@ -222,6 +235,21 @@ export default function BusinessDetailScreen() {
     });
     return () => { active = false; };
   }, [appointmentCandidate, displayProfile?.slug]);
+  React.useEffect(() => {
+    let active = true;
+    if (!displayProfile || !reservationCandidate) {
+      setReservationOptions(null);
+      setIsReservationOptionsLoading(false);
+      return () => { active = false; };
+    }
+    setIsReservationOptionsLoading(true);
+    void fetchReservationOptions(displayProfile.slug).then((result) => {
+      if (active) setReservationOptions(result);
+    }).finally(() => {
+      if (active) setIsReservationOptionsLoading(false);
+    });
+    return () => { active = false; };
+  }, [displayProfile?.slug, reservationCandidate]);
   const activeMenuData = openMenuKind && loadedMenu && loadedMenu.slug === displayProfile?.slug && loadedMenu.kind === openMenuKind
     ? loadedMenu.data
     : null;
@@ -288,10 +316,11 @@ export default function BusinessDetailScreen() {
   const mapUrl = buildMapUrl(displayProfile, resolvedBusiness);
   const readyCapabilities: NativeCapability[] = ["fastfood-order", "restaurant-menu", "ecommerce-order"];
   if (appointmentOptions?.nativeEnabled) readyCapabilities.push("appointment-booking");
+  if (reservationOptions?.nativeEnabled) readyCapabilities.push("reservation-booking");
   const primaryAction = resolvePrimaryProfileAction({ ...displayProfile, nativeCapabilities: readyCapabilities });
   const socialCards = buildSocialCards(displayProfile, mapUrl);
   const currentProfile = displayProfile;
-  const isOrderSurfaceOpen = Boolean(openMenuKind || isEcommerceOpen || isAppointmentOpen);
+  const isOrderSurfaceOpen = Boolean(openMenuKind || isEcommerceOpen || isAppointmentOpen || isReservationOpen);
   const isStaticOrderSurfaceOpen = Boolean(openMenuKind || isEcommerceOpen);
   const isProfileCompact = isOrderSurfaceOpen;
   const hasStickyCart = Boolean(
@@ -308,10 +337,20 @@ export default function BusinessDetailScreen() {
     : spacing.tabBar + spacing.xxl;
 
   async function handlePrimaryActionPress() {
+    if (primaryAction.panelKind === "reservation") {
+      lightImpact();
+      setOpenMenuKind(null);
+      setIsEcommerceOpen(false);
+      setIsAppointmentOpen(false);
+      setIsReservationOpen((current) => !current);
+      return;
+    }
+
     if (primaryAction.panelKind === "appointment") {
       lightImpact();
       setOpenMenuKind(null);
       setIsEcommerceOpen(false);
+      setIsReservationOpen(false);
       setIsAppointmentOpen((current) => !current);
       return;
     }
@@ -320,6 +359,7 @@ export default function BusinessDetailScreen() {
       lightImpact();
       setOpenMenuKind(null);
       setIsAppointmentOpen(false);
+      setIsReservationOpen(false);
       setIsEcommerceOpen((current) => !current);
       return;
     }
@@ -328,6 +368,7 @@ export default function BusinessDetailScreen() {
       lightImpact();
       setIsEcommerceOpen(false);
       setIsAppointmentOpen(false);
+      setIsReservationOpen(false);
 
       const nextMenuKind = openMenuKind === primaryAction.menuKind ? null : primaryAction.menuKind;
       const requestId = ++menuRequestRef.current;
@@ -381,7 +422,9 @@ export default function BusinessDetailScreen() {
           <ProfileActionBar
             compact={isProfileCompact}
             isExpanded={
-              primaryAction.panelKind === "appointment"
+              primaryAction.panelKind === "reservation"
+                ? isReservationOpen
+                : primaryAction.panelKind === "appointment"
                 ? isAppointmentOpen
                 : primaryAction.panelKind === "ecommerce"
                 ? isEcommerceOpen
@@ -398,6 +441,13 @@ export default function BusinessDetailScreen() {
               businessSlug={displayProfile.slug}
               isLoading={isAppointmentOptionsLoading}
               options={appointmentOptions}
+            />
+          ) : null}
+          {isReservationOpen ? (
+            <ReservationPanel
+              businessSlug={displayProfile.slug}
+              isLoading={isReservationOptionsLoading}
+              options={reservationOptions}
             />
           ) : null}
           {isEcommerceOpen ? (
@@ -1641,6 +1691,7 @@ function buildDisplayProfile(
     address: sanitizeOptional(profile?.address) || [business?.district, business?.city].filter(Boolean).join(", ") || null,
     mapsUrl: sanitizeOptional(profile?.mapsUrl),
     modules: profile?.modules?.length ? profile.modules : [industry].filter(Boolean),
+    primaryModuleId: profile?.primaryModuleId ?? industry,
     hasRestaurantModule: profile?.hasRestaurantModule ?? false,
     cartEnabled: profile?.cartEnabled ?? false,
     social: profile?.social || {}

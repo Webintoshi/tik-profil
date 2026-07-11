@@ -18,7 +18,7 @@ export type RegistryModuleId = Exclude<SupportedModuleId, "food" | "beauty" | "v
 export type ModuleFamily = "appointment" | "reservation" | "catalog-order" | "listing-inquiry";
 export type ModuleFallbackKind = "whatsapp" | "call";
 export type ModuleMessageKind = "appointment" | "reservation" | "order" | "product" | "service" | "quote";
-export type NativeCapability = "appointment-booking" | "fastfood-order" | "ecommerce-order" | "restaurant-menu";
+export type NativeCapability = "appointment-booking" | "reservation-booking" | "fastfood-order" | "ecommerce-order" | "restaurant-menu";
 
 export interface ModuleFamilyDefinition {
   readonly id: SupportedModuleId;
@@ -67,22 +67,30 @@ assignMetadata(
   { family: "appointment", label: "Randevu Al", icon: "phone", fallback: { kind: "whatsapp", messageKind: "appointment" } }
 );
 assignMetadata(
-  ["restaurant", "cafe", "bar", "food"],
+  ["restaurant"],
   {
     family: "reservation",
     label: "Rezervasyon Yap",
     icon: "ticket",
     fallback: { kind: "whatsapp", messageKind: "reservation" },
-    nativeCapabilities: ["restaurant-menu"]
+    nativeCapabilities: ["reservation-booking", "restaurant-menu"]
   }
 );
 assignMetadata(
-  ["hotel", "hostel", "villa", "camping", "resort", "aparthotel"],
+  ["cafe", "bar", "food"],
+  { family: "reservation", label: "Rezervasyon Yap", icon: "ticket", fallback: { kind: "whatsapp", messageKind: "reservation" } }
+);
+assignMetadata(
+  ["hotel"],
+  { family: "reservation", label: "Odaları Gör", icon: "store", fallback: { kind: "whatsapp", messageKind: "reservation" }, nativeCapabilities: ["reservation-booking"] }
+);
+assignMetadata(
+  ["hostel", "villa", "camping", "resort", "aparthotel"],
   { family: "reservation", label: "Odaları Gör", icon: "store", fallback: { kind: "whatsapp", messageKind: "reservation" } }
 );
 assignMetadata(
   ["rental", "vehicle-rental"],
-  { family: "reservation", label: "Araç Kirala", icon: "store", fallback: { kind: "whatsapp", messageKind: "reservation" } }
+  { family: "reservation", label: "Araç Kirala", icon: "store", fallback: { kind: "whatsapp", messageKind: "reservation" }, nativeCapabilities: ["reservation-booking"] }
 );
 assignMetadata(
   ["gaming", "escape", "bowling"],

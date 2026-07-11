@@ -307,3 +307,10 @@ test("enables native appointment booking only for clinic and beauty definitions"
     assert.deepEqual(resolveModuleFamilyDefinition(moduleId)?.nativeCapabilities, [], `${moduleId} stays fallback-only`);
   }
 });
+
+test("enables native reservations only for the four canonical reservation IDs", () => {
+  const enabled = MODULE_FAMILY_DEFINITIONS
+    .filter((definition) => definition.nativeCapabilities.includes("reservation-booking"))
+    .map((definition) => definition.id);
+  assert.deepEqual(enabled, ["restaurant", "hotel", "rental", "vehicle-rental"]);
+});

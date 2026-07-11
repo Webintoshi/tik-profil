@@ -10,7 +10,7 @@ import {
 } from "../modules/module-family-registry";
 
 export type FoodMenuKind = "fastfood" | "restaurant";
-export type NativeProfilePanelKind = FoodMenuKind | "appointment" | "ecommerce";
+export type NativeProfilePanelKind = FoodMenuKind | "appointment" | "ecommerce" | "reservation";
 
 export interface ProfileActionInput {
   name: string;
@@ -49,6 +49,11 @@ const NATIVE_ACTIONS: Readonly<Record<NativeCapability, NativeActionPresentation
     label: "Randevu Al",
     panelKind: "appointment"
   },
+  "reservation-booking": {
+    icon: "ticket",
+    label: "Rezervasyon Yap",
+    panelKind: "reservation"
+  },
   "fastfood-order": {
     icon: "utensils",
     label: "Sipariş Ver",
@@ -71,6 +76,7 @@ const NATIVE_ACTIONS: Readonly<Record<NativeCapability, NativeActionPresentation
 const LEGACY_NATIVE_CAPABILITIES = Object.freeze(Object.keys(NATIVE_ACTIONS) as NativeCapability[]);
 const NATIVE_CAPABILITY_PRECEDENCE = [
   "fastfood-order",
+  "reservation-booking",
   "restaurant-menu",
   "ecommerce-order",
   "appointment-booking"

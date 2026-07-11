@@ -28,7 +28,7 @@ export function createTask8BrowserCustomer(): CustomerAccount {
       updatedAt: createdAt
     },
     reservations: [
-      { businessId: "task8-hotel", createdAt, endDate: "2026-08-03T10:00:00.000Z", id: "task8-reservation-1", reservationType: "hotel", startDate: "2026-08-01T14:00:00.000Z", status: "Onaylandı", total: 3200 }
+      { businessId: "task8-hotel", businessName: "Task 8 Otel", cancellable: true, createdAt, endDate: "2026-08-03T10:00:00.000Z", id: "task8-reservation-1", reservationType: "hotel", resourceId: "task8-room", resourceName: "Deniz Manzaralı Oda", startDate: "2026-08-01T14:00:00.000Z", status: "Onaylandı", total: 3200 }
     ]
   };
 }

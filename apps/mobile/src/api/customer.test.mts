@@ -151,10 +151,14 @@ const validOrdersResponse = {
 const validReservationsResponse = {
   reservations: [{
     businessId: "business-1",
+    businessName: "Ordu Konak",
+    cancellable: true,
     createdAt: "2026-07-11T10:00:00.000Z",
     endDate: "2026-07-13",
     id: "reservation-1",
     reservationType: "hotel",
+    resourceId: "room-1",
+    resourceName: "Deniz Manzaralı Oda",
     startDate: "2026-07-12",
     status: "confirmed",
     total: 1500

@@ -42,10 +42,34 @@ try {
   process.stdout.write("Task 5 checkout transitions and success passed.\n");
   await verifyAppointmentScrollReachability(browser, { width: 360, height: 640 });
   process.stdout.write("Task 9 appointment small-viewport reachability passed.\n");
+  await verifyReservationScrollReachability(browser, { width: 360, height: 640 });
+  process.stdout.write("Task 9 reservation small-viewport reachability passed.\n");
   process.stdout.write("Task 5 rendered browser regression passed.\n");
 } finally {
   await browser?.close();
   await cleanupBrowserTestProcesses(children, [fixturePort, expoPort]);
+}
+
+async function verifyReservationScrollReachability(browserInstance, viewport) {
+  const page = await browserInstance.newPage({ viewport });
+  const health = monitorPage(page);
+  try {
+    await page.goto(`${appUrl}/business/task9-reservation`, { waitUntil: "networkidle" });
+    const primary = page.getByTestId("business-profile-primary-action");
+    await primary.getByText("Rezervasyon Yap", { exact: true }).waitFor();
+    await primary.click();
+    await page.getByText("Oda ayırt", { exact: true }).waitFor();
+    assert.equal(await page.getByTestId("business-profile-scroll").count(), 1, "reservation surface lost its scroll owner");
+    assert.equal(await page.getByTestId("business-profile-static").count(), 0, "reservation incorrectly used the static menu owner");
+    const submit = page.getByRole("button", { name: /Giriş yap ve devam et|Rezervasyon talebi gönder/ });
+    await submit.scrollIntoViewIfNeeded();
+    const submitBox = await requiredBox(submit, "reservation submit");
+    const navBox = await requiredBox(page.getByTestId("bottom-tab-bar"), "bottom nav");
+    assert.ok(submitBox.y >= 0 && submitBox.y + submitBox.height <= navBox.y, "reservation submit is not reachable above navigation");
+    await assertPageHealthy(page, health);
+  } finally {
+    await page.close();
+  }
 }
 
 async function verifyAppointmentScrollReachability(browserInstance, viewport) {

@@ -109,6 +109,7 @@ function extractProfileFromPublicPage(html, slug) {
     workingHours: [],
     modules,
     hasRestaurantModule: readSerializedBoolean(segment, "hasRestaurantModule", modules.includes("restaurant")),
+    primaryModuleId: readSerializedString(segment, "primaryModuleId") || readSerializedString(segment, "activeModule") || modules[0] || null,
     cartEnabled: readSerializedBoolean(segment, "cartEnabled", true),
     social: {
       website: readSerializedString(socialSegment, "website") || null,
@@ -179,6 +180,7 @@ async function fetchKesfetFallbackProfile(slug) {
     workingHours: [],
     modules: foodBusiness ? ["fastfood"] : [],
     hasRestaurantModule: foodBusiness,
+    primaryModuleId: business.activeModule || business.category || (foodBusiness ? "fastfood" : null),
     cartEnabled: foodBusiness,
     social: {},
   };

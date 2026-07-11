@@ -112,6 +112,17 @@ test("appointment capability becomes native only after canonical options report 
   assert.equal(native.url, null);
 });
 
+test("reservation modules stay on contact fallback until canonical options enable the native panel", () => {
+  for (const moduleId of ["restaurant", "hotel", "rental", "vehicle-rental"]) {
+    const fallback = resolvePrimaryProfileAction(profile({ modules: [moduleId], nativeCapabilities: [] }));
+    const native = resolvePrimaryProfileAction(profile({ modules: [moduleId], nativeCapabilities: ["reservation-booking"] }));
+    assert.equal(fallback.mode, "fallback");
+    assert.equal(native.mode, "native");
+    assert.equal(native.nativeCapability, "reservation-booking");
+    assert.equal(native.panelKind, "reservation");
+  }
+});
+
 test("appointment fallback uses configured WhatsApp and otherwise calls the phone", () => {
   const whatsapp = resolvePrimaryProfileAction(profile({
     modules: ["clinic"],

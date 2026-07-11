@@ -39,10 +39,14 @@ export interface CustomerOrder {
 
 export interface CustomerReservation {
   businessId: string;
+  businessName: string;
+  cancellable: boolean;
   createdAt: string;
   endDate: string;
   id: string;
-  reservationType: "hotel" | "vehicle";
+  reservationType: "hotel" | "restaurant" | "vehicle";
+  resourceId: string;
+  resourceName: string;
   startDate: string;
   status: string;
   total: number;
@@ -292,19 +296,27 @@ function decodeOrdersResponse(payload: JsonObject, status: number): OrdersRespon
 function decodeReservation(value: unknown): CustomerReservation | null {
   if (!isObject(value)
     || !string(value.businessId)
+    || !string(value.businessName)
+    || typeof value.cancellable !== "boolean"
     || !string(value.createdAt)
     || !string(value.endDate)
     || !string(value.id)
-    || (value.reservationType !== "hotel" && value.reservationType !== "vehicle")
+    || (value.reservationType !== "hotel" && value.reservationType !== "restaurant" && value.reservationType !== "vehicle")
+    || !string(value.resourceId)
+    || !string(value.resourceName)
     || !string(value.startDate)
     || !string(value.status)
     || !finiteNumber(value.total)) return null;
   return {
     businessId: value.businessId,
+    businessName: value.businessName,
+    cancellable: value.cancellable,
     createdAt: value.createdAt,
     endDate: value.endDate,
     id: value.id,
     reservationType: value.reservationType,
+    resourceId: value.resourceId,
+    resourceName: value.resourceName,
     startDate: value.startDate,
     status: value.status,
     total: value.total
