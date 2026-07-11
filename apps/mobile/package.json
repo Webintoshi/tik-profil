@@ -12,8 +12,9 @@
     "export:web": "expo export --platform web",
     "proxy": "node ./scripts/dev-admin-api-proxy.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:unit && node ./scripts/mobile-smoke-test.mjs && npm run test:browser:task5",
+    "test": "npm run test:unit && node ./scripts/mobile-smoke-test.mjs && npm run test:browser:task5 && npm run test:browser:task6",
     "test:browser:task5": "node ./scripts/task5-browser-regression.mjs",
+    "test:browser:task6": "node ./scripts/task6-browser-qr-regression.mjs",
     "test:unit": "node --test ./src/**/*.test.mts",
     "build:apk": "node ./scripts/build-android-apk.mjs"
   },
@@ -25,6 +26,7 @@
     "expo": "56.0.8",
     "expo-auth-session": "~56.0.15",
     "expo-blur": "^56.0.3",
+    "expo-camera": "~56.0.8",
     "expo-font": "~56.0.5",
     "expo-haptics": "~56.0.3",
     "expo-image": "~56.0.10",

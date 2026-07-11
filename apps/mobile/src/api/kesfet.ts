@@ -4,6 +4,7 @@ import {
   getCategoryQueryKey
 } from "@/business/category-catalog";
 import { CustomerApiError } from "@/api/customer";
+import { normalizeCityName } from "@/city/normalize-city";
 
 export interface KesfetBusiness {
   id: string;
@@ -953,14 +954,49 @@ export async function fetchCategories(): Promise<CategoriesResponse> {
 }
 
 export async function fetchCityGuide(city: string): Promise<CityGuideResponse | null> {
-  if (!city.trim()) {
+  const requestedCity = city.trim();
+  const normalizedCity = normalizeCityName(requestedCity);
+  if (!normalizedCity) {
     return null;
   }
 
-  return getJson<CityGuideResponse | null>(
-    buildUrl("/api/cities", { name: city.trim() }),
-    city.trim().toLocaleLowerCase("tr-TR") === "ordu" ? LOCAL_ORDU_CITY_GUIDE : null
+  const fallback = normalizedCity === "ordu" ? LOCAL_ORDU_CITY_GUIDE : null;
+  const response = await getJson<unknown>(
+    buildUrl("/api/cities", { name: requestedCity }),
+    null
   );
+
+  return isCityGuideResponse(response) && normalizeCityName(response.name) === normalizedCity
+    ? response
+    : fallback;
+}
+
+function isCityGuideResponse(value: unknown): value is CityGuideResponse {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const guide = value as Record<string, unknown>;
+  return isNonEmptyString(guide.id)
+    && isNonEmptyString(guide.name)
+    && typeof guide.plate === "number"
+    && Number.isFinite(guide.plate)
+    && isNonEmptyString(guide.coverImage)
+    && Array.isArray(guide.places)
+    && guide.places.every((place) => {
+      if (typeof place !== "object" || place === null) {
+        return false;
+      }
+      const item = place as Record<string, unknown>;
+      return isNonEmptyString(item.id)
+        && isNonEmptyString(item.name)
+        && isNonEmptyString(item.image)
+        && isNonEmptyString(item.category);
+    });
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 export async function logQrScan(business: Pick<KesfetBusiness, "id" | "slug">) {

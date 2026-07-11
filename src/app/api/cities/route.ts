@@ -3,6 +3,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { AppError } from "@/lib/errors";
 import { assertPlatformAdmin, publicReadOnly } from "@/server/auth/guards";
+import { resolveCityGet } from "./city-lookup";
 
 const dataFilePath = path.join(process.cwd(), "src/lib/data/cities.json");
 
@@ -11,16 +12,14 @@ export async function GET(request: Request) {
         publicReadOnly();
 
         const { searchParams } = new URL(request.url);
-        const name = searchParams.get("name");
         const fileContents = await fs.readFile(dataFilePath, "utf8");
-        const cities = JSON.parse(fileContents);
+        const cities = JSON.parse(fileContents) as unknown[];
+        const result = resolveCityGet(
+            cities,
+            searchParams.has("name") ? searchParams.get("name") ?? "" : null
+        );
 
-        if (name) {
-            const city = cities.find((item: any) => item.name.toLowerCase() === name.toLowerCase());
-            return NextResponse.json(city || null);
-        }
-
-        return NextResponse.json(cities);
+        return NextResponse.json(result.body, { status: result.status });
     } catch (error) {
         console.error("City API Error:", error);
         return NextResponse.json({ error: "Failed to load city data" }, { status: 500 });

@@ -14,7 +14,7 @@ import { BusinessCard } from "@/components/business/business-card";
 import { EmptyState } from "@/components/business/empty-state";
 import { Icon } from "@/components/common/Icon";
 import { BusinessCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
-import { PILOT_CITY } from "@/data/ordu-discovery";
+import { createLatestExploreRequestGuard, resolveExploreCity } from "@/explore/explore-city";
 import { useDiscoveryStore } from "@/state/discovery-store";
 import { colors, radii, shadows, spacing, typography } from "@/theme/tokens";
 import { useThemeMode } from "@/theme/theme-store";
@@ -26,13 +26,15 @@ export default function ExploreScreen() {
   const [businesses, setBusinesses] = React.useState<KesfetBusiness[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const requestGuardRef = React.useRef(createLatestExploreRequestGuard());
 
   const cityName = React.useMemo(
-    () => resolveCityName(discovery.savedAddressLabel) ?? discovery.lastSelectedCity ?? PILOT_CITY,
+    () => resolveExploreCity(discovery.savedAddressLabel, discovery.lastSelectedCity),
     [discovery.lastSelectedCity, discovery.savedAddressLabel]
   );
 
   const loadExplore = React.useCallback(async (refreshing = false) => {
+    const requestId = requestGuardRef.current.begin();
     if (refreshing) {
       setIsRefreshing(true);
     } else {
@@ -42,22 +44,32 @@ export default function ExploreScreen() {
     try {
       const [guideResponse, businessResponse] = await Promise.all([
         fetchCityGuide(cityName),
-        fetchDiscoveryBusinesses({ limit: 16 })
+        fetchDiscoveryBusinesses({ city: cityName, limit: 16 })
       ]);
 
+      if (!requestGuardRef.current.isCurrent(requestId)) {
+        return;
+      }
       setCityGuide(guideResponse);
       setBusinesses(businessResponse.businesses);
     } catch {
+      if (!requestGuardRef.current.isCurrent(requestId)) {
+        return;
+      }
       setCityGuide(null);
       setBusinesses([]);
     } finally {
+      if (!requestGuardRef.current.isCurrent(requestId)) {
+        return;
+      }
       setIsLoading(false);
       setIsRefreshing(false);
     }
   }, [cityName]);
 
   React.useEffect(() => {
-    loadExplore();
+    void loadExplore();
+    return () => requestGuardRef.current.invalidate();
   }, [loadExplore]);
 
   const guidePlaces = cityGuide?.places ?? [];
@@ -404,15 +416,6 @@ function HorizontalSkeletonRow() {
 function isFoodBusiness(business: KesfetBusiness) {
   const haystack = `${business.category} ${business.categoryLabel} ${business.name}`.toLocaleLowerCase("tr-TR");
   return ["restoran", "fast", "food", "burger", "kahve", "kafe", "yeme"].some((term) => haystack.includes(term));
-}
-
-function resolveCityName(address: string | null) {
-  if (!address) {
-    return null;
-  }
-
-  const knownCities = ["Ordu"];
-  return knownCities.find((city) => address.toLocaleLowerCase("tr-TR").includes(city.toLocaleLowerCase("tr-TR"))) ?? null;
 }
 
 const cityCoverFallback = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=1200&auto=format&fit=crop";

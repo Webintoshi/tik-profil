@@ -12,7 +12,6 @@ import {
   fetchPublicFoodMenu,
   fetchPublicProfile,
   getLocalDiscoveryBootstrap,
-  logQrScan,
   resolveTikProfilAssetUrl,
   type KesfetBusiness,
   type PublicEcommerceCategory,
@@ -127,7 +126,6 @@ export default function BusinessDetailScreen() {
         setBusiness(null);
         setIsLoading(false);
 
-        logQrScan({ id: profileResponse.profile.id, slug: profileResponse.profile.slug }).catch(() => undefined);
         return;
       }
 
@@ -142,9 +140,6 @@ export default function BusinessDetailScreen() {
       setBusiness(matchedBusiness);
       setIsLoading(false);
 
-      if (matchedBusiness) {
-        logQrScan(matchedBusiness).catch(() => undefined);
-      }
     }
 
     loadProfile().catch(() => {

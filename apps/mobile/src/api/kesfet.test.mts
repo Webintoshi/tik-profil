@@ -61,3 +61,69 @@ test("local city guide fallback identifies itself as Ordu", async () => {
   assert.equal(cityGuide.id, "ordu");
   assert.equal(cityGuide.name, "Ordu");
 });
+
+test("city guide rejects a wrong-city success body and uses the Ordu fallback", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({
+    id: "istanbul",
+    name: "İstanbul",
+    plate: 34,
+    coverImage: "https://example.com/istanbul.jpg",
+    places: [{ id: "galata", name: "Galata", image: "https://example.com/galata.jpg", category: "Tarihi" }]
+  });
+
+  try {
+    const cityGuide = await fetchCityGuide("Ordu");
+    assert.ok(cityGuide);
+    assert.equal(cityGuide.id, "ordu");
+    assert.equal(cityGuide.name, "Ordu");
+    assert.equal(cityGuide.plate, 52);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("city guide rejects malformed success bodies and uses the Ordu fallback", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({
+    id: "ordu",
+    name: "Ordu",
+    plate: "52",
+    coverImage: "",
+    places: "not-an-array"
+  });
+
+  try {
+    const cityGuide = await fetchCityGuide("Ordu");
+    assert.ok(cityGuide);
+    assert.equal(cityGuide.id, "ordu");
+    assert.equal(cityGuide.plate, 52);
+    assert.ok(Array.isArray(cityGuide.places));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("city guide accepts a valid identity match and requests the trimmed city", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  const canonicalOrdu = {
+    id: "ordu-live",
+    name: "Ordu",
+    plate: 52,
+    coverImage: "https://example.com/ordu.jpg",
+    places: [{ id: "boztepe", name: "Boztepe", image: "https://example.com/boztepe.jpg", category: "Manzara" }]
+  };
+  globalThis.fetch = async (input) => {
+    requestedUrl = String(input);
+    return Response.json(canonicalOrdu);
+  };
+
+  try {
+    const cityGuide = await fetchCityGuide("  Ordu  ");
+    assert.deepEqual(cityGuide, canonicalOrdu);
+    assert.equal(new URL(requestedUrl).searchParams.get("name"), "Ordu");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

@@ -51,6 +51,7 @@ for (const dependency of [
   "expo-location",
   "expo-haptics",
   "expo-image",
+  "expo-camera",
   "expo-auth-session",
   "expo-web-browser",
   "expo-secure-store"
@@ -165,6 +166,23 @@ if (missingProfileActions.length > 0) {
 
 if (duplicateProfileActions.length > 0) {
   throw new Error(`Mobile profile action coverage has duplicate modules: ${[...new Set(duplicateProfileActions)].join(", ")}`);
+}
+
+const cameraPlugin = appConfig.expo.plugins?.find((plugin) => (
+  Array.isArray(plugin) && plugin[0] === "expo-camera"
+));
+
+if (
+  !cameraPlugin
+  || cameraPlugin[1]?.barcodeScannerEnabled !== true
+  || cameraPlugin[1]?.recordAudioAndroid !== false
+  || typeof cameraPlugin[1]?.cameraPermission !== "string"
+) {
+  throw new Error("Expo Camera must be configured for QR scanning without microphone access.");
+}
+
+if (combined.includes("Kamera ile QR profil açma akışı bu kısa yola bağlanacak.")) {
+  throw new Error("QR scanner placeholder copy must not remain in production source.");
 }
 
 for (const expected of [
