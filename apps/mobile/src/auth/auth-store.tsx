@@ -20,6 +20,7 @@ import { createLogoutMarkerStorage } from "./logout-marker-storage";
 import { createSessionController } from "./session-controller";
 import { createSessionStorage } from "./secure-session-storage";
 import type { SessionStatus } from "./session-state";
+import { createTask8BrowserCustomer } from "./task8-browser-session";
 
 export { isTokenExpired, parseStoredSession, reduceSession, shouldRefresh } from "./session-state";
 
@@ -41,6 +42,13 @@ export interface CustomerSession {
 const CustomerSessionContext = createContext<CustomerSession | null>(null);
 
 export function CustomerSessionProvider({ children }: { children: ReactNode }) {
+  if (Platform.OS === "web" && process.env.EXPO_PUBLIC_TASK8_BROWSER_FIXTURES === "1") {
+    return <Task8BrowserSessionProvider>{children}</Task8BrowserSessionProvider>;
+  }
+  return <RuntimeCustomerSessionProvider>{children}</RuntimeCustomerSessionProvider>;
+}
+
+function RuntimeCustomerSessionProvider({ children }: { children: ReactNode }) {
   const storage = useMemo(() => createSessionStorage(Platform.OS), []);
   const logoutMarker = useMemo(() => createLogoutMarkerStorage(), []);
   const controller = useMemo(() => createSessionController({
@@ -96,6 +104,27 @@ export function CustomerSessionProvider({ children }: { children: ReactNode }) {
     updateAvatar
   }), [controller, saveAddress, saveProfile, state, updateAvatar]);
 
+  return <CustomerSessionContext.Provider value={value}>{children}</CustomerSessionContext.Provider>;
+}
+
+function Task8BrowserSessionProvider({ children }: { children: ReactNode }) {
+  const signedOut = typeof globalThis.location !== "undefined"
+    && new URLSearchParams(globalThis.location.search).get("task8Auth") === "signed-out";
+  const customer = useMemo(createTask8BrowserCustomer, []);
+  const value = useMemo<CustomerSession>(() => ({
+    accessToken: signedOut ? null : "task8-browser-access",
+    customer: signedOut ? null : customer,
+    error: null,
+    refreshCustomer: async () => undefined,
+    runAuthenticated: async () => undefined,
+    saveAddress: async () => true,
+    saveProfile: async () => true,
+    signIn: async () => undefined,
+    signOut: async () => undefined,
+    signUp: async () => undefined,
+    status: signedOut ? "signed_out" : "signed_in",
+    updateAvatar: async () => true
+  }), [customer, signedOut]);
   return <CustomerSessionContext.Provider value={value}>{children}</CustomerSessionContext.Provider>;
 }
 

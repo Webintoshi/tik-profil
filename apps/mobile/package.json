@@ -12,10 +12,11 @@
     "export:web": "expo export --platform web",
     "proxy": "node ./scripts/dev-admin-api-proxy.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:unit && node ./scripts/mobile-smoke-test.mjs && npm run test:browser:task5 && npm run test:browser:task6 && npm run test:browser:task7",
+    "test": "npm run test:unit && node ./scripts/mobile-smoke-test.mjs && npm run test:browser:task5 && npm run test:browser:task6 && npm run test:browser:task7 && npm run test:browser:task8",
     "test:browser:task5": "node ./scripts/task5-browser-regression.mjs",
     "test:browser:task6": "node ./scripts/task6-browser-qr-regression.mjs",
     "test:browser:task7": "node ./scripts/task7-browser-regression.mjs",
+    "test:browser:task8": "node ./scripts/task8-browser-regression.mjs",
     "test:unit": "node --test ./src/**/*.test.mts",
     "build:apk": "node ./scripts/build-android-apk.mjs"
   },

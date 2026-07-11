@@ -14,14 +14,14 @@ export const brandCatalog = {
   800: "#31502A",
   900: "#253F24",
   950: "#172918",
-  primary: "#EE0650",
+  primary: "#D90546",
   hero: "#FFD9E6",
   secondary: "#000000",
-  deep: "#000000",
+  deep: "#A60035",
   cream: "#FAFAFA",
   soft: "#FFE8F0",
-  glow: "rgba(238,6,80,0.22)",
-  tint: "rgba(238,6,80,0.10)",
+  glow: "rgba(217,5,70,0.22)",
+  tint: "rgba(217,5,70,0.10)",
   scrim: "rgba(0,0,0,0.64)",
   badge: "rgba(0,0,0,0.88)",
   onPrimary: "#FFFFFF"
@@ -38,6 +38,7 @@ export interface ThemeColors {
   mutedStrong: string;
   border: string;
   borderStrong: string;
+  borderBrand: string;
   brand: string;
   brandHero: string;
   brandDeep: string;
@@ -47,6 +48,9 @@ export interface ThemeColors {
   brandScrim: string;
   brandBadge: string;
   onBrand: string;
+  surfacePressed: string;
+  surfaceSelected: string;
+  focusRing: string;
   accent: string;
   accentDeep: string;
   accentSoft: string;
@@ -86,7 +90,8 @@ const lightColors: ThemeColors = {
   muted: "#65656E",
   mutedStrong: "#34343A",
   border: "#ECECF1",
-  borderStrong: "#F2A6BD",
+  borderStrong: "#B9B9C2",
+  borderBrand: "#E684A2",
   brand: brandCatalog.primary,
   brandHero: brandCatalog.hero,
   brandDeep: brandCatalog.deep,
@@ -96,25 +101,28 @@ const lightColors: ThemeColors = {
   brandScrim: brandCatalog.scrim,
   brandBadge: brandCatalog.badge,
   onBrand: brandCatalog.onPrimary,
-  accent: "#000000",
-  accentDeep: "#000000",
-  accentSoft: "#F2F2F4",
-  onAccent: "#FFFFFF",
+  surfacePressed: "#F2F2F5",
+  surfaceSelected: "#FFF0F5",
+  focusRing: "#C6003E",
+  accent: "#FFBF41",
+  accentDeep: "#6B4300",
+  accentSoft: "#FFF3D5",
+  onAccent: "#172918",
   navGlass: "#000000",
   navGlassDeep: "#000000",
   navGlassSoft: "rgba(238,6,80,0.18)",
   categorySurface: "#FFFFFF",
   categorySurfaceRaised: "#FFF3F7",
-  categoryIcon: "#EE0650",
-  categoryIconShadow: "rgba(238,6,80,0.22)",
-  teal: "#EE0650",
-  tealSoft: "#FFE8F0",
-  coral: "#EE0650",
-  coralSoft: "#FFE8F0",
-  violet: brandCatalog.primary,
-  violetSoft: brandCatalog.soft,
-  blue: brandCatalog.primary,
-  blueSoft: brandCatalog.soft,
+  categoryIcon: "#D90546",
+  categoryIconShadow: "rgba(217,5,70,0.22)",
+  teal: "#0F766E",
+  tealSoft: "#CCFBF1",
+  coral: "#E11D48",
+  coralSoft: "#FFE4E6",
+  violet: "#7C3AED",
+  violetSoft: "#EDE9FE",
+  blue: "#2563EB",
+  blueSoft: "#DBEAFE",
   success: "#16A34A",
   danger: "#DC2626",
   disabled: "#F1F1F4",
@@ -135,35 +143,39 @@ const darkColors: ThemeColors = {
   muted: "#A7B89B",
   mutedStrong: "#C3D0B6",
   border: "#274132",
-  borderStrong: "#45643D",
-  brand: "#FFBF41",
+  borderStrong: "#557060",
+  borderBrand: "rgba(255,107,149,0.58)",
+  brand: "#FF4D7F",
   brandHero: "#16271E",
-  brandDeep: "#FBE2A0",
-  brandSoft: "rgba(255,191,65,0.16)",
-  brandGlow: "rgba(255,191,65,0.24)",
-  brandTint: "rgba(144,193,117,0.14)",
+  brandDeep: "#FF8CAB",
+  brandSoft: "rgba(255,77,127,0.16)",
+  brandGlow: "rgba(255,77,127,0.24)",
+  brandTint: "rgba(255,77,127,0.14)",
   brandScrim: "rgba(7,18,15,0.74)",
-  brandBadge: "rgba(255,191,65,0.20)",
-  onBrand: "#172918",
-  accent: "#90C175",
-  accentDeep: "#B9D99E",
-  accentSoft: "rgba(144,193,117,0.16)",
-  onAccent: "#07120F",
+  brandBadge: "rgba(255,77,127,0.20)",
+  onBrand: "#07120F",
+  surfacePressed: "#1B2C23",
+  surfaceSelected: "rgba(255,77,127,0.14)",
+  focusRing: "#FF6B95",
+  accent: "#FFBF41",
+  accentDeep: "#FFD37A",
+  accentSoft: "rgba(255,191,65,0.16)",
+  onAccent: "#172918",
   navGlass: "#091410",
   navGlassDeep: "#050B09",
   navGlassSoft: "rgba(255,255,255,0.08)",
   categorySurface: "#16271E",
   categorySurfaceRaised: "#1E3326",
-  categoryIcon: "#FFBF41",
+  categoryIcon: "#FF4D7F",
   categoryIconShadow: "rgba(0,0,0,0.45)",
   teal: "#45D6C0",
   tealSoft: "rgba(69,214,192,0.16)",
-  coral: "#FF6B6B",
+  coral: "#FB7185",
   coralSoft: "rgba(255,107,107,0.15)",
-  violet: "#FFBF41",
-  violetSoft: "rgba(255,191,65,0.14)",
-  blue: "#FFBF41",
-  blueSoft: "rgba(255,191,65,0.14)",
+  violet: "#C4B5FD",
+  violetSoft: "rgba(196,181,253,0.16)",
+  blue: "#60A5FA",
+  blueSoft: "rgba(96,165,250,0.16)",
   success: "#6BD67C",
   danger: "#FF6B6B",
   disabled: "#1A2A22",
@@ -171,7 +183,7 @@ const darkColors: ThemeColors = {
   tabInactive: "rgba(246,247,232,0.54)",
   overlay: "rgba(0,0,0,0.62)",
   inverseText: "#FFFFFF",
-  heroGradient: ["#08100D", "#31502A"]
+  heroGradient: ["#08100D", "#FF4D7F"]
 };
 
 export interface ThemeShadows {
@@ -182,31 +194,31 @@ export interface ThemeShadows {
 
 const lightShadows: ThemeShadows = {
   card: {
-    boxShadow: "0 14px 30px rgba(0, 0, 0, 0.08)",
-    elevation: 4
+    boxShadow: "0 6px 18px rgba(0, 0, 0, 0.07)",
+    elevation: 2
   },
   soft: {
-    boxShadow: "0 8px 18px rgba(0, 0, 0, 0.06)",
+    boxShadow: "0 6px 18px rgba(0, 0, 0, 0.07)",
     elevation: 2
   },
   lifted: {
-    boxShadow: "0 18px 34px rgba(238, 6, 80, 0.16)",
+    boxShadow: "0 18px 34px rgba(0, 0, 0, 0.16)",
     elevation: 5
   }
 };
 
 const darkShadows: ThemeShadows = {
   card: {
-    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.10), 0 0 0 1px rgba(255, 191, 65, 0.03)",
-    elevation: 1
+    boxShadow: "0 4px 14px rgba(0, 0, 0, 0.24)",
+    elevation: 2
   },
   soft: {
-    boxShadow: "0 1px 6px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 191, 65, 0.025)",
-    elevation: 1
+    boxShadow: "0 4px 14px rgba(0, 0, 0, 0.24)",
+    elevation: 2
   },
   lifted: {
-    boxShadow: "0 4px 10px rgba(0, 0, 0, 0.12), 0 0 12px rgba(255, 191, 65, 0.08)",
-    elevation: 2
+    boxShadow: "0 12px 28px rgba(0, 0, 0, 0.38)",
+    elevation: 5
   }
 };
 
@@ -217,10 +229,27 @@ export function getThemeColors(mode: ThemeMode): ThemeColors {
   return mode === "dark" ? darkColors : lightColors;
 }
 
+export function getThemeShadows(mode: ThemeMode): ThemeShadows {
+  return mode === "dark" ? darkShadows : lightShadows;
+}
+
 export function applyThemeMode(mode: ThemeMode) {
   Object.assign(colors, getThemeColors(mode));
-  Object.assign(shadows, mode === "dark" ? darkShadows : lightShadows);
+  Object.assign(shadows, getThemeShadows(mode));
 }
+
+export const interaction = {
+  minTouchTarget: 44,
+  focusRingWidth: 3,
+  focusRingOffset: 2,
+  pressedOpacity: 0.86,
+  disabledOpacity: 0.48,
+  motion: {
+    pressInMs: 90,
+    pressOutMs: 120,
+    selectionMs: 180
+  }
+} as const;
 
 export const radii = {
   sm: 8,

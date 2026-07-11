@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -10,11 +10,12 @@ import {
   type CustomerAddressInput,
   type CustomerProfileUpdate
 } from "@/api/customer";
+import { getAccountLayout, resolveAccountFontScale } from "@/account/account-layout";
 import { useCustomerSession } from "@/auth/auth-store";
 import { AuthEntryCard } from "@/components/account/AuthEntryCard";
 import { AnimatedPressable } from "@/components/common/AnimatedPressable";
 import { Icon, type IconName } from "@/components/common/Icon";
-import { colors, radii, shadows, spacing, typography } from "@/theme/tokens";
+import { colors, interaction, radii, shadows, spacing, typography } from "@/theme/tokens";
 import { useThemeMode } from "@/theme/theme-store";
 import { selectionImpact } from "@/utils/haptics";
 
@@ -103,6 +104,15 @@ function LoadingState() {
 
 function SignedInAccountView() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ task8FontScale?: string | string[] }>();
+  const { fontScale: runtimeFontScale } = useWindowDimensions();
+  const requestedFontScale = Array.isArray(params.task8FontScale) ? params.task8FontScale[0] : params.task8FontScale;
+  const fontScale = resolveAccountFontScale(
+    runtimeFontScale,
+    requestedFontScale ? `?task8FontScale=${encodeURIComponent(requestedFontScale)}` : "",
+    process.env.EXPO_PUBLIC_TASK8_BROWSER_FIXTURES === "1"
+  );
+  const accountLayout = getAccountLayout(fontScale);
   const { mode } = useThemeMode();
   const { customer, error: sessionError, refreshCustomer, saveAddress: persistAddress, saveProfile: persistProfile, signOut, status, updateAvatar } = useCustomerSession();
   const [profileDraft, setProfileDraft] = useState<CustomerProfileUpdate>(emptyProfile);
@@ -239,9 +249,10 @@ function SignedInAccountView() {
         ...shadows.card
       }}>
         <View style={{ alignItems: "center", gap: spacing.sm }}>
-          <Pressable
+          <AnimatedPressable
             accessibilityLabel="Profil fotoğrafını değiştir"
             accessibilityRole="button"
+            accessibilityState={{ busy: busyAction === "avatar", disabled: busyAction !== null }}
             disabled={busyAction !== null}
             onPress={pickAvatar}
             style={({ pressed }) => ({ alignItems: "center", height: 100, justifyContent: "center", opacity: pressed ? 0.86 : 1, width: 100 })}
@@ -266,17 +277,17 @@ function SignedInAccountView() {
             <View style={{ alignItems: "center", backgroundColor: colors.brand, borderRadius: radii.pill, bottom: 2, height: 32, justifyContent: "center", position: "absolute", right: 0, width: 32 }}>
               {busyAction === "avatar" ? <ActivityIndicator color={colors.onBrand} size="small" /> : <Icon color={colors.onBrand} name="plus" size={17} />}
             </View>
-          </Pressable>
-          <Text numberOfLines={1} style={{ ...typography.sectionTitle, color: isDark ? colors.ink : colors.inverseText, maxWidth: "100%" }}>{displayName}</Text>
-          <Text numberOfLines={1} style={{ ...typography.small, color: isDark ? colors.muted : "rgba(255,255,255,0.72)" }}>{customer.email || "E-posta bilgisi yok"}</Text>
+          </AnimatedPressable>
+          <Text numberOfLines={2} style={{ ...typography.sectionTitle, color: isDark ? colors.ink : colors.inverseText, maxWidth: "100%", textAlign: "center" }}>{displayName}</Text>
+          <Text numberOfLines={2} style={{ ...typography.small, color: isDark ? colors.muted : "rgba(255,255,255,0.72)", textAlign: "center" }}>{customer.email || "E-posta bilgisi yok"}</Text>
         </View>
 
-        <View style={{ flexDirection: "row", gap: spacing.sm }}>
+        <View style={{ flexDirection: accountLayout.summaryDirection, gap: spacing.sm }} testID="account-summary">
           {summaryItems.map((item) => (
-            <View key={item.label} style={{ alignItems: "center", flex: 1, gap: spacing.xs, minHeight: 68, justifyContent: "center" }}>
+            <View key={item.label} style={{ alignItems: "center", flex: 1, gap: spacing.xs, minHeight: 68, justifyContent: "center" }} testID={`account-summary-${item.label}`}>
               <Icon color={colors.brand} name={item.icon} size={18} />
               <Text style={{ ...typography.cardTitle, color: isDark ? colors.ink : colors.inverseText }}>{item.value}</Text>
-              <Text adjustsFontSizeToFit numberOfLines={1} style={{ ...typography.tab, color: isDark ? colors.muted : "rgba(255,255,255,0.72)", textAlign: "center" }}>{item.label}</Text>
+              <Text style={{ ...typography.tab, color: isDark ? colors.muted : "rgba(255,255,255,0.72)", textAlign: "center" }}>{item.label}</Text>
             </View>
           ))}
         </View>
@@ -307,10 +318,10 @@ function SignedInAccountView() {
         <View style={{ gap: spacing.md }}>
           {customer.addresses.length === 0 && !editingAddressId ? <EmptyState icon="mapPin" message="Kayıtlı adres yok" /> : null}
           {customer.addresses.map((address) => (
-            <Pressable key={address.id} accessibilityLabel={`${address.label} adresini düzenle`} accessibilityRole="button" onPress={() => beginAddress(address)} style={({ pressed }) => ({ borderBottomColor: colors.border, borderBottomWidth: 1, gap: spacing.xs, minHeight: 60, justifyContent: "center", opacity: pressed ? 0.72 : 1, paddingVertical: spacing.sm })}>
+            <AnimatedPressable key={address.id} accessibilityLabel={`${address.label} adresini düzenle`} accessibilityRole="button" onPress={() => beginAddress(address)} style={{ borderBottomColor: colors.border, borderBottomWidth: 1, gap: spacing.xs, minHeight: 60, justifyContent: "center", paddingVertical: spacing.sm }}>
               <Text style={{ ...typography.label, color: colors.ink }}>{address.label}{address.isDefault ? " · Varsayılan" : ""}</Text>
               <Text style={{ ...typography.small, color: colors.muted }}>{address.fullAddress}, {address.district} / {address.city}</Text>
-            </Pressable>
+            </AnimatedPressable>
           ))}
           {editingAddressId ? (
             <View style={{ gap: spacing.sm }}>
@@ -345,7 +356,7 @@ function SignedInAccountView() {
         </DataList>
       </AccountSection>
 
-      <AnimatedPressable accessibilityRole="button" onPress={() => router.push("/favorites")} pressScale={0.97} style={{ alignItems: "center", borderBottomColor: colors.border, borderBottomWidth: 1, flexDirection: "row", gap: spacing.md, minHeight: 58 }}>
+      <AnimatedPressable accessibilityLabel="Favoriler sekmesine git" accessibilityRole="button" onPress={() => router.navigate("/favorites" as never)} pressScale={0.98} style={{ alignItems: "center", borderBottomColor: colors.border, borderBottomWidth: 1, flexDirection: "row", gap: spacing.md, minHeight: 58 }}>
         <Icon color={colors.brand} name="heart" size={20} />
         <Text style={{ ...typography.body, color: colors.ink, flex: 1 }}>Favoriler</Text>
         <Icon color={colors.muted} name="chevron" size={16} />
@@ -369,10 +380,10 @@ function formatDate(value: string): string {
 function AccountSection({ children, icon, isOpen, onToggle, summary, title }: { children: ReactNode; icon: IconName; isOpen: boolean; onToggle: () => void; summary: string; title: string }) {
   return (
     <View style={{ borderBottomColor: colors.border, borderBottomWidth: 1 }}>
-      <AnimatedPressable accessibilityRole="button" accessibilityState={{ expanded: isOpen }} onPress={onToggle} pressScale={0.985} style={{ alignItems: "center", flexDirection: "row", gap: spacing.md, minHeight: 64, paddingVertical: spacing.sm }}>
+      <AnimatedPressable accessibilityLabel={`${title}, ${summary}`} accessibilityRole="button" accessibilityState={{ expanded: isOpen }} onPress={onToggle} pressScale={0.98} style={{ alignItems: "center", flexDirection: "row", gap: spacing.md, minHeight: 64, paddingVertical: spacing.sm }}>
         <Icon color={colors.brand} name={icon} size={20} />
-        <View style={{ flex: 1 }}><Text style={{ ...typography.cardTitle, color: colors.ink }}>{title}</Text><Text style={{ ...typography.small, color: colors.muted }}>{summary}</Text></View>
-        <Icon color={colors.muted} name="chevronDown" size={16} />
+        <View style={{ flex: 1, minWidth: 0 }}><Text style={{ ...typography.cardTitle, color: colors.ink }}>{title}</Text><Text style={{ ...typography.small, color: colors.muted }}>{summary}</Text></View>
+        <View style={{ transform: [{ rotate: isOpen ? "180deg" : "0deg" }] }}><Icon color={colors.muted} name="chevronDown" size={16} /></View>
       </AnimatedPressable>
       {isOpen ? <View style={{ paddingBottom: spacing.lg }}>{children}</View> : null}
     </View>
@@ -380,20 +391,40 @@ function AccountSection({ children, icon, isOpen, onToggle, summary, title }: { 
 }
 
 function AccountInput({ label, multiline = false, onChangeText, value }: { label: string; multiline?: boolean; onChangeText: (value: string) => void; value: string }) {
+  const [focused, setFocused] = useState(false);
   return (
     <View style={{ borderColor: colors.border, borderRadius: radii.md, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.xs }}>
       <Text style={{ ...typography.small, color: colors.muted }}>{label}</Text>
-      <TextInput accessibilityLabel={label} cursorColor={colors.brand} multiline={multiline} onChangeText={onChangeText} selectionColor={colors.brandSoft} style={[{ ...typography.body, color: colors.ink, minHeight: multiline ? 56 : 36, textAlignVertical: multiline ? "top" : "center" }, { outlineColor: "transparent", outlineStyle: "none", outlineWidth: 0 } as never]} value={value} />
+      <TextInput
+        accessibilityLabel={label}
+        cursorColor={colors.brand}
+        multiline={multiline}
+        onBlur={() => setFocused(false)}
+        onChangeText={onChangeText}
+        onFocus={() => setFocused(true)}
+        selectionColor={colors.brandSoft}
+        style={[{
+          ...typography.body,
+          color: colors.ink,
+          minHeight: multiline ? 64 : interaction.minTouchTarget,
+          outlineColor: focused ? colors.focusRing : "transparent",
+          outlineOffset: 2,
+          outlineStyle: "solid",
+          outlineWidth: focused ? 3 : 0,
+          textAlignVertical: multiline ? "top" : "center"
+        }]}
+        value={value}
+      />
     </View>
   );
 }
 
 function PrimaryButton({ busy = false, label, onPress }: { busy?: boolean; label: string; onPress: () => void }) {
-  return <AnimatedPressable accessibilityRole="button" disabled={busy} onPress={onPress} pressScale={0.97} style={({ pressed }) => ({ alignItems: "center", backgroundColor: colors.brand, borderRadius: radii.md, justifyContent: "center", minHeight: 48, opacity: busy ? 0.62 : pressed ? 0.88 : 1, paddingHorizontal: spacing.lg })}>{busy ? <ActivityIndicator color={colors.onBrand} /> : <Text style={{ ...typography.button, color: colors.onBrand }}>{label}</Text>}</AnimatedPressable>;
+  return <AnimatedPressable accessibilityLabel={busy ? `${label}, işlem sürüyor` : label} accessibilityRole="button" accessibilityState={{ busy, disabled: busy }} disabled={busy} onPress={onPress} pressScale={0.98} style={{ alignItems: "center", backgroundColor: colors.brand, borderRadius: radii.md, justifyContent: "center", minHeight: 48, paddingHorizontal: spacing.lg }}>{busy ? <ActivityIndicator color={colors.onBrand} /> : <Text style={{ ...typography.button, color: colors.onBrand }}>{label}</Text>}</AnimatedPressable>;
 }
 
 function SecondaryButton({ label, onPress }: { label: string; onPress: () => void }) {
-  return <AnimatedPressable accessibilityRole="button" onPress={onPress} pressScale={0.97} style={({ pressed }) => ({ alignItems: "center", borderColor: colors.borderStrong, borderRadius: radii.md, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 48, opacity: pressed ? 0.8 : 1, paddingHorizontal: spacing.lg })}><Text style={{ ...typography.button, color: colors.brandDeep }}>{label}</Text></AnimatedPressable>;
+  return <AnimatedPressable accessibilityLabel={label} accessibilityRole="button" onPress={onPress} pressScale={0.98} style={{ alignItems: "center", borderColor: colors.borderStrong, borderRadius: radii.md, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 48, paddingHorizontal: spacing.lg }}><Text style={{ ...typography.button, color: colors.brandDeep }}>{label}</Text></AnimatedPressable>;
 }
 
 function EmptyState({ icon, message }: { icon: IconName; message: string }) {
@@ -406,19 +437,21 @@ function DataList({ children, empty, icon }: { children: ReactNode; empty: strin
 }
 
 function DataRow({ icon, meta, status, title }: { icon: IconName; meta: string; status: string; title: string }) {
-  return <View style={{ alignItems: "center", borderBottomColor: colors.border, borderBottomWidth: 1, flexDirection: "row", gap: spacing.sm, minHeight: 66, paddingVertical: spacing.sm }}><Icon color={colors.brand} name={icon} size={19} /><View style={{ flex: 1 }}><Text numberOfLines={1} style={{ ...typography.label, color: colors.ink }}>{title}</Text><Text numberOfLines={1} style={{ ...typography.small, color: colors.muted }}>{meta}</Text></View><Text numberOfLines={1} style={{ ...typography.tab, color: colors.brand, maxWidth: 92 }}>{status}</Text></View>;
+  const { fontScale } = useWindowDimensions();
+  const layout = getAccountLayout(fontScale);
+  return <View style={{ alignItems: layout.largeText ? "flex-start" : "center", borderBottomColor: colors.border, borderBottomWidth: 1, flexDirection: layout.dataRowDirection, gap: spacing.sm, minHeight: 66, paddingVertical: spacing.sm }}><Icon color={colors.brand} name={icon} size={19} /><View style={{ flex: layout.largeText ? undefined : 1, minWidth: 0, width: layout.largeText ? "100%" : undefined }}><Text numberOfLines={2} style={{ ...typography.label, color: colors.ink }}>{title}</Text><Text numberOfLines={2} style={{ ...typography.small, color: colors.muted }}>{meta}</Text></View><Text numberOfLines={2} style={{ ...typography.tab, color: colors.brand }}>{status}</Text></View>;
 }
 
 function StatusBanner({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return <View accessibilityRole="alert" style={{ alignItems: "center", backgroundColor: colors.brandSoft, borderColor: colors.borderStrong, borderRadius: radii.md, borderWidth: 1, flexDirection: "row", gap: spacing.sm, minHeight: 48, paddingHorizontal: spacing.md }}><Text style={{ ...typography.small, color: colors.danger, flex: 1 }}>{message}</Text><Pressable accessibilityRole="button" onPress={onRetry} style={{ minHeight: 44, justifyContent: "center" }}><Text style={{ ...typography.label, color: colors.brandDeep }}>Tekrar dene</Text></Pressable></View>;
+  return <View accessibilityRole="alert" style={{ alignItems: "center", backgroundColor: colors.brandSoft, borderColor: colors.borderStrong, borderRadius: radii.md, borderWidth: 1, flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, minHeight: 48, paddingHorizontal: spacing.md }}><Text style={{ ...typography.small, color: colors.danger, flex: 1, minWidth: 180 }}>{message}</Text><AnimatedPressable accessibilityLabel="Hesabı tekrar yükle" accessibilityRole="button" onPress={onRetry} style={{ minHeight: 44, justifyContent: "center" }}><Text style={{ ...typography.label, color: colors.brandDeep }}>Tekrar dene</Text></AnimatedPressable></View>;
 }
 
 function SupportLinksSection({ compact = false }: { compact?: boolean }) {
-  return <View style={{ marginHorizontal: compact ? 0 : spacing.screen }}>{links.map((link) => <AnimatedPressable accessibilityRole="button" key={link.label} onPress={selectionImpact} pressScale={0.985} style={{ alignItems: "center", borderBottomColor: colors.border, borderBottomWidth: 1, flexDirection: "row", gap: spacing.md, minHeight: 52 }}><Icon color={colors.muted} name={link.icon} size={18} /><Text style={{ ...typography.body, color: colors.ink, flex: 1 }}>{link.label}</Text><Icon color={colors.muted} name="chevron" size={16} /></AnimatedPressable>)}</View>;
+  return <View style={{ marginHorizontal: compact ? 0 : spacing.screen }}>{links.map((link) => <View key={link.label} style={{ alignItems: "center", borderBottomColor: colors.border, borderBottomWidth: 1, flexDirection: "row", gap: spacing.md, minHeight: 52 }}><Icon color={colors.muted} name={link.icon} size={18} /><Text style={{ ...typography.body, color: colors.muted, flex: 1 }}>{link.label}</Text></View>)}</View>;
 }
 
 function ThemeModeButton({ currentMode, top }: { currentMode: "light" | "dark"; top: number }) {
   const { setMode } = useThemeMode();
   const isDark = currentMode === "dark";
-  return <Pressable accessibilityLabel={isDark ? "Açık temaya geç" : "Koyu temaya geç"} accessibilityRole="button" onPress={() => setMode(isDark ? "light" : "dark")} style={({ pressed }) => ({ alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radii.pill, borderWidth: 1, height: 44, justifyContent: "center", opacity: pressed ? 0.8 : 1, position: "absolute", right: spacing.screen, top, width: 44, ...shadows.soft })}><Icon color={colors.brand} name={isDark ? "sun" : "moon"} size={19} /></Pressable>;
+  return <AnimatedPressable accessibilityLabel={isDark ? "Açık temaya geç" : "Koyu temaya geç"} accessibilityRole="button" onPress={() => setMode(isDark ? "light" : "dark")} style={{ alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radii.pill, borderWidth: 1, height: 44, justifyContent: "center", position: "absolute", right: spacing.screen, top, width: 44 }}><Icon color={colors.brand} name={isDark ? "sun" : "moon"} size={19} /></AnimatedPressable>;
 }

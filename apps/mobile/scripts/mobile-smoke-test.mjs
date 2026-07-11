@@ -64,10 +64,7 @@ for (const dependency of [
 const requiredCopy = [
   "Yakınındaki işletmeleri keşfet",
   "Konumunu kullan",
-  "Popüler kategoriler",
   "Öne çıkan işletmeler",
-  "İşletme ara",
-  "Son aramalar",
   "Giriş yap",
   "Güvenli giriş ekranı tarayıcıda açılır.",
   "Hesap oluştur",
@@ -109,6 +106,13 @@ for (const file of [
   "src/business/profile-actions.ts",
   "src/state/discovery-store.tsx",
   "src/theme/tokens.ts",
+  "src/accessibility/use-reduced-motion.ts",
+  "src/components/navigation/tab-bar-state.ts",
+  "src/favorites/favorites-state.ts",
+  "src/explore/explore-presentation.ts",
+  "src/account/account-layout.ts",
+  "src/auth/task8-browser-session.ts",
+  "scripts/task8-browser-regression.mjs",
   "src/components/account/AuthEntryCard.tsx",
   "src/components/account/PhoneInputRow.tsx",
   "src/components/account/SocialButton.tsx",
@@ -234,28 +238,37 @@ function listRouteNames(dir, rootDir = dir) {
 
 const mobileTabBarSource = readFileSync(mobileTabBarPath, "utf8");
 const mobileTabsLayoutSource = readFileSync(mobileTabsLayoutPath, "utf8");
-const hiddenTabRoutesMatch = /const hiddenTabRoutes = new Set\(\[([\s\S]*?)\]\);/.exec(mobileTabBarSource);
-const visibleRoutesContract = "const visibleRoutes = state.routes.filter((route) => !hiddenTabRoutes.has(route.name));";
 const coreTabRoutes = ["index", "explore", "favorites", "account"];
-const expectedHiddenTabRoutes = ["business/[slug]", "qr-scan"];
 const tabRouteNames = listRouteNames(mobileTabsPath);
-
-if (!hiddenTabRoutesMatch || !mobileTabBarSource.includes(visibleRoutesContract)) {
-  throw new Error("Mobile bottom navigation route filtering is missing.");
-}
-
-const hiddenTabRoutes = [...hiddenTabRoutesMatch[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
-const visibleTabRoutes = tabRouteNames.filter((route) => !hiddenTabRoutes.includes(route));
+const accountSource = readFileSync(join(root, "app", "(tabs)", "account.tsx"), "utf8");
+const authStoreSource = readFileSync(join(root, "src", "auth", "auth-store.tsx"), "utf8");
 
 if (
-  hiddenTabRoutes.length !== expectedHiddenTabRoutes.length
-  || expectedHiddenTabRoutes.some((route) => !hiddenTabRoutes.includes(route))
-  || visibleTabRoutes.length !== coreTabRoutes.length
-  || coreTabRoutes.some((route) => !visibleTabRoutes.includes(route))
-  || visibleTabRoutes.some((route) => !coreTabRoutes.includes(route))
+  coreTabRoutes.some((route) => !tabRouteNames.includes(route))
+  || !mobileTabBarSource.includes("CORE_TAB_ROUTES.flatMap")
+  || !mobileTabBarSource.includes('testID={`bottom-tab-${routeName}`}')
+  || !mobileTabBarSource.includes('accessibilityRole="tablist"')
+  || !mobileTabBarSource.includes('accessibilityRole="tab"')
+  || !mobileTabBarSource.includes('type: "tabLongPress"')
+  || !mobileTabBarSource.includes("resolveActiveTab")
+  || !mobileTabBarSource.includes("selectionImpact();")
   || !mobileTabsLayoutSource.includes("tabBar={(props) => <MakyajTabBar {...props} />}")
+  || mobileTabsLayoutSource.includes("screenListeners")
+  || !mobileTabsLayoutSource.includes('name="index" options={{ title: "Ana Sayfa" }}')
+  || !mobileTabsLayoutSource.includes('name="explore" options={{ title: "Ke\\u015ffet" }}')
+  || !mobileTabsLayoutSource.includes('name="favorites" options={{ title: "Favoriler" }}')
+  || !mobileTabsLayoutSource.includes('name="account" options={{ title: "Hesab\\u0131m" }}')
+  || accountSource.includes('outlineStyle: "none"')
+  || !authStoreSource.includes('EXPO_PUBLIC_TASK8_BROWSER_FIXTURES === "1"')
 ) {
-  throw new Error("Business profiles must render exactly the four core bottom navigation items.");
+  throw new Error("Task 8 navigation, focus, label, haptic, or browser-fixture wiring is incomplete.");
+}
+
+if (
+  packageJson.scripts?.["test:browser:task8"] !== "node ./scripts/task8-browser-regression.mjs"
+  || !packageJson.scripts?.test?.includes("npm run test:browser:task8")
+) {
+  throw new Error("Task 8 must extend the existing Playwright browser gate.");
 }
 
 console.log("Mobile customer discovery smoke test passed.");

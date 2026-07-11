@@ -2,7 +2,9 @@ import http from "node:http";
 
 const port = Number.parseInt(process.env.TASK5_FIXTURE_PORT || "4176", 10);
 const task7ResponseDelayMs = Number.parseInt(process.env.TASK7_RESPONSE_DELAY_MS || "0", 10);
+const task8BrowserFixtures = process.env.TASK8_BROWSER_FIXTURES === "1";
 const requestCounts = new Map();
+let task8Scenario = "default";
 const products = Array.from({ length: 14 }, (_, index) => ({
   categoryId: index < 7 ? "popular" : "meals",
   description: `Deterministic fixture product ${index + 1}`,
@@ -79,6 +81,16 @@ const task7Businesses = Array.from({ length: 13 }, (_, index) => ({
   rating: null,
   reviewCount: null,
   slug: index === 0 ? "task7-business" : `task7-list-${index}`
+}));
+
+const task8CategoryCycle = [
+  { category: "cafe", categoryLabel: "Kafe" },
+  { category: "health", categoryLabel: "Klinik" },
+  { category: "design", categoryLabel: "Tasarım" }
+];
+const task8Businesses = task7Businesses.map((business, index) => ({
+  ...business,
+  ...task8CategoryCycle[index % task8CategoryCycle.length]
 }));
 
 const task7Guide = {
@@ -176,6 +188,16 @@ const server = http.createServer(async (request, response) => {
     response.writeHead(204).end();
     return;
   }
+  if (url.pathname === "/_task8/scenario" && request.method === "POST") {
+    const scenario = url.searchParams.get("name");
+    if (!task8BrowserFixtures || !["default", "sparse"].includes(scenario)) {
+      response.writeHead(400).end();
+      return;
+    }
+    task8Scenario = scenario;
+    response.writeHead(204).end();
+    return;
+  }
 
   if (request.method === "GET" && url.pathname.startsWith("/api/")) recordRequest(url);
   if (task7ResponseDelayMs > 0 && ["/api/kesfet", "/api/kesfet/categories", "/api/cities"].includes(url.pathname)) {
@@ -197,7 +219,9 @@ const server = http.createServer(async (request, response) => {
   } else if (url.pathname === "/api/qr-scan" && request.method === "POST") {
     body = { success: true };
   } else if (url.pathname === "/api/cities") {
-    body = task7Guide;
+    body = task8BrowserFixtures && task8Scenario === "sparse"
+      ? { ...task7Guide, places: [] }
+      : task7Guide;
   } else if (url.pathname === "/api/kesfet/categories") {
     body = {
       categories: [
@@ -208,13 +232,16 @@ const server = http.createServer(async (request, response) => {
       total: task7Businesses.length
     };
   } else if (url.pathname === "/api/kesfet") {
+    const fixtureBusinesses = task8BrowserFixtures
+      ? task8Scenario === "sparse" ? [] : task8Businesses
+      : task7Businesses;
     body = {
-      businesses: task7Businesses,
+      businesses: fixtureBusinesses,
       hasMore: false,
       limit: Number(url.searchParams.get("limit") || 16),
       page: Number(url.searchParams.get("page") || 1),
       success: true,
-      total: task7Businesses.length
+      total: fixtureBusinesses.length
     };
   } else if (url.pathname === "/api/fastfood/public-menu" || url.pathname === "/api/restaurant/public-menu") {
     const slug = url.searchParams.get("businessSlug") || "";

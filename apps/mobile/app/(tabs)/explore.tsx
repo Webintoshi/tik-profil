@@ -3,6 +3,7 @@ import { Image } from "expo-image";
 import { RefreshControl, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useReducedMotion } from "@/accessibility/use-reduced-motion";
 import {
   fetchCityGuide,
   fetchDiscoveryBusinesses,
@@ -16,12 +17,14 @@ import { EmptyState } from "@/components/business/empty-state";
 import { Icon } from "@/components/common/Icon";
 import { BusinessCardSkeleton, CityHeroImageSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { createLatestExploreRequestGuard, resolveExploreCity } from "@/explore/explore-city";
+import { getExplorePresentation } from "@/explore/explore-presentation";
 import { useDiscoveryStore } from "@/state/discovery-store";
 import { colors, radii, shadows, spacing, typography } from "@/theme/tokens";
 import { useThemeMode } from "@/theme/theme-store";
 
 export default function ExploreScreen() {
   useThemeMode();
+  const reducedMotion = useReducedMotion();
   const discovery = useDiscoveryStore();
   const initialDiscovery = React.useMemo(() => getLocalDiscoveryBootstrap(), []);
   const [cityGuide, setCityGuide] = React.useState<CityGuideResponse | null>(initialDiscovery.cityGuide);
@@ -81,13 +84,20 @@ export default function ExploreScreen() {
     [businesses]
   );
   const featuredBusinesses = React.useMemo(() => {
-    const withImages = businesses.filter((business) => business.coverImage || business.logoUrl);
-    return (withImages.length ? withImages : businesses).slice(0, 6);
+    const localBusinesses = businesses.filter((business) => !isFoodBusiness(business));
+    const withImages = localBusinesses.filter((business) => business.coverImage || business.logoUrl);
+    return (withImages.length ? withImages : localBusinesses).slice(0, 6);
   }, [businesses]);
+  const presentation = getExplorePresentation({
+    businessCount: featuredBusinesses.length,
+    foodCount: foodBusinesses.length,
+    guidePlaceCount: guidePlaces.length,
+    hasGuide: Boolean(cityGuide)
+  });
 
   return (
     <SafeAreaView
-      accessibilityLabel="İşletme ara Son aramalar Popüler kategoriler"
+      accessibilityLabel={`${cityName} keşfet`}
       edges={["top", "left", "right"]}
       style={{ backgroundColor: colors.background, flex: 1 }}
     >
@@ -113,25 +123,40 @@ export default function ExploreScreen() {
         {isLoading ? (
           <CityHeroSkeleton />
         ) : cityGuide ? (
-          <CityHero guide={cityGuide} />
-        ) : (
+          <CityHero guide={cityGuide} reducedMotion={reducedMotion} />
+        ) : !presentation.combinedSparse ? (
           <View style={{ paddingHorizontal: spacing.screen }}>
             <EmptyState
               description={`${cityName} için rehber içeriği eklendiğinde burada görünecek.`}
               icon="compass"
               title="Şehir rehberi hazırlanıyor"
+              variant="inline"
             />
           </View>
-        )}
+        ) : null}
 
-        <GuideSection
-          isLoading={isLoading}
-          places={guidePlaces}
-          title="Şehir rehberleri"
-          subtitle="Gezilecek yerler, rotalar ve yerel öneriler"
-        />
+        {presentation.combinedSparse ? (
+          <View style={{ paddingHorizontal: spacing.screen }}>
+            <EmptyState
+              description={`${cityName} için yeni rehber ve işletme seçkileri hazırlanıyor.`}
+              icon="compass"
+              title="Keşif seçkisi hazırlanıyor"
+              variant="inline"
+            />
+          </View>
+        ) : null}
 
-        <View style={{ gap: spacing.md }}>
+        {!presentation.combinedSparse && presentation.guideState !== "missing-guide" ? (
+          <GuideSection
+            isLoading={isLoading}
+            places={guidePlaces}
+            reducedMotion={reducedMotion}
+            title="Şehir rehberleri"
+            subtitle="Gezilecek yerler, rotalar ve yerel öneriler"
+          />
+        ) : null}
+
+        {isLoading || presentation.businessState === "food-only" || presentation.businessState === "populated" ? <View style={{ gap: spacing.md }}>
           <SectionTitle
             title="Ne nerede yenir?"
             subtitle={`${cityName} içinde öne çıkan yeme içme profilleri`}
@@ -152,18 +177,10 @@ export default function ExploreScreen() {
                 />
               ))}
             </ScrollView>
-          ) : (
-            <View style={{ paddingHorizontal: spacing.screen }}>
-              <EmptyState
-                description="Yeme içme profilleri eklendiğinde bu bölüm otomatik güncellenecek."
-                icon="utensils"
-                title="Öneri bekleniyor"
-              />
-            </View>
-          )}
-        </View>
+          ) : null}
+        </View> : null}
 
-        <View style={{ gap: spacing.md }}>
+        {!presentation.combinedSparse ? <View style={{ gap: spacing.md }}>
           <SectionTitle
             title="Yerel profiller"
             subtitle="Rehber içeriğiyle bağlantılı işletme profilleri"
@@ -191,16 +208,17 @@ export default function ExploreScreen() {
                 description="Yerel profiller eklendiğinde keşfet akışı burada zenginleşecek."
                 icon="store"
                 title="Profil bekleniyor"
+                variant="inline"
               />
             </View>
           )}
-        </View>
+        </View> : null}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function CityHero({ guide }: { guide: CityGuideResponse }) {
+function CityHero({ guide, reducedMotion }: { guide: CityGuideResponse; reducedMotion: boolean }) {
   return (
     <View
       testID="city-hero-loaded"
@@ -210,8 +228,7 @@ function CityHero({ guide }: { guide: CityGuideResponse }) {
         borderRadius: radii.xxl,
         borderWidth: 1,
         marginHorizontal: spacing.screen,
-        overflow: "hidden",
-        ...shadows.card
+        overflow: "hidden"
       }}
     >
       {getCityCoverImage(guide.coverImage) ? (
@@ -219,7 +236,7 @@ function CityHero({ guide }: { guide: CityGuideResponse }) {
           contentFit="cover"
           source={{ uri: getCityCoverImage(guide.coverImage) }}
           style={{ aspectRatio: 1.95, width: "100%" }}
-          transition={220}
+          transition={reducedMotion ? 0 : 180}
         />
       ) : (
         <View
@@ -261,7 +278,7 @@ function CityHero({ guide }: { guide: CityGuideResponse }) {
           <Text style={{ ...typography.body, color: colors.inkSoft }}>{cleanText(guide.tagline)}</Text>
         ) : null}
         {guide.description ? (
-          <Text numberOfLines={3} style={{ ...typography.small, color: colors.muted }}>
+          <Text style={{ ...typography.small, color: colors.muted }}>
             {cleanText(guide.description)}
           </Text>
         ) : null}
@@ -273,11 +290,13 @@ function CityHero({ guide }: { guide: CityGuideResponse }) {
 function GuideSection({
   isLoading,
   places,
+  reducedMotion,
   subtitle,
   title
 }: {
   isLoading: boolean;
   places: CityGuidePlace[];
+  reducedMotion: boolean;
   subtitle: string;
   title: string;
 }) {
@@ -293,7 +312,7 @@ function GuideSection({
           showsHorizontalScrollIndicator={false}
         >
           {places.map((place, index) => (
-            <GuideCard index={index} key={place.id} place={place} />
+            <GuideCard index={index} key={place.id} place={place} reducedMotion={reducedMotion} />
           ))}
         </ScrollView>
       ) : (
@@ -302,6 +321,7 @@ function GuideSection({
             description="Şehir rehberi içerikleri yayına alındığında bu bölüm dolacak."
             icon="compass"
             title="Rehber içeriği bekleniyor"
+            variant="inline"
           />
         </View>
       )}
@@ -309,7 +329,7 @@ function GuideSection({
   );
 }
 
-function GuideCard({ index, place }: { index: number; place: CityGuidePlace }) {
+function GuideCard({ index, place, reducedMotion }: { index: number; place: CityGuidePlace; reducedMotion: boolean }) {
   const category = cleanText(place.category);
   const name = cleanText(place.name);
 
@@ -324,14 +344,14 @@ function GuideCard({ index, place }: { index: number; place: CityGuidePlace }) {
         borderWidth: 1,
         overflow: "hidden",
         width: 188,
-        ...shadows.soft
+        ...shadows.card
       }}
     >
       <Image
         contentFit="cover"
         source={{ uri: getGuideImage(place, index) }}
         style={{ aspectRatio: 1.1, width: "100%" }}
-        transition={180}
+        transition={reducedMotion ? 0 : 180}
       />
       <View style={{ gap: spacing.xs, padding: spacing.md }}>
         <View
@@ -347,7 +367,7 @@ function GuideCard({ index, place }: { index: number; place: CityGuidePlace }) {
             {category}
           </Text>
         </View>
-        <Text numberOfLines={2} style={{ ...typography.cardTitle, color: colors.ink }}>
+        <Text numberOfLines={3} style={{ ...typography.cardTitle, color: colors.ink }}>
           {name}
         </Text>
       </View>

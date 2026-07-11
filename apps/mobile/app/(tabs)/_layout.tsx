@@ -3,7 +3,6 @@ import { Tabs } from "expo-router";
 import { MakyajTabBar } from "@/components/navigation/MakyajTabBar";
 import { colors } from "@/theme/tokens";
 import { useThemeMode } from "@/theme/theme-store";
-import { selectionImpact } from "@/utils/haptics";
 
 export default function TabsLayout() {
   useThemeMode();
@@ -16,41 +15,12 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.brandDeep,
         tabBarInactiveTintColor: colors.tabInactive
       }}
-      screenListeners={{
-        tabPress: () => selectionImpact()
-      }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Keşfet"
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: "Ara"
-        }}
-      />
-      <Tabs.Screen
-        name="favorites"
-        options={{
-          title: "Favoriler"
-        }}
-      />
-      <Tabs.Screen
-        name="account"
-        options={{
-          title: "Hesabım"
-        }}
-      />
-      <Tabs.Screen
-        name="business/[slug]"
-        options={{
-          href: null,
-          title: "İşletme"
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: "Ana Sayfa" }} />
+      <Tabs.Screen name="explore" options={{ title: "Ke\u015ffet" }} />
+      <Tabs.Screen name="favorites" options={{ title: "Favoriler" }} />
+      <Tabs.Screen name="account" options={{ title: "Hesab\u0131m" }} />
+      <Tabs.Screen name="business/[slug]" options={{ href: null, title: "\u0130\u015fletme" }} />
     </Tabs>
   );
 }

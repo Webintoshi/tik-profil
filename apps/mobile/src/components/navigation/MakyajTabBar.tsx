@@ -1,40 +1,52 @@
 import type { BottomTabBarProps } from "expo-router/build/react-navigation/bottom-tabs";
-import { useEffect, useRef } from "react";
-import { Animated, Easing, Platform, Pressable, Text, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { Text, View, useWindowDimensions, type ViewStyle } from "react-native";
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useReducedMotion } from "@/accessibility/use-reduced-motion";
+import { AnimatedPressable } from "@/components/common/AnimatedPressable";
 import { Icon, type IconName } from "@/components/common/Icon";
 import {
   BOTTOM_NAVIGATION_DOCK_HEIGHT,
   getBottomNavigationHeight,
   getBottomNavigationSafeBottom
 } from "@/components/navigation/tab-bar-metrics";
-import { colors, radii, typography } from "@/theme/tokens";
+import {
+  CORE_TAB_ROUTES,
+  getSelectionDuration,
+  getTabBarLayout,
+  resolveActiveTab,
+  type CoreTabRoute
+} from "@/components/navigation/tab-bar-state";
+import { colors, interaction, radii, typography } from "@/theme/tokens";
 import { useThemeMode } from "@/theme/theme-store";
 import { selectionImpact } from "@/utils/haptics";
 
-const tabIcons: Record<string, IconName> = {
+const tabIcons: Record<CoreTabRoute, IconName> = {
   account: "profile",
   explore: "compass",
   favorites: "heart",
   index: "home"
 };
 
-const tabLabels: Record<string, string> = {
+export const tabLabels: Record<CoreTabRoute, string> = {
   account: "Hesab\u0131m",
-  explore: "Keşfet",
+  explore: "Ke\u015ffet",
   favorites: "Favoriler",
   index: "Ana Sayfa"
 };
 
 export function MakyajTabBar({ navigation, state }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { width: viewportWidth } = useWindowDimensions();
   const { isDark } = useThemeMode();
   const safeBottom = getBottomNavigationSafeBottom(insets.bottom);
-  const dockHeight = BOTTOM_NAVIGATION_DOCK_HEIGHT;
-  const barHeight = getBottomNavigationHeight(insets.bottom);
-  const hiddenTabRoutes = new Set(["business/[slug]", "qr-scan"]);
-  const visibleRoutes = state.routes.filter((route) => !hiddenTabRoutes.has(route.name));
+  const activeRoute = resolveActiveTab(state.routes[state.index]?.name);
+  const visibleRoutes = useMemo(
+    () => CORE_TAB_ROUTES.flatMap((name) => state.routes.filter((route) => route.name === name)),
+    [state.routes]
+  );
 
   return (
     <View
@@ -44,21 +56,19 @@ export function MakyajTabBar({ navigation, state }: BottomTabBarProps) {
         borderTopColor: colors.border,
         borderTopWidth: 1,
         bottom: 0,
-        height: barHeight,
+        boxShadow: isDark ? "0 -2px 8px rgba(0,0,0,0.18)" : "0 -10px 24px rgba(0,0,0,0.08)",
+        height: getBottomNavigationHeight(insets.bottom),
         left: 0,
         pointerEvents: "box-none",
         position: "absolute",
-        right: 0,
-        boxShadow: isDark
-          ? "0 -2px 8px rgba(0, 0, 0, 0.10)"
-          : "0 -10px 24px rgba(0, 0, 0, 0.08)"
+        right: 0
       }}
     >
       <View
         style={{
           alignItems: "center",
           bottom: safeBottom,
-          height: dockHeight,
+          height: BOTTOM_NAVIGATION_DOCK_HEIGHT,
           justifyContent: "center",
           left: 0,
           position: "absolute",
@@ -66,24 +76,24 @@ export function MakyajTabBar({ navigation, state }: BottomTabBarProps) {
         }}
       >
         <View
+          accessibilityRole="tablist"
           style={{
             alignItems: "center",
-            backgroundColor: "transparent",
-            borderWidth: 0,
             flexDirection: "row",
             gap: 12,
-            height: dockHeight,
-            justifyContent: "space-between",
+            height: BOTTOM_NAVIGATION_DOCK_HEIGHT,
+            justifyContent: "center",
             paddingHorizontal: 20,
             width: "100%"
           }}
         >
           {visibleRoutes.map((route) => (
             <TabItem
+              focused={activeRoute === route.name}
               key={route.key}
-              focused={state.routes[state.index]?.key === route.key}
               navigation={navigation}
               route={route}
+              viewportWidth={viewportWidth}
             />
           ))}
         </View>
@@ -92,157 +102,107 @@ export function MakyajTabBar({ navigation, state }: BottomTabBarProps) {
   );
 }
 
-function TabItem({
-  focused,
-  navigation,
-  route
-}: {
+function TabItem({ focused, navigation, route, viewportWidth }: {
   focused: boolean;
   navigation: BottomTabBarProps["navigation"];
   route: BottomTabBarProps["state"]["routes"][number];
+  viewportWidth: number;
 }) {
-  const label = tabLabels[route.name] ?? route.name;
-  const iconName = tabIcons[route.name] ?? "home";
-  const activeWidth = getActiveWidth(route.name);
-  const itemSize = 44;
-  const progress = useRef(new Animated.Value(focused ? 1 : 0)).current;
-  const pressScale = useRef(new Animated.Value(1)).current;
+  const reducedMotion = useReducedMotion();
+  const routeName = route.name as CoreTabRoute;
+  const label = tabLabels[routeName];
+  const [measuredLabelWidth, setMeasuredLabelWidth] = useState(label.length * 7);
+  const layout = getTabBarLayout({ measuredLabelWidth, viewportWidth });
+  const width = useSharedValue(focused ? layout.activeWidth : interaction.minTouchTarget);
+  const labelOpacity = useSharedValue(focused && layout.showActiveLabel ? 1 : 0);
 
-  const animatedWidth = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [itemSize, activeWidth]
-  });
-  const animatedBackground = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["rgba(255,255,255,0)", colors.brand]
-  });
-  const animatedBorder = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["rgba(255,255,255,0)", colors.brand]
-  });
-  const labelOpacity = progress.interpolate({
-    inputRange: [0, 0.35, 1],
-    outputRange: [0, 0.55, 1]
-  });
-  const labelTranslate = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [7, 0]
-  });
-  const labelWidth = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, activeWidth - 58]
-  });
-  const labelMargin = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 6]
-  });
   useEffect(() => {
-    Animated.timing(progress, {
-      duration: 230,
-      easing: Easing.bezier(0.2, 0, 0, 1),
-      toValue: focused ? 1 : 0,
-      useNativeDriver: false
-    }).start();
-  }, [focused, progress]);
+    const duration = getSelectionDuration(reducedMotion);
+    const targetWidth = focused && layout.showActiveLabel ? layout.activeWidth : interaction.minTouchTarget;
+    const targetOpacity = focused && layout.showActiveLabel ? 1 : 0;
+    if (duration === 0) {
+      width.value = targetWidth;
+      labelOpacity.value = targetOpacity;
+      return;
+    }
+    const timing = { duration, easing: Easing.out(Easing.cubic) };
+    width.value = withTiming(targetWidth, timing);
+    labelOpacity.value = withTiming(targetOpacity, timing);
+  }, [focused, labelOpacity, layout.activeWidth, layout.showActiveLabel, reducedMotion, width]);
 
-  function animatePress(toValue: number) {
-    Animated.spring(pressScale, {
-      damping: 18,
-      mass: 0.8,
-      stiffness: 220,
-      toValue,
-      useNativeDriver: Platform.OS !== "web"
-    }).start();
-  }
+  const widthStyle = useAnimatedStyle(() => ({ width: width.value }));
+  const labelStyle = useAnimatedStyle(() => ({ opacity: labelOpacity.value }));
 
   function onPress() {
+    const event = navigation.emit({ canPreventDefault: true, target: route.key, type: "tabPress" });
+    if (event.defaultPrevented) return;
     selectionImpact();
-    const event = navigation.emit({
-      canPreventDefault: true,
-      target: route.key,
-      type: "tabPress"
-    });
+    if (!focused) navigation.navigate(route.name);
+  }
 
-    if (!focused && !event.defaultPrevented) {
-      navigation.navigate(route.name);
-    }
+  function onLongPress() {
+    navigation.emit({ target: route.key, type: "tabLongPress" });
   }
 
   return (
-    <Animated.View
-      style={{
-        transform: [{ scale: pressScale }]
-      }}
-    >
-      <Pressable
-        accessibilityLabel={label}
-        accessibilityRole="button"
-        accessibilityState={focused ? { selected: true } : {}}
-        onPress={onPress}
-        onPressIn={() => animatePress(0.96)}
-        onPressOut={() => animatePress(1)}
-        style={{
+    <AnimatedPressable
+      accessibilityLabel={label}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: focused }}
+      aria-selected={focused}
+      onLongPress={onLongPress}
+      onPress={onPress}
+      pressScale={0.98}
+      style={[
+        {
           alignItems: "center",
           borderRadius: radii.pill,
-          height: itemSize,
+          height: interaction.minTouchTarget,
+          justifyContent: "center"
+        },
+        widthStyle as unknown as ViewStyle
+      ]}
+      testID={`bottom-tab-${routeName}`}
+    >
+      <Text
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        onLayout={(event) => setMeasuredLabelWidth(Math.ceil(event.nativeEvent.layout.width))}
+        style={{ ...typography.tab, opacity: 0, position: "absolute" }}
+      >
+        {label}
+      </Text>
+      <View
+        style={{
+          alignItems: "center",
+          backgroundColor: focused ? colors.brand : "transparent",
+          borderColor: focused ? colors.brand : "transparent",
+          borderRadius: radii.pill,
+          borderWidth: 1,
+          flexDirection: "row",
+          height: interaction.minTouchTarget,
           justifyContent: "center",
           overflow: "hidden",
+          paddingHorizontal: 10,
+          width: "100%"
         }}
       >
-        <Animated.View
-          style={{
-            alignItems: "center",
-            backgroundColor: animatedBackground,
-            borderColor: animatedBorder,
-            borderRadius: radii.pill,
-            borderWidth: 1,
-            flexDirection: "row",
-            height: itemSize,
-            justifyContent: "center",
-            overflow: "hidden",
-            paddingHorizontal: 10,
-            width: animatedWidth
-          }}
+        <Icon
+          color={focused ? colors.onBrand : colors.mutedStrong}
+          name={tabIcons[routeName]}
+          size={focused ? 21 : 22}
+          strokeWidth={focused ? 2.7 : 2.35}
+        />
+        <Animated.Text
+          numberOfLines={1}
+          style={[
+            { ...typography.tab, color: colors.onBrand, marginLeft: 6, textAlign: "center" },
+            labelStyle
+          ]}
         >
-          <Icon
-            name={iconName}
-            color={focused ? colors.onBrand : colors.mutedStrong}
-            size={focused ? 21 : 22}
-            strokeWidth={focused ? 2.7 : 2.35}
-          />
-          <Animated.Text
-            numberOfLines={1}
-            style={{
-              ...typography.tab,
-              color: colors.onBrand,
-              fontSize: 11,
-              lineHeight: 13,
-              marginLeft: labelMargin,
-              opacity: labelOpacity,
-              textAlign: "center",
-              transform: [{ translateX: labelTranslate }],
-              width: labelWidth
-            }}
-          >
-            {label}
-          </Animated.Text>
-        </Animated.View>
-      </Pressable>
-    </Animated.View>
+          {label}
+        </Animated.Text>
+      </View>
+    </AnimatedPressable>
   );
-}
-
-function getActiveWidth(routeName: string) {
-  switch (routeName) {
-    case "index":
-      return 122;
-    case "account":
-      return 114;
-    case "favorites":
-      return 116;
-    case "explore":
-      return 102;
-    default:
-      return 88;
-  }
 }

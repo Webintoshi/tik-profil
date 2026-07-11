@@ -6,7 +6,7 @@ import { Pressable, Text, View, type ViewStyle } from "react-native";
 import type { KesfetBusiness } from "@/api/kesfet";
 import { resolveBusinessCategory } from "@/business/category-catalog";
 import { Icon } from "@/components/common/Icon";
-import { colors, radii, shadows, spacing, typography } from "@/theme/tokens";
+import { colors, interaction, radii, shadows, spacing, typography } from "@/theme/tokens";
 import { useThemeMode } from "@/theme/theme-store";
 import { lightImpact } from "@/utils/haptics";
 
@@ -104,6 +104,7 @@ export function BusinessProfileCard({
       }}
     >
       <Pressable
+        accessibilityLabel={`${business.name} işletmesini aç`}
         accessibilityRole="button"
         onPress={openDetail}
         style={({ pressed }) => ({
@@ -243,6 +244,7 @@ function DenseBusinessListCard({
       }}
     >
       <Pressable
+        accessibilityLabel={`${business.name} işletmesini aç`}
         accessibilityRole="button"
         onPress={openDetail}
         style={({ pressed }) => ({
@@ -367,6 +369,7 @@ function HorizontalBusinessCard({
       }}
     >
       <Pressable
+        accessibilityLabel={`${business.name} işletmesini aç`}
         accessibilityRole="button"
         onPress={openDetail}
         style={({ pressed }) => ({
@@ -469,7 +472,7 @@ function FavoriteButton({
   onFavoritePress: (business: KesfetBusiness) => void;
   large?: boolean;
 }) {
-  const size = large ? 46 : 38;
+  const size = large ? 46 : interaction.minTouchTarget;
   const { isDark } = useThemeMode();
   return (
     <Pressable
@@ -480,6 +483,7 @@ function FavoriteButton({
         lightImpact();
         onFavoritePress(business);
       }}
+      testID={`favorite-business-${business.slug}`}
       style={({ pressed }) => ({
         alignItems: "center",
         backgroundColor: favorite ? colors.coralSoft : (isDark ? colors.surface : "rgba(255,255,255,0.95)"),

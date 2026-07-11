@@ -91,7 +91,7 @@ async function verifyRequestDedupeAndWarnings(browserInstance) {
     await page.goto(appUrl, { waitUntil: "domcontentloaded" });
     await page.getByTestId("featured-business-loaded").waitFor();
     await page.waitForTimeout(600);
-    await page.getByTestId("bottom-tab-bar").getByRole("button", { name: "Keşfet", exact: true }).click();
+    await page.getByTestId("bottom-tab-bar").getByRole("tab", { name: "Keşfet", exact: true }).click();
     await page.waitForURL(/\/explore$/);
     await page.getByTestId("city-hero-loaded").waitFor();
     await page.waitForTimeout(2200);

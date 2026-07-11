@@ -108,15 +108,22 @@ test("request owners force pull refresh and treat profile 404 or 410 as terminal
   assert.match(businessRoute, /BusinessProfileSkeleton/);
 });
 
-test("web animation drivers are platform-aware and skeleton motion is shared", async () => {
+test("press and tab motion use shared reduced-motion state without layout wrappers", async () => {
   const [pressable, tabs, skeleton] = await Promise.all([
     readFile(new URL("components/common/AnimatedPressable.tsx", srcRoot), "utf8"),
     readFile(new URL("components/navigation/MakyajTabBar.tsx", srcRoot), "utf8"),
     readFile(new URL("components/ui/Skeleton.tsx", srcRoot), "utf8")
   ]);
 
-  assert.match(pressable, /Platform\.OS !== "web"/);
-  assert.match(tabs, /Platform\.OS !== "web"/);
+  assert.match(pressable, /Animated\.createAnimatedComponent\(Pressable\)/);
+  assert.doesNotMatch(pressable, /<Animated\.View/);
+  assert.match(pressable, /useReducedMotion/);
+  assert.match(pressable, /getPressMotion/);
+  assert.match(pressable, /accessibilityState=/);
+  assert.match(pressable, /outlineOffset/);
+  assert.match(tabs, /useReducedMotion/);
+  assert.match(tabs, /getSelectionDuration/);
+  assert.doesNotMatch(tabs, /Animated\.spring/);
   assert.match(skeleton, /sharedSkeletonOpacity/);
   assert.match(skeleton, /isReduceMotionEnabled/);
 });

@@ -1,63 +1,101 @@
-import { useRef, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
-  Animated,
-  Platform,
   Pressable,
   type GestureResponderEvent,
+  type NativeSyntheticEvent,
   type PressableProps,
   type PressableStateCallbackType,
   type StyleProp,
+  type TargetedEvent,
   type ViewStyle
 } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+
+import { getPressMotion } from "@/accessibility/motion-policy";
+import { useReducedMotion } from "@/accessibility/use-reduced-motion";
+import { colors, interaction } from "@/theme/tokens";
 
 interface AnimatedPressableProps extends Omit<PressableProps, "style" | "children"> {
   children: ReactNode;
   pressScale?: number;
-  style?: StyleProp<ViewStyle> | ((state: PressableStateCallbackType) => StyleProp<ViewStyle>);
+  style?: StyleProp<ViewStyle> | ((state: Pick<PressableStateCallbackType, "pressed">) => StyleProp<ViewStyle>);
 }
 
+const AnimatedPressableHost = Animated.createAnimatedComponent(Pressable);
+
 export function AnimatedPressable({
+  accessibilityState,
   children,
   disabled,
+  onBlur,
+  onFocus,
   onPressIn,
   onPressOut,
-  pressScale = 0.96,
+  pressScale = 0.98,
   style,
   ...props
 }: AnimatedPressableProps) {
-  const scale = useRef(new Animated.Value(1)).current;
+  const reducedMotion = useReducedMotion();
+  const [focused, setFocused] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
-  function animateScale(toValue: number) {
-    Animated.spring(scale, {
-      damping: 14,
-      mass: 0.8,
-      stiffness: 240,
-      toValue,
-      useNativeDriver: Platform.OS !== "web"
-    }).start();
+  function animatePress(pressed: boolean) {
+    const motion = getPressMotion({ pressed, pressScale, reducedMotion });
+    scale.value = withTiming(motion.scale, { duration: motion.duration });
   }
 
   function handlePressIn(event: GestureResponderEvent) {
-    if (!disabled) animateScale(pressScale);
+    if (!disabled) {
+      setPressed(true);
+      animatePress(true);
+    }
     onPressIn?.(event);
   }
 
   function handlePressOut(event: GestureResponderEvent) {
-    if (!disabled) animateScale(1);
+    setPressed(false);
+    if (!disabled) animatePress(false);
     onPressOut?.(event);
   }
 
+  function handleFocus(event: NativeSyntheticEvent<TargetedEvent>) {
+    setFocused(true);
+    onFocus?.(event);
+  }
+
+  function handleBlur(event: NativeSyntheticEvent<TargetedEvent>) {
+    setFocused(false);
+    onBlur?.(event);
+  }
+
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      <Pressable
-        {...props}
-        disabled={disabled}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        style={style}
-      >
-        {children}
-      </Pressable>
-    </Animated.View>
+    <AnimatedPressableHost
+      {...props}
+      accessibilityState={{ ...accessibilityState, disabled: Boolean(disabled) }}
+      disabled={disabled}
+      onBlur={handleBlur}
+      onFocus={handleFocus}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={[
+        typeof style === "function" ? style({ pressed }) : style,
+        {
+          opacity: disabled
+            ? interaction.disabledOpacity
+            : pressed
+              ? interaction.pressedOpacity
+              : 1,
+          outlineColor: focused ? colors.focusRing : "transparent",
+          outlineOffset: interaction.focusRingOffset,
+          outlineStyle: "solid",
+          outlineWidth: focused ? interaction.focusRingWidth : 0
+        },
+        animatedStyle
+      ]}
+    >
+      {children}
+    </AnimatedPressableHost>
   );
 }
