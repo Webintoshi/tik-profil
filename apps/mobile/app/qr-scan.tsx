@@ -18,7 +18,7 @@ export default function QrScanScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
-  const [isFocused, setIsFocused] = React.useState(false);
+  const [cameraGeneration, setCameraGeneration] = React.useState<number | null>(null);
   const [scannerState, setScannerState] = React.useState<ScannerState>("scanning");
   const scanSessionRef = React.useRef(createScanSession());
   useThemeMode();
@@ -29,11 +29,11 @@ export default function QrScanScreen() {
   }, []);
 
   useFocusEffect(React.useCallback(() => {
-    scanSessionRef.current.focus();
-    setIsFocused(true);
+    const focusGeneration = scanSessionRef.current.focus();
+    setCameraGeneration(focusGeneration);
 
     return () => {
-      setIsFocused(false);
+      setCameraGeneration(null);
       if (scanSessionRef.current.blur()) {
         setScannerState("scanning");
       }
@@ -41,7 +41,11 @@ export default function QrScanScreen() {
   }, []));
 
   const handleBarcodeScanned = React.useCallback((result: BarcodeScanningResult) => {
-    const attemptId = scanSessionRef.current.begin();
+    if (cameraGeneration === null) {
+      return;
+    }
+
+    const attemptId = scanSessionRef.current.begin(cameraGeneration);
     if (attemptId === null) {
       return;
     }
@@ -67,11 +71,11 @@ export default function QrScanScreen() {
 
       setScannerState(outcome.status === "invalid" ? "invalid" : "unresolved");
     });
-  }, [router]);
+  }, [cameraGeneration, router]);
 
   const isScannerActive = Boolean(
     permission?.granted
-    && isFocused
+    && cameraGeneration !== null
     && scannerState === "scanning"
     && scanSessionRef.current.state() === "ready"
   );
@@ -79,6 +83,7 @@ export default function QrScanScreen() {
   function goBack() {
     lightImpact();
     scanSessionRef.current.blur();
+    setCameraGeneration(null);
     try {
       if (router.canGoBack()) {
         router.back();
@@ -91,15 +96,20 @@ export default function QrScanScreen() {
   }
 
   function retryScan() {
-    if (!scanSessionRef.current.retry()) {
+    const retryGeneration = scanSessionRef.current.retry();
+    if (retryGeneration === null) {
       return;
     }
     lightImpact();
+    setCameraGeneration(retryGeneration);
     setScannerState("scanning");
   }
 
   function handleCameraMountError() {
-    if (scanSessionRef.current.begin() !== null) {
+    if (
+      cameraGeneration !== null
+      && scanSessionRef.current.begin(cameraGeneration) !== null
+    ) {
       setScannerState("camera-error");
     }
   }

@@ -1,13 +1,13 @@
 import { createScanGate, type ScanGateState } from "./scan-gate";
 
 export interface ScanSession {
-  begin: () => number | null;
+  begin: (expectedGeneration: number) => number | null;
   blur: () => boolean;
-  focus: () => boolean;
+  focus: () => number | null;
   isCurrent: (attemptId: number) => boolean;
   markNavigated: (attemptId: number) => boolean;
-  mount: () => void;
-  retry: () => boolean;
+  mount: () => number;
+  retry: () => number | null;
   state: () => ScanGateState;
   unmount: () => void;
 }
@@ -20,6 +20,7 @@ export function createScanSession(): ScanSession {
 
   function invalidate() {
     generation += 1;
+    return generation;
   }
 
   function isCurrent(attemptId: number) {
@@ -30,12 +31,16 @@ export function createScanSession(): ScanSession {
   }
 
   return {
-    begin() {
-      if (!mounted || !focused || !gate.acquire()) {
+    begin(expectedGeneration) {
+      if (
+        expectedGeneration !== generation
+        || !mounted
+        || !focused
+        || !gate.acquire()
+      ) {
         return null;
       }
-      invalidate();
-      return generation;
+      return invalidate();
     },
     blur() {
       focused = false;
@@ -44,10 +49,10 @@ export function createScanSession(): ScanSession {
     },
     focus() {
       if (!mounted) {
-        return false;
+        return null;
       }
       focused = true;
-      return true;
+      return invalidate();
     },
     isCurrent,
     markNavigated(attemptId) {
@@ -59,13 +64,13 @@ export function createScanSession(): ScanSession {
     },
     mount() {
       mounted = true;
+      return invalidate();
     },
     retry() {
       if (!mounted || !focused || !gate.retry()) {
-        return false;
+        return null;
       }
-      invalidate();
-      return true;
+      return invalidate();
     },
     state() {
       return gate.state();

@@ -21,7 +21,8 @@ test("QR screen owns focused QR-only camera scanning and fallback permissions", 
   assert.match(source, /permission\.canAskAgain/);
   assert.match(source, /requestPermission/);
   assert.match(source, /Linking\.openSettings\(\)/);
-  assert.match(source, /scanSessionRef\.current\.begin\(\)/);
+  assert.match(source, /scanSessionRef\.current\.begin\(cameraGeneration\)/);
+  assert.match(source, /setCameraGeneration\(focusGeneration\)/);
   assert.match(source, /processQrScan/);
   assert.match(source, /logQrScan/);
   assert.match(source, /scanSessionRef\.current\.mount\(\)/);
@@ -39,10 +40,14 @@ test("QR screen owns focused QR-only camera scanning and fallback permissions", 
   assert.ok(markNavigated > routerReplace, "navigation must succeed before the gate becomes permanent");
 
   const callbackStart = source.indexOf("const handleBarcodeScanned");
-  const begin = source.indexOf("const attemptId = scanSessionRef.current.begin()", callbackStart);
+  const capturedGenerationGuard = source.indexOf("if (cameraGeneration === null)", callbackStart);
+  const begin = source.indexOf("const attemptId = scanSessionRef.current.begin(cameraGeneration)", callbackStart);
   const rejectInactive = source.indexOf("if (attemptId === null)", begin);
   const resolving = source.indexOf('setScannerState("resolving")', begin);
-  assert.ok(begin > callbackStart && rejectInactive > begin && resolving > rejectInactive);
+  const callbackEnd = source.indexOf("}, [cameraGeneration, router]);", resolving);
+  assert.ok(capturedGenerationGuard > callbackStart);
+  assert.ok(begin > capturedGenerationGuard && rejectInactive > begin && resolving > rejectInactive);
+  assert.ok(callbackEnd > resolving, "rendered callback must capture its camera generation");
 });
 
 test("business profile never logs QR scans", async () => {

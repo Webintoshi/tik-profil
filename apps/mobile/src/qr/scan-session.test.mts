@@ -26,22 +26,27 @@ const { createScanSession }: typeof import("./scan-session") = await import(
   new URL("./scan-session.ts", import.meta.url).href
 );
 
-test("queued callback after blur cannot acquire and refocus returns ready", () => {
+test("old rendered handler is rejected after blur and refocus while current handler succeeds", () => {
   const session = createScanSession();
   session.mount();
-  session.focus();
+  const oldGeneration = session.focus();
+  assert.ok(oldGeneration !== null);
+  const oldHandler = () => session.begin(oldGeneration);
 
-  const activeAttempt = session.begin();
+  const activeAttempt = oldHandler();
   assert.ok(activeAttempt !== null);
   assert.equal(session.state(), "locked");
 
   session.blur();
   assert.equal(session.isCurrent(activeAttempt), false);
   assert.equal(session.state(), "ready");
-  assert.equal(session.begin(), null, "queued callback after blur must be ignored");
+  assert.equal(oldHandler(), null, "queued callback after blur must be ignored");
 
-  session.focus();
-  const refocusedAttempt = session.begin();
+  const currentGeneration = session.focus();
+  assert.ok(currentGeneration !== null);
+  const currentHandler = () => session.begin(currentGeneration);
+  assert.equal(oldHandler(), null, "old rendered handler must stay stale after refocus");
+  const refocusedAttempt = currentHandler();
   assert.ok(refocusedAttempt !== null);
   assert.equal(session.isCurrent(refocusedAttempt), true);
 });
@@ -49,8 +54,9 @@ test("queued callback after blur cannot acquire and refocus returns ready", () =
 test("stale completion after blur cannot log or navigate a refocused session", async () => {
   const session = createScanSession();
   session.mount();
-  session.focus();
-  const attemptId = session.begin();
+  const generation = session.focus();
+  assert.ok(generation !== null);
+  const attemptId = session.begin(generation);
   assert.ok(attemptId !== null);
 
   let resolveProfile: ((value: {
@@ -75,7 +81,8 @@ test("stale completion after blur cannot log or navigate a refocused session", a
   });
 
   session.blur();
-  session.focus();
+  const refocusedGeneration = session.focus();
+  assert.ok(refocusedGeneration !== null);
   assert.equal(session.state(), "ready");
   resolveProfile?.({
     success: true,
@@ -86,19 +93,37 @@ test("stale completion after blur cannot log or navigate a refocused session", a
   assert.deepEqual(await processing, { status: "stale" });
   assert.equal(logCount, 0);
   assert.equal(replaceCount, 0);
-  assert.ok(session.begin() !== null, "refocused scanner must accept a new callback");
+  assert.ok(session.begin(refocusedGeneration) !== null, "refocused scanner must accept a new callback");
 });
 
 test("successful navigation remains permanent across blur and refocus", () => {
   const session = createScanSession();
   session.mount();
-  session.focus();
-  const attemptId = session.begin();
+  const generation = session.focus();
+  assert.ok(generation !== null);
+  const attemptId = session.begin(generation);
   assert.ok(attemptId !== null);
   assert.equal(session.markNavigated(attemptId), true);
 
   session.blur();
-  session.focus();
+  const refocusedGeneration = session.focus();
+  assert.ok(refocusedGeneration !== null);
   assert.equal(session.state(), "navigated");
-  assert.equal(session.begin(), null);
+  assert.equal(session.begin(refocusedGeneration), null);
+});
+
+test("remount invalidates handlers captured by the previous mount", () => {
+  const session = createScanSession();
+  session.mount();
+  const oldGeneration = session.focus();
+  assert.ok(oldGeneration !== null);
+  const oldHandler = () => session.begin(oldGeneration);
+
+  session.unmount();
+  session.mount();
+  const remountedGeneration = session.focus();
+  assert.ok(remountedGeneration !== null);
+
+  assert.equal(oldHandler(), null);
+  assert.ok(session.begin(remountedGeneration) !== null);
 });

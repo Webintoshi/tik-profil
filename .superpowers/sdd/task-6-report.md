@@ -34,8 +34,8 @@ Task 6 is implemented at the current mobile hardening head. Named city responses
 ## GREEN Evidence
 
 - Focused city/server: 4 tests passed.
-- Focused mobile Task 6: 25 tests passed.
-- Full mobile gate: 117 tests passed, smoke passed, Task 5 browser matrix passed, and separate Task 6 permission/mount-error browser regressions passed.
+- Focused mobile Task 6: 26 tests passed.
+- Full mobile gate: 118 tests passed, smoke passed, Task 5 browser matrix passed, and separate Task 6 permission/mount-error browser regressions passed.
 - Live Next route: no-name returned 3 cities; ` ORDU ` returned canonical Ordu/52; `istanbul` returned canonical Istanbul; unknown returned HTTP 404.
 - Mobile typecheck passed with zero errors.
 - Expo web export produced 13 static routes including `/qr-scan`.
@@ -49,7 +49,7 @@ Task 6 is implemented at the current mobile hardening head. Named city responses
 - Root `npm run typecheck` was executed and remains non-zero on the documented project baseline. The root config includes the mobile tree with the root `@/*` alias and also reports existing upload, panel, timeout and ecommerce errors. Task 6 mobile typecheck, live route compilation, focused server tests and web export all pass.
 - `npx expo install --check` reports pre-existing patch/version drift in the existing Expo dependency set. It does not flag `expo-camera`; Task 6 preserves unrelated package versions.
 - `npm install` reports the existing dependency audit state of 11 moderate and 1 high vulnerability; no broad audit rewrite was applied.
-- One final full-gate attempt hit the existing Task 5 browser test's immediate post-coupon total assertion before its async update. The isolated Task 5 suite passed on the next run without code changes, and the subsequent complete `npm test` gate passed. Task 5 files were not modified by this review fix.
+- Two full-gate attempts exposed a timing-sensitive Task 5 browser assertion that read the post-coupon total before its async state update. The test now polls that existing total locator for the expected value; no Task 5 production code changed. Its focused browser suite and the subsequent complete `npm test` gate passed.
 
 ## External Physical Camera Gap
 
@@ -71,6 +71,22 @@ No physical Android camera was available in this workspace. The parser, gate, fl
 - The browser permission scenario now requires exactly one askable/permanent-denied action and asserts camera-error/Retry absence. A separate camera-granted context injects deterministic `getUserMedia` failure and requires `Kamera açılamadı` plus Retry.
 - The camera frame is an absolute sibling rather than a `CameraView` child and uses style-based pointer events. Only the deliberately induced UserMedia warning remains in the mount-error browser scenario.
 
+## Final Race Fix
+
+### RED
+
+1. A retained rendered camera handler from the previous focus generation acquired the newly ready session after blur and refocus (`3` instead of `null`).
+2. A handler retained across unmount and remount likewise acquired the new session (`2` instead of `null`).
+3. The static screen contract showed that `onBarcodeScanned` called an unversioned `begin()` and did not capture the rendered camera generation.
+
+### GREEN
+
+- `scanSession.begin(expectedGeneration)` now rejects generation mismatch before gate acquisition. Session generation changes across mount/remount, focus/refocus, blur, retry, unmount and accepted attempts.
+- Each rendered `CameraView` callback captures `cameraGeneration`; the old handler is rejected after blur/refocus while the current handler succeeds. A previous-mount handler is also rejected.
+- Async completion remains generation-checked, so stale resolution cannot log or navigate. Successful navigation still permits at most one redirect.
+- The direct orchestration regression retains the old handler/token through blur/refocus and verifies old-handler rejection, current-handler success and stale-completion suppression.
+- The complete mobile gate passes with 118 tests after a test-only wait stabilized the pre-existing asynchronous Task 5 coupon assertion.
+
 ## Changed Files
 
 - `.superpowers/sdd/task-6-report.md`
@@ -84,6 +100,7 @@ No physical Android camera was available in this workspace. The parser, gate, fl
 - `apps/mobile/package.json`
 - `apps/mobile/package-lock.json`
 - `apps/mobile/scripts/mobile-smoke-test.mjs`
+- `apps/mobile/scripts/task5-browser-regression.mjs`
 - `apps/mobile/scripts/task6-browser-qr-regression.mjs`
 - `apps/mobile/src/api/kesfet.ts`
 - `apps/mobile/src/api/kesfet.test.mts`

@@ -181,7 +181,7 @@ async function verifyCheckoutTransitionsAndSuccess(browserInstance, viewport) {
     await page.getByLabel("Telefon", { exact: true }).fill("05551112233");
     await page.getByLabel("Kupon kodu", { exact: true }).fill("TASK5");
     await page.getByRole("button", { name: "Uygula", exact: true }).click();
-    assert.match(await footerTotal.innerText(), /₺116(?:,00)?/);
+    assert.match(await waitForText(footerTotal, /₺116(?:,00)?/), /₺116(?:,00)?/);
 
     const formScroll = page.getByTestId("food-order-form-scroll");
     const formEndScroll = await formScroll.evaluate((element) => {
@@ -291,6 +291,17 @@ async function boxY(locator) {
 
 function assertWithin(actual, expected, delta, message) {
   assert.ok(Math.abs(actual - expected) <= delta, `${message}: ${actual} vs ${expected}`);
+}
+
+async function waitForText(locator, pattern, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  let text = "";
+  while (Date.now() < deadline) {
+    text = await locator.innerText();
+    if (pattern.test(text)) return text;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return text;
 }
 
 function spawnProcess(command, args, extraEnv) {
