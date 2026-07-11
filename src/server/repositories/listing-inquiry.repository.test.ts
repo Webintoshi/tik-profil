@@ -92,9 +92,26 @@ if (repositoryModule) {
             moduleId: "emlak",
             nativeEnabled: true,
         });
-        assert.match(calls.find((call) => call.text.includes("FROM em_listings"))!.text, /business_id::text = \$1[\s\S]*status/i);
+        assert.match(calls.find((call) => call.text.includes("FROM em_listings"))!.text, /business_id::text = \$1/i);
+        assert.doesNotMatch(calls.find((call) => call.text.includes("FROM em_listings"))!.text, /WHERE[\s\S]*status/i);
         assert.match(calls.find((call) => call.text.includes("FROM app_documents"))!.text, /collection = 'em_listings'[\s\S]*businessId[\s\S]*isActive/i);
         assert.ok(calls.slice(1).every((call) => call.values[0] === "business-1"));
+    });
+
+    test("an ineligible physical row still shadows its active legacy duplicate", async () => {
+        const repository = module.createListingInquiryRepository(async (text) => {
+            if (text.includes("FROM businesses business")) return { rowCount: 1, rows: [businessRow] };
+            if (text.includes("FROM em_listings listing")) {
+                return { rowCount: 1, rows: [{ ...physicalListing, data: { ...physicalListing.data, status: "inactive" } }] };
+            }
+            if (text.includes("FROM app_documents document")) return { rowCount: 2, rows: [legacyDuplicate, legacyListing] };
+            throw new Error(`Unexpected query: ${text}`);
+        });
+
+        const options = await repository.getOptions("ordu-emlak");
+
+        assert.equal(options.nativeEnabled, true);
+        assert.deepEqual(options.listings.map((listing) => listing.id), ["listing-2"]);
     });
 
     test("options fail closed when neither listing store has a usable active listing", async () => {

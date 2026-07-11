@@ -12,6 +12,10 @@ test("listing panel owns safe selection customer prefill submit and confirmation
   assert.match(source, /runAuthenticated/);
   assert.match(source, /refreshCustomer/);
   assert.match(source, /accessibilityRole="radio"/);
+  assert.match(source, /AnimatedPressable/);
+  assert.match(source, /accessibilityState=\{\{ busy:/);
+  assert.match(source, /const inputStyle = \{[\s\S]*\.\.\.typography\.body/);
+  assert.doesNotMatch(source, /\nconst inputStyle = \{/);
   assert.match(source, /accessibilityRole="alert"/);
   assert.match(source, /Başvuruyu gönder/);
   assert.match(source, /Başvurunuz alındı/);

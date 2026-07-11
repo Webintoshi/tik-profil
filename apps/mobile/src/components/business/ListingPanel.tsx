@@ -1,9 +1,10 @@
 import { Image } from "expo-image";
 import * as React from "react";
-import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Text, TextInput, View } from "react-native";
 
 import { createListingInquiry, type ListingOptions } from "@/api/listings";
 import { useCustomerSession } from "@/auth/auth-store";
+import { AnimatedPressable } from "@/components/common/AnimatedPressable";
 import { Icon } from "@/components/common/Icon";
 import {
   createListingInquiryIdempotencyState,
@@ -40,6 +41,17 @@ export function ListingPanel({ businessSlug, isLoading, options }: {
   }, [options?.listings, state.listingId]);
 
   const selectedListing = options?.listings.find((listing) => listing.id === state.listingId) ?? null;
+  const inputStyle = {
+    ...typography.body,
+    backgroundColor: colors.backgroundAlt,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    color: colors.ink,
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
+  } as const;
 
   async function submit() {
     if (!selectedListing || !options?.moduleId || !customerName.trim() || customerPhone.replace(/\D/g, "").length < 10 || !state.message.trim()) {
@@ -99,7 +111,7 @@ export function ListingPanel({ businessSlug, isLoading, options }: {
         {options.listings.map((listing) => {
           const selected = listing.id === state.listingId;
           return (
-            <Pressable
+            <AnimatedPressable
               accessibilityLabel={`${listing.title}, ${formatPrice(listing.price, listing.currency)}`}
               accessibilityRole="radio"
               accessibilityState={{ checked: selected }}
@@ -114,7 +126,6 @@ export function ListingPanel({ businessSlug, isLoading, options }: {
                 flexDirection: "row",
                 gap: spacing.md,
                 minHeight: 88,
-                opacity: pressed ? 0.88 : 1,
                 padding: spacing.sm
               })}
             >
@@ -126,7 +137,7 @@ export function ListingPanel({ businessSlug, isLoading, options }: {
                 {listing.locationText ? <Text numberOfLines={1} style={{ ...typography.small, color: colors.muted }}>{listing.locationText}</Text> : null}
                 <Text style={{ ...typography.label, color: colors.brandDeep }}>{formatPrice(listing.price, listing.currency)}</Text>
               </View>
-            </Pressable>
+            </AnimatedPressable>
           );
         })}
       </View>
@@ -135,29 +146,18 @@ export function ListingPanel({ businessSlug, isLoading, options }: {
       <TextInput accessibilityLabel="Telefon" keyboardType="phone-pad" onChangeText={setCustomerPhone} placeholder="Telefon" placeholderTextColor={colors.muted} style={inputStyle} value={customerPhone} />
       <TextInput accessibilityLabel="Başvuru mesajı" multiline onChangeText={(message) => dispatch({ type: "set-message", message })} placeholder="İlan hakkında öğrenmek istediklerinizi yazın" placeholderTextColor={colors.muted} style={[inputStyle, { minHeight: 88, textAlignVertical: "top" }]} value={state.message} />
       {state.error ? <Text accessibilityRole="alert" style={{ ...typography.small, color: colors.coral }}>{state.error}</Text> : null}
-      <Pressable
+      <AnimatedPressable
         accessibilityRole="button"
+        accessibilityState={{ busy: state.status === "submitting", disabled: state.status === "submitting" }}
         disabled={state.status === "submitting"}
         onPress={() => void submit()}
-        style={({ pressed }) => ({ alignItems: "center", backgroundColor: colors.brand, borderRadius: radii.xl, justifyContent: "center", minHeight: 52, opacity: pressed ? 0.88 : 1, paddingHorizontal: spacing.lg })}
+        style={{ alignItems: "center", backgroundColor: colors.brand, borderRadius: radii.xl, justifyContent: "center", minHeight: 52, paddingHorizontal: spacing.lg }}
       >
         <Text style={{ ...typography.button, color: colors.onBrand }}>{state.status === "submitting" ? "Gönderiliyor..." : "Başvuruyu gönder"}</Text>
-      </Pressable>
+      </AnimatedPressable>
     </PanelShell>
   );
 }
-
-const inputStyle = {
-  backgroundColor: colors.backgroundAlt,
-  borderColor: colors.border,
-  borderRadius: radii.lg,
-  borderWidth: 1,
-  color: colors.ink,
-  fontSize: 15,
-  minHeight: 48,
-  paddingHorizontal: spacing.md,
-  paddingVertical: spacing.sm
-} as const;
 
 function PanelShell({ children }: { children: React.ReactNode }) {
   return <View style={{ backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 24, borderWidth: 1, gap: spacing.md, padding: spacing.lg, ...shadows.soft }}>{children}</View>;

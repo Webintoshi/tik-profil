@@ -178,7 +178,6 @@ function physicalListingsQuery(): string {
         SELECT listing.id::text AS id, to_jsonb(listing) AS data
         FROM em_listings listing
         WHERE listing.business_id::text = $1
-          AND lower(COALESCE(listing.status::text, '')) = 'active'
         ORDER BY listing.created_at DESC
         LIMIT 500
     `;
@@ -227,6 +226,12 @@ async function loadOptions(execute: ListingInquiryQueryExecutor, businessSlug: s
         optionalRows(execute, legacyListingsQuery(), [businessId]),
     ]);
     const listings = new Map<string, ListingOption>();
+    const physicalKeys = new Set(
+        physicalRows
+            .map((row) => asText(row.id).trim())
+            .filter(Boolean)
+            .map((id) => `${businessId}:${id}`),
+    );
     for (const row of physicalRows) {
         const listing = mapListing(row);
         if (listing) listings.set(`${businessId}:${listing.id}`, listing);
@@ -234,7 +239,7 @@ async function loadOptions(execute: ListingInquiryQueryExecutor, businessSlug: s
     for (const row of legacyRows) {
         const listing = mapListing(row);
         const key = listing ? `${businessId}:${listing.id}` : "";
-        if (listing && !listings.has(key)) listings.set(key, listing);
+        if (listing && !physicalKeys.has(key) && !listings.has(key)) listings.set(key, listing);
     }
     if (listings.size === 0) return DISABLED_LISTING_OPTIONS;
     return {
