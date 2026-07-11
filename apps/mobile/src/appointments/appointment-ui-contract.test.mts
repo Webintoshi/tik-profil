@@ -25,6 +25,7 @@ test("business host gates appointment capability on actual options and keeps oth
   assert.match(source, /fetchAppointmentOptions/);
   assert.match(source, /nativeEnabled[\s\S]{0,160}appointment-booking|appointment-booking[\s\S]{0,160}nativeEnabled/);
   assert.match(source, /<AppointmentPanel/);
+  assert.match(source, /isStaticOrderSurfaceOpen\s*=\s*Boolean\(openMenuKind\s*\|\|\s*isEcommerceOpen\)/);
   assert.match(source, /<FoodMenuPanel/);
   assert.match(source, /<EcommerceOrderPanel/);
 });
@@ -34,4 +35,6 @@ test("customer account renders appointment history and cancellable controls", as
   assert.match(source, /customer\.appointments/);
   assert.match(source, /cancelAppointment/);
   assert.match(source, /cancellable/);
+  assert.match(source, /Alert\.alert/);
+  assert.match(source, /if \(!cancelled\) throw new Error/);
 });

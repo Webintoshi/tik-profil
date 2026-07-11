@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
-import { ActivityIndicator, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -378,12 +378,32 @@ function SignedInAccountView() {
                   accessibilityRole="button"
                   disabled={cancellingAppointmentId === appointment.id}
                   onPress={() => {
-                    setCancellingAppointmentId(appointment.id);
-                    setLocalError(null);
-                    void runAuthenticated((accessToken) => cancelAppointment(accessToken, appointment.id))
-                      .then(() => refreshCustomer())
-                      .catch((error) => setLocalError(error instanceof Error ? error.message : "Randevu iptal edilemedi."))
-                      .finally(() => setCancellingAppointmentId(null));
+                    Alert.alert(
+                      "Randevuyu iptal et",
+                      `${appointment.serviceName} randevusunu iptal etmek istediğinize emin misiniz?`,
+                      [
+                        { style: "cancel", text: "Vazgeç" },
+                        {
+                          style: "destructive",
+                          text: "İptal et",
+                          onPress: () => {
+                            setCancellingAppointmentId(appointment.id);
+                            setLocalError(null);
+                            void (async () => {
+                              try {
+                                const cancelled = await runAuthenticated((accessToken) => cancelAppointment(accessToken, appointment.id));
+                                if (!cancelled) throw new Error("Oturum doğrulanamadı. Yeniden giriş yapın.");
+                                await refreshCustomer();
+                              } catch (error) {
+                                setLocalError(error instanceof Error ? error.message : "Randevu iptal edilemedi.");
+                              } finally {
+                                setCancellingAppointmentId(null);
+                              }
+                            })();
+                          }
+                        }
+                      ]
+                    );
                   }}
                   style={{ alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.brandSoft, borderRadius: radii.pill, minHeight: 38, justifyContent: "center", paddingHorizontal: spacing.md }}
                 >

@@ -16,6 +16,28 @@ export type AppointmentAction =
   | { type: "submit-error"; message: string }
   | { type: "submit-success"; appointmentId: string };
 
+export interface AppointmentIdempotencyState {
+  key: string;
+  signature: string;
+}
+
+function newIdempotencyKey() {
+  return `appointment-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+export function createAppointmentIdempotencyState(): AppointmentIdempotencyState {
+  return { key: newIdempotencyKey(), signature: "" };
+}
+
+export function resolveAppointmentIdempotency(
+  current: AppointmentIdempotencyState,
+  signature: string
+): AppointmentIdempotencyState {
+  return current.signature === signature
+    ? current
+    : { key: newIdempotencyKey(), signature };
+}
+
 export function createAppointmentState(): AppointmentState {
   return { appointmentId: null, date: null, message: null, serviceId: null, staffId: null, status: "editing", time: null };
 }

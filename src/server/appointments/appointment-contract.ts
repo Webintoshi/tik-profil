@@ -26,6 +26,7 @@ export interface AppointmentStaffOption {
 
 export interface AppointmentSlotOption {
     date: string;
+    serviceId: string;
     staffId: string;
     time: string;
 }
@@ -47,10 +48,12 @@ export interface AppointmentOptions {
 }
 
 export interface AppointmentRecord {
+    businessId: string;
     businessName: string;
     businessSlug: string;
     cancellable: boolean;
     createdAt: string;
+    endsAt?: string | null;
     customerEmail: string | null;
     customerName: string;
     customerPhone: string;
@@ -63,6 +66,7 @@ export interface AppointmentRecord {
     staffId: string;
     staffName: string;
     status: AppointmentStatus;
+    startsAt?: string | null;
     time: string;
     vertical: AppointmentVertical;
 }

@@ -7,8 +7,10 @@ import {
 } from "@/api/appointments";
 import { useCustomerSession } from "@/auth/auth-store";
 import {
+  createAppointmentIdempotencyState,
   createAppointmentState,
-  reduceAppointmentState
+  reduceAppointmentState,
+  resolveAppointmentIdempotency
 } from "@/appointments/appointment-state";
 import { Icon } from "@/components/common/Icon";
 import { colors, radii, shadows, spacing, typography } from "@/theme/tokens";
@@ -21,6 +23,7 @@ export function AppointmentPanel({ businessSlug, isLoading, options }: {
 }) {
   const { customer, refreshCustomer, runAuthenticated, signIn, status: sessionStatus } = useCustomerSession();
   const [state, dispatch] = React.useReducer(reduceAppointmentState, undefined, createAppointmentState);
+  const idempotencyRef = React.useRef(createAppointmentIdempotencyState());
   const [customerName, setCustomerName] = React.useState("");
   const [customerPhone, setCustomerPhone] = React.useState("");
   const [customerEmail, setCustomerEmail] = React.useState("");
@@ -70,7 +73,9 @@ export function AppointmentPanel({ businessSlug, isLoading, options }: {
 
   const selectedService = options.services.find((item) => item.id === state.serviceId);
   const selectedStaff = options.staff.find((item) => item.id === state.staffId);
-  const slots = options.slots.filter((item) => !state.staffId || item.staffId === state.staffId).slice(0, 24);
+  const slots = options.slots.filter((item) => (
+    item.serviceId === state.serviceId && item.staffId === state.staffId
+  )).slice(0, 24);
   const canSubmit = Boolean(
     selectedService && selectedStaff && state.date && state.time
       && customerName.trim().length >= 2 && customerPhone.trim().length >= 7
@@ -85,13 +90,18 @@ export function AppointmentPanel({ businessSlug, isLoading, options }: {
     }
     dispatch({ type: "submit-start" });
     try {
+      const draftSignature = [
+        businessSlug, selectedService!.id, selectedStaff!.id, state.date, state.time,
+        customerName.trim(), customerPhone.trim(), customerEmail.trim(), note.trim()
+      ].join("|");
+      idempotencyRef.current = resolveAppointmentIdempotency(idempotencyRef.current, draftSignature);
       const result = await runAuthenticated((accessToken) => createAppointment(accessToken, {
         businessSlug,
         customerEmail: customerEmail.trim() || null,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         date: state.date!,
-        idempotencyKey: `appointment-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        idempotencyKey: idempotencyRef.current.key,
         note: note.trim() || null,
         serviceId: selectedService!.id,
         staffId: selectedStaff!.id,
@@ -99,6 +109,7 @@ export function AppointmentPanel({ businessSlug, isLoading, options }: {
       }));
       if (!result) throw new Error("Randevu için yeniden giriş yapın.");
       dispatch({ type: "submit-success", appointmentId: result.id });
+      idempotencyRef.current = createAppointmentIdempotencyState();
       await refreshCustomer();
       lightImpact();
     } catch (error) {

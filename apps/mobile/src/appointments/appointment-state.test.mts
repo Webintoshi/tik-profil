@@ -31,4 +31,13 @@ if (stateModule) {
     assert.equal(state.status, "success");
     assert.equal(state.appointmentId, "appointment-1");
   });
+
+  test("lost-response retries reuse one idempotency key until the draft changes", () => {
+    const initial = stateModule.createAppointmentIdempotencyState();
+    const first = stateModule.resolveAppointmentIdempotency(initial, "service-1|staff-1|2026-07-13|10:30");
+    const retry = stateModule.resolveAppointmentIdempotency(first, "service-1|staff-1|2026-07-13|10:30");
+    const changed = stateModule.resolveAppointmentIdempotency(retry, "service-1|staff-1|2026-07-13|11:00");
+    assert.equal(retry.key, first.key);
+    assert.notEqual(changed.key, retry.key);
+  });
 }

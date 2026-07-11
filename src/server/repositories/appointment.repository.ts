@@ -60,10 +60,12 @@ function iso(value: unknown): string {
 function mapRecord(row: QueryResultRow): AppointmentRecord {
     const status = text(row.status) as AppointmentRecord["status"];
     return {
+        businessId: text(row.business_id),
         businessName: text(row.business_name),
         businessSlug: text(row.business_slug),
         cancellable: ACTIVE_STATUSES.has(status),
         createdAt: iso(row.created_at),
+        endsAt: row.ends_at == null ? null : iso(row.ends_at),
         customerEmail: nullableText(row.customer_email),
         customerName: text(row.customer_name),
         customerPhone: text(row.customer_phone),
@@ -76,6 +78,7 @@ function mapRecord(row: QueryResultRow): AppointmentRecord {
         staffId: text(row.staff_id),
         staffName: text(row.staff_name),
         status,
+        startsAt: row.starts_at == null ? null : iso(row.starts_at),
         time: text(row.time_slot).slice(0, 5),
         vertical: row.vertical === "beauty" ? "beauty" : "clinic",
     };
@@ -101,11 +104,18 @@ function normalizeWorkingHours(value: unknown): AppointmentSettings["workingHour
     return normalized;
 }
 
-function generateSlots(
+interface OccupiedAppointmentInterval {
+    end: Date;
+    staffId: string;
+    start: Date;
+}
+
+export function generateAppointmentSlots(
     now: Date,
     settings: AppointmentSettings,
+    services: readonly { durationMinutes: number; id: string }[],
     staffIds: readonly string[],
-    occupied: ReadonlySet<string>,
+    occupied: readonly OccupiedAppointmentInterval[],
 ) {
     const slots: AppointmentOptions["slots"] = [];
     const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
@@ -121,10 +131,17 @@ function generateSlots(
         };
         const start = toMinutes(schedule.start);
         const end = toMinutes(schedule.end);
-        for (const staffId of staffIds) {
-            for (let minute = start; minute + settings.slotMinutes <= end; minute += settings.slotMinutes) {
-                const time = `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
-                if (!occupied.has(`${date}|${time}|${staffId}`)) slots.push({ date, staffId, time });
+        for (const service of services) {
+            for (const staffId of staffIds) {
+                for (let minute = start; minute + service.durationMinutes <= end; minute += settings.slotMinutes) {
+                    const time = `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+                    const candidateStart = appointmentInstant(date, time);
+                    const candidateEnd = new Date(candidateStart.getTime() + service.durationMinutes * 60_000);
+                    const overlaps = occupied.some((item) => item.staffId === staffId
+                        && candidateStart.getTime() < item.end.getTime()
+                        && candidateEnd.getTime() > item.start.getTime());
+                    if (!overlaps) slots.push({ date, serviceId: service.id, staffId, time });
+                }
             }
         }
     }
@@ -136,14 +153,64 @@ export function createAppointmentRepository(
     runTransaction: AppointmentTransactionRunner = async (operation) => operation(execute),
 ) {
     return {
+        async listBusiness(
+            vertical: AppointmentVertical,
+            businessId: string,
+            filters: Readonly<{ date?: string | null; status?: string | null }> = {},
+        ): Promise<AppointmentRecord[]> {
+            const table = vertical === "beauty" ? "beauty_appointments" : "clinic_appointments";
+            const values: unknown[] = [businessId];
+            const clauses = ["business_id = $1"];
+            if (filters.status) {
+                values.push(filters.status);
+                clauses.push(`status = $${values.length}`);
+            }
+            if (filters.date) {
+                values.push(filters.date);
+                clauses.push(`date::date = $${values.length}::date`);
+            }
+            const result = await execute(`
+                SELECT id, business_id, business_name, business_slug, customer_email, customer_name, customer_phone,
+                       date, notes, service_id, service_name, service_price, staff_id, staff_name,
+                       status, time_slot, starts_at, ends_at, created_at, '${vertical}' AS vertical
+                FROM ${table}
+                WHERE ${clauses.join(" AND ")}
+                ORDER BY starts_at DESC, created_at DESC
+                LIMIT 500
+            `, values);
+            return result.rows.map(mapRecord);
+        },
+
+        async updateBusinessStatus(
+            vertical: AppointmentVertical,
+            businessId: string,
+            id: string,
+            status: AppointmentRecord["status"],
+            note?: string,
+        ): Promise<AppointmentRecord> {
+            const table = vertical === "beauty" ? "beauty_appointments" : "clinic_appointments";
+            const result = await execute(`
+                UPDATE ${table}
+                SET status = $3, notes = CASE WHEN $4::text IS NULL THEN notes ELSE $4 END, updated_at = now()
+                WHERE business_id = $1 AND id = $2
+                RETURNING id, business_id, business_name, business_slug, customer_email, customer_name, customer_phone,
+                          date, notes, service_id, service_name, service_price, staff_id, staff_name,
+                          status, time_slot, starts_at, ends_at, created_at, '${vertical}' AS vertical
+            `, [businessId, id, status, note ?? null]);
+            if (!result.rows[0]) throw new AppointmentNotFoundError("Appointment not found for this business.");
+            return mapRecord(result.rows[0]);
+        },
+
         async getOptions(businessSlug: string, now: Date): Promise<AppointmentOptions> {
             const businessResult = await execute(`
                 SELECT id, name, slug,
                        CASE
-                         WHEN active_module = 'clinic' OR EXISTS (
+                         WHEN active_module = 'clinic' THEN 'clinic'
+                         WHEN active_module = 'beauty' THEN 'beauty'
+                         WHEN EXISTS (
                            SELECT 1 FROM business_modules bm WHERE bm.business_id = businesses.id AND bm.module_key = 'clinic' AND bm.is_enabled = true
                          ) THEN 'clinic'
-                         WHEN active_module = 'beauty' OR EXISTS (
+                         WHEN EXISTS (
                            SELECT 1 FROM business_modules bm WHERE bm.business_id = businesses.id AND bm.module_key = 'beauty' AND bm.is_enabled = true
                          ) THEN 'beauty'
                          ELSE NULL
@@ -167,7 +234,7 @@ export function createAppointmentRepository(
                          WHERE business_id = $1 AND is_active = true ORDER BY name`, [business.id]),
                 execute(`SELECT working_hours
                          FROM ${vertical}_settings WHERE business_id = $1 LIMIT 1`, [business.id]),
-                execute(`SELECT date, time_slot, staff_id FROM ${vertical}_appointments
+                execute(`SELECT starts_at, ends_at, staff_id FROM ${vertical}_appointments
                          WHERE business_id = $1 AND status IN ('pending', 'confirmed')
                            AND starts_at >= now() AND starts_at < now() + interval '15 days'`, [business.id]),
             ]);
@@ -187,8 +254,12 @@ export function createAppointmentRepository(
                 price: number(row.price),
             }));
             const staff = staffResult.rows.map((row) => ({ id: text(row.id), name: text(row.name), title: nullableText(row.title) }));
-            const occupied = new Set(occupiedResult.rows.map((row) => `${dateOnly(row.date)}|${text(row.time_slot).slice(0, 5)}|${text(row.staff_id)}`));
-            const slots = generateSlots(now, settings, staff.map((item) => item.id), occupied);
+            const occupied = occupiedResult.rows.map((row) => ({
+                end: new Date(text(row.ends_at)),
+                staffId: text(row.staff_id),
+                start: new Date(text(row.starts_at)),
+            })).filter((item) => !Number.isNaN(item.start.getTime()) && !Number.isNaN(item.end.getTime()));
+            const slots = generateAppointmentSlots(now, settings, services, staff.map((item) => item.id), occupied);
             return {
                 nativeEnabled: services.length > 0 && staff.length > 0 && slots.length > 0,
                 services,
@@ -201,12 +272,12 @@ export function createAppointmentRepository(
 
         async listOwned(appUserId: string): Promise<AppointmentRecord[]> {
             const result = await execute(`
-                SELECT id, business_name, business_slug, customer_email, customer_name, customer_phone,
+                SELECT id, business_id, business_name, business_slug, customer_email, customer_name, customer_phone,
                        date, notes, service_id, service_name, service_price, staff_id, staff_name,
                        status, time_slot, created_at, 'clinic' AS vertical
                 FROM clinic_appointments WHERE app_user_id = $1
                 UNION ALL
-                SELECT id, business_name, business_slug, customer_email, customer_name, customer_phone,
+                SELECT id, business_id, business_name, business_slug, customer_email, customer_name, customer_phone,
                        date, notes, service_id, service_name, service_price, staff_id, staff_name,
                        status, time_slot, created_at, 'beauty' AS vertical
                 FROM beauty_appointments WHERE app_user_id = $1
@@ -221,27 +292,27 @@ export function createAppointmentRepository(
                     const id = randomUUID();
                     const startsAt = appointmentInstant(input.date, input.time);
                     const preflight = await transaction(`
+                        WITH business_context AS (
+                            SELECT b.id,
+                                   CASE
+                                     WHEN b.active_module = 'clinic' THEN 'clinic'
+                                     WHEN b.active_module = 'beauty' THEN 'beauty'
+                                     WHEN EXISTS (SELECT 1 FROM business_modules bm WHERE bm.business_id = b.id AND bm.module_key = 'clinic' AND bm.is_enabled = true) THEN 'clinic'
+                                     WHEN EXISTS (SELECT 1 FROM business_modules bm WHERE bm.business_id = b.id AND bm.module_key = 'beauty' AND bm.is_enabled = true) THEN 'beauty'
+                                   END AS vertical
+                            FROM businesses b WHERE lower(b.slug) = lower($1) LIMIT 1
+                        )
                         SELECT COALESCE(s.duration_minutes, 30) AS duration_minutes, cfg.working_hours
-                        FROM businesses b
-                        JOIN clinic_services s ON s.business_id = b.id AND s.id = $2 AND s.is_active = true
+                        FROM business_context b
+                        JOIN clinic_services s ON b.vertical = 'clinic' AND s.business_id = b.id AND s.id = $2 AND s.is_active = true
                         JOIN clinic_staff st ON st.business_id = b.id AND st.id = $3 AND st.is_active = true
                         LEFT JOIN clinic_settings cfg ON cfg.business_id = b.id
-                        WHERE lower(b.slug) = lower($1) AND (
-                            b.active_module = 'clinic' OR EXISTS (
-                                SELECT 1 FROM business_modules bm WHERE bm.business_id = b.id AND bm.module_key = 'clinic' AND bm.is_enabled = true
-                            )
-                        )
                         UNION ALL
                         SELECT COALESCE(s.duration_minutes, 30), cfg.working_hours
-                        FROM businesses b
-                        JOIN beauty_services s ON s.business_id = b.id AND s.id = $2 AND s.is_active = true
+                        FROM business_context b
+                        JOIN beauty_services s ON b.vertical = 'beauty' AND s.business_id = b.id AND s.id = $2 AND s.is_active = true
                         JOIN beauty_staff st ON st.business_id = b.id AND st.id = $3 AND st.is_active = true
                         LEFT JOIN beauty_settings cfg ON cfg.business_id = b.id
-                        WHERE lower(b.slug) = lower($1) AND (
-                            b.active_module = 'beauty' OR EXISTS (
-                                SELECT 1 FROM business_modules bm WHERE bm.business_id = b.id AND bm.module_key = 'beauty' AND bm.is_enabled = true
-                            )
-                        )
                         LIMIT 1
                     `, [input.businessSlug, input.serviceId, input.staffId]);
                     if (preflight.rows[0]) {
@@ -256,10 +327,12 @@ export function createAppointmentRepository(
                         WITH business_context AS (
                             SELECT b.id, b.name, b.slug,
                                    CASE
-                                     WHEN b.active_module = 'clinic' OR EXISTS (
+                                     WHEN b.active_module = 'clinic' THEN 'clinic'
+                                     WHEN b.active_module = 'beauty' THEN 'beauty'
+                                     WHEN EXISTS (
                                        SELECT 1 FROM business_modules bm WHERE bm.business_id = b.id AND bm.module_key = 'clinic' AND bm.is_enabled = true
                                      ) THEN 'clinic'
-                                     WHEN b.active_module = 'beauty' OR EXISTS (
+                                     WHEN EXISTS (
                                        SELECT 1 FROM business_modules bm WHERE bm.business_id = b.id AND bm.module_key = 'beauty' AND bm.is_enabled = true
                                      ) THEN 'beauty'
                                    END AS vertical
@@ -312,11 +385,11 @@ export function createAppointmentRepository(
                             WHERE app_user_id IS NOT NULL AND idempotency_key IS NOT NULL DO NOTHING
                             RETURNING *, 'beauty' AS vertical
                         )
-                        SELECT id, business_name, business_slug, customer_email, customer_name, customer_phone,
+                        SELECT id, business_id, business_name, business_slug, customer_email, customer_name, customer_phone,
                                date, notes, service_id, service_name, service_price, staff_id, staff_name,
                                status, time_slot, created_at, vertical FROM clinic_insert
                         UNION ALL
-                        SELECT id, business_name, business_slug, customer_email, customer_name, customer_phone,
+                        SELECT id, business_id, business_name, business_slug, customer_email, customer_name, customer_phone,
                                date, notes, service_id, service_name, service_price, staff_id, staff_name,
                                status, time_slot, created_at, vertical FROM beauty_insert
                     `, [
@@ -327,12 +400,12 @@ export function createAppointmentRepository(
                     if (result.rows[0]) return mapRecord(result.rows[0]);
 
                     const existing = await transaction(`
-                        SELECT id, business_name, business_slug, customer_email, customer_name, customer_phone,
+                        SELECT id, business_id, business_name, business_slug, customer_email, customer_name, customer_phone,
                                date, notes, service_id, service_name, service_price, staff_id, staff_name,
                                status, time_slot, created_at, 'clinic' AS vertical FROM clinic_appointments
                         WHERE app_user_id = $1 AND idempotency_key = $2
                         UNION ALL
-                        SELECT id, business_name, business_slug, customer_email, customer_name, customer_phone,
+                        SELECT id, business_id, business_name, business_slug, customer_email, customer_name, customer_phone,
                                date, notes, service_id, service_name, service_price, staff_id, staff_name,
                                status, time_slot, created_at, 'beauty' AS vertical FROM beauty_appointments
                         WHERE app_user_id = $1 AND idempotency_key = $2
@@ -360,11 +433,11 @@ export function createAppointmentRepository(
                     WHERE id = $2 AND app_user_id = $1 AND status IN ('pending', 'confirmed')
                     RETURNING *, 'beauty' AS vertical
                 )
-                SELECT id, business_name, business_slug, customer_email, customer_name, customer_phone,
+                SELECT id, business_id, business_name, business_slug, customer_email, customer_name, customer_phone,
                        date, notes, service_id, service_name, service_price, staff_id, staff_name,
                        status, time_slot, created_at, vertical FROM clinic_update
                 UNION ALL
-                SELECT id, business_name, business_slug, customer_email, customer_name, customer_phone,
+                SELECT id, business_id, business_name, business_slug, customer_email, customer_name, customer_phone,
                        date, notes, service_id, service_name, service_price, staff_id, staff_name,
                        status, time_slot, created_at, vertical FROM beauty_update
             `, [appUserId, id]);

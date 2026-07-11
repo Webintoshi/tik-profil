@@ -32,6 +32,7 @@ export interface AppointmentStaffOption {
 
 export interface AppointmentSlotOption {
   date: string;
+  serviceId: string;
   staffId: string;
   time: string;
 }
@@ -133,8 +134,8 @@ function decodeStaff(value: unknown): AppointmentStaffOption | null {
 }
 
 function decodeSlot(value: unknown): AppointmentSlotOption | null {
-  if (!object(value) || !string(value.date) || !string(value.staffId) || !string(value.time)) return null;
-  return { date: value.date, staffId: value.staffId, time: value.time };
+  if (!object(value) || !string(value.date) || !string(value.serviceId) || !string(value.staffId) || !string(value.time)) return null;
+  return { date: value.date, serviceId: value.serviceId, staffId: value.staffId, time: value.time };
 }
 
 function decodeSettings(value: unknown): AppointmentOptions["settings"] | undefined {

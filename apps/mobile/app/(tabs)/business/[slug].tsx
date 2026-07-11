@@ -292,6 +292,7 @@ export default function BusinessDetailScreen() {
   const socialCards = buildSocialCards(displayProfile, mapUrl);
   const currentProfile = displayProfile;
   const isOrderSurfaceOpen = Boolean(openMenuKind || isEcommerceOpen || isAppointmentOpen);
+  const isStaticOrderSurfaceOpen = Boolean(openMenuKind || isEcommerceOpen);
   const isProfileCompact = isOrderSurfaceOpen;
   const hasStickyCart = Boolean(
     openMenuKind === "fastfood"
@@ -437,13 +438,14 @@ export default function BusinessDetailScreen() {
 
   return (
     <View style={{ backgroundColor: colors.background, flex: 1 }}>
-      {isOrderSurfaceOpen ? (
+      {isStaticOrderSurfaceOpen ? (
         <View style={{ backgroundColor: colors.background, flex: 1, paddingBottom: contentBottomPadding }} testID="business-profile-static">
           {profileContent}
         </View>
       ) : (
         <ScrollView
           contentContainerStyle={{ backgroundColor: colors.background, paddingBottom: contentBottomPadding }}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           testID="business-profile-scroll"
         >

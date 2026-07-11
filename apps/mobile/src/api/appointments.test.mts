@@ -24,7 +24,7 @@ if (api) {
     vertical: "clinic",
     services: [{ id: "service-1", name: "Muayene", description: null, durationMinutes: 30, price: 500, currency: "TRY" }],
     staff: [{ id: "staff-1", name: "Dr. Deniz", title: "Uzman" }],
-    slots: [{ date: "2026-07-13", staffId: "staff-1", time: "10:30" }],
+    slots: [{ date: "2026-07-13", serviceId: "service-1", staffId: "staff-1", time: "10:30" }],
     settings: { requireEmail: false, requirePhone: true, slotMinutes: 30, workingHours: {} },
   };
 

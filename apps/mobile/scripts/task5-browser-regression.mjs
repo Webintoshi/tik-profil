@@ -40,10 +40,34 @@ try {
 
   await verifyCheckoutTransitionsAndSuccess(browser, { width: 390, height: 844 });
   process.stdout.write("Task 5 checkout transitions and success passed.\n");
+  await verifyAppointmentScrollReachability(browser, { width: 360, height: 640 });
+  process.stdout.write("Task 9 appointment small-viewport reachability passed.\n");
   process.stdout.write("Task 5 rendered browser regression passed.\n");
 } finally {
   await browser?.close();
   await cleanupBrowserTestProcesses(children, [fixturePort, expoPort]);
+}
+
+async function verifyAppointmentScrollReachability(browserInstance, viewport) {
+  const page = await browserInstance.newPage({ viewport });
+  const health = monitorPage(page);
+  try {
+    await page.goto(`${appUrl}/business/task9-appointment`, { waitUntil: "networkidle" });
+    const primary = page.getByTestId("business-profile-primary-action");
+    await primary.getByText("Randevu Al", { exact: true }).waitFor();
+    await primary.click();
+    await page.getByText("Randevu oluştur", { exact: true }).waitFor();
+    assert.equal(await page.getByTestId("business-profile-scroll").count(), 1, "appointment surface lost its scroll owner");
+    assert.equal(await page.getByTestId("business-profile-static").count(), 0, "appointment incorrectly used the static menu owner");
+    const submit = page.getByRole("button", { name: /Giriş yap ve devam et|Randevu talebi gönder/ });
+    await submit.scrollIntoViewIfNeeded();
+    const submitBox = await requiredBox(submit, "appointment submit");
+    const navBox = await requiredBox(page.getByTestId("bottom-tab-bar"), "bottom nav");
+    assert.ok(submitBox.y >= 0 && submitBox.y + submitBox.height <= navBox.y, "appointment submit is not reachable above navigation");
+    await assertPageHealthy(page, health);
+  } finally {
+    await page.close();
+  }
 }
 
 async function verifyPrimaryLayout(browserInstance, viewport) {

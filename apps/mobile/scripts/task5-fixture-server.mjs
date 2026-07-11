@@ -243,6 +243,22 @@ const server = http.createServer(async (request, response) => {
       success: true,
       total: fixtureBusinesses.length
     };
+  } else if (url.pathname === "/api/kesfet/appointments/options") {
+    body = {
+      success: true,
+      nativeEnabled: true,
+      vertical: "clinic",
+      services: Array.from({ length: 6 }, (_, index) => ({
+        currency: "TRY", description: null, durationMinutes: 30 + index * 5,
+        id: `appointment-service-${index + 1}`, name: `Randevu Hizmeti ${index + 1}`, price: 300 + index * 50
+      })),
+      staff: Array.from({ length: 4 }, (_, index) => ({ id: `appointment-staff-${index + 1}`, name: `Uzman ${index + 1}`, title: "Uzman" })),
+      slots: Array.from({ length: 12 }, (_, index) => ({
+        date: "2026-07-20", serviceId: "appointment-service-1",
+        staffId: "appointment-staff-1", time: `${String(9 + Math.floor(index / 2)).padStart(2, "0")}:${index % 2 ? "30" : "00"}`
+      })),
+      settings: { requireEmail: false, requirePhone: true, slotMinutes: 30, workingHours: {} }
+    };
   } else if (url.pathname === "/api/fastfood/public-menu" || url.pathname === "/api/restaurant/public-menu") {
     const slug = url.searchParams.get("businessSlug") || "";
     body = await buildMenuResponse(slug, url.pathname.includes("restaurant"));
@@ -300,18 +316,20 @@ function buildProfile(slug) {
     "task5-restaurant",
     "task7-200",
     "task7-business",
-    "task7-ecommerce"
+    "task7-ecommerce",
+    "task9-appointment"
   ]);
   if (!knownSlugs.has(slug) && !isGeometryProfile) return null;
 
   const isRestaurant = slug === "task5-restaurant";
   const isEcommerce = slug === "task7-ecommerce";
+  const isAppointment = slug === "task9-appointment";
   return {
     ...baseProfile,
     hasRestaurantModule: isRestaurant,
-    industry: isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood",
-    industryLabel: isEcommerce ? "Ecommerce" : isRestaurant ? "Restoran" : "Fast Food",
-    modules: [isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood"],
+    industry: isAppointment ? "clinic" : isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood",
+    industryLabel: isAppointment ? "Klinik" : isEcommerce ? "Ecommerce" : isRestaurant ? "Restoran" : "Fast Food",
+    modules: [isAppointment ? "clinic" : isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood"],
     id: isEcommerce ? task7EcommerceSettings.id : slug.startsWith("task7-") ? "77777777-7777-4777-8777-777777777777" : baseProfile.id,
     name: isEcommerce ? "Task 7 Ecommerce" : slug === "task7-business" ? "Task 7 Test İşletmesi" : slug === "task7-200" ? "Task 7 200 Ürün" : baseProfile.name,
     slug
