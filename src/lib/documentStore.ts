@@ -205,7 +205,7 @@ export async function getCollectionREST<T = Record<string, unknown>>(
             if (data.length < PAGE_SIZE) break;
             offset += PAGE_SIZE;
         }
-        return allDocuments;
+        return allDocuments as T[];
     }
 
     while (true) {

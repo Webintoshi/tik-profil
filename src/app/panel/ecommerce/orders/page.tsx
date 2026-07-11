@@ -22,6 +22,32 @@ import { useTheme } from "@/components/panel/ThemeProvider";
 import type { Order, OrderStatus } from "@/types/ecommerce";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/types/ecommerce";
 
+type NormalizedOrder = Omit<Order, "customerInfo" | "items" | "shippingCost" | "discount"> & {
+    customerInfo: Order["customer"] & { city: string; district: string };
+    items: Array<Order["items"][number] & { total: number }>;
+    shippingCost: number;
+    discount: number;
+};
+
+function normalizeOrder(order: Order): NormalizedOrder {
+    const customerInfo = order.customerInfo ?? order.customer;
+
+    return {
+        ...order,
+        customerInfo: {
+            ...customerInfo,
+            city: customerInfo.city ?? "",
+            district: customerInfo.district ?? "",
+        },
+        items: order.items.map((item) => ({
+            ...item,
+            total: item.total ?? item.price * item.quantity,
+        })),
+        shippingCost: order.shippingCost ?? order.deliveryFee ?? 0,
+        discount: order.discount ?? order.couponDiscount ?? 0,
+    };
+}
+
 const STATUS_ICONS: Record<OrderStatus, React.ElementType> = {
     pending: Clock,
     confirmed: CheckCircle,
@@ -32,22 +58,24 @@ const STATUS_ICONS: Record<OrderStatus, React.ElementType> = {
     refunded: XCircle,
 };
 
+const EMPTY_ORDER_STATS = {
+    total: 0,
+    pending: 0,
+    processing: 0,
+    shipped: 0,
+    delivered: 0,
+    cancelled: 0,
+};
+
 export default function EcommerceOrdersPage() {
     const { session } = useBusinessSession();
     const { isDark } = useTheme();
     const [isLoading, setIsLoading] = useState(true);
-    const [orders, setOrders] = useState<Order[]>([]);
-    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    const [orders, setOrders] = useState<NormalizedOrder[]>([]);
+    const [selectedOrder, setSelectedOrder] = useState<NormalizedOrder | null>(null);
     const [filterStatus, setFilterStatus] = useState<string>("");
     const [searchQuery, setSearchQuery] = useState("");
-    const [stats, setStats] = useState({
-        total: 0,
-        pending: 0,
-        processing: 0,
-        shipped: 0,
-        delivered: 0,
-        cancelled: 0,
-    });
+    const [stats, setStats] = useState(EMPTY_ORDER_STATS);
 
     // Fetch orders
     useEffect(() => {
@@ -57,9 +85,9 @@ export default function EcommerceOrdersPage() {
             try {
                 const res = await fetch(`/api/ecommerce/orders?businessId=${session.businessId}`);
                 if (res.ok) {
-                    const data = await res.json();
-                    setOrders(data.orders || []);
-                    setStats(data.stats || {});
+                    const data: { orders?: Order[]; stats?: Partial<typeof EMPTY_ORDER_STATS> } = await res.json();
+                    setOrders((data.orders ?? []).map(normalizeOrder));
+                    setStats({ ...EMPTY_ORDER_STATS, ...data.stats });
                 }
             } catch (error) {
                 console.error("Orders fetch error:", error);
@@ -284,7 +312,7 @@ function OrderDetailModal({
     onClose,
     onStatusUpdate,
 }: {
-    order: Order;
+    order: NormalizedOrder;
     onClose: () => void;
     onStatusUpdate: (orderId: string, status: OrderStatus) => Promise<void>;
 }) {

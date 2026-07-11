@@ -44,7 +44,7 @@ function ServiceDetailModal({
 
     if (!service) return null;
 
-    const mainImage = service.images?.[0]?.url || service.images?.[0];
+    const mainImage = service.images?.[0];
 
     return (
         <AnimatePresence>
@@ -370,7 +370,7 @@ _Tık Profil tarafından yönlendirilmiştir_`;
                                     {/* Services Grid - 2 columns like Emlak */}
                                     <div className="grid grid-cols-2 gap-3">
                                         {filteredServices.map((service, index) => {
-                                            const mainImage = service.images?.[0]?.url || service.images?.[0];
+                                            const mainImage = service.images?.[0];
                                             const hasImage = !!mainImage;
 
                                             return (

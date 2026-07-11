@@ -541,6 +541,10 @@ async function getBusinessBySlug(
             showHours: (fields.showHours as boolean) ?? false,
             workingHours: fields.workingHours,
             modules: modulesArr,
+            primaryModuleId: (business.primaryModuleId as string)
+                || (fields.primaryModuleId as string)
+                || modulesArr[0]
+                || null,
             hasRestaurantModule: modulesArr.includes("restaurant"),
             cartEnabled: (fields.cartEnabled as boolean) ?? true,
             social: {

@@ -103,15 +103,23 @@ export interface OrderItem {
 }
 
 // Shipping Option
-export interface ShippingOption {
+interface ShippingOptionBase {
     id: string;
     name: string;
-    fee: number;
-    price?: number;
     isActive: boolean;
     freeAbove?: number;
     estimatedDays?: string;
 }
+
+export type ShippingOption = ShippingOptionBase & (
+    | { price: number; fee?: number }
+    | { price?: number; fee: number }
+);
+
+export type NormalizedShippingOption = ShippingOptionBase & {
+    price: number;
+    fee?: number;
+};
 
 // Cart Item
 export interface CartItem extends OrderItem {
@@ -195,22 +203,21 @@ export interface Product {
     createdAt?: string;
 }
 
+export interface OrderCustomerInfo {
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+    city?: string;
+    district?: string;
+}
+
 export interface Order {
     id: string;
     businessId?: string;
     orderNumber: string;
-    customer: {
-        name: string;
-        email: string;
-        phone: string;
-        address: string;
-    };
-    customerInfo?: {
-        name: string;
-        email: string;
-        phone: string;
-        address: string;
-    };
+    customer: OrderCustomerInfo;
+    customerInfo?: OrderCustomerInfo;
     items: OrderItem[];
     subtotal: number;
     deliveryFee: number;
@@ -229,6 +236,30 @@ export interface Order {
     updatedAt: string;
 }
 
+export type PaymentMethods = Record<'cash' | 'card' | 'transfer' | 'online', boolean>;
+
+export interface OrderNotificationSettings {
+    email?: boolean;
+    sms?: boolean;
+    push?: boolean;
+    whatsapp?: boolean;
+}
+
+export interface StockSettings {
+    lowStockThreshold?: number;
+    notifyLowStock?: boolean;
+    trackStock?: boolean;
+    allowBackorder?: boolean;
+}
+
+export interface CheckoutSettings {
+    requirePhone?: boolean;
+    requireEmail?: boolean;
+    requireAddress?: boolean;
+    allowNotes?: boolean;
+    guestCheckout?: boolean;
+}
+
 export interface EcommerceSettings {
     storeName?: string;
     storeEmail?: string;
@@ -241,25 +272,32 @@ export interface EcommerceSettings {
     storeDescription?: string;
     minOrderAmount?: number;
     shippingOptions?: ShippingOption[];
-    paymentMethods?: Partial<Record<'cash' | 'card' | 'transfer' | 'online', boolean>>;
-    orderNotifications?: {
-        email?: boolean;
-        sms?: boolean;
-        push?: boolean;
-        whatsapp?: boolean;
-    };
-    stockSettings?: {
-        lowStockThreshold?: number;
-        notifyLowStock?: boolean;
-        trackStock?: boolean;
-        allowBackorder?: boolean;
-    };
-    checkoutSettings?: {
-        requirePhone?: boolean;
-        requireEmail?: boolean;
-        guestCheckout?: boolean;
-    };
+    paymentMethods?: Partial<PaymentMethods>;
+    orderNotifications?: OrderNotificationSettings;
+    stockSettings?: StockSettings;
+    checkoutSettings?: CheckoutSettings;
 }
+
+export type NormalizedEcommerceSettings = Omit<
+    EcommerceSettings,
+    | 'storeName'
+    | 'storeDescription'
+    | 'minOrderAmount'
+    | 'shippingOptions'
+    | 'paymentMethods'
+    | 'orderNotifications'
+    | 'stockSettings'
+    | 'checkoutSettings'
+> & {
+    storeName: string;
+    storeDescription: string;
+    minOrderAmount: number;
+    shippingOptions: NormalizedShippingOption[];
+    paymentMethods: PaymentMethods;
+    orderNotifications: OrderNotificationSettings & Required<Pick<OrderNotificationSettings, 'email' | 'whatsapp'>>;
+    stockSettings: StockSettings & Required<Pick<StockSettings, 'lowStockThreshold' | 'trackStock' | 'allowBackorder'>>;
+    checkoutSettings: CheckoutSettings & Required<Pick<CheckoutSettings, 'requirePhone' | 'requireEmail' | 'requireAddress' | 'allowNotes'>>;
+};
 
 // Re-export types for backward compatibility
 export type { Order as ExtendedOrder };

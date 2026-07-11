@@ -14,8 +14,11 @@ interface Reservation {
   customer_phone: string;
   start_date: string;
   end_date: string;
+  start_time: string;
+  end_time: string;
   total_days: number;
   total_amount: number;
+  deposit_amount: number;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   vehicle: {
     brand: string;

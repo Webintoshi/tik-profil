@@ -21,10 +21,16 @@ import { toast } from "sonner";
 import clsx from "clsx";
 import { useBusinessSession } from "@/hooks/useBusinessSession";
 import { useTheme } from "@/components/panel/ThemeProvider";
-import type { EcommerceSettings, ShippingOption } from "@/types/ecommerce";
+import type {
+    EcommerceSettings,
+    NormalizedEcommerceSettings,
+    NormalizedShippingOption,
+    PaymentMethods,
+} from "@/types/ecommerce";
 
 // Tab types
 type SettingsTab = "store" | "shipping" | "payment" | "notifications" | "stock" | "checkout";
+type CheckoutField = "requirePhone" | "requireEmail" | "requireAddress" | "allowNotes";
 
 const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
     { id: "store", label: "Mağaza", icon: Store },
@@ -34,6 +40,51 @@ const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
     { id: "stock", label: "Stok", icon: Package },
     { id: "checkout", label: "Ödeme Formu", icon: FileCheck },
 ];
+
+const DEFAULT_PAYMENT_METHODS: PaymentMethods = {
+    cash: true,
+    card: false,
+    transfer: false,
+    online: false,
+};
+
+function normalizeSettings(settings: EcommerceSettings): NormalizedEcommerceSettings {
+    return {
+        ...settings,
+        storeName: settings.storeName ?? "",
+        storeDescription: settings.storeDescription ?? "",
+        currency: settings.currency ?? "TRY",
+        taxRate: settings.taxRate ?? 0,
+        shippingFee: settings.shippingFee ?? 0,
+        minOrderAmount: settings.minOrderAmount ?? 0,
+        shippingOptions: (settings.shippingOptions ?? []).map((option) => ({
+            ...option,
+            price: option.price ?? option.fee ?? 0,
+        })),
+        paymentMethods: {
+            ...DEFAULT_PAYMENT_METHODS,
+            ...settings.paymentMethods,
+        },
+        orderNotifications: {
+            ...settings.orderNotifications,
+            email: settings.orderNotifications?.email ?? false,
+            whatsapp: settings.orderNotifications?.whatsapp ?? true,
+        },
+        stockSettings: {
+            ...settings.stockSettings,
+            lowStockThreshold: settings.stockSettings?.lowStockThreshold ?? 5,
+            trackStock: settings.stockSettings?.trackStock ?? true,
+            allowBackorder: settings.stockSettings?.allowBackorder ?? false,
+        },
+        checkoutSettings: {
+            ...settings.checkoutSettings,
+            requirePhone: settings.checkoutSettings?.requirePhone ?? true,
+            requireEmail: settings.checkoutSettings?.requireEmail ?? false,
+            requireAddress: settings.checkoutSettings?.requireAddress ?? true,
+            allowNotes: settings.checkoutSettings?.allowNotes ?? true,
+        },
+    };
+}
 
 // Simple toggle component
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label?: string }) {
@@ -105,9 +156,9 @@ export default function EcommerceSettingsPage() {
     const [activeTab, setActiveTab] = useState<SettingsTab>("store");
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [settings, setSettings] = useState<EcommerceSettings | null>(null);
+    const [settings, setSettings] = useState<NormalizedEcommerceSettings | null>(null);
     const [showShippingModal, setShowShippingModal] = useState(false);
-    const [editingShipping, setEditingShipping] = useState<ShippingOption | null>(null);
+    const [editingShipping, setEditingShipping] = useState<NormalizedShippingOption | null>(null);
 
     // Fetch settings
     useEffect(() => {
@@ -117,8 +168,8 @@ export default function EcommerceSettingsPage() {
             try {
                 const res = await fetch(`/api/ecommerce/settings?businessId=${session.businessId}`);
                 if (res.ok) {
-                    const data = await res.json();
-                    setSettings(data);
+                    const data: EcommerceSettings = await res.json();
+                    setSettings(normalizeSettings(data));
                 }
             } catch (error) {
                 console.error("Settings fetch error:", error);
@@ -158,12 +209,12 @@ export default function EcommerceSettingsPage() {
     };
 
     // Update helper
-    const updateSettings = (updates: Partial<EcommerceSettings>) => {
+    const updateSettings = (updates: Partial<NormalizedEcommerceSettings>) => {
         setSettings((prev) => (prev ? { ...prev, ...updates } : prev));
     };
 
     // Add/Edit shipping option
-    const handleSaveShipping = (option: ShippingOption) => {
+    const handleSaveShipping = (option: NormalizedShippingOption) => {
         if (!settings) return;
 
         const exists = settings.shippingOptions.find((o) => o.id === option.id);
@@ -562,7 +613,7 @@ export default function EcommerceSettingsPage() {
                                 >
                                     <span className="font-medium text-gray-700">{label}</span>
                                     <Toggle
-                                        checked={settings.checkoutSettings[key as keyof typeof settings.checkoutSettings]}
+                                        checked={settings.checkoutSettings[key as CheckoutField]}
                                         onChange={(v) =>
                                             updateSettings({
                                                 checkoutSettings: {
@@ -602,12 +653,12 @@ function ShippingModal({
     onSave,
     onClose,
 }: {
-    shipping: ShippingOption | null;
-    onSave: (option: ShippingOption) => void;
+    shipping: NormalizedShippingOption | null;
+    onSave: (option: NormalizedShippingOption) => void;
     onClose: () => void;
 }) {
     const [name, setName] = useState(shipping?.name || "");
-    const [price, setPrice] = useState(String(shipping?.price || 0));
+    const [price, setPrice] = useState(String(shipping?.price ?? 0));
     const [freeAbove, setFreeAbove] = useState(String(shipping?.freeAbove || ""));
     const [estimatedDays, setEstimatedDays] = useState(shipping?.estimatedDays || "");
     const [isActive, setIsActive] = useState(shipping?.isActive ?? true);
