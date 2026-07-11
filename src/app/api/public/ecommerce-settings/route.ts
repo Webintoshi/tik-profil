@@ -1,99 +1,94 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { publicReadOnly, resolvePublicBusinessContext } from "@/server/auth/guards";
 
 const TABLE = "ecommerce_settings";
 
-function getDefaultSettings(businessId: string) {
-    return {
-        id: businessId,
-        storeName: "Magazam",
-        storeDescription: "",
-        currency: "TRY",
-        minOrderAmount: 0,
-        freeShippingThreshold: undefined,
-        taxRate: 0,
-        shippingOptions: [
-            {
-                id: "standard",
-                name: "Standart Kargo",
-                price: 50,
-                estimatedDays: "2-4 is gunu",
-                isActive: true,
-            },
-        ],
-        paymentMethods: {
-            cash: true,
-            card: false,
-            transfer: false,
-            online: false,
-        },
-        checkoutSettings: {
-            requirePhone: true,
-            requireEmail: false,
-            requireAddress: true,
-            allowNotes: true,
-        },
-    };
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function finiteAmount(value: unknown): number | null {
+    const parsed = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function hasUsablePaymentMethod(value: unknown): value is Record<string, boolean> {
+    if (!isRecord(value)) return false;
+    // The current native checkout submits cash; readiness must reflect that exact path.
+    return value.cash === true;
+}
+
+function hasUsableShippingOption(value: unknown): value is Array<Record<string, unknown>> {
+    if (!Array.isArray(value) || !value.length) return false;
+    return value.some((raw) => {
+        if (!isRecord(raw) || raw.isActive === false || typeof raw.id !== "string" || !raw.id.trim()) return false;
+        return finiteAmount(raw.price ?? raw.fee) !== null;
+    });
+}
+
+function hasUsableCheckoutSettings(value: unknown): value is Record<string, boolean> {
+    if (!isRecord(value)) return false;
+    return ["requirePhone", "requireEmail", "requireAddress", "allowNotes"]
+        .every((field) => typeof value[field] === "boolean");
+}
+
+function unavailableSettingsResponse() {
+    return NextResponse.json({ nativeEnabled: false, settings: null, success: true });
 }
 
 export async function GET(request: NextRequest) {
     try {
         publicReadOnly();
-
-        const businessContext = await resolvePublicBusinessContext({
+        const businessContext = resolvePublicBusinessContext({
             businessId: request.nextUrl.searchParams.get("businessId"),
         });
-
-        if (!businessContext?.businessId) {
+        if (!businessContext.businessId) {
             return NextResponse.json({ error: "Business ID required" }, { status: 400 });
         }
         const businessId = businessContext.businessId;
-
-        const supabase = getSupabaseAdmin();
-        const { data, error } = await supabase
+        const { data, error } = await getSupabaseAdmin()
             .from(TABLE)
             .select("*")
             .eq("business_id", businessId)
-            .single();
+            .maybeSingle();
+        if (error) throw error;
+        if (!data || data.is_active !== true
+            || !hasUsableShippingOption(data.shipping_options)
+            || !hasUsablePaymentMethod(data.payment_methods)
+            || !hasUsableCheckoutSettings(data.checkout_settings)) {
+            return unavailableSettingsResponse();
+        }
 
-        if (error || !data) {
-            return NextResponse.json({
-                success: true,
-                settings: getDefaultSettings(businessId),
-            });
+        const minOrderAmount = finiteAmount(data.min_order_amount);
+        const taxRate = finiteAmount(data.tax_rate);
+        const freeShippingThreshold = data.free_shipping_threshold == null
+            ? null
+            : finiteAmount(data.free_shipping_threshold);
+        if (minOrderAmount === null || taxRate === null
+            || (data.free_shipping_threshold != null && freeShippingThreshold === null)) {
+            return unavailableSettingsResponse();
         }
 
         return NextResponse.json({
-            success: true,
+            nativeEnabled: true,
             settings: {
-                id: businessId,
-                storeName: data.store_name || "Magazam",
-                storeDescription: data.store_description || "",
+                checkoutSettings: data.checkout_settings,
                 currency: data.currency || "TRY",
-                minOrderAmount: typeof data.min_order_amount === "string" ? parseFloat(data.min_order_amount) : (data.min_order_amount || 0),
-                freeShippingThreshold: data.free_shipping_threshold ? (typeof data.free_shipping_threshold === "string" ? parseFloat(data.free_shipping_threshold) : data.free_shipping_threshold) : undefined,
-                taxRate: typeof data.tax_rate === "string" ? parseFloat(data.tax_rate) : (data.tax_rate || 0),
-                shippingOptions: data.shipping_options || [],
-                paymentMethods: data.payment_methods || {
-                    cash: true,
-                    card: false,
-                    transfer: false,
-                    online: false,
-                },
-                checkoutSettings: data.checkout_settings || {
-                    requirePhone: true,
-                    requireEmail: false,
-                    requireAddress: true,
-                    allowNotes: true,
-                },
+                freeShippingThreshold,
+                id: businessId,
+                minOrderAmount,
+                paymentMethods: data.payment_methods,
+                shippingOptions: data.shipping_options,
+                storeDescription: data.store_description || "",
+                storeName: data.store_name || "Magazam",
+                taxRate,
             },
+            success: true,
         });
     } catch (error) {
-        console.error("[Public Ecommerce Settings GET Error]:", error);
-        return NextResponse.json(
-            { error: "Ayarlar alinirken hata olustu" },
-            { status: 500 }
-        );
+        console.error("[Public Ecommerce Settings GET] Unexpected error:", error);
+        return NextResponse.json({ error: "Settings could not be loaded." }, { status: 500 });
     }
 }

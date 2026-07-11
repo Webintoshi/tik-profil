@@ -317,6 +317,7 @@ export interface PublicEcommerceSettingsResponse {
 
 export interface PublicEcommerceCheckoutInput {
   businessId: string;
+  idempotencyKey: string;
   items: Array<{
     productId: string;
     variantId?: string;
@@ -332,7 +333,6 @@ export interface PublicEcommerceCheckoutInput {
     notes?: string;
   };
   paymentMethod: "cash" | "card" | "transfer" | "online";
-  shippingCost: number;
   shippingMethod?: string;
   couponCode?: string;
 }
@@ -1005,12 +1005,15 @@ export function invalidatePublicEcommerceCache(businessId: string) {
 }
 
 export async function submitPublicEcommerceCheckout(
-  input: PublicEcommerceCheckoutInput
+  input: PublicEcommerceCheckoutInput,
+  accessToken?: string | null
 ): Promise<PublicEcommerceCheckoutResponse> {
   return postJson<PublicEcommerceCheckoutResponse>(
     buildUrl("/api/public/checkout"),
     input,
-    { success: false, error: "Sipariş oluşturulamadı" }
+    { success: false, error: "Sipariş oluşturulamadı" },
+    accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    Boolean(accessToken)
   );
 }
 

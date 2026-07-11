@@ -44,10 +44,29 @@ try {
   process.stdout.write("Task 9 appointment small-viewport reachability passed.\n");
   await verifyReservationScrollReachability(browser, { width: 360, height: 640 });
   process.stdout.write("Task 9 reservation small-viewport reachability passed.\n");
+  await verifyGenericCatalog(browser, { width: 390, height: 844 });
+  process.stdout.write("Task 9 generic retail catalog passed.\n");
   process.stdout.write("Task 5 rendered browser regression passed.\n");
 } finally {
   await browser?.close();
   await cleanupBrowserTestProcesses(children, [fixturePort, expoPort]);
+}
+
+async function verifyGenericCatalog(browserInstance, viewport) {
+  const page = await browserInstance.newPage({ viewport });
+  const health = monitorPage(page);
+  try {
+    await page.goto(`${appUrl}/business/task9-catalog`, { waitUntil: "networkidle" });
+    const primary = page.getByTestId("business-profile-primary-action");
+    await primary.getByText("Ürünleri Gör", { exact: true }).waitFor();
+    await primary.click();
+    await page.getByText("Ürünler", { exact: true }).waitFor();
+    assert.equal(await page.getByTestId("business-profile-static").count(), 1, "catalog did not use the bounded static owner");
+    await page.getByText("Ecommerce Product 1", { exact: true }).first().waitFor();
+    await assertPageHealthy(page, health);
+  } finally {
+    await page.close();
+  }
 }
 
 async function verifyReservationScrollReachability(browserInstance, viewport) {

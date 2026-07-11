@@ -314,3 +314,10 @@ test("enables native reservations only for the four canonical reservation IDs", 
     .map((definition) => definition.id);
   assert.deepEqual(enabled, ["restaurant", "hotel", "rental", "vehicle-rental"]);
 });
+
+test("enables native catalog adapters only for retail IDs with canonical product storage", () => {
+  const enabled = MODULE_FAMILY_DEFINITIONS
+    .filter((definition) => definition.nativeCapabilities.includes("catalog-order"))
+    .map((definition) => definition.id);
+  assert.deepEqual(enabled, ["pharmacy", "optik", "petshop", "market", "florist", "jewelry", "bookstore", "electronics", "furniture", "clothing", "watchstore"]);
+});

@@ -18,7 +18,7 @@ export type RegistryModuleId = Exclude<SupportedModuleId, "food" | "beauty" | "v
 export type ModuleFamily = "appointment" | "reservation" | "catalog-order" | "listing-inquiry";
 export type ModuleFallbackKind = "whatsapp" | "call";
 export type ModuleMessageKind = "appointment" | "reservation" | "order" | "product" | "service" | "quote";
-export type NativeCapability = "appointment-booking" | "reservation-booking" | "fastfood-order" | "ecommerce-order" | "restaurant-menu";
+export type NativeCapability = "appointment-booking" | "reservation-booking" | "catalog-order" | "fastfood-order" | "ecommerce-order" | "restaurant-menu";
 
 export interface ModuleFamilyDefinition {
   readonly id: SupportedModuleId;
@@ -116,11 +116,11 @@ assignMetadata(
 );
 assignMetadata(
   ["pharmacy", "optik"],
-  { family: "catalog-order", label: "Ürün Sor", icon: "store", fallback: { kind: "whatsapp", messageKind: "product" } }
+  { family: "catalog-order", label: "Ürün Sor", icon: "store", fallback: { kind: "whatsapp", messageKind: "product" }, nativeCapabilities: ["catalog-order"] }
 );
 assignMetadata(
   ["petshop", "market", "florist"],
-  { family: "catalog-order", label: "Sipariş Ver", icon: "store", fallback: { kind: "whatsapp", messageKind: "order" } }
+  { family: "catalog-order", label: "Sipariş Ver", icon: "store", fallback: { kind: "whatsapp", messageKind: "order" }, nativeCapabilities: ["catalog-order"] }
 );
 assignMetadata(
   ["ecommerce"],
@@ -134,7 +134,7 @@ assignMetadata(
 );
 assignMetadata(
   ["jewelry", "bookstore", "electronics", "furniture", "clothing", "watchstore"],
-  { family: "catalog-order", label: "Ürün Sor", icon: "store", fallback: { kind: "whatsapp", messageKind: "product" } }
+  { family: "catalog-order", label: "Ürün Sor", icon: "store", fallback: { kind: "whatsapp", messageKind: "product" }, nativeCapabilities: ["catalog-order"] }
 );
 assignMetadata(
   ["gym"],

@@ -47,8 +47,10 @@ import { useCustomerSession } from "@/auth/auth-store";
 import { buildCheckoutAddresses } from "@/business/checkout-addresses";
 import {
   buildCheckoutPrefill,
+  resolveCheckoutIdempotency,
   resolveActiveProductPrice
 } from "@/checkout/checkout-state";
+import type { CheckoutIdempotencyState } from "@/checkout/checkout-state";
 import { Icon, type IconName } from "@/components/common/Icon";
 import { BusinessProfileSkeleton } from "@/components/ui/Skeleton";
 import {
@@ -99,6 +101,7 @@ export default function BusinessDetailScreen() {
   const [isReservationOpen, setIsReservationOpen] = React.useState(false);
   const [reservationOptions, setReservationOptions] = React.useState<ReservationOptions | null>(null);
   const [isReservationOptionsLoading, setIsReservationOptionsLoading] = React.useState(false);
+  const [nativeCatalogReady, setNativeCatalogReady] = React.useState(false);
   const [loadedMenu, setLoadedMenu] = React.useState<LoadedFoodMenu | null>(null);
   const [isMenuLoading, setIsMenuLoading] = React.useState(false);
   const [menuError, setMenuError] = React.useState<string | null>(null);
@@ -189,6 +192,7 @@ export default function BusinessDetailScreen() {
     setAppointmentOptions(null);
     setIsReservationOpen(false);
     setReservationOptions(null);
+    setNativeCatalogReady(false);
     setLoadedMenu(null);
     setMenuError(null);
     setSelectedMenuCategoryId(null);
@@ -218,6 +222,12 @@ export default function BusinessDetailScreen() {
     return [displayProfile.primaryModuleId, ...displayProfile.modules, displayProfile.industry, displayProfile.industryLabel]
       .map(resolveModuleFamilyDefinition)
       .some((definition) => definition?.nativeCapabilities.includes("reservation-booking"));
+  }, [displayProfile]);
+  const catalogCandidate = React.useMemo(() => {
+    if (!displayProfile) return false;
+    return [displayProfile.primaryModuleId, ...displayProfile.modules, displayProfile.industry, displayProfile.industryLabel]
+      .map(resolveModuleFamilyDefinition)
+      .some((definition) => definition?.nativeCapabilities.some((capability) => capability === "catalog-order" || capability === "ecommerce-order"));
   }, [displayProfile]);
 
   React.useEffect(() => {
@@ -250,6 +260,24 @@ export default function BusinessDetailScreen() {
     });
     return () => { active = false; };
   }, [displayProfile?.slug, reservationCandidate]);
+  React.useEffect(() => {
+    let active = true;
+    if (!displayProfile || !catalogCandidate) {
+      setNativeCatalogReady(false);
+      return () => { active = false; };
+    }
+    void Promise.all([
+      fetchPublicEcommerceProducts(displayProfile.id),
+      fetchPublicEcommerceSettings(displayProfile.id)
+    ]).then(([productResponse, storefrontSettings]) => {
+      if (!active) return;
+      const hasUsableProducts = (productResponse.products ?? []).some((product) => product.status !== "inactive" && product.isActive !== false && product.active !== false);
+      setNativeCatalogReady(Boolean(storefrontSettings && hasUsableProducts));
+    }).catch(() => {
+      if (active) setNativeCatalogReady(false);
+    });
+    return () => { active = false; };
+  }, [catalogCandidate, displayProfile?.id]);
   const activeMenuData = openMenuKind && loadedMenu && loadedMenu.slug === displayProfile?.slug && loadedMenu.kind === openMenuKind
     ? loadedMenu.data
     : null;
@@ -314,9 +342,10 @@ export default function BusinessDetailScreen() {
   const callUrl = displayProfile.phone ? `tel:${displayProfile.phone}` : null;
   const whatsappUrl = buildWhatsappUrl(displayProfile.whatsapp || displayProfile.phone);
   const mapUrl = buildMapUrl(displayProfile, resolvedBusiness);
-  const readyCapabilities: NativeCapability[] = ["fastfood-order", "restaurant-menu", "ecommerce-order"];
+  const readyCapabilities: NativeCapability[] = ["fastfood-order", "restaurant-menu"];
   if (appointmentOptions?.nativeEnabled) readyCapabilities.push("appointment-booking");
   if (reservationOptions?.nativeEnabled) readyCapabilities.push("reservation-booking");
+  if (nativeCatalogReady) readyCapabilities.push("catalog-order", "ecommerce-order");
   const primaryAction = resolvePrimaryProfileAction({ ...displayProfile, nativeCapabilities: readyCapabilities });
   const socialCards = buildSocialCards(displayProfile, mapUrl);
   const currentProfile = displayProfile;
@@ -512,6 +541,14 @@ export default function BusinessDetailScreen() {
 }
 
 type EcommerceStep = "products" | "info" | "confirm" | "success";
+type EcommercePaymentMethod = "cash" | "card" | "transfer" | "online";
+
+const ECOMMERCE_PAYMENT_OPTIONS: Array<{ id: EcommercePaymentMethod; label: string }> = [
+  { id: "cash", label: "Nakit" },
+  { id: "card", label: "Kart" },
+  { id: "transfer", label: "Havale" },
+  { id: "online", label: "Online" }
+];
 
 function EcommerceOrderPanel({
   businessId,
@@ -520,6 +557,7 @@ function EcommerceOrderPanel({
   businessId: string;
   businessName: string;
 }) {
+  const { customer, refreshCustomer, runAuthenticated, signIn, status: sessionStatus } = useCustomerSession();
   const { height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const checkoutViewportHeight = getCheckoutPanelHeight(screenHeight, insets.bottom);
@@ -534,6 +572,9 @@ function EcommerceOrderPanel({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [orderNumber, setOrderNumber] = React.useState("");
+  const [paymentMethod, setPaymentMethod] = React.useState<EcommercePaymentMethod>("cash");
+  const idempotencyStateRef = React.useRef<CheckoutIdempotencyState | null>(null);
+  const initializedCustomerRef = React.useRef<string | null>(null);
   const [form, setForm] = React.useState({
     name: "",
     phone: "",
@@ -544,6 +585,22 @@ function EcommerceOrderPanel({
     notes: "",
     couponCode: ""
   });
+
+  React.useEffect(() => {
+    const identity = customer?.profile?.appUserId ?? customer?.email ?? null;
+    if (!identity || initializedCustomerRef.current === identity) return;
+    initializedCustomerRef.current = identity;
+    const address = customer?.addresses.find((item) => item.isDefault) ?? customer?.addresses[0];
+    setForm((current) => ({
+      ...current,
+      address: address?.fullAddress ?? current.address,
+      city: address?.city ?? current.city,
+      district: address?.district ?? current.district,
+      email: customer?.email ?? current.email,
+      name: customer?.profile?.displayName ?? current.name,
+      phone: customer?.profile?.phone ?? current.phone
+    }));
+  }, [customer]);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -610,11 +667,25 @@ function EcommerceOrderPanel({
 
   const subtotal = cartRows.reduce((sum, item) => sum + item.total, 0);
   const activeShipping = getActiveShippingOption(settings);
-  const freeThreshold = settings?.freeShippingThreshold ?? activeShipping?.freeAbove ?? 500;
-  const shippingCost = subtotal > 0 && subtotal < freeThreshold ? getShippingPrice(activeShipping) : 0;
+  const freeThreshold = settings?.freeShippingThreshold ?? activeShipping?.freeAbove ?? null;
+  const shippingCost = subtotal > 0 && (freeThreshold === null || subtotal < freeThreshold)
+    ? getShippingPrice(activeShipping)
+    : 0;
   const total = subtotal + shippingCost;
   const cartCount = cartRows.reduce((sum, item) => sum + item.quantity, 0);
-  const canSubmit = form.name.trim() && form.phone.trim() && form.address.trim() && form.city.trim() && cartRows.length > 0;
+  const enabledPaymentMethods = React.useMemo(
+    () => ECOMMERCE_PAYMENT_OPTIONS.filter((option) => settings?.paymentMethods?.[option.id] === true),
+    [settings?.paymentMethods]
+  );
+  const canSubmit = form.name.trim() && form.phone.trim() && form.address.trim() && form.city.trim()
+    && cartRows.length > 0 && enabledPaymentMethods.length > 0 && activeShipping !== null;
+
+  React.useEffect(() => {
+    if (!enabledPaymentMethods.length) return;
+    if (!enabledPaymentMethods.some((option) => option.id === paymentMethod)) {
+      setPaymentMethod(enabledPaymentMethods[0].id);
+    }
+  }, [enabledPaymentMethods, paymentMethod]);
 
   function updateQuantity(productId: string, delta: number) {
     lightImpact();
@@ -638,42 +709,49 @@ function EcommerceOrderPanel({
       return;
     }
 
+    if (sessionStatus !== "signed_in") {
+      await signIn();
+      return;
+    }
     setIsSubmitting(true);
     setError(null);
-
-    const response = await submitPublicEcommerceCheckout({
-      businessId,
-      items: cartRows.map((item) => ({
-        productId: item.product.id,
-        quantity: item.quantity
-      })),
-      customerInfo: {
-        name: form.name.trim(),
-        phone: form.phone.trim(),
-        email: form.email.trim() || undefined,
-        address: form.address.trim(),
-        city: form.city.trim(),
-        district: form.district.trim() || undefined,
-        notes: form.notes.trim() || undefined
-      },
-      paymentMethod: "cash",
-      shippingCost,
-      shippingMethod: activeShipping?.id,
-      couponCode: form.couponCode.trim() || undefined
-    });
-
-    setIsSubmitting(false);
-
-    if (response.success && response.orderNumber) {
+    try {
+      const payload = {
+        businessId,
+        items: cartRows.map((item) => ({ productId: item.product.id, quantity: item.quantity })),
+        customerInfo: {
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim() || undefined,
+          address: form.address.trim(),
+          city: form.city.trim(),
+          district: form.district.trim() || undefined,
+          notes: form.notes.trim() || undefined
+        },
+        paymentMethod,
+        shippingMethod: activeShipping?.id,
+        couponCode: form.couponCode.trim() || undefined
+      };
+      const idempotency = resolveCheckoutIdempotency(idempotencyStateRef.current, JSON.stringify(payload));
+      idempotencyStateRef.current = idempotency.state;
+      const response = await runAuthenticated((accessToken) => submitPublicEcommerceCheckout({
+        ...payload,
+        idempotencyKey: idempotency.key
+      }, accessToken));
+      if (!response) throw new Error("Sipariş için yeniden giriş yapın.");
+      if (!response.success || !response.orderNumber) throw new Error(response.error || "Sipariş oluşturulamadı");
+      idempotencyStateRef.current = null;
       invalidatePublicEcommerceCache(businessId);
       setOrderNumber(response.orderNumber);
       setCartItems({});
       setStep("success");
+      await refreshCustomer();
       lightImpact();
-      return;
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Sipariş oluşturulamadı");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setError(response.error || "Sipariş oluşturulamadı");
   }
 
   return (
@@ -914,8 +992,37 @@ function EcommerceOrderPanel({
               <EcommerceInput label="İlçe" value={form.district} onChangeText={(value) => setForm((current) => ({ ...current, district: value }))} />
             </View>
           </View>
-          <EcommerceInput label="Sipariş notu" multiline value={form.notes} onChangeText={(value) => setForm((current) => ({ ...current, notes: value }))} />
-          <EcommerceInput label="Kupon kodu" autoCapitalize="characters" testID="ecommerce-coupon-input" value={form.couponCode} onChangeText={(value) => setForm((current) => ({ ...current, couponCode: value }))} />
+            <EcommerceInput label="Sipariş notu" multiline value={form.notes} onChangeText={(value) => setForm((current) => ({ ...current, notes: value }))} />
+            <EcommerceInput label="Kupon kodu" autoCapitalize="characters" testID="ecommerce-coupon-input" value={form.couponCode} onChangeText={(value) => setForm((current) => ({ ...current, couponCode: value }))} />
+            <View style={{ gap: spacing.sm }}>
+              <Text style={{ ...typography.small, color: colors.mutedStrong }}>Ödeme yöntemi</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+                {enabledPaymentMethods.map((option) => {
+                  const selected = option.id === paymentMethod;
+                  return (
+                    <Pressable
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selected }}
+                      key={option.id}
+                      onPress={() => setPaymentMethod(option.id)}
+                      style={({ pressed }) => ({
+                        alignItems: "center",
+                        backgroundColor: selected ? colors.brandSoft : colors.backgroundAlt,
+                        borderColor: selected ? colors.brand : colors.border,
+                        borderRadius: radii.pill,
+                        borderWidth: 1,
+                        minHeight: 44,
+                        justifyContent: "center",
+                        opacity: pressed ? 0.86 : 1,
+                        paddingHorizontal: spacing.lg
+                      })}
+                    >
+                      <Text style={{ ...typography.label, color: selected ? colors.brandDeep : colors.ink }}>{option.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
         </ScrollView>
       ) : (
         <ScrollView
@@ -938,9 +1045,10 @@ function EcommerceOrderPanel({
             </View>
           ))}
           <View style={{ borderTopColor: colors.border, borderTopWidth: 1, gap: spacing.sm, paddingTop: spacing.md }}>
-            <SummaryRow label="Ara toplam" value={formatMenuPrice(subtotal)} />
-            <SummaryRow label={activeShipping?.name || "Teslimat"} value={shippingCost ? formatMenuPrice(shippingCost) : "Ücretsiz"} />
-            <SummaryRow strong label="Toplam" value={formatMenuPrice(total)} />
+              <SummaryRow label="Ara toplam" value={formatMenuPrice(subtotal)} />
+              <SummaryRow label={activeShipping?.name || "Teslimat"} value={shippingCost ? formatMenuPrice(shippingCost) : "Ücretsiz"} />
+              <SummaryRow label="Ödeme" value={ECOMMERCE_PAYMENT_OPTIONS.find((option) => option.id === paymentMethod)?.label ?? paymentMethod} />
+              <SummaryRow strong label="Toplam" value={formatMenuPrice(total)} />
           </View>
           <View style={{ backgroundColor: colors.backgroundAlt, borderRadius: radii.lg, gap: 3, padding: spacing.md }}>
             <Text style={{ ...typography.label, color: colors.ink }}>{form.name}</Text>
@@ -1159,11 +1267,7 @@ function getActiveShippingOption(settings: PublicEcommerceSettings | null) {
 }
 
 function getShippingPrice(option: PublicEcommerceShippingOption | null) {
-  if (!option) {
-    return 49.9;
-  }
-
-  return option.price ?? option.fee ?? 49.9;
+  return option?.price ?? option?.fee ?? 0;
 }
 
 function FoodOrderProductCard({

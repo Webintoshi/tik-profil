@@ -268,7 +268,7 @@ const server = http.createServer(async (request, response) => {
       business: { id: "task9-hotel", name: "Task 9 Otel", slug: "task9-reservation" },
       resources: Array.from({ length: 6 }, (_, index) => ({
         capacity: 2 + index, description: `Oda ${index + 1}`, id: `task9-room-${index + 1}`,
-        imageUrl: null, name: `Oda Tipi ${index + 1}`, unitPrice: 1200 + index * 250
+        imageUrl: null, name: `Oda Tipi ${index + 1}`, timeSlots: [], unitPrice: 1200 + index * 250
       })),
       timeSlots: []
     } : { success: true, nativeEnabled: false, vertical: null, business: null, resources: [], timeSlots: [] };
@@ -331,7 +331,8 @@ function buildProfile(slug) {
     "task7-business",
     "task7-ecommerce",
     "task9-appointment",
-    "task9-reservation"
+    "task9-reservation",
+    "task9-catalog"
   ]);
   if (!knownSlugs.has(slug) && !isGeometryProfile) return null;
 
@@ -339,13 +340,14 @@ function buildProfile(slug) {
   const isEcommerce = slug === "task7-ecommerce";
   const isAppointment = slug === "task9-appointment";
   const isReservation = slug === "task9-reservation";
+  const isCatalog = slug === "task9-catalog";
   return {
     ...baseProfile,
     hasRestaurantModule: isRestaurant,
-    primaryModuleId: isAppointment ? "clinic" : isReservation ? "hotel" : isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood",
-    industry: isAppointment ? "clinic" : isReservation ? "hotel" : isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood",
-    industryLabel: isAppointment ? "Klinik" : isReservation ? "Otel" : isEcommerce ? "Ecommerce" : isRestaurant ? "Restoran" : "Fast Food",
-    modules: [isAppointment ? "clinic" : isReservation ? "hotel" : isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood"],
+    primaryModuleId: isAppointment ? "clinic" : isReservation ? "hotel" : isCatalog ? "petshop" : isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood",
+    industry: isAppointment ? "clinic" : isReservation ? "hotel" : isCatalog ? "petshop" : isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood",
+    industryLabel: isAppointment ? "Klinik" : isReservation ? "Otel" : isCatalog ? "Petshop" : isEcommerce ? "Ecommerce" : isRestaurant ? "Restoran" : "Fast Food",
+    modules: [isAppointment ? "clinic" : isReservation ? "hotel" : isCatalog ? "petshop" : isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood"],
     id: isEcommerce ? task7EcommerceSettings.id : slug.startsWith("task7-") ? "77777777-7777-4777-8777-777777777777" : baseProfile.id,
     name: isEcommerce ? "Task 7 Ecommerce" : slug === "task7-business" ? "Task 7 Test İşletmesi" : slug === "task7-200" ? "Task 7 200 Ürün" : baseProfile.name,
     slug

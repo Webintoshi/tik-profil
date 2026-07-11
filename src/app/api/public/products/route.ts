@@ -1,132 +1,133 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getDocumentREST } from '@/lib/documentStore';
-import { getSupabaseClient } from '@/lib/supabase';
-import type { Product, Category } from '@/types/ecommerce';
+import { NextRequest, NextResponse } from "next/server";
 
-const PRODUCTS_COLLECTION = 'ecommerce_products';
-const CATEGORIES_COLLECTION = 'ecommerce_categories';
-const DOCUMENTS_TABLE = 'app_documents';
+import { getSupabaseAdmin } from "@/lib/supabase";
+import { publicReadOnly, resolvePublicBusinessContext } from "@/server/auth/guards";
 
-// GET: Public products for storefront
+function amount(value: unknown): number {
+    const parsed = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+function mapCategory(row: Record<string, any>) {
+    return {
+        id: String(row.id),
+        image: row.image_url || undefined,
+        isActive: row.is_active !== false,
+        name: String(row.name || ""),
+        order: row.sort_order ?? 0,
+        sortOrder: row.sort_order ?? 0,
+        status: row.is_active === false ? "inactive" : "active",
+    };
+}
+
+function mapProduct(row: Record<string, any>, categoryName = "") {
+    const stock = row.stock_quantity == null ? null : Math.max(0, Math.trunc(amount(row.stock_quantity)));
+    return {
+        active: row.is_active !== false,
+        businessId: String(row.business_id),
+        categoryId: row.category_id ? String(row.category_id) : undefined,
+        categoryName,
+        createdAt: row.created_at,
+        description: row.description || undefined,
+        id: String(row.id),
+        image: row.image_url || undefined,
+        images: row.image_url ? [row.image_url] : [],
+        isActive: row.is_active !== false,
+        isFeatured: row.is_featured === true,
+        name: String(row.name || ""),
+        price: amount(row.price),
+        sortOrder: row.sort_order ?? 0,
+        status: row.is_active === false ? "inactive" : "active",
+        stock,
+        stockQuantity: stock,
+        trackStock: row.track_stock === true,
+    };
+}
+
 export async function GET(request: NextRequest) {
     try {
+        publicReadOnly();
         const searchParams = request.nextUrl.searchParams;
-        let businessId = searchParams.get('businessId');
-        const businessSlug = searchParams.get('slug');
-        const categoryId = searchParams.get('categoryId');
-        const productSlug = searchParams.get('productSlug');
+        const context = resolvePublicBusinessContext({
+            businessId: searchParams.get("businessId"),
+            slug: searchParams.get("slug"),
+        });
+        const categoryId = searchParams.get("categoryId");
+        const productSlug = searchParams.get("productSlug");
+        const supabase = getSupabaseAdmin();
+        let businessId = context.businessId;
 
-        const supabase = getSupabaseClient();
-
-        // Resolve businessId from slug if not provided directly
-        if (!businessId && businessSlug) {
-            const { data: businessData, error: businessError } = await supabase
-                .from('businesses')
-                .select('id')
-                .eq('slug', businessSlug)
-                .maybeSingle();
-
-            if (businessError) throw businessError;
-            if (businessData) {
-                businessId = businessData.id;
-            }
-        }
-
-        if (!businessId) {
-            return NextResponse.json({ error: 'Business ID or slug required' }, { status: 400 });
-        }
-
-        // Get single product by slug
-        if (productSlug) {
+        if (!businessId && context.businessSlug) {
             const { data, error } = await supabase
-                .from(DOCUMENTS_TABLE)
-                .select('id,data')
-                .eq('collection', PRODUCTS_COLLECTION)
-                .eq('data->>businessId', businessId)
-                .eq('data->>slug', productSlug)
-                .eq('data->>status', 'active')
-                .range(0, 0);
-
+                .from("businesses")
+                .select("id")
+                .eq("slug", context.businessSlug)
+                .maybeSingle();
             if (error) throw error;
-            const row = data?.[0] as { id: string; data: Record<string, unknown> } | undefined;
-            const product = row ? ({ id: row.id, ...(row.data as Record<string, unknown>) } as unknown as Product) : undefined;
-
-            if (!product) {
-                return NextResponse.json({ error: 'Product not found' }, { status: 404 });
-            }
-
-            // Get category name
-            let categoryName = '';
-            if (product.categoryId) {
-                try {
-                    const category = await getDocumentREST(CATEGORIES_COLLECTION, product.categoryId);
-                    categoryName = (category?.name as string) || '';
-                } catch { }
-            }
-
-            return NextResponse.json({
-                ...product,
-                categoryName,
-            });
+            businessId = data?.id ? String(data.id) : null;
+        }
+        if (!businessId) {
+            return NextResponse.json({ error: "Business ID or slug required" }, { status: 400 });
         }
 
-        // Get categories
-        const { data: categoryRows, error: categoriesError } = await supabase
-            .from(DOCUMENTS_TABLE)
-            .select('id,data')
-            .eq('collection', CATEGORIES_COLLECTION)
-            .eq('data->>businessId', businessId)
-            .eq('data->>status', 'active')
-            .range(0, 999);
-        if (categoriesError) throw categoriesError;
+        if (productSlug) {
+            const { data: product, error } = await supabase
+                .from("ecommerce_products")
+                .select("id,business_id,category_id,slug,name,description,price,image_url,is_active,in_stock,is_featured,sort_order,stock_quantity,track_stock,created_at")
+                .eq("business_id", businessId)
+                .eq("slug", productSlug)
+                .eq("is_active", true)
+                .maybeSingle();
+            if (error) throw error;
+            if (!product || product.in_stock === false) {
+                return NextResponse.json({ error: "Product not found" }, { status: 404 });
+            }
+            let categoryName = "";
+            if (product.category_id) {
+                const { data: category, error: categoryError } = await supabase
+                    .from("ecommerce_categories")
+                    .select("name")
+                    .eq("business_id", businessId)
+                    .eq("id", product.category_id)
+                    .eq("is_active", true)
+                    .maybeSingle();
+                if (categoryError) throw categoryError;
+                categoryName = category?.name || "";
+            }
+            return NextResponse.json(mapProduct(product, categoryName));
+        }
 
-        const categories = (categoryRows || [])
-            .map((r: any) => ({ id: r.id, ...(r.data as Record<string, unknown>) } as unknown as Category))
-            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        const { data: categoryRows, error: categoryError } = await supabase
+            .from("ecommerce_categories")
+            .select("id,name,image_url,sort_order,is_active")
+            .eq("business_id", businessId)
+            .eq("is_active", true)
+            .order("sort_order", { ascending: true });
+        if (categoryError) throw categoryError;
+        const categories = (categoryRows || []).map(mapCategory);
+        const categoryNames = new Map(categories.map((category) => [category.id, category.name]));
 
-        // Get products
         let productsQuery = supabase
-            .from(DOCUMENTS_TABLE)
-            .select('id,data')
-            .eq('collection', PRODUCTS_COLLECTION)
-            .eq('data->>businessId', businessId)
-            .eq('data->>status', 'active');
-
-        // Filter by category if provided
-        if (categoryId) {
-            productsQuery = productsQuery.eq('data->>categoryId', categoryId);
-        }
-
-        const { data: productRows, error: productsError } = await productsQuery.range(0, 1999);
-        if (productsError) throw productsError;
-
-        const products = (productRows || [])
-            .map((r: any) => ({ id: r.id, ...(r.data as Record<string, unknown>) } as unknown as Product))
-            .sort((a, b) => {
-                const orderA = a.sortOrder ?? 0;
-                const orderB = b.sortOrder ?? 0;
-                if (orderA !== orderB) {
-                    return orderA - orderB;
-                }
-                return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-            });
-
-        // Add category name to each product
-        const productsWithCategory = products.map(p => ({
-            ...p,
-            categoryName: categories.find(c => c.id === p.categoryId)?.name || '',
-        }));
+            .from("ecommerce_products")
+            .select("id,business_id,category_id,slug,name,description,price,image_url,is_active,in_stock,is_featured,sort_order,stock_quantity,track_stock,created_at")
+            .eq("business_id", businessId)
+            .eq("is_active", true)
+            .eq("in_stock", true)
+            .order("sort_order", { ascending: true })
+            .order("created_at", { ascending: false });
+        if (categoryId) productsQuery = productsQuery.eq("category_id", categoryId);
+        const { data: productRows, error: productError } = await productsQuery;
+        if (productError) throw productError;
 
         return NextResponse.json({
-            success: true,
             categories,
-            products: productsWithCategory,
+            products: (productRows || []).map((product) => mapProduct(
+                product,
+                product.category_id ? categoryNames.get(String(product.category_id)) || "" : "",
+            )),
+            success: true,
         });
     } catch (error) {
-        console.error('[Public Products GET Error]:', error);
-        return NextResponse.json(
-            { error: 'Ürünler alınırken hata oluştu' },
-            { status: 500 }
-        );
+        console.error("[Public Products GET] Unexpected error:", error);
+        return NextResponse.json({ error: "Products could not be loaded." }, { status: 500 });
     }
 }

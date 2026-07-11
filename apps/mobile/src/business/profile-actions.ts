@@ -54,6 +54,11 @@ const NATIVE_ACTIONS: Readonly<Record<NativeCapability, NativeActionPresentation
     label: "Rezervasyon Yap",
     panelKind: "reservation"
   },
+  "catalog-order": {
+    icon: "store",
+    label: "Ürünleri Gör",
+    panelKind: "ecommerce"
+  },
   "fastfood-order": {
     icon: "utensils",
     label: "Sipariş Ver",
@@ -77,6 +82,7 @@ const LEGACY_NATIVE_CAPABILITIES = Object.freeze(Object.keys(NATIVE_ACTIONS) as 
 const NATIVE_CAPABILITY_PRECEDENCE = [
   "fastfood-order",
   "reservation-booking",
+  "catalog-order",
   "restaurant-menu",
   "ecommerce-order",
   "appointment-booking"

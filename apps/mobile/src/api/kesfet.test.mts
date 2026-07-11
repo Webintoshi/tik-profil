@@ -31,7 +31,8 @@ const {
   fetchPublicProfile,
   invalidatePublicEcommerceCache,
   invalidatePublicFoodMenuCache,
-  KesfetHttpError
+  KesfetHttpError,
+  submitPublicEcommerceCheckout
 }: typeof import("./kesfet") = await import(new URL("./kesfet.ts", import.meta.url).href);
 const { clearRequestCache }: typeof import("./request-cache") = await import(
   new URL("./request-cache.ts", import.meta.url).href
@@ -39,6 +40,33 @@ const { clearRequestCache }: typeof import("./request-cache") = await import(
 
 test.beforeEach(() => clearRequestCache());
 test.afterEach(() => clearRequestCache());
+
+test("authenticated ecommerce checkout forwards bearer and idempotency without trusting transport totals", async () => {
+  const originalFetch = globalThis.fetch;
+  const captured: Array<{ authorization: string | null; body: Record<string, unknown> }> = [];
+  globalThis.fetch = async (_input, init = {}) => {
+    captured.push({
+      authorization: new Headers(init.headers).get("authorization"),
+      body: JSON.parse(String(init.body)) as Record<string, unknown>
+    });
+    return Response.json({ success: true, orderId: "order-1", orderNumber: "E-001", total: 250 });
+  };
+  try {
+    await submitPublicEcommerceCheckout({
+      businessId: "business-1",
+      customerInfo: { address: "Ordu", city: "Ordu", name: "Ada", phone: "05550000000" },
+      idempotencyKey: "ecommerce-request-0001",
+      items: [{ productId: "product-1", quantity: 2 }],
+      paymentMethod: "cash",
+      shippingMethod: "standard"
+    }, "customer-token");
+    assert.equal(captured[0]?.authorization, "Bearer customer-token");
+    assert.equal(captured[0]?.body.idempotencyKey, "ecommerce-request-0001");
+    assert.equal("shippingCost" in captured[0].body, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 
 async function withUnavailableNetwork<T>(run: () => Promise<T>) {
   const originalFetch = globalThis.fetch;
