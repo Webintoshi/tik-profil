@@ -216,6 +216,7 @@ function createOrderDependencies(request: Request): FastFoodOrderDependencies {
                 orderId: String(row.order_id),
                 orderNumber: String(row.order_number),
                 status: 'pending' as const,
+                wasCreated: row.was_created === true,
             };
         },
         async findCommittedOrder(input) {
@@ -233,6 +234,7 @@ function createOrderDependencies(request: Request): FastFoodOrderDependencies {
                 orderId: String(data.id),
                 orderNumber: String(data.order_number || ''),
                 status: 'pending' as const,
+                wasCreated: false,
             };
         },
         async getBusiness(businessId) {
@@ -276,7 +278,10 @@ export async function POST(request: Request) {
     try {
         const body: unknown = await request.json();
         const result = await createFastFoodOrder(body, createOrderDependencies(request));
-        return Response.json({ success: true, ...result });
+        const { wasCreated, ...publicResult } = result;
+        return Response.json({ success: true, ...publicResult }, {
+            headers: { 'x-fastfood-order-created': wasCreated ? '1' : '0' },
+        });
     } catch (error) {
         if (error instanceof FastFoodOrderError) {
             return Response.json({ success: false, code: error.code, error: error.message }, { status: error.status });

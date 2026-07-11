@@ -1,3 +1,20 @@
+DO $migration_guard$
+DECLARE
+    v_required_table text;
+BEGIN
+    FOREACH v_required_table IN ARRAY ARRAY[
+        'ff_orders',
+        'ff_coupons',
+        'ff_coupon_usages',
+        'ff_products'
+    ] LOOP
+        IF to_regclass(format('public.%I', v_required_table)) IS NULL THEN
+            RAISE EXCEPTION 'FASTFOOD_ORDER_ATOMICITY_REQUIRED_TABLE_MISSING: %', v_required_table;
+        END IF;
+    END LOOP;
+END
+$migration_guard$;
+
 DO $$
 BEGIN
     IF to_regclass('public.ff_orders') IS NOT NULL THEN
@@ -97,12 +114,18 @@ BEGIN
         RETURN;
     END IF;
 
-    IF p_coupon_code IS NOT NULL THEN
+    PERFORM pg_advisory_xact_lock(hashtextextended(
+        p_business_id || ':customer-phone:' || v_normalized_phone,
+        0
+    ));
+    IF p_app_user_id IS NOT NULL THEN
         PERFORM pg_advisory_xact_lock(hashtextextended(
-            p_business_id || ':customer:' || COALESCE(p_app_user_id::text, v_normalized_phone),
+            p_business_id || ':customer-user:' || p_app_user_id::text,
             0
         ));
+    END IF;
 
+    IF p_coupon_code IS NOT NULL THEN
         SELECT *
         INTO v_coupon
         FROM ff_coupons

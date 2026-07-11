@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { dispatchStoredFastFoodOrderNotification } from '@/server/fastfood/order-notification-repository';
 
 import { adaptLegacyCheckoutInput, type LegacyCheckoutInput } from './checkout-adapter';
+import { notifyCreatedLegacyOrder } from './checkout-notification';
 import { POST as createOrder } from '../orders/route';
 
 export const dynamic = 'force-dynamic';
@@ -84,24 +86,14 @@ export async function POST(request: Request) {
             return NextResponse.json(payload, { status: orderResponse.status });
         }
 
-        try {
-            await fetch(new URL('/api/fastfood/notify', request.url), {
-                body: JSON.stringify({
-                    businessId: String(business.id),
-                    businessName: String(business.name || ''),
-                    customerName: data.customer.name,
-                    customerPhone: data.customer.phone,
-                    items: data.items,
-                    orderId: payload.orderId,
-                    total: data.total,
-                    type: 'new_order',
-                }),
-                headers: { 'content-type': 'application/json' },
-                method: 'POST',
-            });
-        } catch (notifyError) {
-            console.error('Notify error:', notifyError);
-        }
+        await notifyCreatedLegacyOrder({
+            businessId: String(business.id),
+            orderId: String(payload.orderId || ''),
+            wasCreated: orderResponse.headers.get('x-fastfood-order-created') === '1',
+        }, {
+            dispatch: dispatchStoredFastFoodOrderNotification,
+            reportError: (notifyError) => console.error('Notify error:', notifyError),
+        });
 
         return NextResponse.json({
             ...payload,

@@ -1,5 +1,5 @@
 export type DeliveryType = "delivery" | "pickup";
-export type PaymentMethod = "card" | "cash";
+export type PaymentMethod = "card" | "cash" | "online";
 
 export interface CheckoutAddressInput {
   city: string;
@@ -142,14 +142,33 @@ export function resolveDeliveryMode(input: {
   return input.deliveryEnabled ? "delivery" : "pickup";
 }
 
-export function resolvePaymentMethod(input: {
+export function isDeliveryModeAvailable(
+  mode: DeliveryType,
+  settings: { deliveryEnabled: boolean; pickupEnabled: boolean }
+): boolean {
+  return mode === "delivery" ? settings.deliveryEnabled : settings.pickupEnabled;
+}
+
+interface PaymentCapabilities {
   cardEnabled: boolean;
   cashEnabled: boolean;
+  onlineEnabled: boolean;
+}
+
+export function listAvailablePaymentMethods(input: PaymentCapabilities): PaymentMethod[] {
+  return [
+    ...(input.cashEnabled ? ["cash" as const] : []),
+    ...(input.cardEnabled ? ["card" as const] : []),
+    ...(input.onlineEnabled ? ["online" as const] : [])
+  ];
+}
+
+export function resolvePaymentMethod(input: PaymentCapabilities & {
   preferred?: PaymentMethod;
-}): PaymentMethod {
-  if (input.preferred === "card" && input.cardEnabled) return "card";
-  if (input.preferred === "cash" && input.cashEnabled) return "cash";
-  return input.cashEnabled ? "cash" : "card";
+}): PaymentMethod | null {
+  const available = listAvailablePaymentMethods(input);
+  if (input.preferred && available.includes(input.preferred)) return input.preferred;
+  return available[0] ?? null;
 }
 
 export function calculateDeliveryFee(input: {

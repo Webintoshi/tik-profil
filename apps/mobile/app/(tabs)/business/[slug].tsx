@@ -25,6 +25,7 @@ import {
   type PublicFoodMenuExtra,
   type PublicFoodMenuExtraGroup,
   type PublicFoodMenuProduct,
+  type PublicFastFoodOrderResponse,
   type PublicProfile,
   type PublicProfileSocialLinks,
   submitPublicEcommerceCheckout
@@ -39,6 +40,8 @@ import {
   calculateCheckoutTotals,
   calculateDeliveryFee,
   createCheckoutSubmitGuard,
+  isDeliveryModeAvailable,
+  listAvailablePaymentMethods,
   reconcileCouponForDelivery,
   removeCoupon,
   resolveActiveProductPrice,
@@ -48,7 +51,8 @@ import {
   validateCheckout,
   type AppliedCoupon,
   type CheckoutIdempotencyState,
-  type CheckoutPrefill
+  type CheckoutPrefill,
+  type PaymentMethod
 } from "@/checkout/checkout-state";
 import { Icon, type IconName } from "@/components/common/Icon";
 import { BusinessCardSkeleton } from "@/components/ui/Skeleton";
@@ -1354,6 +1358,7 @@ function FoodMenuPanel({
   selectedCategoryId: string | null;
 }) {
   const actionColors = getActionColors();
+  const { runAuthenticated } = useCustomerSession();
   const { height: screenHeight } = useWindowDimensions();
   const categories = React.useMemo(
     () => [...(data?.categories ?? [])].sort((first, second) => getCategoryOrder(first) - getCategoryOrder(second)),
@@ -1393,7 +1398,7 @@ function FoodMenuPanel({
   const [deliveryType, setDeliveryType] = React.useState<"pickup" | "delivery">("delivery");
   const [selectedAddressId, setSelectedAddressId] = React.useState<string | null>(prefill.selectedAddressId);
   const [isAddingAddress, setIsAddingAddress] = React.useState(prefill.addressMode === "new");
-  const [paymentMethod, setPaymentMethod] = React.useState<"cash" | "card">("cash");
+  const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod | null>("cash");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isCouponLoading, setIsCouponLoading] = React.useState(false);
   const [appliedCoupon, setAppliedCoupon] = React.useState<AppliedCoupon | null>(null);
@@ -1412,10 +1417,16 @@ function FoodMenuPanel({
 
   const settings = data?.settings;
   const cartEnabled = kind === "fastfood";
-  const pickupEnabled = cartEnabled || settings?.pickupEnabled !== false;
+  const pickupEnabled = settings?.pickupEnabled !== false;
   const deliveryEnabled = settings?.deliveryEnabled !== false;
   const cashPayment = settings?.cashPayment !== false;
   const cardOnDelivery = settings?.cardOnDelivery !== false;
+  const onlinePayment = settings?.onlinePayment === true;
+  const availablePaymentMethods = listAvailablePaymentMethods({
+    cardEnabled: cardOnDelivery,
+    cashEnabled: cashPayment,
+    onlineEnabled: onlinePayment
+  });
   const minOrderAmount = settings?.minOrderAmount ?? 0;
   const freeDeliveryAbove = settings?.freeDeliveryAbove ?? 0;
   const deliveryFeeSetting = settings?.deliveryFee ?? 0;
@@ -1462,14 +1473,15 @@ function FoodMenuPanel({
     setDeliveryType((current) => resolveDeliveryMode({
       deliveryEnabled,
       pickupEnabled,
-      preferred: current
+      preferred: current ?? undefined
     }));
     setPaymentMethod((current) => resolvePaymentMethod({
       cardEnabled: cardOnDelivery,
       cashEnabled: cashPayment,
-      preferred: current
+      onlineEnabled: onlinePayment,
+      preferred: current ?? undefined
     }));
-  }, [cardOnDelivery, cashPayment, data, deliveryEnabled, pickupEnabled]);
+  }, [cardOnDelivery, cashPayment, data, deliveryEnabled, onlinePayment, pickupEnabled]);
 
   React.useEffect(() => {
     setSelectedAddressId(prefill.selectedAddressId);
@@ -1534,7 +1546,8 @@ function FoodMenuPanel({
     phone: form.phone,
     subtotal
   });
-  const canSubmitOrder = checkoutValidation === null;
+  const deliveryModeAvailable = isDeliveryModeAvailable(deliveryType, { deliveryEnabled, pickupEnabled });
+  const canSubmitOrder = checkoutValidation === null && deliveryModeAvailable && paymentMethod !== null;
   const couponCartKey = `${subtotal}:${cartRows.map((item) => `${item.product.id}:${item.quantity}`).join("|")}`;
   const menuMaxHeight = cartRows.length > 0
     ? Math.max(520, Math.round(screenHeight * 0.64))
@@ -1773,7 +1786,7 @@ function FoodMenuPanel({
   }
 
   async function submitFastFoodOrder() {
-    if (!data || !canSubmitOrder || submitGuardRef.current.isSubmitting()) {
+    if (!data || !canSubmitOrder || !paymentMethod || submitGuardRef.current.isSubmitting()) {
       lightImpact();
       return;
     }
@@ -1807,15 +1820,22 @@ function FoodMenuPanel({
       };
       const idempotency = resolveCheckoutIdempotency(idempotencyStateRef.current, JSON.stringify(payloadInput));
       idempotencyStateRef.current = idempotency.state;
-      const guarded = await submitGuardRef.current.run(() => submitPublicFastFoodOrder(buildFastFoodOrderPayload({
+      const orderPayload = buildFastFoodOrderPayload({
         ...payloadInput,
         idempotencyKey: idempotency.key
-      }), accessToken));
+      });
+      const guarded = await submitGuardRef.current.run<PublicFastFoodOrderResponse | undefined>(() => accessToken
+        ? runAuthenticated((token) => submitPublicFastFoodOrder(orderPayload, token))
+        : submitPublicFastFoodOrder(orderPayload));
 
       if (!guarded.accepted) return;
       const response = guarded.value;
+      if (!response) {
+        setOrderError("Siparis gonderilemedi");
+        return;
+      }
 
-      if (response.success && response.orderId && response.orderNumber && response.status) {
+      if (response?.success && response.orderId && response.orderNumber && response.status) {
         setOrderNumber(response.orderNumber);
         setCartItems({});
         setAppliedCoupon(null);
@@ -2144,15 +2164,18 @@ function FoodMenuPanel({
               <Text style={{ ...typography.small, color: appliedCoupon ? colors.brand : colors.coral }}>{couponMessage}</Text>
             ) : null}
           </View>
-          {(cashPayment || cardOnDelivery) ? (
+          {availablePaymentMethods.length ? (
             <View style={{ gap: spacing.sm }}>
               <Text style={{ ...typography.small, color: colors.mutedStrong }}>Ödeme yöntemi</Text>
               <View style={{ flexDirection: "row", gap: spacing.sm }}>
-                {cashPayment ? (
+                {availablePaymentMethods.includes("cash") ? (
                   <FoodOrderChoiceButton active={paymentMethod === "cash"} icon="store" label="Nakit" onPress={() => setPaymentMethod("cash")} />
                 ) : null}
-                {cardOnDelivery ? (
+                {availablePaymentMethods.includes("card") ? (
                   <FoodOrderChoiceButton active={paymentMethod === "card"} icon="ticket" label="Kart" onPress={() => setPaymentMethod("card")} />
+                ) : null}
+                {availablePaymentMethods.includes("online") ? (
+                  <FoodOrderChoiceButton active={paymentMethod === "online"} icon="lock" label="Online" onPress={() => setPaymentMethod("online")} />
                 ) : null}
               </View>
             </View>

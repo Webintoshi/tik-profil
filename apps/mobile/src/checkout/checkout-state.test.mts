@@ -46,8 +46,14 @@ test("guest prefill remains empty and starts in new-address mode", () => {
 test("delivery and payment modes fall back to an enabled option", () => {
   assert.equal(checkout.resolveDeliveryMode({ deliveryEnabled: true, pickupEnabled: true }), "delivery");
   assert.equal(checkout.resolveDeliveryMode({ deliveryEnabled: false, pickupEnabled: true, preferred: "delivery" }), "pickup");
-  assert.equal(checkout.resolvePaymentMethod({ cardEnabled: true, cashEnabled: false, preferred: "cash" }), "card");
-  assert.equal(checkout.resolvePaymentMethod({ cardEnabled: false, cashEnabled: true }), "cash");
+  assert.equal(checkout.resolveDeliveryMode({ deliveryEnabled: true, pickupEnabled: false, preferred: "pickup" }), "delivery");
+  assert.equal(checkout.isDeliveryModeAvailable("pickup", { deliveryEnabled: true, pickupEnabled: false }), false);
+  assert.equal(checkout.resolvePaymentMethod({ cardEnabled: true, cashEnabled: false, onlineEnabled: false, preferred: "cash" }), "card");
+  assert.equal(checkout.resolvePaymentMethod({ cardEnabled: false, cashEnabled: true, onlineEnabled: false }), "cash");
+  assert.equal(checkout.resolvePaymentMethod({ cardEnabled: false, cashEnabled: false, onlineEnabled: true }), "online");
+  assert.equal(checkout.resolvePaymentMethod({ cardEnabled: false, cashEnabled: false, onlineEnabled: false }), null);
+  assert.deepEqual(checkout.listAvailablePaymentMethods({ cardEnabled: false, cashEnabled: false, onlineEnabled: true }), ["online"]);
+  assert.deepEqual(checkout.listAvailablePaymentMethods({ cardEnabled: false, cashEnabled: false, onlineEnabled: false }), []);
 });
 
 test("pickup needs no address while delivery requires saved or new address text", () => {
@@ -123,6 +129,19 @@ test("order payload includes coupon fields and never includes client identity", 
   assert.equal(payload.couponCode, "SAVE20");
   assert.equal(payload.couponDiscount, 20);
   assert.equal(payload.total, 195);
+  assert.equal(checkout.buildFastFoodOrderPayload({
+    address: "",
+    businessId: "business-1",
+    coupon: null,
+    deliveryType: "pickup",
+    idempotencyKey: "checkout-key-online-1234567890",
+    items: payload.items,
+    name: "Ada Lovelace",
+    note: "",
+    paymentMethod: "online",
+    phone: "05551112233",
+    totals: { couponDiscount: 0, deliveryFee: 0, subtotal: 200, total: 200 }
+  }).paymentMethod, "online");
 });
 
 test("submit guard suppresses duplicates and resets after rejection", async () => {

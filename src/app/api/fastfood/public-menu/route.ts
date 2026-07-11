@@ -7,6 +7,7 @@ import {
     type PublicMenuExtraRow,
 } from '@/lib/fastfood/publicMenu';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { mapPublicFastFoodCheckoutSettings } from './public-settings';
 
 // Force dynamic to prevent caching
 export const dynamic = 'force-dynamic';
@@ -213,15 +214,11 @@ export async function GET(request: Request) {
 
         // Process settings
         const businessSettings = {
-            deliveryEnabled: settings?.delivery_enabled !== false,
-            pickupEnabled: settings?.pickup_enabled !== false,
+            ...mapPublicFastFoodCheckoutSettings(settings),
             minOrderAmount: Number(settings?.min_order_amount) || 0,
             deliveryFee: Number(settings?.delivery_fee) || 0,
             freeDeliveryAbove: Number(settings?.free_delivery_above) || 0,
             estimatedDeliveryTime: settings?.estimated_delivery_time || null,
-            cashPayment: settings?.cash_payment !== false,
-            cardOnDelivery: settings?.card_on_delivery !== false,
-            onlinePayment: settings?.online_payment !== false,
             workingHours: settings?.working_hours || null,
             useBusinessHours: settings?.use_business_hours !== false,
             whatsappNumber: settings?.whatsapp_number || '',

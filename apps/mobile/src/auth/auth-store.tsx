@@ -32,6 +32,7 @@ export interface CustomerSession {
   signUp(): Promise<void>;
   signOut(): Promise<void>;
   refreshCustomer(): Promise<void>;
+  runAuthenticated<T>(operation: (accessToken: string) => Promise<T>): Promise<T | undefined>;
   saveAddress(address: CustomerAddressInput): Promise<boolean>;
   saveProfile(update: CustomerProfileUpdate): Promise<boolean>;
   updateAvatar(asset: AccountAvatarAsset): Promise<boolean>;
@@ -85,6 +86,7 @@ export function CustomerSessionProvider({ children }: { children: ReactNode }) {
     customer: state.customer,
     error: state.error,
     refreshCustomer: () => controller.refreshCustomer(),
+    runAuthenticated: (operation) => controller.runAuthenticated(operation),
     saveAddress,
     saveProfile,
     signIn: (directSignIn?: DirectSignIn) => controller.signIn(directSignIn),

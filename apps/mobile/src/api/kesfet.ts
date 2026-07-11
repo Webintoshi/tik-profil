@@ -3,6 +3,7 @@ import {
   businessMatchesCategory,
   getCategoryQueryKey
 } from "@/business/category-catalog";
+import { CustomerApiError } from "@/api/customer";
 
 export interface KesfetBusiness {
   id: string;
@@ -703,7 +704,8 @@ async function postJson<T>(
   url: string,
   body: unknown,
   fallback: T,
-  extraHeaders: Record<string, string> = {}
+  extraHeaders: Record<string, string> = {},
+  preserveHttpError = false
 ): Promise<T> {
   const proxyUrl = getLocalWebProxyUrl();
   const requestUrl = proxyUrl && BASE_URL === "https://tikprofil.com"
@@ -722,6 +724,7 @@ async function postJson<T>(
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
+      if (preserveHttpError) throw new CustomerApiError(response.status, data);
       return {
         ...(typeof fallback === "object" && fallback ? fallback : {}),
         error: data?.error || data?.message || "İşlem tamamlanamadı"
@@ -729,7 +732,8 @@ async function postJson<T>(
     }
 
     return data as T;
-  } catch {
+  } catch (error) {
+    if (error instanceof CustomerApiError) throw error;
     return fallback;
   }
 }
@@ -841,7 +845,8 @@ export async function submitPublicFastFoodOrder(
     buildUrl("/api/fastfood/orders"),
     input,
     { success: false, error: "Sipariş gönderilemedi" },
-    accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+    accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    Boolean(accessToken)
   );
 }
 

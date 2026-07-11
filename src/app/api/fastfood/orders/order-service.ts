@@ -87,13 +87,20 @@ export interface FastFoodOrderRecord {
     total: number;
 }
 
+export interface FastFoodOrderResult {
+    orderId: string;
+    orderNumber: string;
+    status: "pending";
+    wasCreated: boolean;
+}
+
 export interface FastFoodOrderDependencies {
-    commitOrder(record: FastFoodOrderRecord): Promise<{ orderId: string; orderNumber: string; status: "pending" }>;
+    commitOrder(record: FastFoodOrderRecord): Promise<FastFoodOrderResult>;
     findCommittedOrder(input: {
         businessId: string;
         idempotencyFingerprint: string;
         idempotencyKey: string;
-    }): Promise<{ orderId: string; orderNumber: string; status: "pending" } | null>;
+    }): Promise<FastFoodOrderResult | null>;
     getBusiness(businessId: string): Promise<{ id: string; name: string } | null>;
     getCatalog(businessId: string): Promise<{
         extraGroups: FastFoodExtraGroup[];
@@ -310,7 +317,7 @@ function calculateCouponDiscount(
 export async function createFastFoodOrder(
     rawInput: unknown,
     dependencies: FastFoodOrderDependencies,
-): Promise<{ orderId: string; orderNumber: string; status: "pending" }> {
+): Promise<FastFoodOrderResult> {
     const input = parseFastFoodOrderInput(rawInput);
     const customer = await dependencies.resolveCustomer();
     const fingerprint = idempotencyFingerprint(input, customer?.appUserId ?? null);

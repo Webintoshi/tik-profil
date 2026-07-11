@@ -15,11 +15,16 @@ registerHooks({
     if (specifier.startsWith("@/")) {
       return nextResolve(new URL(`${specifier.slice(2)}.ts`, sourceRoot).href, context);
     }
+    if (specifier.startsWith(".") && !specifier.match(/\.[a-z]+$/i)) {
+      return nextResolve(`${specifier}.ts`, context);
+    }
     return nextResolve(specifier, context);
   }
 });
 
 const api: typeof import("./kesfet") = await import(new URL("./kesfet.ts", import.meta.url).href);
+const { CustomerApiError }: typeof import("./customer") = await import(new URL("./customer.ts", import.meta.url).href);
+const { createSessionController }: typeof import("../auth/session-controller") = await import(new URL("../auth/session-controller.ts", import.meta.url).href);
 
 const order = {
   businessId: "business-1",
@@ -65,6 +70,75 @@ test("guest fast-food order omits authorization", async () => {
   try {
     await api.submitPublicFastFoodOrder(order);
     assert.equal(authorization, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("authenticated fast-food order preserves an unauthorized HTTP status for session retry", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ code: "UNAUTHORIZED", error: "expired" }, { status: 401 });
+  try {
+    await assert.rejects(
+      () => api.submitPublicFastFoodOrder(order, "expired-token"),
+      (error: unknown) => error instanceof CustomerApiError && error.status === 401
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+function sessionHarness() {
+  let stored: string | null = null;
+  let refreshCalls = 0;
+  const token = (name: string) => ({ accessToken: `${name}-access`, expiresAt: Date.now() + 600_000, refreshToken: `${name}-refresh` });
+  const controller = createSessionController({
+    authorize: async () => token("initial"),
+    fetchCustomer: async () => ({ addresses: [], email: "customer@example.com", orders: [], profile: null, reservations: [] }),
+    logoutMarker: { clear: async () => undefined, read: async () => false, write: async () => undefined },
+    refresh: async () => { refreshCalls += 1; return token("rotated"); },
+    revoke: async () => undefined,
+    storage: {
+      clear: async () => { stored = null; },
+      read: async () => stored,
+      write: async (value: string) => { stored = value; }
+    }
+  });
+  return { controller, get refreshCalls() { return refreshCalls; } };
+}
+
+test("authenticated checkout refreshes once and retries once with the rotated bearer", async () => {
+  const originalFetch = globalThis.fetch;
+  const context = sessionHarness();
+  const bearers: Array<string | null> = [];
+  globalThis.fetch = async (_input, init) => {
+    bearers.push(new Headers(init?.headers).get("Authorization"));
+    if (bearers.length === 1) return Response.json({ code: "UNAUTHORIZED" }, { status: 401 });
+    return Response.json({ orderId: "order-retry", orderNumber: "#4321", status: "pending", success: true });
+  };
+  try {
+    await context.controller.signIn();
+    const response = await context.controller.runAuthenticated((accessToken) => api.submitPublicFastFoodOrder(order, accessToken));
+    assert.equal(response?.orderId, "order-retry");
+    assert.deepEqual(bearers, ["Bearer initial-access", "Bearer rotated-access"]);
+    assert.equal(context.refreshCalls, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("repeated authenticated checkout 401 cleans the session after one retry", async () => {
+  const originalFetch = globalThis.fetch;
+  const context = sessionHarness();
+  let calls = 0;
+  globalThis.fetch = async () => { calls += 1; return Response.json({ code: "UNAUTHORIZED" }, { status: 401 }); };
+  try {
+    await context.controller.signIn();
+    const response = await context.controller.runAuthenticated((accessToken) => api.submitPublicFastFoodOrder(order, accessToken));
+    assert.equal(response, undefined);
+    assert.equal(calls, 2);
+    assert.equal(context.refreshCalls, 1);
+    assert.equal(context.controller.getState().status, "signed_out");
   } finally {
     globalThis.fetch = originalFetch;
   }

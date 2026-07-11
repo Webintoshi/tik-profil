@@ -47,7 +47,7 @@ function dependencies(overrides: Record<string, unknown> = {}) {
     deps: {
       commitOrder: async (record: Record<string, unknown>) => {
         inserted.push(record);
-        return { orderId: "order-1", orderNumber: "#1234", status: "pending" };
+        return { orderId: "order-1", orderNumber: "#1234", status: "pending", wasCreated: true };
       },
       findCommittedOrder: async () => null,
       getBusiness: async () => ({ id: "business-1", name: "Burger Shop" }),
@@ -90,7 +90,7 @@ function dependencies(overrides: Record<string, unknown> = {}) {
 test("authenticated checkout attaches only server-resolved identity and returns a stable response", async () => {
   const { deps, inserted } = dependencies();
   const response = await orders.createFastFoodOrder(input(), deps as never);
-  assert.deepEqual(response, { orderId: "order-1", orderNumber: "#1234", status: "pending" });
+  assert.deepEqual(response, { orderId: "order-1", orderNumber: "#1234", status: "pending", wasCreated: true });
   assert.equal(inserted[0].appUserId, "session-user");
   assert.equal(inserted[0].subtotal, 230);
   assert.equal(inserted[0].total, 240);
@@ -263,12 +263,24 @@ test("legacy web item shapes are canonicalized without weakening total validatio
 test("same idempotency key returns its stable committed response before catalog or coupon checks", async () => {
   let catalogCalls = 0;
   const { deps } = dependencies({
-    findCommittedOrder: async () => ({ orderId: "existing-order", orderNumber: "#7777", status: "pending" }),
+    findCommittedOrder: async () => ({ orderId: "existing-order", orderNumber: "#7777", status: "pending", wasCreated: false }),
     getCatalog: async () => { catalogCalls += 1; throw new Error("must not load catalog"); }
   });
   const response = await orders.createFastFoodOrder(input(), deps as never);
-  assert.deepEqual(response, { orderId: "existing-order", orderNumber: "#7777", status: "pending" });
+  assert.deepEqual(response, { orderId: "existing-order", orderNumber: "#7777", status: "pending", wasCreated: false });
   assert.equal(catalogCalls, 0);
+});
+
+test("order results expose an internal creation marker for replay-safe side effects", async () => {
+  const created = dependencies();
+  const createdResponse = await orders.createFastFoodOrder(input(), created.deps as never);
+  assert.equal(createdResponse.wasCreated, true);
+
+  const replay = dependencies({
+    findCommittedOrder: async () => ({ orderId: "existing-order", orderNumber: "#7777", status: "pending", wasCreated: false })
+  });
+  const replayResponse = await orders.createFastFoodOrder(input(), replay.deps as never);
+  assert.equal(replayResponse.wasCreated, false);
 });
 
 test("database commit owns order coupon writes and propagates rollback failures without a second insert path", async () => {
@@ -294,7 +306,7 @@ test("atomic commit receives authoritative customer identity phone and idempoten
     findCommittedOrder: async () => null,
     commitOrder: async (record: Record<string, unknown>) => {
       committed = record;
-      return { orderId: "atomic-order", orderNumber: "#8888", status: "pending" };
+      return { orderId: "atomic-order", orderNumber: "#8888", status: "pending", wasCreated: true };
     }
   };
   await orders.createFastFoodOrder(input(), deps as never);
@@ -362,7 +374,7 @@ test("legacy free-delivery zero fields are accepted but atomic persistence recei
     }),
     commitOrder: async (record: Record<string, unknown>) => {
       committed = record;
-      return { orderId: "free-order", orderNumber: "#9999", status: "pending" };
+      return { orderId: "free-order", orderNumber: "#9999", status: "pending", wasCreated: true };
     }
   };
   await orders.createFastFoodOrder(input({

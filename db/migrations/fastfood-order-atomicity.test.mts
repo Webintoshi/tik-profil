@@ -10,6 +10,17 @@ async function migrationSql() {
   return readFile(migrationUrl, "utf8");
 }
 
+test("fast-food migration fails before changes when a required legacy table is absent", async () => {
+  const sql = await migrationSql();
+  const guard = sql.match(/DO \$migration_guard\$[\s\S]*?\$migration_guard\$;/i)?.[0] ?? "";
+  assert.ok(guard, "missing required-table migration guard");
+  for (const table of ["ff_orders", "ff_coupons", "ff_coupon_usages", "ff_products"]) {
+    assert.match(guard, new RegExp(table, "i"));
+  }
+  assert.match(guard, /RAISE EXCEPTION 'FASTFOOD_ORDER_ATOMICITY_REQUIRED_TABLE_MISSING: %'/i);
+  assert.ok(sql.indexOf("$migration_guard$;") < sql.indexOf("ALTER TABLE ff_orders"));
+});
+
 test("fast-food migration adds durable idempotency and customer coupon ownership", async () => {
   const sql = await migrationSql();
   assert.match(sql, /ALTER TABLE ff_orders[\s\S]*ADD COLUMN IF NOT EXISTS idempotency_key text/i);
@@ -34,13 +45,19 @@ test("atomic RPC locks coupon limits and keeps order counter and usage writes in
   const sql = await migrationSql();
   const functionBody = sql.match(/CREATE OR REPLACE FUNCTION create_fastfood_order_atomic[\s\S]*?\$function\$;/i)?.[0] ?? "";
   assert.match(functionBody, /FROM ff_coupons[\s\S]*FOR UPDATE/i);
-  assert.match(functionBody, /pg_advisory_xact_lock\s*\(hashtextextended\(\s*p_business_id\s*\|\|\s*':customer:'\s*\|\|\s*COALESCE\(p_app_user_id::text, v_normalized_phone\)/i);
+  const phoneLock = functionBody.indexOf("':customer-phone:' || v_normalized_phone");
+  const appUserLock = functionBody.indexOf("':customer-user:' || p_app_user_id::text");
+  const couponBranch = functionBody.indexOf("IF p_coupon_code IS NOT NULL THEN");
+  assert.ok(phoneLock > 0 && phoneLock < couponBranch, "all new orders must lock normalized phone before coupon logic");
+  assert.ok(appUserLock > phoneLock && appUserLock < couponBranch, "authenticated orders must lock app user after phone");
+  assert.match(functionBody, /IF p_app_user_id IS NOT NULL THEN[\s\S]*':customer-user:' \|\| p_app_user_id::text/i);
   assert.match(functionBody, /max_usage_count/i);
   assert.match(functionBody, /usage_per_user/i);
   assert.match(functionBody, /is_first_order_only/i);
   assert.match(functionBody, /INSERT INTO ff_orders/i);
   assert.match(functionBody, /UPDATE ff_coupons[\s\S]*current_usage_count/i);
   assert.match(functionBody, /INSERT INTO ff_coupon_usages/i);
+  assert.ok(functionBody.indexOf("is_first_order_only") < functionBody.indexOf("INSERT INTO ff_orders"));
   assert.doesNotMatch(functionBody, /EXCEPTION\s+WHEN[\s\S]*RETURN/i);
   assert.match(sql, /REVOKE ALL ON FUNCTION create_fastfood_order_atomic[\s\S]*FROM PUBLIC/i);
 });
