@@ -1,8 +1,18 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const migrationUrl = new URL("./0010_native_catalog_order_domain.sql", import.meta.url);
+const hardeningUrl = new URL("./0012_catalog_order_review_hardening.sql", import.meta.url);
+
+test("published catalog migration checksum remains immutable", async () => {
+    const sql = await readFile(migrationUrl);
+    assert.equal(
+        createHash("sha256").update(sql).digest("hex"),
+        "ed20ca5b877132159183a05cd1a70af195c038e33c62e585d8947e87019191aa",
+    );
+});
 
 test("catalog migration hardens canonical products and ecommerce orders", async () => {
     const sql = await readFile(migrationUrl, "utf8");
@@ -40,7 +50,7 @@ test("catalog migration is additive and rerunnable for fresh canonical schema", 
 });
 
 test("catalog migration verifies named foreign keys and indexes semantically", async () => {
-    const sql = await readFile(migrationUrl, "utf8");
+    const sql = await readFile(hardeningUrl, "utf8");
 
     assert.match(sql, /contype\s*=\s*'f'/i);
     assert.match(sql, /confrelid\s*=\s*'public\.app_users'::regclass/i);

@@ -28,6 +28,27 @@ interface ProductRow {
     updated_at: string;
 }
 
+interface ProductStockInput {
+    inStock?: unknown;
+    quantity?: unknown;
+    stock?: unknown;
+    stockQuantity?: unknown;
+    trackStock?: unknown;
+}
+
+function canonicalStockState(input: ProductStockInput) {
+    const rawQuantity = input.stockQuantity ?? input.stock ?? input.quantity ?? 0;
+    const parsedQuantity = typeof rawQuantity === "number" ? rawQuantity : Number(rawQuantity);
+    const stockQuantity = Number.isInteger(parsedQuantity) && parsedQuantity >= 0 ? parsedQuantity : 0;
+    const trackStock = input.trackStock !== false;
+    const requestedAvailability = typeof input.inStock === "boolean" ? input.inStock : true;
+    return {
+        inStock: trackStock ? stockQuantity > 0 : requestedAvailability,
+        stockQuantity,
+        trackStock,
+    };
+}
+
 function mapProduct(row: ProductRow) {
     return {
         id: row.id,
@@ -108,6 +129,7 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const { businessId: _ignoredBusinessId, ...productData } = body;
         validateOrThrow(productSchema, productData);
+        const stock = canonicalStockState(productData);
 
         const supabase = getSupabaseAdmin();
         const { data, error } = await supabase
@@ -121,10 +143,10 @@ export async function POST(request: NextRequest) {
                 description_en: productData.descriptionEn,
                 price: productData.price,
                 image_url: productData.imageUrl,
-                stock_quantity: productData.stockQuantity ?? productData.stock ?? productData.quantity,
-                track_stock: productData.trackStock,
+                stock_quantity: stock.stockQuantity,
+                track_stock: stock.trackStock,
                 is_active: productData.isActive ?? true,
-                in_stock: productData.inStock ?? true,
+                in_stock: stock.inStock,
                 is_featured: productData.isFeatured ?? false,
                 is_premium: productData.isPremium ?? false,
                 tags: productData.tags || [],
@@ -160,7 +182,7 @@ export async function PUT(request: NextRequest) {
         const supabase = getSupabaseAdmin();
         const { data: existing, error: checkError } = await supabase
             .from(TABLE)
-            .select("id")
+            .select("id, in_stock, stock_quantity, track_stock")
             .eq("id", id)
             .eq("business_id", businessId)
             .maybeSingle();
@@ -173,6 +195,13 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: "Product not found" }, { status: 404 });
         }
 
+        const stock = canonicalStockState({
+            ...updateData,
+            inStock: updateData.inStock ?? existing.in_stock,
+            stockQuantity: updateData.stockQuantity ?? updateData.stock ?? updateData.quantity ?? existing.stock_quantity,
+            trackStock: updateData.trackStock ?? existing.track_stock,
+        });
+
         const { error } = await supabase
             .from(TABLE)
             .update({
@@ -183,10 +212,10 @@ export async function PUT(request: NextRequest) {
                 description_en: updateData.descriptionEn,
                 price: updateData.price,
                 image_url: updateData.imageUrl,
-                stock_quantity: updateData.stockQuantity ?? updateData.stock ?? updateData.quantity,
-                track_stock: updateData.trackStock,
+                stock_quantity: stock.stockQuantity,
+                track_stock: stock.trackStock,
                 is_active: updateData.isActive,
-                in_stock: updateData.inStock,
+                in_stock: stock.inStock,
                 is_featured: updateData.isFeatured,
                 is_premium: updateData.isPremium,
                 tags: updateData.tags,
