@@ -4,7 +4,12 @@ import {
   getCategoryQueryKey
 } from "@/business/category-catalog";
 import { CustomerApiError } from "@/api/customer";
-import { cachedGet, canonicalRequestKey, invalidateRequestCache } from "@/api/request-cache";
+import {
+  cachedGet,
+  canonicalRequestKey,
+  invalidateRequestCache,
+  type CachedGetOptions
+} from "@/api/request-cache";
 import { normalizeCityName } from "@/city/normalize-city";
 
 const CACHE_TTL = {
@@ -100,6 +105,10 @@ export interface CityGuideResponse {
 export interface Coordinates {
   lat: number;
   lng: number;
+}
+
+export interface ReadRequestOptions {
+  force?: boolean;
 }
 
 export interface PublicProfileSocialLinks {
@@ -244,13 +253,25 @@ export interface PublicEcommerceProduct {
   images?: string[];
   image?: string;
   isActive?: boolean;
+  active?: boolean;
   isFeatured?: boolean;
   status?: "active" | "inactive" | "draft";
-  stock?: number;
-  stockQuantity?: number;
+  stock?: number | null;
+  stockQuantity?: number | null;
   trackStock?: boolean;
   sortOrder?: number;
   createdAt?: string;
+  variants?: PublicEcommerceProductVariant[];
+}
+
+export interface PublicEcommerceProductVariant {
+  id: string;
+  name?: string;
+  price?: number;
+  stock?: number | null;
+  stockQuantity?: number | null;
+  isActive?: boolean;
+  active?: boolean;
 }
 
 export interface PublicEcommerceProductsResponse {
@@ -736,7 +757,8 @@ async function getJson<T>(
   url: string,
   fallback: T,
   ttlMs: number,
-  validate?: (value: unknown) => value is T
+  validate?: (value: unknown) => value is T,
+  cacheOptions: CachedGetOptions = {}
 ): Promise<T> {
   try {
     return await cachedGet(canonicalRequestKey(url), async () => {
@@ -745,7 +767,7 @@ async function getJson<T>(
         throw new KesfetHttpError(502, value, "Response body has an invalid shape");
       }
       return value as T;
-    }, ttlMs);
+    }, ttlMs, cacheOptions);
   } catch {
     return fallback;
   }
@@ -754,7 +776,8 @@ async function getJson<T>(
 async function getJsonOrThrow<T>(
   url: string,
   ttlMs: number,
-  validate?: (value: unknown) => value is T
+  validate?: (value: unknown) => value is T,
+  cacheOptions: CachedGetOptions = {}
 ): Promise<T> {
   return cachedGet(canonicalRequestKey(url), async () => {
     const value = await fetchJsonStrict<unknown>(url);
@@ -762,7 +785,7 @@ async function getJsonOrThrow<T>(
       throw new KesfetHttpError(502, value, "Response body has an invalid shape");
     }
     return value as T;
-  }, ttlMs);
+  }, ttlMs, cacheOptions);
 }
 
 async function postJson<T>(
@@ -888,7 +911,11 @@ export async function fetchPublicProfile(slug: string): Promise<PublicProfileRes
   return getJsonOrThrow<PublicProfileResponse>(
     buildUrl(`/api/public/profile/${encodeURIComponent(slug.trim())}`),
     CACHE_TTL.profile,
-    isPublicProfileResponse
+    isPublicProfileResponse,
+    {
+      awaitRevalidation: true,
+      classifyError: classifyProfileCacheError
+    }
   );
 }
 
@@ -993,7 +1020,7 @@ export async function fetchDiscoveryBusinesses(params: {
   category?: string | null;
   distance?: number | null;
   coordinates?: Coordinates | null;
-} = {}): Promise<PaginatedKesfetResponse> {
+} = {}, options: ReadRequestOptions = {}): Promise<PaginatedKesfetResponse> {
   const page = params.page ?? 1;
   const limit = params.limit ?? 20;
 
@@ -1013,7 +1040,8 @@ export async function fetchDiscoveryBusinesses(params: {
       category: params.category
     }),
     CACHE_TTL.discovery,
-    isDiscoveryResponse
+    isDiscoveryResponse,
+    { force: options.force }
   );
 }
 
@@ -1034,16 +1062,17 @@ export async function searchBusinesses(query: string, coordinates?: Coordinates 
   );
 }
 
-export async function fetchCategories(): Promise<CategoriesResponse> {
+export async function fetchCategories(options: ReadRequestOptions = {}): Promise<CategoriesResponse> {
   return getJson<CategoriesResponse>(
     buildUrl("/api/kesfet/categories"),
     { success: true, categories: LOCAL_ORDU_CATEGORIES, total: LOCAL_ORDU_BUSINESSES.length },
     CACHE_TTL.categories,
-    isCategoriesResponse
+    isCategoriesResponse,
+    { force: options.force }
   );
 }
 
-export async function fetchCityGuide(city: string): Promise<CityGuideResponse | null> {
+export async function fetchCityGuide(city: string, options: ReadRequestOptions = {}): Promise<CityGuideResponse | null> {
   const requestedCity = city.trim();
   const normalizedCity = normalizeCityName(requestedCity);
   if (!normalizedCity) {
@@ -1055,7 +1084,8 @@ export async function fetchCityGuide(city: string): Promise<CityGuideResponse | 
     buildUrl("/api/cities", { name: requestedCity }),
     null,
     CACHE_TTL.cityGuide,
-    (value): value is unknown => isCityGuideResponse(value) && normalizeCityName(value.name) === normalizedCity
+    (value): value is unknown => isCityGuideResponse(value) && normalizeCityName(value.name) === normalizedCity,
+    { force: options.force }
   );
 
   return isCityGuideResponse(response) && normalizeCityName(response.name) === normalizedCity
@@ -1065,6 +1095,12 @@ export async function fetchCityGuide(city: string): Promise<CityGuideResponse | 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function classifyProfileCacheError(error: unknown) {
+  return error instanceof KesfetHttpError && (error.status === 404 || error.status === 410)
+    ? "terminal" as const
+    : "retryable" as const;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -1170,6 +1206,53 @@ function isPublicProfileResponse(value: unknown): value is PublicProfileResponse
     && Object.values(profile.social).every(isOptionalString);
 }
 
+function isOptionalFiniteNumber(value: unknown) {
+  return value === undefined || isFiniteNumber(value);
+}
+
+function isOptionalNullableFiniteNumber(value: unknown) {
+  return value === undefined || value === null || isFiniteNumber(value);
+}
+
+function isOptionalBoolean(value: unknown) {
+  return value === undefined || typeof value === "boolean";
+}
+
+function isEcommerceProductVariant(value: unknown): value is PublicEcommerceProductVariant {
+  return isRecord(value)
+    && isNonEmptyString(value.id)
+    && (value.name === undefined || typeof value.name === "string")
+    && isOptionalFiniteNumber(value.price)
+    && isOptionalNullableFiniteNumber(value.stock)
+    && isOptionalNullableFiniteNumber(value.stockQuantity)
+    && isOptionalBoolean(value.isActive)
+    && isOptionalBoolean(value.active);
+}
+
+function isEcommerceProduct(value: unknown): value is PublicEcommerceProduct {
+  if (!isRecord(value)) return false;
+  return isNonEmptyString(value.id)
+    && isNonEmptyString(value.name)
+    && isFiniteNumber(value.price)
+    && (value.businessId === undefined || typeof value.businessId === "string")
+    && (value.description === undefined || typeof value.description === "string")
+    && isOptionalFiniteNumber(value.compareAtPrice)
+    && (value.categoryId === undefined || typeof value.categoryId === "string")
+    && (value.categoryName === undefined || typeof value.categoryName === "string")
+    && (value.images === undefined || (Array.isArray(value.images) && value.images.every((image) => typeof image === "string")))
+    && (value.image === undefined || typeof value.image === "string")
+    && isOptionalBoolean(value.isActive)
+    && isOptionalBoolean(value.active)
+    && isOptionalBoolean(value.isFeatured)
+    && (value.status === undefined || value.status === "active" || value.status === "inactive" || value.status === "draft")
+    && isOptionalNullableFiniteNumber(value.stock)
+    && isOptionalNullableFiniteNumber(value.stockQuantity)
+    && isOptionalBoolean(value.trackStock)
+    && isOptionalFiniteNumber(value.sortOrder)
+    && (value.createdAt === undefined || typeof value.createdAt === "string")
+    && (value.variants === undefined || (Array.isArray(value.variants) && value.variants.every(isEcommerceProductVariant)));
+}
+
 function isEcommerceProductsResponse(value: unknown): value is PublicEcommerceProductsResponse {
   if (!isRecord(value) || value.success !== true || !Array.isArray(value.categories) || !Array.isArray(value.products)) {
     return false;
@@ -1177,10 +1260,7 @@ function isEcommerceProductsResponse(value: unknown): value is PublicEcommercePr
   return value.categories.every((category) => isRecord(category)
       && isNonEmptyString(category.id)
       && isNonEmptyString(category.name))
-    && value.products.every((product) => isRecord(product)
-      && isNonEmptyString(product.id)
-      && isNonEmptyString(product.name)
-      && isFiniteNumber(product.price));
+    && value.products.every(isEcommerceProduct);
 }
 
 function isEcommerceSettingsResponse(value: unknown): value is PublicEcommerceSettingsResponse {

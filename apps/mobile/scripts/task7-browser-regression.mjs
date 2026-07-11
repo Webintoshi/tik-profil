@@ -218,28 +218,32 @@ async function verifyCheckoutScrollOwnership(browserInstance) {
     await page.goto(`${appUrl}/business/task5-fixture`, { waitUntil: "domcontentloaded" });
     await page.getByTestId("business-profile-primary-action").click();
     await page.getByTestId("food-menu-scroll").waitFor();
-    await page.getByRole("button", { name: /Büyük Karışık Menü/ }).click();
-    await page.getByRole("button", { name: /Test Ürünü 3/ }).click();
+    const foodProducts = ["Büyük Karışık Menü", "Test Ürünü 3", "Test Ürünü 4", "Test Ürünü 5", "Test Ürünü 6"];
+    for (const product of foodProducts) await page.getByRole("button", { name: new RegExp(product) }).click();
     await page.getByRole("button", { name: "Sepete git", exact: true }).click();
     await page.getByLabel("Yeni adres", { exact: true }).fill("Task 7 address");
     await page.getByLabel("Ad Soyad", { exact: true }).fill("Task 7 User");
     await page.getByLabel("Telefon", { exact: true }).fill("05551112233");
     await assertCheckoutReachability(page, "food-order-form-scroll", "food-notes-input", "food-checkout-footer", viewport.height);
     await page.getByRole("button", { name: /Özeti Gör/ }).click();
+    for (const product of foodProducts) await page.getByText(new RegExp(`1 x ${product}`)).waitFor();
     await assertCheckoutReachability(page, "food-order-confirm-scroll", "food-confirm-last-row", "food-checkout-footer", viewport.height);
     await page.getByRole("button", { name: /Siparişi Onayla/ }).waitFor();
 
     await page.goto(`${appUrl}/business/task7-ecommerce`, { waitUntil: "domcontentloaded" });
     await page.getByTestId("business-profile-primary-action").click();
     await page.getByTestId("ecommerce-product-list").waitFor();
-    await page.getByRole("button", { name: "Sepete ekle", exact: true }).first().click();
-    await page.getByRole("button", { name: "Sepete ekle", exact: true }).first().click();
+    const ecommerceProducts = Array.from({ length: 6 }, (_, index) => `Ecommerce Product ${index + 1}`);
+    for (const _product of ecommerceProducts) {
+      await page.getByRole("button", { name: "Sepete ekle", exact: true }).first().click();
+    }
     await page.getByRole("button", { name: /Sepete Git/ }).first().click();
     await page.getByPlaceholder("Ad Soyad", { exact: true }).fill("Task 7 User");
     await page.getByPlaceholder("Telefon", { exact: true }).fill("05551112233");
     await page.getByPlaceholder("Adres", { exact: true }).fill("Task 7 ecommerce address");
     await assertCheckoutReachability(page, "ecommerce-info-scroll", "ecommerce-coupon-input", "ecommerce-checkout-footer", viewport.height);
     await page.getByRole("button", { name: /Özeti Gör/ }).click();
+    for (const product of ecommerceProducts) await page.getByText(`1 x ${product}`, { exact: true }).waitFor();
     await assertCheckoutReachability(page, "ecommerce-confirm-scroll", "ecommerce-confirm-last-row", "ecommerce-checkout-footer", viewport.height);
     await page.getByRole("button", { name: /Siparişi Tamamla/ }).waitFor();
     await assertPageHealthy(page, issues);
@@ -263,10 +267,14 @@ async function assertCheckoutReachability(page, scrollId, lastContentId, footerI
   await page.waitForTimeout(50);
   assert.ok(metrics.clientHeight > 0 && metrics.clientHeight < viewportHeight, `${scrollId} is not viewport bounded: ${JSON.stringify(metrics)}`);
   assert.ok(["auto", "scroll"].includes(metrics.overflowY), `${scrollId} does not own vertical scrolling: ${JSON.stringify(metrics)}`);
+  assert.ok(metrics.scrollHeight > metrics.clientHeight + 1, `${scrollId} fixture did not create real overflow: ${JSON.stringify(metrics)}`);
+  assert.ok(metrics.scrollTop > 0, `${scrollId} did not produce a positive scroll offset: ${JSON.stringify(metrics)}`);
   const lastBox = await requiredBox(page.getByTestId(lastContentId), lastContentId);
   const footerBox = await requiredBox(page.getByTestId(footerId), footerId);
+  const tabBarBox = await requiredBox(page.getByTestId("bottom-tab-bar"), "bottom tab bar");
   assert.ok(lastBox.y + lastBox.height <= footerBox.y + 1, `${lastContentId} is hidden behind ${footerId}`);
   assert.ok(footerBox.y + footerBox.height <= viewportHeight + 1, `${footerId} is below the ${viewportHeight}px viewport`);
+  assert.ok(footerBox.y + footerBox.height <= tabBarBox.y + 1, `${footerId} overlaps the bottom tab bar`);
 }
 
 async function boxes(page, ids) {

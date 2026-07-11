@@ -174,3 +174,94 @@ test("invalidating a stale refresh prevents its completion from replacing the ne
     Date.now = originalNow;
   }
 });
+
+test("terminal stale revalidation evicts the entry and propagates the error", async () => {
+  const originalNow = Date.now;
+  let now = 8_000;
+  Date.now = () => now;
+  let calls = 0;
+  const terminal = new Error("gone");
+
+  try {
+    assert.equal(await cachedGet("terminal", async () => "stale", 10), "stale");
+    now += 11;
+    await assert.rejects(() => cachedGet("terminal", async () => {
+      calls += 1;
+      throw terminal;
+    }, 10, {
+      awaitRevalidation: true,
+      classifyError: () => "terminal"
+    }), terminal);
+
+    assert.equal(await cachedGet("terminal", async () => {
+      calls += 1;
+      return "new";
+    }, 10), "new");
+    assert.equal(calls, 2);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test("retryable stale revalidation retains and returns the last success", async () => {
+  const originalNow = Date.now;
+  let now = 9_000;
+  Date.now = () => now;
+
+  try {
+    assert.equal(await cachedGet("retryable", async () => "stable", 10), "stable");
+    now += 11;
+    assert.equal(await cachedGet("retryable", async () => {
+      throw new Error("temporary");
+    }, 10, {
+      awaitRevalidation: true,
+      classifyError: () => "retryable"
+    }), "stable");
+    assert.equal(await cachedGet("retryable", async () => "replacement", 10), "stable");
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test("forced fresh reads await one same-key loader and commit its value", async () => {
+  let calls = 0;
+  let resolveRefresh!: (value: string) => void;
+  assert.equal(await cachedGet("forced", async () => "cached", 10_000), "cached");
+
+  const loader = () => {
+    calls += 1;
+    return new Promise<string>((resolve) => { resolveRefresh = resolve; });
+  };
+  const first = cachedGet("forced", loader, 10_000, { force: true, awaitRevalidation: true });
+  const second = cachedGet("forced", loader, 10_000, { force: true, awaitRevalidation: true });
+  assert.equal(calls, 1);
+  resolveRefresh("fresh");
+  assert.equal(await first, "fresh");
+  assert.equal(await second, "fresh");
+  assert.equal(await cachedGet("forced", async () => "unexpected", 10_000), "fresh");
+});
+
+test("terminal completion from an invalidated generation cannot evict its replacement", async () => {
+  const originalNow = Date.now;
+  let now = 10_000;
+  Date.now = () => now;
+  let rejectTerminal!: (error: Error) => void;
+
+  try {
+    assert.equal(await cachedGet("terminal-race", async () => "seed", 10), "seed");
+    now += 11;
+    const oldGeneration = cachedGet("terminal-race", () => new Promise<string>((_resolve, reject) => {
+      rejectTerminal = reject;
+    }), 10, {
+      awaitRevalidation: true,
+      classifyError: () => "terminal"
+    });
+    assert.equal(invalidateRequestCache("terminal-race"), true);
+    assert.equal(await cachedGet("terminal-race", async () => "replacement", 10), "replacement");
+    rejectTerminal(new Error("gone"));
+    await assert.rejects(oldGeneration, /gone/);
+    assert.equal(await cachedGet("terminal-race", async () => "unexpected", 10), "replacement");
+  } finally {
+    Date.now = originalNow;
+  }
+});

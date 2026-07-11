@@ -35,7 +35,7 @@ import {
   FoodMenuPanel,
   useFoodMenuController
 } from "@/components/business/FoodMenuPanel";
-import { getCompactMenuMinHeight, getOrderSurfaceBottomPadding } from "@/components/business/menu-layout";
+import { getCheckoutPanelHeight, getOrderSurfaceBottomPadding } from "@/components/business/menu-layout";
 import { ProfileActionBar } from "@/components/business/ProfileActionBar";
 import { StickyCartBar } from "@/components/business/StickyCartBar";
 import { useCustomerSession } from "@/auth/auth-store";
@@ -118,7 +118,8 @@ export default function BusinessDetailScreen() {
         profileResponse = await fetchPublicProfile(slug);
       } catch (error) {
         if (!isMounted) return;
-        const isAuthoritativeNotFound = error instanceof KesfetHttpError && error.status === 404;
+        const isAuthoritativeNotFound = error instanceof KesfetHttpError
+          && (error.status === 404 || error.status === 410);
         if (!isAuthoritativeNotFound) {
           setIsLoading(false);
           return;
@@ -418,7 +419,8 @@ function EcommerceOrderPanel({
   businessName: string;
 }) {
   const { height: screenHeight } = useWindowDimensions();
-  const checkoutViewportHeight = getCompactMenuMinHeight(screenHeight);
+  const insets = useSafeAreaInsets();
+  const checkoutViewportHeight = getCheckoutPanelHeight(screenHeight, insets.bottom);
   const actionColors = getActionColors();
   const [categories, setCategories] = React.useState<PublicEcommerceCategory[]>([]);
   const [products, setProducts] = React.useState<PublicEcommerceProduct[]>([]);

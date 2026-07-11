@@ -24,17 +24,24 @@ Task 7 and its review fixes are implemented at the post-Task-6 head. Mobile GETs
 12. The 360x640 checkout test failed with the food information footer below the viewport. Food confirmation and both ecommerce checkout phases also lacked their own bounded vertical owner.
 13. The original geometry browser test was loaded-to-loaded. With local bootstrap explicitly disabled, the new test correctly failed because no actual category skeleton mounted; after enabling the cold fixture path it found a 6 px featured hero mismatch.
 14. The strict recycling test failed before product image test identities existed. The old fixture also used the same teal SVG for every product, so a source-only check could not detect stale recycled pixels.
+15. The next review's stale-profile test failed because background 404/410 responses were treated like retryable failures and the stale profile remained cached.
+16. Forced fresh-read tests failed because cache options were ignored: Home/Explore pull-to-refresh could finish from a fresh cache entry without a network request or newly committed data.
+17. Optional ecommerce fields such as `businessId`, `images`, status, stock, active flags, and variants passed through the shallow product validator.
+18. The strengthened `360x640` checkout gate failed because the food footer overlapped the bottom tab bar even though it remained inside the browser viewport.
 
 ## Request and API Work
 
 - `cachedGet<T>(key, loader, ttlMs)` stores only successful values and shares one missing/stale loader per canonical key.
 - Fresh reads skip the loader. Stale reads resolve immediately and start one background refresh. Failed or malformed refreshes retain the last value and timestamp.
 - Each cache entry has a unique generation/identity. Cold and stale completions publish only while that exact entry remains current, so `clearRequestCache()` or `invalidateRequestCache(key)` permanently fences old in-flight work and the next call invokes a new loader.
+- `cachedGet` accepts force/await-revalidation and retryable/terminal error policy options. Profile 404/410 is terminal: stale data is evicted and the status propagates. Network, malformed, and 5xx refresh errors retain the stale success. A terminal completion from an invalidated generation cannot delete its replacement.
 - Canonical keys remove fragments and sort complete query parameters. Discovery keys retain page, limit, city, category, distance, latitude, and longitude; menu keys retain slug and menu kind through distinct endpoint URLs.
 - TTLs are 5 minutes for categories/guide, 30 seconds for discovery, 60 seconds for profiles, 20 seconds for menus/products/settings, and 15 seconds for search.
 - Transport candidates are de-duplicated. Local proxy and direct URLs are each attempted at most once.
-- `KesfetHttpError` preserves status/body. Profile discovery fallback runs only for an authoritative 404; transient failures preserve local/stale profile UI and do not issue the `limit=100` compatibility request.
+- `KesfetHttpError` preserves status/body. Profile discovery/not-found handling runs only for an authoritative 404 or 410; transient failures preserve local/stale profile UI and do not issue the `limit=100` compatibility request.
 - Categories, discovery businesses, profiles, menus, ecommerce products, and ecommerce settings require `success === true` plus usable nested field types. Application failures and malformed refreshes throw inside the loader, retaining the prior good cache entry. Public ecommerce settings now consistently use `{ success: true, settings }` in the route, web sheet, mobile wrapper, and fixture.
+- Ecommerce products validate every present consumed optional field, including string image arrays, allowed status, nullable finite stock, stock tracking, active/featured flags, ordering/date/category fields, and nested variant identities/prices/stock/active flags.
+- Home and Explore pass `force: true` only for pull-to-refresh. Forced reads bypass a fresh TTL, dedupe the same key, await the network value, and commit it through the existing request-generation guard; ordinary reads retain SWR behavior.
 - Home and Explore request the same canonical `city=Ordu&limit=16&page=1` discovery URL and retain generation guards. Menu completion also has a route generation guard.
 - Successful fast-food/ecommerce checkout invalidates menu, product, and settings keys before the next stock read.
 
@@ -53,21 +60,22 @@ Task 7 and its review fixes are implemented at the post-Task-6 head. Mobile GETs
 
 - Geometry: an explicitly empty initial Home renders real category, featured hero, and dense-row skeletons; an in-app profile navigation renders the real profile skeleton. Their `x`, `y`, `width`, and `height` differ from delayed loaded fixtures by no more than 1 px at `360x800`, `390x844`, and `430x932`.
 - Request counts after Home -> Explore: guide `1`, discovery `1`, categories `1`.
-- Warm profile reopen: 75 ms in the final deterministic run with one total profile GET and no blocking reopen GET.
-- Checkout reachability: at `360x640`, food and ecommerce info/confirm owners scroll their final field or final multi-item row above the fixed footer; submit remains above bottom navigation.
+- Warm profile reopen: 84 ms in the final deterministic run with one total profile GET and no blocking reopen GET.
+- Checkout reachability: at `360x640`, five distinct food products and six distinct ecommerce products create real overflow in info and confirm owners. Each records a positive scroll offset, exposes its final field/row, and keeps the footer fully above the bottom tab bar.
 - 200-product menu: mounted rows changed `11 -> 13` against a viewport-derived bound of `19`; descendant nodes changed `165 -> 193` against a bound of `456`. Product 1 sampled RGB `69,99,129`; after recycling to product 200 the exact final text and RGB `136,184,40` were verified through canvas pixels. Category jump still uses the stable section index.
 - Console gate: no `useNativeDriver is not supported` warning, page error, or framework overlay.
 - Teardown: an induced early failure releases its child HTTP port. Task 5/6/7 harnesses launch the local Expo CLI directly, terminate the real process tree, and fail if fixture/Expo ports cannot be rebound.
 
 ## Verification
 
-- `npm test` in `apps/mobile`: 140 Node tests passed, smoke passed, Task 5 matrix/checkout passed, Task 6 QR browser passed, and Task 7 browser passed. The full gate was rerun after the final nested-validator fix.
+- `npm test` in `apps/mobile`: 149 Node tests passed, smoke passed, Task 5 matrix/checkout passed, Task 6 QR browser passed, and Task 7 browser passed.
+- After the final safe-inset adjustment, the 149-test unit suite, mobile typecheck, Task 7 browser gate, and `git diff --check` were rerun and passed.
 - `npm run typecheck` in `apps/mobile`: passed with zero errors.
 - `npm run export:web` in `apps/mobile`: passed and exported 13 static routes.
 - Task 4 focused root checkout/security regression: 52 tests passed. Mobile proxy/security regression: 26 tests passed.
 - `git diff --check`: passed; only Windows line-ending notices were emitted.
 - Root `npm run typecheck`: remains non-zero on the documented baseline. The root config still includes the mobile tree with the root `@/*` alias and reports existing upload, panel, timeout, ecommerce, and other application errors. The mobile-owned typecheck is clean.
-- Listener audit after the full browser gate found only the user-owned preview on port `8090`. Temporary ports `61690`, `61722`, `61751`, `61780`, `59011`, `59121`, and `59224` were closed.
+- Harness verification is scoped to the dynamically allocated fixture and Expo ports created by each test run; teardown waits until those exact ports can be rebound. Matching pre- and post-gate snapshots also showed long-lived ports `8090` (Expo preview), `50100` (Armoury Crate service), `51100` (Armoury Crate session helper), and `59869` (Logi Options+ agent). These listeners were not created by the dynamic harness, no ownership was inferred, and they were left untouched.
 
 ## External Android Release Benchmark Gap
 

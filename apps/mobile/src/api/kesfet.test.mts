@@ -86,6 +86,29 @@ const validSettings = {
   checkoutSettings: { requirePhone: true, requireEmail: false, requireAddress: true, allowNotes: true }
 };
 
+const validEcommerceProduct = {
+  id: "product-1",
+  businessId: "profile-1",
+  name: "Validated Product",
+  description: "Complete optional field fixture",
+  price: 125,
+  compareAtPrice: 150,
+  categoryId: "category-1",
+  categoryName: "Category One",
+  images: ["https://example.com/product-1.jpg"],
+  image: "https://example.com/product-1-cover.jpg",
+  isActive: true,
+  active: true,
+  isFeatured: false,
+  status: "active",
+  stock: null,
+  stockQuantity: 4,
+  trackStock: true,
+  sortOrder: 1,
+  createdAt: "2026-07-11T00:00:00.000Z",
+  variants: [{ id: "variant-1", name: "Default", price: 125, stock: null, isActive: true }]
+};
+
 test("local category fallback keeps matching businesses and category metadata", async () => {
   const [businessResponse, categoryResponse] = await withUnavailableNetwork(() => Promise.all([
     fetchDiscoveryBusinesses({ category: "petshop" }),
@@ -258,6 +281,173 @@ test("profile preserves an authoritative 404 but exposes transient failures sepa
       return true;
     });
   } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("stale profile terminal 404 and 410 responses evict cache and never repeat stale data", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  let now = 30_000;
+  let status = 200;
+  let calls = 0;
+  Date.now = () => now;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return status === 200
+      ? Response.json({ success: true, profile: validProfile })
+      : new Response(JSON.stringify({ error: "gone" }), {
+          headers: { "Content-Type": "application/json" },
+          status
+        });
+  };
+
+  try {
+    assert.deepEqual((await fetchPublicProfile("terminal-profile")).profile, validProfile);
+    now += 60_001;
+    status = 404;
+    await assert.rejects(() => fetchPublicProfile("terminal-profile"), (error: unknown) => {
+      assert.ok(error instanceof KesfetHttpError);
+      assert.equal(error.status, 404);
+      return true;
+    });
+    assert.equal(calls, 2);
+
+    status = 410;
+    await assert.rejects(() => fetchPublicProfile("terminal-profile"), (error: unknown) => {
+      assert.ok(error instanceof KesfetHttpError);
+      assert.equal(error.status, 410);
+      return true;
+    });
+    assert.equal(calls, 3);
+  } finally {
+    Date.now = originalNow;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("stale profile transient failures retain and return the last profile", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  let now = 40_000;
+  let transient = false;
+  Date.now = () => now;
+  globalThis.fetch = async () => transient
+    ? new Response(null, { status: 503 })
+    : Response.json({ success: true, profile: validProfile });
+
+  try {
+    const seeded = await fetchPublicProfile("transient-profile");
+    now += 60_001;
+    transient = true;
+    assert.deepEqual(await fetchPublicProfile("transient-profile"), seeded);
+  } finally {
+    Date.now = originalNow;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("forced discovery reads bypass fresh TTLs and return the committed network values", async () => {
+  const originalFetch = globalThis.fetch;
+  let version = 1;
+  const calls = new Map<string, number>();
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    const key = url.includes("/api/kesfet/categories") ? "categories" : url.includes("/api/cities") ? "guide" : "discovery";
+    calls.set(key, (calls.get(key) ?? 0) + 1);
+    if (key === "categories") return Response.json({
+      success: true,
+      categories: [{ id: `category-${version}`, label: `Category ${version}`, emoji: "store", count: version }],
+      total: version
+    });
+    if (key === "guide") return Response.json({
+      id: `ordu-${version}`,
+      name: "Ordu",
+      plate: 52,
+      coverImage: `https://example.com/ordu-${version}.jpg`,
+      places: [{ id: `place-${version}`, name: `Place ${version}`, image: `https://example.com/place-${version}.jpg`, category: "Gezi" }]
+    });
+    return Response.json({ success: true, businesses: [], total: version, page: 1, limit: 16, hasMore: false });
+  };
+
+  try {
+    await Promise.all([
+      fetchCategories(),
+      fetchDiscoveryBusinesses({ city: "Ordu", limit: 16 }),
+      fetchCityGuide("Ordu")
+    ]);
+    version = 2;
+    const [categories, discovery, guide] = await Promise.all([
+      fetchCategories({ force: true }),
+      fetchDiscoveryBusinesses({ city: "Ordu", limit: 16 }, { force: true }),
+      fetchCityGuide("Ordu", { force: true })
+    ]);
+    assert.equal(categories.categories[0]?.id, "category-2");
+    assert.equal(discovery.total, 2);
+    assert.equal(guide?.id, "ordu-2");
+    assert.deepEqual(Object.fromEntries(calls), { categories: 2, discovery: 2, guide: 2 });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("every present ecommerce product field is validated and malformed refresh retains stale", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  const invalidFields: Array<[string, unknown]> = [
+    ["businessId", 1],
+    ["description", 1],
+    ["compareAtPrice", "150"],
+    ["categoryId", 1],
+    ["categoryName", 1],
+    ["images", ["https://example.com/ok.jpg", 1]],
+    ["image", 1],
+    ["isActive", "yes"],
+    ["active", "yes"],
+    ["isFeatured", "yes"],
+    ["status", "archived"],
+    ["stock", "many"],
+    ["stockQuantity", "many"],
+    ["trackStock", "yes"],
+    ["sortOrder", "first"],
+    ["createdAt", 1],
+    ["variants", "not-an-array"],
+    ["variants", [{ id: "", name: "Invalid" }]],
+    ["variants", [{ id: "variant-1", price: "125" }]],
+    ["variants", [{ id: "variant-1", stock: "many" }]],
+    ["variants", [{ id: "variant-1", active: "yes" }]]
+  ];
+
+  try {
+    for (const [field, invalidValue] of invalidFields) {
+      clearRequestCache();
+      globalThis.fetch = async () => Response.json({
+        success: true,
+        categories: [],
+        products: [{ ...validEcommerceProduct, [field]: invalidValue }]
+      });
+      const response = await fetchPublicEcommerceProducts(`invalid-${field}`);
+      assert.equal(response.success, false, `${field} malformed value escaped validation`);
+    }
+
+    clearRequestCache();
+    let now = 50_000;
+    let malformed = false;
+    Date.now = () => now;
+    globalThis.fetch = async () => Response.json({
+      success: true,
+      categories: [],
+      products: [{ ...validEcommerceProduct, ...(malformed ? { images: [42] } : {}) }]
+    });
+    const seeded = await fetchPublicEcommerceProducts("stale-product");
+    assert.equal(seeded.products?.[0]?.stock, null, "null stock should be valid");
+    now += 20_001;
+    malformed = true;
+    assert.deepEqual(await fetchPublicEcommerceProducts("stale-product"), seeded);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(await fetchPublicEcommerceProducts("stale-product"), seeded);
+  } finally {
+    Date.now = originalNow;
     globalThis.fetch = originalFetch;
   }
 });

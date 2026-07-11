@@ -46,8 +46,8 @@ export default function ExploreScreen() {
 
     try {
       const [guideResponse, businessResponse] = await Promise.all([
-        fetchCityGuide(cityName),
-        fetchDiscoveryBusinesses({ city: cityName, limit: 16 })
+        fetchCityGuide(cityName, { force: refreshing }),
+        fetchDiscoveryBusinesses({ city: cityName, limit: 16 }, { force: refreshing })
       ]);
 
       if (!requestGuardRef.current.isCurrent(requestId)) {

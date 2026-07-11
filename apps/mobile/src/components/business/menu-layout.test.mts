@@ -22,6 +22,7 @@ const navigation: typeof import("../navigation/tab-bar-metrics") = await import(
 
 const {
   getCompactMenuMinHeight,
+  getCheckoutPanelHeight,
   getFoodQuantityDecreaseIcon,
   getOrderSurfaceBottomPadding,
   STICKY_CART_BAR_HEIGHT,
@@ -39,6 +40,12 @@ test("compact menu occupies at least 65 percent of target phone heights", () => 
   assert.equal(getCompactMenuMinHeight(800), 520);
   assert.equal(getCompactMenuMinHeight(844), 549);
   assert.equal(getCompactMenuMinHeight(932), 606);
+});
+
+test("checkout phases reserve the bottom navigation outside their bounded panel", () => {
+  assert.equal(getCheckoutPanelHeight(640), 340);
+  assert.equal(getCheckoutPanelHeight(800), 444);
+  assert.equal(getCheckoutPanelHeight(800, 34), 418);
 });
 
 test("order surface clearance includes navigation, sticky cart, and gap", () => {

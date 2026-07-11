@@ -5,6 +5,14 @@ type RequestCacheEntry<T> = {
   updatedAt: number;
 };
 
+export type CacheErrorDisposition = "retryable" | "terminal";
+
+export interface CachedGetOptions {
+  awaitRevalidation?: boolean;
+  classifyError?: (error: unknown) => CacheErrorDisposition;
+  force?: boolean;
+}
+
 const requestCache = new Map<string, RequestCacheEntry<unknown>>();
 let nextGeneration = 0;
 
@@ -36,12 +44,17 @@ export function canonicalRequestKey(key: string) {
   }
 }
 
-export function cachedGet<T>(key: string, loader: () => Promise<T>, ttlMs: number): Promise<T> {
+export function cachedGet<T>(
+  key: string,
+  loader: () => Promise<T>,
+  ttlMs: number,
+  options: CachedGetOptions = {}
+): Promise<T> {
   const canonicalKey = canonicalRequestKey(key);
   const entry = requestCache.get(canonicalKey) as RequestCacheEntry<T> | undefined;
   const now = Date.now();
 
-  if (entry?.data !== undefined && now - entry.updatedAt <= ttlMs) {
+  if (entry?.data !== undefined && now - entry.updatedAt <= ttlMs && !options.force) {
     return Promise.resolve(entry.data);
   }
 
@@ -54,11 +67,19 @@ export function cachedGet<T>(key: string, loader: () => Promise<T>, ttlMs: numbe
           }
           return data;
         })
-        .catch(() => entry.data as T)
+        .catch((error) => {
+          if (options.classifyError?.(error) === "terminal") {
+            if (isCurrentEntry(canonicalKey, entry)) requestCache.delete(canonicalKey);
+            throw error;
+          }
+          return entry.data as T;
+        })
         .finally(() => {
           if (isCurrentEntry(canonicalKey, entry)) entry.inFlight = undefined;
         });
     }
+    if (options.force || options.awaitRevalidation) return entry.inFlight;
+    void entry.inFlight.catch(() => undefined);
     return Promise.resolve(entry.data);
   }
 

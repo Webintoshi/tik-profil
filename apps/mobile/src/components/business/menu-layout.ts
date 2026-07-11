@@ -8,6 +8,10 @@ export function getCompactMenuMinHeight(viewportHeight: number): number {
   return Math.round(viewportHeight * 0.65);
 }
 
+export function getCheckoutPanelHeight(viewportHeight: number, bottomInset = 0): number {
+  return Math.max(280, getCompactMenuMinHeight(viewportHeight) - getBottomNavigationHeight(bottomInset));
+}
+
 export function getOrderSurfaceBottomPadding({
   bottomInset,
   hasStickyCart

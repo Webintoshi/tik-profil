@@ -83,7 +83,7 @@ test("active unbounded product owners use FlashList v2 contracts and recycled im
   assert.match(businessRoute, /keyExtractor=/);
 });
 
-test("request owners retain race guards and profile fallback is 404-only", async () => {
+test("request owners force pull refresh and treat profile 404 or 410 as terminal", async () => {
   const [home, explore, businessRoute] = await Promise.all([
     readFile(new URL("../../app/(tabs)/index.tsx", import.meta.url), "utf8"),
     readFile(new URL("../../app/(tabs)/explore.tsx", import.meta.url), "utf8"),
@@ -94,10 +94,16 @@ test("request owners retain race guards and profile fallback is 404-only", async
   assert.match(home, /isCurrent/);
   assert.match(home, /city: PILOT_CITY/);
   assert.match(home, /limit: 16/);
+  assert.match(home, /fetchCategories\(\{\s*force: refreshing\s*\}\)/);
+  assert.match(home, /fetchDiscoveryBusinesses\([\s\S]*?\},\s*\{\s*force: refreshing\s*\}\)/);
+  assert.match(home, /fetchCityGuide\(PILOT_CITY,\s*\{\s*force: refreshing\s*\}\)/);
+  assert.match(home, /setCategories\(\(current\) => refreshing\s*\? categoryResponse\.categories/);
   assert.match(explore, /requestGuardRef/);
   assert.match(explore, /isCurrent/);
+  assert.match(explore, /fetchCityGuide\(cityName,\s*\{\s*force: refreshing\s*\}\)/);
+  assert.match(explore, /fetchDiscoveryBusinesses\([\s\S]*?\},\s*\{\s*force: refreshing\s*\}\)/);
   assert.match(businessRoute, /instanceof KesfetHttpError/);
-  assert.match(businessRoute, /status === 404/);
+  assert.match(businessRoute, /error\.status === 404 \|\| error\.status === 410/);
   assert.match(businessRoute, /menuRequestRef/);
   assert.match(businessRoute, /BusinessProfileSkeleton/);
 });

@@ -2,6 +2,7 @@ import { Image } from "expo-image";
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import * as React from "react";
 import { Modal, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, type ViewToken } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   invalidatePublicFoodMenuCache,
@@ -42,6 +43,7 @@ import { useThemeMode } from "@/theme/theme-store";
 import { lightImpact } from "@/utils/haptics";
 import { calculateFoodMenuPayableModel } from "./food-menu-pricing";
 import {
+  getCheckoutPanelHeight,
   getCompactMenuMinHeight,
   getFoodQuantityDecreaseIcon,
   STICKY_CART_BAR_HEIGHT,
@@ -212,6 +214,7 @@ export function FoodMenuPanel({
   const actionColors = getActionColors();
   const { runAuthenticated } = useCustomerSession();
   const { height: screenHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const categories = React.useMemo(
     () => [...(data?.categories ?? [])].sort((first, second) => getCategoryOrder(first) - getCategoryOrder(second)),
     [data?.categories]
@@ -416,6 +419,7 @@ export function FoodMenuPanel({
   const canSubmitOrder = cartEnabled && checkoutValidation === null && deliveryModeAvailable && paymentMethod !== null;
   const couponCartKey = `${subtotal}:${cartRows.map((item) => `${item.product.id}:${item.quantity}`).join("|")}`;
   const menuViewportHeight = getCompactMenuMinHeight(screenHeight);
+  const checkoutPanelHeight = getCheckoutPanelHeight(screenHeight, insets.bottom);
 
   React.useEffect(() => {
     activeCategoryRef.current = activeCategoryId;
@@ -741,8 +745,8 @@ export function FoodMenuPanel({
           borderColor: colors.border,
           borderRadius: 24,
           borderWidth: 1,
-          height: step === "info" || step === "confirm" ? menuViewportHeight : undefined,
-          minHeight: menuViewportHeight,
+          height: step === "info" || step === "confirm" ? checkoutPanelHeight : undefined,
+          minHeight: step === "info" || step === "confirm" ? checkoutPanelHeight : menuViewportHeight,
           overflow: "hidden",
           ...shadows.soft
         }}

@@ -58,20 +58,22 @@ export default function DiscoverScreen() {
 
     try {
       const [categoryResponse, businessResponse, cityGuideResponse] = await Promise.all([
-        fetchCategories(),
+        fetchCategories({ force: refreshing }),
         fetchDiscoveryBusinesses({
           limit: 16,
           city: PILOT_CITY,
           category: selectedCategory,
           coordinates,
           distance: coordinates ? 30 : null
-        }),
-        fetchCityGuide(PILOT_CITY)
+        }, { force: refreshing }),
+        fetchCityGuide(PILOT_CITY, { force: refreshing })
       ]);
 
       if (!requestGuardRef.current.isCurrent(requestId)) return;
 
-      setCategories((current) => categoryResponse.categories.length ? categoryResponse.categories : current);
+      setCategories((current) => refreshing
+        ? categoryResponse.categories
+        : categoryResponse.categories.length ? categoryResponse.categories : current);
       setBusinesses(businessResponse.businesses);
       setCityGuide((current) => cityGuideResponse ?? current);
     } catch {
