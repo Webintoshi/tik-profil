@@ -15,6 +15,14 @@ test("forward migration repairs duplicate references before adding business-scop
   assert.match(sql, /ON ff_orders\s*\(business_id, order_number\)/i);
   assert.match(sql, /WHERE order_number IS NOT NULL/i);
   assert.match(sql, /FASTFOOD_ORDER_NUMBER_DEDUPLICATION_FAILED/i);
+  assert.match(sql, /FROM pg_index/i);
+  assert.match(sql, /indisunique/i);
+  assert.match(sql, /indisvalid/i);
+  assert.match(sql, /indisready/i);
+  assert.match(sql, /pg_attribute/i);
+  assert.match(sql, /pg_get_expr/i);
+  assert.match(sql, /ARRAY\['business_id', 'order_number'\]/i);
+  assert.match(sql, /FASTFOOD_ORDER_NUMBER_INDEX_POSTCONDITION_FAILED/i);
 });
 
 test("forward RPC wrapper preserves current replay status and maps only reference uniqueness conflicts", async () => {

@@ -40,6 +40,46 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_ff_orders_business_order_number
     ON ff_orders (business_id, order_number)
     WHERE order_number IS NOT NULL;
 
+DO $index_postcondition$
+DECLARE
+    v_is_unique boolean;
+    v_is_valid boolean;
+    v_is_ready boolean;
+    v_predicate text;
+    v_columns text[];
+BEGIN
+    SELECT
+        index_meta.indisunique,
+        index_meta.indisvalid,
+        index_meta.indisready,
+        pg_get_expr(index_meta.indpred, index_meta.indrelid),
+        ARRAY(
+            SELECT attribute.attname
+            FROM unnest(index_meta.indkey::smallint[]) WITH ORDINALITY AS key_column(attnum, position)
+            JOIN pg_attribute attribute
+              ON attribute.attrelid = index_meta.indrelid
+             AND attribute.attnum = key_column.attnum
+            ORDER BY key_column.position
+        )
+    INTO v_is_unique, v_is_valid, v_is_ready, v_predicate, v_columns
+    FROM pg_index index_meta
+    JOIN pg_class index_class ON index_class.oid = index_meta.indexrelid
+    JOIN pg_namespace index_namespace ON index_namespace.oid = index_class.relnamespace
+    WHERE index_namespace.nspname = 'public'
+      AND index_class.relname = 'idx_ff_orders_business_order_number';
+
+    IF NOT FOUND
+       OR v_is_unique IS NOT TRUE
+       OR v_is_valid IS NOT TRUE
+       OR v_is_ready IS NOT TRUE
+       OR v_columns IS DISTINCT FROM ARRAY['business_id', 'order_number']::text[]
+       OR lower(regexp_replace(COALESCE(v_predicate, ''), '[[:space:]()]', '', 'g')) <> 'order_numberisnotnull'
+    THEN
+        RAISE EXCEPTION 'FASTFOOD_ORDER_NUMBER_INDEX_POSTCONDITION_FAILED';
+    END IF;
+END
+$index_postcondition$;
+
 ALTER FUNCTION create_fastfood_order_atomic(
     text,text,uuid,text,text,text,text,text,text,text,text,jsonb,
     numeric,numeric,numeric,numeric,text,text,text,text,timestamptz
