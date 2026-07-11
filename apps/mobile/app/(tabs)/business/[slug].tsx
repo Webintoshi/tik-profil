@@ -209,13 +209,13 @@ export default function BusinessDetailScreen() {
   const displayProfile = React.useMemo(() => buildDisplayProfile(profile, resolvedBusiness, slug), [profile, resolvedBusiness, slug]);
   const appointmentCandidate = React.useMemo(() => {
     if (!displayProfile) return false;
-    return [...displayProfile.modules, displayProfile.industry, displayProfile.industryLabel]
+    return [displayProfile.primaryModuleId, ...displayProfile.modules, displayProfile.industry, displayProfile.industryLabel]
       .map(resolveModuleFamilyDefinition)
       .some((definition) => definition?.nativeCapabilities.includes("appointment-booking"));
   }, [displayProfile]);
   const reservationCandidate = React.useMemo(() => {
     if (!displayProfile) return false;
-    return [...displayProfile.modules, displayProfile.industry, displayProfile.industryLabel]
+    return [displayProfile.primaryModuleId, ...displayProfile.modules, displayProfile.industry, displayProfile.industryLabel]
       .map(resolveModuleFamilyDefinition)
       .some((definition) => definition?.nativeCapabilities.includes("reservation-booking"));
   }, [displayProfile]);
@@ -336,6 +336,35 @@ export default function BusinessDetailScreen() {
     ? getOrderSurfaceBottomPadding({ bottomInset: insets.bottom, hasStickyCart })
     : spacing.tabBar + spacing.xxl;
 
+  async function toggleFoodMenu(menuKind: FoodMenuKind) {
+    lightImpact();
+    setIsEcommerceOpen(false);
+    setIsAppointmentOpen(false);
+    setIsReservationOpen(false);
+
+    const nextMenuKind = openMenuKind === menuKind ? null : menuKind;
+    const requestId = ++menuRequestRef.current;
+    setOpenMenuKind(nextMenuKind);
+
+    if (!nextMenuKind) return;
+    const alreadyLoaded = loadedMenu?.slug === currentProfile.slug && loadedMenu.kind === nextMenuKind;
+    if (alreadyLoaded) return;
+
+    setIsMenuLoading(true);
+    setMenuError(null);
+    const response = await fetchPublicFoodMenu(currentProfile.slug, nextMenuKind);
+    if (requestId !== menuRequestRef.current) return;
+    if (response.success && response.data) {
+      setLoadedMenu({ kind: nextMenuKind, slug: currentProfile.slug, data: response.data });
+      setSelectedMenuCategoryId(response.data.categories[0]?.id ?? null);
+    } else {
+      setLoadedMenu(null);
+      setSelectedMenuCategoryId(null);
+      setMenuError(response.error || "Men\u00fc y\u00fcklenemedi");
+    }
+    setIsMenuLoading(false);
+  }
+
   async function handlePrimaryActionPress() {
     if (primaryAction.panelKind === "reservation") {
       lightImpact();
@@ -365,39 +394,7 @@ export default function BusinessDetailScreen() {
     }
 
     if (primaryAction.menuKind) {
-      lightImpact();
-      setIsEcommerceOpen(false);
-      setIsAppointmentOpen(false);
-      setIsReservationOpen(false);
-
-      const nextMenuKind = openMenuKind === primaryAction.menuKind ? null : primaryAction.menuKind;
-      const requestId = ++menuRequestRef.current;
-      setOpenMenuKind(nextMenuKind);
-
-      if (!nextMenuKind) {
-        return;
-      }
-
-      const alreadyLoaded = loadedMenu?.slug === currentProfile.slug && loadedMenu.kind === nextMenuKind;
-      if (alreadyLoaded) {
-        return;
-      }
-
-      setIsMenuLoading(true);
-      setMenuError(null);
-
-      const response = await fetchPublicFoodMenu(currentProfile.slug, nextMenuKind);
-      if (requestId !== menuRequestRef.current) return;
-      if (response.success && response.data) {
-        setLoadedMenu({ kind: nextMenuKind, slug: currentProfile.slug, data: response.data });
-        setSelectedMenuCategoryId(response.data.categories[0]?.id ?? null);
-      } else {
-        setLoadedMenu(null);
-        setSelectedMenuCategoryId(null);
-        setMenuError(response.error || "Menü yüklenemedi");
-      }
-
-      setIsMenuLoading(false);
+      await toggleFoodMenu(primaryAction.menuKind);
       return;
     }
 
@@ -447,6 +444,7 @@ export default function BusinessDetailScreen() {
             <ReservationPanel
               businessSlug={displayProfile.slug}
               isLoading={isReservationOptionsLoading}
+              onOpenRestaurantMenu={() => void toggleFoodMenu("restaurant")}
               options={reservationOptions}
             />
           ) : null}

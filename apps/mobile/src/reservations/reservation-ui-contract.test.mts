@@ -17,6 +17,7 @@ test("reservation panel owns loading empty validation submit and confirmation st
   assert.match(source, /accessibilityRole="alert"/);
   assert.match(source, /runAuthenticated/);
   assert.match(source, /refreshCustomer/);
+  assert.match(source, /selectedResource\?\.timeSlots/);
 });
 
 test("business host gates native reservations on canonical options", async () => {
@@ -25,6 +26,14 @@ test("business host gates native reservations on canonical options", async () =>
   assert.match(source, /nativeEnabled[\s\S]{0,220}reservation-booking|reservation-booking[\s\S]{0,220}nativeEnabled/);
   assert.match(source, /<ReservationPanel/);
   assert.match(source, /setIsReservationOpen/);
+  assert.match(source, /displayProfile\.primaryModuleId/);
+  assert.match(source, /onOpenRestaurantMenu/);
+});
+
+test("restaurant reservations retain a secondary route to the native menu", async () => {
+  const source = await readFile(panelUrl, "utf8");
+  assert.match(source, /onOpenRestaurantMenu/);
+  assert.match(source, /Menüyü gör/);
 });
 
 test("customer account renders and confirms cancellation of owned reservations", async () => {

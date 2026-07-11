@@ -6,6 +6,7 @@ export interface ReservationResource {
   id: string;
   imageUrl: string | null;
   name: string;
+  timeSlots: string[];
   unitPrice: number;
 }
 
@@ -84,6 +85,7 @@ function decodeResource(value: unknown): ReservationResource | null {
   if (!isObject(value) || !isString(value.id) || !isString(value.name)
     || !isNullableString(value.description) || !isNullableString(value.imageUrl)
     || !isFiniteNumber(value.capacity) || value.capacity < 0
+    || !Array.isArray(value.timeSlots) || !value.timeSlots.every(isString)
     || !isFiniteNumber(value.unitPrice) || value.unitPrice < 0) return null;
   return {
     capacity: value.capacity,
@@ -91,6 +93,7 @@ function decodeResource(value: unknown): ReservationResource | null {
     id: value.id,
     imageUrl: value.imageUrl,
     name: value.name,
+    timeSlots: value.timeSlots,
     unitPrice: value.unitPrice
   };
 }

@@ -177,7 +177,9 @@ function canonicalResourceQuery(vertical: ReservationVertical): string {
             SELECT business.id AS business_id, business.name AS business_name, business.slug AS business_slug,
                    room_type.id AS resource_id, room_type.name AS resource_name,
                    (SELECT count(*)::integer FROM hotel_rooms room
-                    WHERE room.business_id = business.id AND room.room_type_id = room_type.id AND room.is_active = true) AS capacity,
+                    WHERE room.business_id = business.id AND room.room_type_id = room_type.id
+                      AND room.is_active = true AND room.is_available = true) AS inventory_capacity,
+                   COALESCE(room_type.max_guests, room_type.capacity, 1) AS guest_capacity,
                    CASE WHEN room_type.discount_price IS NOT NULL
                               AND (room_type.discount_until IS NULL OR room_type.discount_until > now())
                         THEN room_type.discount_price ELSE room_type.price_per_night END AS unit_price,
@@ -223,6 +225,21 @@ function idempotentQuery(vertical: ReservationVertical): string {
                    NULL::integer AS party_size, daily_price AS unit_price, total_amount AS total,
                    status, notes AS note, created_at, 'vehicle' AS vertical
             FROM vehicle_reservations WHERE app_user_id = $1 AND idempotency_key = $2 LIMIT 1`;
+}
+
+async function findIdempotentReservation(
+    execute: ReservationQueryExecutor,
+    input: Pick<CreateOwnedReservationInput, "appUserId" | "idempotencyKey" | "vertical">,
+): Promise<ReservationRecord | null> {
+    const verticals: ReservationVertical[] = [
+        input.vertical,
+        ...(["restaurant", "hotel", "vehicle"] as const).filter((vertical) => vertical !== input.vertical),
+    ];
+    for (const vertical of verticals) {
+        const rows = await optionalRows(execute, idempotentQuery(vertical), [input.appUserId, input.idempotencyKey]);
+        if (rows[0]) return mapRecord(rows[0]);
+    }
+    return null;
 }
 
 function overlapCountQuery(vertical: ReservationVertical): string {
@@ -301,7 +318,8 @@ function assignableHotelRoomQuery(): string {
     return `
         SELECT room.id::text AS assigned_room_id
         FROM hotel_rooms room
-        WHERE room.business_id = $1 AND room.room_type_id = $2 AND room.is_active = true
+        WHERE room.business_id = $1 AND room.room_type_id = $2
+          AND room.is_active = true AND room.is_available = true
           AND NOT EXISTS (
               SELECT 1 FROM hotel_reservations reservation
               WHERE reservation.business_id = room.business_id AND reservation.room_id = room.id
@@ -411,15 +429,17 @@ export function createReservationRepository(
             if (resourcesResult.rows.length === 0) return DISABLED_RESERVATION_OPTIONS;
             const slots = new Set<string>();
             const resources = resourcesResult.rows.map((row) => {
-                if (Array.isArray(row.time_slots)) {
-                    for (const slot of row.time_slots) if (typeof slot === "string") slots.add(slot);
-                }
+                const resourceSlots = Array.isArray(row.time_slots)
+                    ? row.time_slots.filter((slot): slot is string => typeof slot === "string").sort()
+                    : [];
+                for (const slot of resourceSlots) slots.add(slot);
                 return {
                     capacity: Math.max(1, integer(row.capacity, 1)),
                     description: nullableText(row.description),
                     id: text(row.id),
                     imageUrl: nullableText(row.image_url),
                     name: text(row.name),
+                    timeSlots: resourceSlots,
                     unitPrice: number(row.unit_price),
                 };
             });
@@ -435,9 +455,12 @@ export function createReservationRepository(
 
         async getAvailability(input: ReservationAvailabilityInput): Promise<ReservationAvailability> {
             const context = (await execute(canonicalResourceQuery(input.vertical), [input.businessSlug, input.resourceId])).rows[0];
-            if (!context || integer(context.capacity) < 1) throw new ReservationCanonicalDataError();
+            const inventoryCapacity = input.vertical === "hotel"
+                ? integer(context?.inventory_capacity)
+                : integer(context?.capacity);
+            if (!context || inventoryCapacity < 1) throw new ReservationCanonicalDataError();
             const result = await execute(unavailableDatesQuery(input.vertical), [
-                text(context.business_id), input.resourceId, input.startDate, input.endDate, integer(context.capacity),
+                text(context.business_id), input.resourceId, input.startDate, input.endDate, inventoryCapacity,
             ]);
             const unavailableDates = result.rows.map((row) => dateValue(row.unavailable_date));
             return { available: unavailableDates.length === 0, unavailableDates };
@@ -448,13 +471,19 @@ export function createReservationRepository(
                 return await runTransaction(async (transaction) => {
                     await transaction("SELECT pg_advisory_xact_lock(hashtext($1))", [`reservation-idempotency:${input.appUserId}:${input.idempotencyKey}`]);
                     await transaction("SELECT pg_advisory_xact_lock(hashtext($1))", [`reservation-resource:${input.vertical}:${input.businessSlug}:${input.resourceId}`]);
-                    const existing = await transaction(idempotentQuery(input.vertical), [input.appUserId, input.idempotencyKey]);
-                    if (existing.rows[0]) return mapRecord(existing.rows[0]);
+                    const existing = await findIdempotentReservation(transaction, input);
+                    if (existing) return existing;
 
                     const context = (await transaction(canonicalResourceQuery(input.vertical), [input.businessSlug, input.resourceId])).rows[0];
-                    const capacity = integer(context?.capacity);
-                    if (!context || capacity < 1) throw new ReservationCanonicalDataError();
-                    if (input.vertical === "restaurant" && (input.partySize ?? 0) > capacity) {
+                    const inventoryCapacity = input.vertical === "hotel"
+                        ? integer(context?.inventory_capacity)
+                        : integer(context?.capacity);
+                    if (!context || inventoryCapacity < 1) throw new ReservationCanonicalDataError();
+                    const guestCapacity = input.vertical === "hotel"
+                        ? integer(context.guest_capacity)
+                        : inventoryCapacity;
+                    if ((input.vertical === "restaurant" || input.vertical === "hotel")
+                        && (input.partySize ?? 0) > guestCapacity) {
                         throw new ReservationConflictError("Party size exceeds resource capacity.");
                     }
                     if (input.vertical === "restaurant") {
@@ -470,7 +499,7 @@ export function createReservationRepository(
                     const overlap = await transaction(overlapCountQuery(input.vertical), [
                         text(context.business_id), input.resourceId, input.startDate, input.endDate,
                     ]);
-                    const overlapLimit = input.vertical === "hotel" ? capacity : 1;
+                    const overlapLimit = input.vertical === "hotel" ? inventoryCapacity : 1;
                     if (integer(overlap.rows[0]?.overlap_count) >= overlapLimit) throw new ReservationConflictError();
 
                     if (input.vertical === "hotel") {

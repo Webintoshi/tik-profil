@@ -13,6 +13,7 @@ export interface ReservationResource {
     id: string;
     imageUrl: string | null;
     name: string;
+    timeSlots: string[];
     unitPrice: number;
 }
 

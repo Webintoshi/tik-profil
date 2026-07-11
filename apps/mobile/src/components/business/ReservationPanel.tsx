@@ -19,9 +19,10 @@ import { Icon } from "@/components/common/Icon";
 import { colors, radii, shadows, spacing, typography } from "@/theme/tokens";
 import { lightImpact } from "@/utils/haptics";
 
-export function ReservationPanel({ businessSlug, isLoading, options }: {
+export function ReservationPanel({ businessSlug, isLoading, onOpenRestaurantMenu, options }: {
   businessSlug: string;
   isLoading: boolean;
+  onOpenRestaurantMenu?: () => void;
   options: ReservationOptions | null;
 }) {
   const { customer, refreshCustomer, runAuthenticated, signIn, status: sessionStatus } = useCustomerSession();
@@ -69,6 +70,7 @@ export function ReservationPanel({ businessSlug, isLoading, options }: {
 
   const vertical = options.vertical;
   const selectedResource = options.resources.find((resource) => resource.id === state.resourceId) ?? null;
+  const selectedTimeSlots = selectedResource?.timeSlots ?? [];
   const endDate = vertical === "restaurant" ? state.startDate : state.endDate;
   const requestRange = buildReservationRange(vertical, state.startDate, endDate, state.time);
   const requestStartDate = requestRange?.startDate ?? null;
@@ -127,6 +129,29 @@ export function ReservationPanel({ businessSlug, isLoading, options }: {
   return (
     <PanelShell>
       <Text style={{ ...typography.sectionTitle, color: colors.ink }}>{vertical === "restaurant" ? "Masa ayırt" : vertical === "hotel" ? "Oda ayırt" : "Araç ayırt"}</Text>
+      {vertical === "restaurant" && onOpenRestaurantMenu ? (
+        <Pressable
+          accessibilityLabel="Restoran menüsünü aç"
+          accessibilityRole="button"
+          onPress={onOpenRestaurantMenu}
+          style={({ pressed }) => ({
+            alignItems: "center",
+            alignSelf: "flex-start",
+            backgroundColor: colors.brandSoft,
+            borderColor: colors.brand,
+            borderRadius: radii.pill,
+            borderWidth: 1,
+            flexDirection: "row",
+            gap: spacing.sm,
+            minHeight: 44,
+            opacity: pressed ? 0.86 : 1,
+            paddingHorizontal: spacing.md
+          })}
+        >
+          <Icon color={colors.brandDeep} name="menu" size={18} />
+          <Text style={{ ...typography.label, color: colors.brandDeep }}>Menüyü gör</Text>
+        </Pressable>
+      ) : null}
       <ChoiceSection label={vertical === "restaurant" ? "Alan" : vertical === "hotel" ? "Oda" : "Araç"}>
         {options.resources.map((resource) => (
           <Choice key={resource.id} active={resource.id === state.resourceId} label={`${resource.name}${resource.unitPrice > 0 ? ` · ₺${resource.unitPrice}` : ""}`} onPress={() => dispatch({ type: "select-resource", resourceId: resource.id })} />
@@ -135,7 +160,7 @@ export function ReservationPanel({ businessSlug, isLoading, options }: {
       <ReservationInput label={vertical === "restaurant" ? "Tarih (YYYY-AA-GG)" : "Başlangıç (YYYY-AA-GG)"} onChangeText={(date) => dispatch({ type: "select-start", date: date.trim() })} value={state.startDate ?? ""} />
       {vertical === "restaurant" ? (
         <ChoiceSection label="Saat">
-          {options.timeSlots.map((time) => <Choice key={time} active={time === state.time} label={time} onPress={() => dispatch({ type: "select-time", time })} />)}
+          {selectedTimeSlots.map((time) => <Choice key={time} active={time === state.time} label={time} onPress={() => dispatch({ type: "select-time", time })} />)}
         </ChoiceSection>
       ) : <ReservationInput label="Bitiş (YYYY-AA-GG)" onChangeText={(date) => dispatch({ type: "select-end", date: date.trim() })} value={state.endDate ?? ""} />}
       {vertical !== "vehicle" ? <ReservationInput keyboardType="number-pad" label="Kişi sayısı" onChangeText={setPartySize} value={partySize} /> : null}

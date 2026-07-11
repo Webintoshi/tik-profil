@@ -31,8 +31,12 @@ if (stateModule) {
 
   test("restaurant selection becomes a bounded RFC3339 range while date reservations stay date-only", () => {
     assert.deepEqual(stateModule.buildReservationRange("restaurant", "2026-07-12", null, "19:30"), {
-      endDate: "2026-07-12T18:30:00.000Z",
-      startDate: "2026-07-12T16:30:00.000Z"
+      endDate: "2026-07-12T21:30:00+03:00",
+      startDate: "2026-07-12T19:30:00+03:00"
+    });
+    assert.deepEqual(stateModule.buildReservationRange("restaurant", "2026-07-12", null, "23:30"), {
+      endDate: "2026-07-13T01:30:00+03:00",
+      startDate: "2026-07-12T23:30:00+03:00"
     });
     assert.deepEqual(stateModule.buildReservationRange("hotel", "2026-07-12", "2026-07-14", null), {
       endDate: "2026-07-14",

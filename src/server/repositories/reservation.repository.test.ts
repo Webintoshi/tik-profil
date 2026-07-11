@@ -49,7 +49,7 @@ if (repositoryModule) {
         assert.deepEqual(options, {
             business: { id: "business-1", name: "Ordu Rent", slug: "ordu-rent" },
             nativeEnabled: true,
-            resources: [{ capacity: 5, description: "Otomatik", id: "vehicle-1", imageUrl: "https://cdn/car.jpg", name: "Fiat Egea", unitPrice: 900 }],
+            resources: [{ capacity: 5, description: "Otomatik", id: "vehicle-1", imageUrl: "https://cdn/car.jpg", name: "Fiat Egea", timeSlots: [], unitPrice: 900 }],
             timeSlots: [],
             vertical: "vehicle",
         });
@@ -108,6 +108,26 @@ if (repositoryModule) {
         });
     });
 
+    test("restaurant options preserve canonical slots per resource", async () => {
+        let call = 0;
+        const repository = module.createReservationRepository(async () => {
+            call += 1;
+            return call === 1
+                ? { rowCount: 1, rows: [{ id: "business-1", name: "Mekan", slug: "mekan", vertical: "restaurant" }] }
+                : { rowCount: 2, rows: [
+                    { capacity: 4, description: null, id: "table-1", image_url: null, name: "Bahce", time_slots: ["18:00", "19:00"], unit_price: 100 },
+                    { capacity: 2, description: null, id: "table-2", image_url: null, name: "Salon", time_slots: ["20:00"], unit_price: 50 },
+                ] };
+        });
+
+        const options = await repository.getOptions("mekan");
+        assert.deepEqual(options.resources.map((resource) => ({ id: resource.id, timeSlots: resource.timeSlots })), [
+            { id: "table-1", timeSlots: ["18:00", "19:00"] },
+            { id: "table-2", timeSlots: ["20:00"] },
+        ]);
+        assert.deepEqual(options.timeSlots, ["18:00", "19:00", "20:00"]);
+    });
+
     test("availability is business scoped and returns exact unavailable calendar dates", async () => {
         const calls: Array<{ text: string; values: readonly unknown[] }> = [];
         const repository = module.createReservationRepository(async (text, values = []) => {
@@ -131,7 +151,7 @@ if (repositoryModule) {
         const calls: Array<{ text: string; values: readonly unknown[] }> = [];
         const repository = module.createReservationRepository(async (text, values = []) => {
             calls.push({ text, values });
-            if (text.includes("AS canonical_resource")) return { rowCount: 1, rows: [{ business_id: "business-1", capacity: 2 }] };
+            if (text.includes("AS canonical_resource")) return { rowCount: 1, rows: [{ business_id: "business-1", guest_capacity: 2, inventory_capacity: 2 }] };
             if (text.includes("unavailable_date")) return { rowCount: 0, rows: [] };
             throw new Error(`Unexpected query: ${text}`);
         });
@@ -144,6 +164,35 @@ if (repositoryModule) {
         assert.deepEqual(calls[1].values, ["business-1", "room-type-1", "2026-07-12", "2026-07-14", 2]);
     });
 
+    test("hotel create enforces guest capacity separately from room inventory", async () => {
+        const calls: string[] = [];
+        const execute = async (text: string) => {
+            calls.push(text);
+            if (text.includes("pg_advisory_xact_lock")) return { rowCount: 1, rows: [{}] };
+            if (text.includes("WHERE app_user_id = $1 AND idempotency_key = $2")) return { rowCount: 0, rows: [] };
+            if (text.includes("AS canonical_resource")) {
+                return { rowCount: 1, rows: [{
+                    business_id: "business-1", business_name: "Ordu Konak", business_slug: "ordu-konak",
+                    guest_capacity: 2, inventory_capacity: 3, resource_id: "room-1",
+                    resource_name: "Standart Oda", unit_price: 1000,
+                }] };
+            }
+            throw new Error(`Unexpected query: ${text}`);
+        };
+        const repository = module.createReservationRepository(execute, async (operation) => operation(execute));
+
+        await assert.rejects(() => repository.createOwned({
+            appUserId: "user-1", businessSlug: "ordu-konak", customerEmail: null,
+            customerName: "Ada Yilmaz", customerPhone: "05550000000", endDate: "2026-07-14",
+            idempotencyKey: "reservation-guest-capacity", note: null, partySize: 3,
+            resourceId: "room-1", startDate: "2026-07-12", vertical: "hotel",
+        }), (error: unknown) => {
+            assert.equal((error as { code?: string }).code, "RESERVATION_CONFLICT");
+            return true;
+        });
+        assert.equal(calls.some((text) => text.includes("AS overlap_count")), false);
+    });
+
     test("create derives snapshots and totals, and retries return the original idempotent row", async () => {
         const calls: Array<{ text: string; values: readonly unknown[] }> = [];
         let inserted = false;
@@ -151,7 +200,7 @@ if (repositoryModule) {
             calls.push({ text, values });
             if (text.includes("pg_advisory_xact_lock")) return { rowCount: 1, rows: [{}] };
             if (text.includes("AS canonical_resource")) {
-                return { rowCount: 1, rows: [{ business_id: "business-1", business_name: "Ordu Konaklama", business_slug: "ordu-konaklama", capacity: 2, resource_id: "resource-1", resource_name: "Deniz Manzarali Oda", unit_price: "300" }] };
+                return { rowCount: 1, rows: [{ business_id: "business-1", business_name: "Ordu Konaklama", business_slug: "ordu-konaklama", guest_capacity: 2, inventory_capacity: 2, resource_id: "resource-1", resource_name: "Deniz Manzarali Oda", unit_price: "300" }] };
             }
             if (text.includes("WHERE app_user_id = $1 AND idempotency_key = $2")) {
                 return { rowCount: inserted ? 1 : 0, rows: inserted ? [reservationRow] : [] };
@@ -184,6 +233,32 @@ if (repositoryModule) {
         assert.ok(insert.values.includes("room-101"));
         assert.ok(insert.values.includes(300));
         assert.ok(insert.values.includes(600));
+    });
+
+    test("one customer idempotency key cannot create reservations in two verticals", async () => {
+        const existingRestaurant = { ...reservationRow, id: "restaurant-existing", vertical: "restaurant" };
+        const calls: string[] = [];
+        const execute = async (text: string) => {
+            calls.push(text);
+            if (text.includes("pg_advisory_xact_lock")) return { rowCount: 1, rows: [{}] };
+            if (text.includes("FROM vehicle_reservations WHERE app_user_id")) return { rowCount: 0, rows: [] };
+            if (text.includes("FROM restaurant_reservations WHERE app_user_id")) {
+                return { rowCount: 1, rows: [existingRestaurant] };
+            }
+            throw new Error(`Unexpected query: ${text}`);
+        };
+        const repository = module.createReservationRepository(execute, async (operation) => operation(execute));
+
+        const replay = await repository.createOwned({
+            appUserId: "user-1", businessSlug: "ordu-rent", customerEmail: null,
+            customerName: "Ada Yilmaz", customerPhone: "05550000000", endDate: "2026-07-14",
+            idempotencyKey: "reservation-global-key", note: null, resourceId: "vehicle-1",
+            startDate: "2026-07-12", vertical: "vehicle",
+        });
+
+        assert.equal(replay.id, "restaurant-existing");
+        assert.equal(replay.reservationType, "restaurant");
+        assert.equal(calls.some((text) => text.includes("INSERT INTO")), false);
     });
 
     test("capacity and exclusion failures are stable 409 conflicts", async () => {

@@ -45,6 +45,30 @@ export interface ReservationIdempotencyState {
   key: string;
 }
 
+const RESTAURANT_TIMEZONE_OFFSET = "+03:00";
+const RESTAURANT_RESERVATION_MINUTES = 120;
+
+function addRestaurantMinutes(date: string, time: string, minutes: number): { date: string; time: string } | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return null;
+
+  const totalMinutes = hour * 60 + minute + minutes;
+  const dayOffset = Math.floor(totalMinutes / (24 * 60));
+  const endHour = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const endMinute = totalMinutes % 60;
+  const baseDate = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(baseDate.getTime())) return null;
+  baseDate.setUTCDate(baseDate.getUTCDate() + dayOffset);
+
+  return {
+    date: baseDate.toISOString().slice(0, 10),
+    time: `${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}`
+  };
+}
+
 export function buildReservationRange(
   vertical: "hotel" | "restaurant" | "vehicle",
   startDate: string | null,
@@ -54,11 +78,11 @@ export function buildReservationRange(
   if (!startDate) return null;
   if (vertical !== "restaurant") return endDate ? { endDate, startDate } : null;
   if (!time) return null;
-  const start = new Date(`${startDate}T${time}:00+03:00`);
-  if (Number.isNaN(start.getTime())) return null;
+  const end = addRestaurantMinutes(startDate, time, RESTAURANT_RESERVATION_MINUTES);
+  if (!end) return null;
   return {
-    endDate: new Date(start.getTime() + 2 * 60 * 60_000).toISOString(),
-    startDate: start.toISOString()
+    endDate: `${end.date}T${end.time}:00${RESTAURANT_TIMEZONE_OFFSET}`,
+    startDate: `${startDate}T${time}:00${RESTAURANT_TIMEZONE_OFFSET}`
   };
 }
 

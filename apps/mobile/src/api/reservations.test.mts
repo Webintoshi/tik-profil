@@ -31,7 +31,7 @@ if (api) {
     nativeEnabled: true,
     vertical: "hotel",
     business: { id: "business-1", name: "Ordu Konak", slug: "ordu-konak" },
-    resources: [{ capacity: 2, description: null, id: "room-1", imageUrl: null, name: "Deniz Manzarali Oda", unitPrice: 1400 }],
+    resources: [{ capacity: 2, description: null, id: "room-1", imageUrl: null, name: "Deniz Manzarali Oda", timeSlots: [], unitPrice: 1400 }],
     timeSlots: []
   };
 
@@ -43,6 +43,7 @@ if (api) {
       assert.equal(result.nativeEnabled, true);
       assert.equal(result.vertical, "hotel");
       assert.equal(result.resources[0].unitPrice, 1400);
+      assert.deepEqual(result.resources[0].timeSlots, []);
       assert.equal("ownerId" in result, false);
     } finally {
       globalThis.fetch = originalFetch;
@@ -62,11 +63,11 @@ if (api) {
   });
 
   test("availability, create, history, and cancel use strict URLs and customer bearer", async () => {
-    const calls: Array<{ authorization: string | null; method: string; url: string }> = [];
+    const calls: Array<{ authorization: string | null; body: string | null; method: string; url: string }> = [];
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async (input, init = {}) => {
       const url = String(input);
-      calls.push({ authorization: new Headers(init.headers).get("authorization"), method: init.method ?? "GET", url });
+      calls.push({ authorization: new Headers(init.headers).get("authorization"), body: typeof init.body === "string" ? init.body : null, method: init.method ?? "GET", url });
       if (url.includes("availability")) return Response.json({ success: true, available: true, unavailableDates: [] }) as never;
       if ((init.method ?? "GET") === "POST") return Response.json({ success: true, reservation }, { status: 201 }) as never;
       if ((init.method ?? "GET") === "PATCH") return Response.json({ success: true, reservation: { ...reservation, cancellable: false, status: "cancelled" } }) as never;
@@ -80,13 +81,18 @@ if (api) {
         businessSlug: "ordu-konak", customerName: "Ada", customerPhone: "05550000000", endDate: "2026-07-14",
         idempotencyKey: "reservation-request-0001", resourceId: "room-1", startDate: "2026-07-12", vertical: "hotel"
       }, "https://example.test");
+      await api.createReservation("token", {
+        businessSlug: "ordu-rent", customerName: "Ada", customerPhone: "05550000000", endDate: "2026-07-14",
+        idempotencyKey: "reservation-request-vehicle", resourceId: "vehicle-1", startDate: "2026-07-12", vertical: "vehicle"
+      }, "https://example.test");
       await api.fetchReservations("token", "https://example.test");
       await api.cancelReservation("token", "reservation-1", "https://example.test");
-      assert.deepEqual(calls.map(({ method }) => method), ["GET", "POST", "GET", "PATCH"]);
+      assert.deepEqual(calls.map(({ method }) => method), ["GET", "POST", "POST", "GET", "PATCH"]);
       assert.equal(calls[0].authorization, null);
       assert.ok(calls.slice(1).every(({ authorization }) => authorization === "Bearer token"));
       assert.match(calls[0].url, /resourceId=room-1/);
-      assert.match(calls[3].url, /\/api\/kesfet\/reservations\/reservation-1\/cancel$/);
+      assert.equal("partySize" in JSON.parse(calls[2].body ?? "{}"), false);
+      assert.match(calls[4].url, /\/api\/kesfet\/reservations\/reservation-1\/cancel$/);
     } finally {
       globalThis.fetch = originalFetch;
     }
