@@ -110,8 +110,8 @@ const EXPECTED_ALIASES = {
   "emlak-ofisi": "emlak",
   emlak_ofisi: "emlak",
   gayrimenkul: "emlak",
-  "real-estate": "realestate",
-  real_estate: "realestate",
+  "real-estate": "emlak",
+  real_estate: "emlak",
   vehicle_rental: "vehicle-rental",
   rentacar: "rental",
   "arac-kiralama": "rental",
@@ -285,6 +285,12 @@ test("keeps emlak and realestate distinct with identical family behavior", () =>
     emlak && { family: emlak.family, label: emlak.label, icon: emlak.icon, fallback: emlak.fallback },
     realestate && { family: realestate.family, label: realestate.label, icon: realestate.icon, fallback: realestate.fallback }
   );
+});
+
+test("maps punctuated real-estate aliases to emlak but preserves bare realestate", () => {
+  assert.equal(resolveModuleFamilyDefinition("real-estate")?.id, "emlak");
+  assert.equal(resolveModuleFamilyDefinition("real_estate")?.id, "emlak");
+  assert.equal(resolveModuleFamilyDefinition("realestate")?.id, "realestate");
 });
 
 test("returns null for unknown and empty module inputs", () => {

@@ -86,14 +86,41 @@ test("preserves current native panels only when their capability is ready", () =
   }
 });
 
-test("uses configured primary, then native readiness, then stable registry order", () => {
-  const configuredPrimary = resolvePrimaryProfileAction(profile({
-    primaryModuleId: "ecommerce",
-    modules: ["restaurant", "fastfood", "ecommerce"],
-    nativeCapabilities: ["restaurant-menu", "fastfood-order", "ecommerce-order"]
-  }));
-  assert.equal(configuredPrimary.definition?.id, "ecommerce");
+test("fastfood native readiness outranks restaurant menu on mixed profiles", () => {
+  for (const modules of [["restaurant", "fastfood"], ["fastfood", "restaurant"]]) {
+    const action = resolvePrimaryProfileAction(profile({
+      modules,
+      nativeCapabilities: ["restaurant-menu", "fastfood-order"]
+    }));
 
+    assert.equal(action.definition?.id, "fastfood");
+    assert.equal(action.nativeCapability, "fastfood-order");
+  }
+});
+
+test("fastfood native readiness outranks ecommerce on mixed profiles", () => {
+  for (const modules of [["ecommerce", "fastfood"], ["fastfood", "ecommerce"]]) {
+    const action = resolvePrimaryProfileAction(profile({
+      modules,
+      nativeCapabilities: ["ecommerce-order", "fastfood-order"]
+    }));
+
+    assert.equal(action.definition?.id, "fastfood");
+    assert.equal(action.nativeCapability, "fastfood-order");
+  }
+});
+
+test("configured primary overrides explicit native-ready precedence", () => {
+  const configuredPrimary = resolvePrimaryProfileAction(profile({
+    primaryModuleId: "restaurant",
+    modules: ["fastfood", "restaurant"],
+    nativeCapabilities: ["fastfood-order", "restaurant-menu"]
+  }));
+  assert.equal(configuredPrimary.definition?.id, "restaurant");
+  assert.equal(configuredPrimary.nativeCapability, "restaurant-menu");
+});
+
+test("uses native readiness before stable registry fallback precedence", () => {
   const nativeReady = resolvePrimaryProfileAction(profile({
     modules: ["restaurant", "ecommerce", "construction"],
     nativeCapabilities: ["ecommerce-order"]

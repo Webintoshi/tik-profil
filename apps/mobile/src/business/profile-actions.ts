@@ -64,6 +64,11 @@ const NATIVE_ACTIONS: Readonly<Record<NativeCapability, NativeActionPresentation
 };
 
 const LEGACY_NATIVE_CAPABILITIES = Object.freeze(Object.keys(NATIVE_ACTIONS) as NativeCapability[]);
+const NATIVE_CAPABILITY_PRECEDENCE = [
+  "fastfood-order",
+  "restaurant-menu",
+  "ecommerce-order"
+] as const satisfies readonly NativeCapability[];
 const registryOrder = new Map(MODULE_FAMILY_DEFINITIONS.map((definition, index) => [definition.id, index]));
 
 export const PROFILE_ACTION_MODULE_IDS = SUPPORTED_MODULE_IDS;
@@ -138,9 +143,16 @@ function resolveProfileDefinition(
     (left, right) => (registryOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (registryOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER)
   );
 
-  return candidates.find((definition) => (
-    definition.nativeCapabilities.some((capability) => readyCapabilities.has(capability))
-  )) ?? candidates[0] ?? null;
+  for (const capability of NATIVE_CAPABILITY_PRECEDENCE) {
+    if (!readyCapabilities.has(capability)) continue;
+
+    const nativeCandidate = candidates.find((definition) => (
+      definition.nativeCapabilities.includes(capability)
+    ));
+    if (nativeCandidate) return nativeCandidate;
+  }
+
+  return candidates[0] ?? null;
 }
 
 function buildDefinitionFallbackUrl(

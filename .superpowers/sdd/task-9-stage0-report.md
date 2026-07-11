@@ -19,13 +19,15 @@ The registry and resolver tests were written before production code. The first f
 
 After the registry was added, its seven tests passed while the profile test remained RED because Node could not resolve the new extensionless runtime import. The Node-only test resolver hook was then added; production imports remain compatible with the Expo TypeScript configuration.
 
+The Stage 0 review fixes also followed RED-first. Mixed `restaurant` + `fastfood` profiles selected `restaurant`, and `real-estate`/`real_estate` resolved to `realestate`. The first alias target change then exposed the intended compact-key collision guard, so the final implementation declares only the hyphen-normalized `real-estate` key separator-sensitive while retaining generic compact collision detection.
+
 ## Frozen contract
 
 - Exactly 68 ordered supported IDs: the central 65 plus `food`, `beauty`, and `vehicle-rental`.
 - Exact family counts: appointment 14, reservation 16, catalog/order 17, listing/inquiry 21.
 - Every supported ID owns exact family, label, icon, fallback, canonical target, and declared native-capability metadata.
 - `food`, `beauty`, and `vehicle-rental` canonicalize to `restaurant`, `salon`, and `rental` while remaining supported inputs.
-- `emlak` and `realestate` remain distinct supported and canonical IDs with identical family action metadata.
+- `emlak` and bare `realestate` remain distinct supported and canonical IDs with identical family action metadata. The `real-estate` and `real_estate` aliases resolve to `emlak`.
 - Historical aliases are separate from canonical coverage and pass through Turkish-aware case, diacritic, separator, and compact-key normalization.
 - Registry construction throws when two aliases or canonical IDs collide after normalization or compaction.
 - Unknown, blank, and punctuation-only values resolve to the safe `İletişime Geç` call action and return no URL when neither contact number is configured.
@@ -35,18 +37,18 @@ After the registry was added, its seven tests passed while the profile test rema
 Multi-module resolution is deterministic:
 
 1. Explicit `primaryModuleId` when it resolves to a known definition.
-2. A candidate with a ready native capability.
+2. A candidate with a ready native capability in explicit order: `fastfood-order`, `restaurant-menu`, then `ecommerce-order`.
 3. The first candidate in the frozen registry order.
 
-Input array order is never a precedence rule. The existing fast-food, ecommerce, and restaurant-menu panels remain available through `fastfood-order`, `ecommerce-order`, and `restaurant-menu` readiness. Omitting the readiness field preserves the current production panels; passing an explicit readiness set allows any of them to fall back safely. Native actions now retain their configured WhatsApp fallback in `fallbackUrl` instead of discarding it.
+Input array order is never a precedence rule. Fastfood therefore remains the native action on mixed restaurant/fastfood and ecommerce/fastfood profiles unless `primaryModuleId` explicitly selects another module. The existing fast-food, ecommerce, and restaurant-menu panels remain available through `fastfood-order`, `ecommerce-order`, and `restaurant-menu` readiness. Omitting the readiness field preserves the current production panels; passing an explicit readiness set allows any of them to fall back safely. Native actions now retain their configured WhatsApp fallback in `fallbackUrl` instead of discarding it.
 
 Restaurant family metadata is frozen as reservation intent while the existing ready `restaurant-menu` capability continues to present `Menü`. No reservation API or panel is claimed in Stage 0.
 
 ## Verification
 
 - Focused RED: `node --test ./src/modules/module-family-registry.test.mts ./src/business/profile-actions.test.mts` failed on the missing registry as expected.
-- Focused GREEN: the same command passed 13/13 tests.
-- Unit/smoke/browser: `npm run test` passed 195 unit tests, mobile smoke, Task 5/6/7 browser regressions, and 33 Task 8 deterministic screenshot cases.
+- Focused GREEN: the same command passed 17/17 tests after the Stage 0 review fixes.
+- Unit/smoke/browser: `npm run test` passed 199 unit tests, mobile smoke, Task 5/6/7 browser regressions, and 33 Task 8 deterministic screenshot cases.
 - Typecheck: `npm run typecheck` passed.
 - Export: `npm run export:web` passed and exported 13 static routes without tracked output churn.
 - Diff check: `git diff --check` passed.

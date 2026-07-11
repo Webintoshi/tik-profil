@@ -236,8 +236,8 @@ export const MODULE_ID_ALIASES: Readonly<Record<string, SupportedModuleId>> = Ob
   "emlak-ofisi": "emlak",
   emlak_ofisi: "emlak",
   gayrimenkul: "emlak",
-  "real-estate": "realestate",
-  real_estate: "realestate",
+  "real-estate": "emlak",
+  real_estate: "emlak",
   vehicle_rental: "vehicle-rental",
   rentacar: "rental",
   "arac-kiralama": "rental",
@@ -267,12 +267,21 @@ function getModuleIdVariants(value?: string | null) {
 }
 
 export function createNormalizedModuleTargetMap(
-  entries: readonly (readonly [string, string])[]
+  entries: readonly (readonly [string, string])[],
+  options: Readonly<{ preserveSeparatorsFor?: readonly string[] }> = {}
 ) {
   const targets = new Map<string, string>();
+  const separatorSensitiveKeys = new Set(
+    (options.preserveSeparatorsFor ?? []).map(normalizeModuleId)
+  );
 
   for (const [rawId, target] of entries) {
-    for (const key of getModuleIdVariants(rawId)) {
+    const normalized = normalizeModuleId(rawId);
+    const keys = separatorSensitiveKeys.has(normalized)
+      ? [normalized]
+      : getModuleIdVariants(rawId);
+
+    for (const key of keys) {
       const existingTarget = targets.get(key);
       if (existingTarget && existingTarget !== target) {
         throw new Error(`Module alias collision for ${key}: ${existingTarget} and ${target}`);
@@ -288,7 +297,7 @@ const definitionsById = new Map(MODULE_FAMILY_DEFINITIONS.map((definition) => [d
 const normalizedTargets = createNormalizedModuleTargetMap([
   ...SUPPORTED_MODULE_IDS.map((id) => [id, id] as const),
   ...Object.entries(MODULE_ID_ALIASES)
-]);
+], { preserveSeparatorsFor: ["real-estate"] });
 
 export function resolveModuleFamilyDefinition(value?: string | null): ModuleFamilyDefinition | null {
   for (const key of getModuleIdVariants(value)) {
