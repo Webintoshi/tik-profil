@@ -20,6 +20,7 @@ export type IconName =
   | "mail"
   | "mapPin"
   | "menu"
+  | "minus"
   | "moon"
   | "phone"
   | "plus"
@@ -32,6 +33,7 @@ export type IconName =
   | "sun"
   | "ticket"
   | "tikMark"
+  | "trash"
   | "instagram"
   | "utensils"
   | "verified"
@@ -132,6 +134,12 @@ export function Icon({ name, color = "currentColor", size = 22, strokeWidth = 2.
       )}
       {name === "arrowLeft" && <Path {...common} d="M19 12H5m6-6-6 6 6 6" />}
       {name === "plus" && <Path {...common} d="M12 5v14M5 12h14" />}
+      {name === "minus" && <Path {...common} d="M5 12h14" />}
+      {name === "trash" && (
+        <>
+          <Path {...common} d="M4.5 7h15M9 7V4.5h6V7m-8 0 1 13h8l1-13M10 10.5v6M14 10.5v6" />
+        </>
+      )}
       {name === "x" && <Path {...common} d="M6 6l12 12M18 6 6 18" />}
       {name === "star" && <Path {...common} d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1L12 16.9 6.6 19.8l1-6.1-4.4-4.3 6.1-.9L12 3Z" />}
       {name === "store" && <Path {...common} d="M4 10h16l-1.2-5H5.2L4 10Zm1 0v9h14v-9M9 19v-5h6v5" />}

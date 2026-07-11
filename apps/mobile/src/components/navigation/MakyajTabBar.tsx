@@ -4,6 +4,11 @@ import { Animated, Easing, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Icon, type IconName } from "@/components/common/Icon";
+import {
+  BOTTOM_NAVIGATION_DOCK_HEIGHT,
+  getBottomNavigationHeight,
+  getBottomNavigationSafeBottom
+} from "@/components/navigation/tab-bar-metrics";
 import { colors, radii, typography } from "@/theme/tokens";
 import { useThemeMode } from "@/theme/theme-store";
 import { selectionImpact } from "@/utils/haptics";
@@ -25,14 +30,15 @@ const tabLabels: Record<string, string> = {
 export function MakyajTabBar({ navigation, state }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { isDark } = useThemeMode();
-  const safeBottom = Math.max(insets.bottom, 8);
-  const dockHeight = 68;
-  const barHeight = dockHeight + safeBottom;
+  const safeBottom = getBottomNavigationSafeBottom(insets.bottom);
+  const dockHeight = BOTTOM_NAVIGATION_DOCK_HEIGHT;
+  const barHeight = getBottomNavigationHeight(insets.bottom);
   const hiddenTabRoutes = new Set(["business/[slug]", "qr-scan"]);
   const visibleRoutes = state.routes.filter((route) => !hiddenTabRoutes.has(route.name));
 
   return (
     <View
+      testID="bottom-tab-bar"
       style={{
         backgroundColor: colors.surface,
         borderTopColor: colors.border,
