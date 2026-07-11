@@ -41,7 +41,12 @@ test("Authorization forwarding is limited to authenticated customer endpoints", 
     "/api/kesfet/user/profile",
     "/api/kesfet/user/favorites",
     "/api/kesfet/orders",
+    "/api/kesfet/appointments",
+    "/api/kesfet/appointments/appointment-1/cancel",
+    "/api/kesfet/inquiries",
+    "/api/kesfet/inquiries/inquiry-1/cancel",
     "/api/kesfet/reservations",
+    "/api/kesfet/reservations/reservation-1/cancel",
     "/api/mobile/account/avatar"
   ]) {
     assert.equal(shouldForwardAuthorization(pathname), true, pathname);

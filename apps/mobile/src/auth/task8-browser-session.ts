@@ -10,6 +10,7 @@ export function createTask8BrowserCustomer(): CustomerAccount {
     ],
     appointments: [],
     email: "task8@example.test",
+    inquiries: [],
     orders: [
       { businessId: "task8-business-1", businessName: "Ordu Kahve Atölyesi", createdAt, id: "task8-order-1", itemCount: 2, orderNumber: "T8-001", recordType: "fastfood", status: "Hazırlanıyor", total: 286 },
       { businessId: "task8-business-2", businessName: "Sahil Tasarım", createdAt, id: "task8-order-2", itemCount: 1, orderNumber: "T8-002", recordType: "ecommerce", status: "Teslim edildi", total: 640 }

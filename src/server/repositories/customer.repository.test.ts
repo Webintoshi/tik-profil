@@ -140,6 +140,20 @@ function createMemoryExecutor() {
             return { rows, rowCount: rows.length };
         }
 
+        if (text.includes("FROM listing_inquiries")) {
+            return {
+                rows: [{
+                    business_id: "business-1", business_name: "Ordu Emlak", business_slug: "ordu-emlak",
+                    created_at: new Date("2026-07-14T12:00:00.000Z"), customer_email: "ada@example.com",
+                    customer_name: "Ada Yilmaz", customer_phone: "05550000000", id: "inquiry-1",
+                    listing_currency: "TRY", listing_id: "listing-1", listing_image_url: null,
+                    listing_price: "4250000", listing_title: "Sea View", message: null,
+                    module_id: "emlak", status: "contacted",
+                }],
+                rowCount: 1,
+            };
+        }
+
         if (text.includes("FROM ff_orders")) {
             return { rows: [{ business_id: "business-2", business_name: "New Shop", created_at: new Date("2026-07-13T12:00:00.000Z"), id: "new", order_number: "FF-2", record_type: "fastfood", status: "ready", total: "250.50" }], rowCount: 1 };
         }
@@ -350,4 +364,23 @@ test("lists owned reservations newest first across supported reservation tables"
     assert.equal(calls.filter((call) => /ORDER BY created_at DESC/.test(call.text)).length, 2);
     assert.equal(calls.filter((call) => /LIMIT 100/.test(call.text)).length, 2);
     assert.deepEqual(calls.map((call) => call.values), [["user-1"], ["user-1"]]);
+});
+
+test("lists normalized inquiry history newest first with server-derived cancellation state", async () => {
+    const { calls, executor } = createMemoryExecutor();
+    const repository = createCustomerRepository(executor);
+
+    const inquiries = await repository.listInquiries("user-1");
+
+    assert.equal(inquiries.length, 1);
+    assert.deepEqual(inquiries[0], {
+        businessId: "business-1", businessName: "Ordu Emlak", businessSlug: "ordu-emlak", cancellable: true,
+        createdAt: "2026-07-14T12:00:00.000Z", customerEmail: "ada@example.com", customerName: "Ada Yilmaz",
+        customerPhone: "05550000000", id: "inquiry-1", listingCurrency: "TRY", listingId: "listing-1",
+        listingImageUrl: null, listingPrice: 4250000, listingTitle: "Sea View", message: "",
+        moduleId: "emlak", status: "contacted",
+    });
+    const call = calls.find((candidate) => candidate.text.includes("FROM listing_inquiries"))!;
+    assert.match(call.text, /WHERE app_user_id = \$1[\s\S]*ORDER BY created_at DESC[\s\S]*LIMIT 200/i);
+    assert.deepEqual(call.values, ["user-1"]);
 });

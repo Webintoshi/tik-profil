@@ -272,6 +272,25 @@ const server = http.createServer(async (request, response) => {
       })),
       timeSlots: []
     } : { success: true, nativeEnabled: false, vertical: null, business: null, resources: [], timeSlots: [] };
+  } else if (url.pathname === "/api/kesfet/listings/options") {
+    body = url.searchParams.get("businessSlug") === "task9-listing" ? {
+      business: { id: "task9-emlak", name: "Task 9 Emlak", slug: "task9-listing" },
+      listings: Array.from({ length: 5 }, (_, index) => ({
+        consultantId: null,
+        currency: "TRY",
+        description: `Altınordu ilanı ${index + 1}`,
+        id: `task9-listing-${index + 1}`,
+        imageUrl: null,
+        listingType: "sale",
+        locationText: "Altınordu, Ordu",
+        price: 2500000 + index * 250000,
+        propertyType: "residential",
+        title: `Ordu Satılık Daire ${index + 1}`
+      })),
+      moduleId: "emlak",
+      nativeEnabled: true,
+      success: true
+    } : { business: null, listings: [], moduleId: null, nativeEnabled: false, success: true };
   } else if (url.pathname === "/api/fastfood/public-menu" || url.pathname === "/api/restaurant/public-menu") {
     const slug = url.searchParams.get("businessSlug") || "";
     body = await buildMenuResponse(slug, url.pathname.includes("restaurant"));
@@ -332,7 +351,8 @@ function buildProfile(slug) {
     "task7-ecommerce",
     "task9-appointment",
     "task9-reservation",
-    "task9-catalog"
+    "task9-catalog",
+    "task9-listing"
   ]);
   if (!knownSlugs.has(slug) && !isGeometryProfile) return null;
 
@@ -341,13 +361,14 @@ function buildProfile(slug) {
   const isAppointment = slug === "task9-appointment";
   const isReservation = slug === "task9-reservation";
   const isCatalog = slug === "task9-catalog";
+  const isListing = slug === "task9-listing";
   return {
     ...baseProfile,
     hasRestaurantModule: isRestaurant,
-    primaryModuleId: isAppointment ? "clinic" : isReservation ? "hotel" : isCatalog ? "petshop" : isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood",
-    industry: isAppointment ? "clinic" : isReservation ? "hotel" : isCatalog ? "petshop" : isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood",
-    industryLabel: isAppointment ? "Klinik" : isReservation ? "Otel" : isCatalog ? "Petshop" : isEcommerce ? "Ecommerce" : isRestaurant ? "Restoran" : "Fast Food",
-    modules: [isAppointment ? "clinic" : isReservation ? "hotel" : isCatalog ? "petshop" : isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood"],
+    primaryModuleId: isAppointment ? "clinic" : isReservation ? "hotel" : isCatalog ? "petshop" : isListing ? "emlak" : isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood",
+    industry: isAppointment ? "clinic" : isReservation ? "hotel" : isCatalog ? "petshop" : isListing ? "emlak" : isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood",
+    industryLabel: isAppointment ? "Klinik" : isReservation ? "Otel" : isCatalog ? "Petshop" : isListing ? "Emlak" : isEcommerce ? "Ecommerce" : isRestaurant ? "Restoran" : "Fast Food",
+    modules: [isAppointment ? "clinic" : isReservation ? "hotel" : isCatalog ? "petshop" : isListing ? "emlak" : isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood"],
     id: isEcommerce ? task7EcommerceSettings.id : slug.startsWith("task7-") ? "77777777-7777-4777-8777-777777777777" : baseProfile.id,
     name: isEcommerce ? "Task 7 Ecommerce" : slug === "task7-business" ? "Task 7 Test İşletmesi" : slug === "task7-200" ? "Task 7 200 Ürün" : baseProfile.name,
     slug

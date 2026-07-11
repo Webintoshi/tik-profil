@@ -10,7 +10,7 @@ import {
 } from "../modules/module-family-registry";
 
 export type FoodMenuKind = "fastfood" | "restaurant";
-export type NativeProfilePanelKind = FoodMenuKind | "appointment" | "ecommerce" | "reservation";
+export type NativeProfilePanelKind = FoodMenuKind | "appointment" | "ecommerce" | "listing" | "reservation";
 
 export interface ProfileActionInput {
   name: string;
@@ -59,6 +59,11 @@ const NATIVE_ACTIONS: Readonly<Record<NativeCapability, NativeActionPresentation
     label: "Ürünleri Gör",
     panelKind: "ecommerce"
   },
+  "listing-inquiry": {
+    icon: "home",
+    label: "İlanları Gör",
+    panelKind: "listing"
+  },
   "fastfood-order": {
     icon: "utensils",
     label: "Sipariş Ver",
@@ -83,6 +88,7 @@ const NATIVE_CAPABILITY_PRECEDENCE = [
   "fastfood-order",
   "reservation-booking",
   "catalog-order",
+  "listing-inquiry",
   "restaurant-menu",
   "ecommerce-order",
   "appointment-booking"

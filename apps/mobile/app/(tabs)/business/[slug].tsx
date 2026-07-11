@@ -7,6 +7,7 @@ import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, Text, TextInp
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { fetchAppointmentOptions, type AppointmentOptions } from "@/api/appointments";
+import { fetchListingOptions, type ListingOptions } from "@/api/listings";
 import { fetchReservationOptions, type ReservationOptions } from "@/api/reservations";
 
 import {
@@ -31,6 +32,7 @@ import {
 } from "@/api/kesfet";
 import { EmptyState } from "@/components/business/empty-state";
 import { AppointmentPanel } from "@/components/business/AppointmentPanel";
+import { ListingPanel } from "@/components/business/ListingPanel";
 import { ReservationPanel } from "@/components/business/ReservationPanel";
 import {
   BusinessProfileHeader,
@@ -101,6 +103,9 @@ export default function BusinessDetailScreen() {
   const [isReservationOpen, setIsReservationOpen] = React.useState(false);
   const [reservationOptions, setReservationOptions] = React.useState<ReservationOptions | null>(null);
   const [isReservationOptionsLoading, setIsReservationOptionsLoading] = React.useState(false);
+  const [isListingOpen, setIsListingOpen] = React.useState(false);
+  const [listingOptions, setListingOptions] = React.useState<ListingOptions | null>(null);
+  const [isListingOptionsLoading, setIsListingOptionsLoading] = React.useState(false);
   const [nativeCatalogReady, setNativeCatalogReady] = React.useState(false);
   const [loadedMenu, setLoadedMenu] = React.useState<LoadedFoodMenu | null>(null);
   const [isMenuLoading, setIsMenuLoading] = React.useState(false);
@@ -192,6 +197,8 @@ export default function BusinessDetailScreen() {
     setAppointmentOptions(null);
     setIsReservationOpen(false);
     setReservationOptions(null);
+    setIsListingOpen(false);
+    setListingOptions(null);
     setNativeCatalogReady(false);
     setLoadedMenu(null);
     setMenuError(null);
@@ -228,6 +235,12 @@ export default function BusinessDetailScreen() {
     return [displayProfile.primaryModuleId, ...displayProfile.modules, displayProfile.industry, displayProfile.industryLabel]
       .map(resolveModuleFamilyDefinition)
       .some((definition) => definition?.nativeCapabilities.some((capability) => capability === "catalog-order" || capability === "ecommerce-order"));
+  }, [displayProfile]);
+  const listingCandidate = React.useMemo(() => {
+    if (!displayProfile) return false;
+    return [displayProfile.primaryModuleId, ...displayProfile.modules, displayProfile.industry, displayProfile.industryLabel]
+      .map(resolveModuleFamilyDefinition)
+      .some((definition) => definition?.nativeCapabilities.includes("listing-inquiry"));
   }, [displayProfile]);
 
   React.useEffect(() => {
@@ -278,6 +291,21 @@ export default function BusinessDetailScreen() {
     });
     return () => { active = false; };
   }, [catalogCandidate, displayProfile?.id]);
+  React.useEffect(() => {
+    let active = true;
+    if (!displayProfile || !listingCandidate) {
+      setListingOptions(null);
+      setIsListingOptionsLoading(false);
+      return () => { active = false; };
+    }
+    setIsListingOptionsLoading(true);
+    void fetchListingOptions(displayProfile.slug).then((result) => {
+      if (active) setListingOptions(result);
+    }).finally(() => {
+      if (active) setIsListingOptionsLoading(false);
+    });
+    return () => { active = false; };
+  }, [displayProfile?.slug, listingCandidate]);
   const activeMenuData = openMenuKind && loadedMenu && loadedMenu.slug === displayProfile?.slug && loadedMenu.kind === openMenuKind
     ? loadedMenu.data
     : null;
@@ -346,10 +374,11 @@ export default function BusinessDetailScreen() {
   if (appointmentOptions?.nativeEnabled) readyCapabilities.push("appointment-booking");
   if (reservationOptions?.nativeEnabled) readyCapabilities.push("reservation-booking");
   if (nativeCatalogReady) readyCapabilities.push("catalog-order", "ecommerce-order");
+  if (listingOptions?.nativeEnabled) readyCapabilities.push("listing-inquiry");
   const primaryAction = resolvePrimaryProfileAction({ ...displayProfile, nativeCapabilities: readyCapabilities });
   const socialCards = buildSocialCards(displayProfile, mapUrl);
   const currentProfile = displayProfile;
-  const isOrderSurfaceOpen = Boolean(openMenuKind || isEcommerceOpen || isAppointmentOpen || isReservationOpen);
+  const isOrderSurfaceOpen = Boolean(openMenuKind || isEcommerceOpen || isAppointmentOpen || isReservationOpen || isListingOpen);
   const isStaticOrderSurfaceOpen = Boolean(openMenuKind || isEcommerceOpen);
   const isProfileCompact = isOrderSurfaceOpen;
   const hasStickyCart = Boolean(
@@ -370,6 +399,7 @@ export default function BusinessDetailScreen() {
     setIsEcommerceOpen(false);
     setIsAppointmentOpen(false);
     setIsReservationOpen(false);
+    setIsListingOpen(false);
 
     const nextMenuKind = openMenuKind === menuKind ? null : menuKind;
     const requestId = ++menuRequestRef.current;
@@ -400,6 +430,7 @@ export default function BusinessDetailScreen() {
       setOpenMenuKind(null);
       setIsEcommerceOpen(false);
       setIsAppointmentOpen(false);
+      setIsListingOpen(false);
       setIsReservationOpen((current) => !current);
       return;
     }
@@ -409,6 +440,7 @@ export default function BusinessDetailScreen() {
       setOpenMenuKind(null);
       setIsEcommerceOpen(false);
       setIsReservationOpen(false);
+      setIsListingOpen(false);
       setIsAppointmentOpen((current) => !current);
       return;
     }
@@ -418,7 +450,18 @@ export default function BusinessDetailScreen() {
       setOpenMenuKind(null);
       setIsAppointmentOpen(false);
       setIsReservationOpen(false);
+      setIsListingOpen(false);
       setIsEcommerceOpen((current) => !current);
+      return;
+    }
+
+    if (primaryAction.panelKind === "listing") {
+      lightImpact();
+      setOpenMenuKind(null);
+      setIsAppointmentOpen(false);
+      setIsReservationOpen(false);
+      setIsEcommerceOpen(false);
+      setIsListingOpen((current) => !current);
       return;
     }
 
@@ -454,6 +497,8 @@ export default function BusinessDetailScreen() {
                 ? isAppointmentOpen
                 : primaryAction.panelKind === "ecommerce"
                 ? isEcommerceOpen
+                : primaryAction.panelKind === "listing"
+                ? isListingOpen
                 : openMenuKind === primaryAction.menuKind
             }
             onCall={() => void openExternal(callUrl)}
@@ -481,6 +526,13 @@ export default function BusinessDetailScreen() {
             <EcommerceOrderPanel
               businessId={displayProfile.id}
               businessName={displayProfile.name}
+            />
+          ) : null}
+          {isListingOpen ? (
+            <ListingPanel
+              businessSlug={displayProfile.slug}
+              isLoading={isListingOptionsLoading}
+              options={listingOptions}
             />
           ) : null}
 

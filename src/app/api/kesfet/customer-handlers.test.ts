@@ -31,6 +31,10 @@ function createDependencies() {
             calls.push({ args, method: "listFavorites" });
             return [];
         },
+        async listInquiries(...args: unknown[]) {
+            calls.push({ args, method: "listInquiries" });
+            return [{ createdAt: "2026-07-11", id: "inquiry-1" }];
+        },
         async listOrders(...args: unknown[]) {
             calls.push({ args, method: "listOrders" });
             return [{ createdAt: "2026-07-11", id: "order-1" }];
@@ -191,6 +195,19 @@ test("orders and reservations handlers list only the authenticated customer's re
 
     assert.deepEqual(calls.find((call) => call.method === "listOrders")?.args, ["session-user"]);
     assert.deepEqual(calls.find((call) => call.method === "listReservations")?.args, ["session-user"]);
+});
+
+test("inquiry history response lists only the authenticated customer's normalized records", async () => {
+    const { calls, handlers } = createDependencies();
+
+    const response = await handlers.getInquiries();
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await json(response), {
+        success: true,
+        inquiries: [{ createdAt: "2026-07-11", id: "inquiry-1" }],
+    });
+    assert.deepEqual(calls.find((call) => call.method === "listInquiries")?.args, ["session-user"]);
 });
 
 test("invalid customer payloads return typed 400 responses without repository mutations", async () => {

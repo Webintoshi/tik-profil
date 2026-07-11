@@ -14,6 +14,7 @@ interface CustomerHandlerDependencies {
         | "getProfile"
         | "listAddresses"
         | "listFavorites"
+        | "listInquiries"
         | "listOrders"
         | "listReservations"
         | "saveProfileWithAddresses"
@@ -204,6 +205,16 @@ export function createCustomerHandlers(dependencies: CustomerHandlerDependencies
                 return Response.json({ success: true, orders });
             } catch (error) {
                 return errorResponse(error, "Customer Orders GET");
+            }
+        },
+
+        async getInquiries(): Promise<Response> {
+            try {
+                const customer = await dependencies.requireCustomer();
+                const inquiries = await dependencies.repository.listInquiries(customer.appUserId);
+                return Response.json({ success: true, inquiries });
+            } catch (error) {
+                return errorResponse(error, "Customer Inquiries GET");
             }
         },
 

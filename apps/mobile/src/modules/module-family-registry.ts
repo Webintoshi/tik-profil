@@ -18,7 +18,7 @@ export type RegistryModuleId = Exclude<SupportedModuleId, "food" | "beauty" | "v
 export type ModuleFamily = "appointment" | "reservation" | "catalog-order" | "listing-inquiry";
 export type ModuleFallbackKind = "whatsapp" | "call";
 export type ModuleMessageKind = "appointment" | "reservation" | "order" | "product" | "service" | "quote";
-export type NativeCapability = "appointment-booking" | "reservation-booking" | "catalog-order" | "fastfood-order" | "ecommerce-order" | "restaurant-menu";
+export type NativeCapability = "appointment-booking" | "reservation-booking" | "catalog-order" | "listing-inquiry" | "fastfood-order" | "ecommerce-order" | "restaurant-menu";
 
 export interface ModuleFamilyDefinition {
   readonly id: SupportedModuleId;
@@ -174,7 +174,7 @@ assignMetadata(
 );
 assignMetadata(
   ["emlak", "realestate"],
-  { family: "listing-inquiry", label: "İlanlar", icon: "home", fallback: { kind: "whatsapp", messageKind: "service" } }
+  { family: "listing-inquiry", label: "İlanlar", icon: "home", fallback: { kind: "whatsapp", messageKind: "service" }, nativeCapabilities: ["listing-inquiry"] }
 );
 assignMetadata(
   ["construction"],

@@ -31,6 +31,7 @@ const customer = {
   addresses: [],
   appointments: [],
   email: "customer@example.com",
+  inquiries: [],
   orders: [],
   profile: null,
   reservations: []

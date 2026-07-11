@@ -11,6 +11,7 @@ import {
   type CustomerProfileUpdate
 } from "@/api/customer";
 import { cancelAppointment } from "@/api/appointments";
+import { cancelListingInquiry } from "@/api/listings";
 import { cancelReservation } from "@/api/reservations";
 import { getAccountLayout, resolveAccountFontScale } from "@/account/account-layout";
 import { useCustomerSession } from "@/auth/auth-store";
@@ -124,6 +125,7 @@ function SignedInAccountView() {
   const [busyAction, setBusyAction] = useState<"address" | "avatar" | "profile" | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [cancellingAppointmentId, setCancellingAppointmentId] = useState<string | null>(null);
+  const [cancellingInquiryId, setCancellingInquiryId] = useState<string | null>(null);
   const [cancellingReservationId, setCancellingReservationId] = useState<string | null>(null);
   const mounted = useRef(true);
   const initializedIdentity = useRef<string | null>(null);
@@ -470,6 +472,65 @@ function SignedInAccountView() {
         </DataList>
       </AccountSection>
 
+      <AccountSection icon="home" isOpen={openSection === "inquiries"} onToggle={() => {
+        const isOpening = openSection !== "inquiries";
+        setOpenSection(isOpening ? "inquiries" : null);
+        if (isOpening) void refreshCustomer();
+      }} summary={customer.inquiries.length ? `${customer.inquiries.length} talep` : "İlan talebi yok"} title="İlan talepleri">
+        <DataList empty="Henüz ilan talebi yok" icon="home">
+          {customer.inquiries.map((inquiry) => (
+            <View key={inquiry.id} style={{ borderBottomColor: colors.border, borderBottomWidth: 1, gap: spacing.sm, paddingVertical: spacing.md }}>
+              <DataRow
+                icon="home"
+                meta={`${inquiry.businessName} · ${formatMoney(inquiry.listingPrice, inquiry.listingCurrency)} · ${formatDate(inquiry.createdAt)}`}
+                status={inquiry.status}
+                title={inquiry.listingTitle}
+              />
+              {inquiry.cancellable ? (
+                <AnimatedPressable
+                  accessibilityLabel={`${inquiry.listingTitle} ilan talebini iptal et`}
+                  accessibilityRole="button"
+                  disabled={cancellingInquiryId === inquiry.id}
+                  onPress={() => {
+                    Alert.alert(
+                      "İlan talebini iptal et",
+                      `${inquiry.listingTitle} için gönderdiğiniz talebi iptal etmek istediğinize emin misiniz?`,
+                      [
+                        { style: "cancel", text: "Vazgeç" },
+                        {
+                          style: "destructive",
+                          text: "İptal et",
+                          onPress: () => {
+                            setCancellingInquiryId(inquiry.id);
+                            setLocalError(null);
+                            void (async () => {
+                              try {
+                                const cancelled = await runAuthenticated((accessToken) => cancelListingInquiry(accessToken, inquiry.id));
+                                if (!cancelled) throw new Error("Oturum doğrulanamadı. Yeniden giriş yapın.");
+                                await refreshCustomer();
+                              } catch (error) {
+                                setLocalError(error instanceof Error ? error.message : "İlan talebi iptal edilemedi.");
+                              } finally {
+                                setCancellingInquiryId(null);
+                              }
+                            })();
+                          }
+                        }
+                      ]
+                    );
+                  }}
+                  style={{ alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.brandSoft, borderRadius: radii.pill, justifyContent: "center", minHeight: 38, paddingHorizontal: spacing.md }}
+                >
+                  <Text style={{ ...typography.label, color: colors.brandDeep }}>
+                    {cancellingInquiryId === inquiry.id ? "İptal ediliyor" : "Talebi iptal et"}
+                  </Text>
+                </AnimatedPressable>
+              ) : null}
+            </View>
+          ))}
+        </DataList>
+      </AccountSection>
+
       <AnimatedPressable accessibilityLabel="Favoriler sekmesine git" accessibilityRole="button" onPress={() => router.navigate("/favorites" as never)} pressScale={0.98} style={{ alignItems: "center", borderBottomColor: colors.border, borderBottomWidth: 1, flexDirection: "row", gap: spacing.md, minHeight: 58 }}>
         <Icon color={colors.brand} name="heart" size={20} />
         <Text style={{ ...typography.body, color: colors.ink, flex: 1 }}>Favoriler</Text>
@@ -489,6 +550,14 @@ function stringOrNull(value: unknown): string | null {
 function formatDate(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short", year: "numeric" }).format(date);
+}
+
+function formatMoney(value: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("tr-TR", { currency, style: "currency", maximumFractionDigits: 0 }).format(value);
+  } catch {
+    return `${value.toLocaleString("tr-TR")} ${currency}`;
+  }
 }
 
 function AccountSection({ children, icon, isOpen, onToggle, summary, title }: { children: ReactNode; icon: IconName; isOpen: boolean; onToggle: () => void; summary: string; title: string }) {

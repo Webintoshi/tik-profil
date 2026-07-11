@@ -1,3 +1,6 @@
+import type { ListingInquiryRecord } from "../listings/listing-inquiry-contract.ts";
+import { mapListingInquiryRecord } from "./listing-inquiry.repository.ts";
+
 export interface QueryResultLike {
     rowCount: number | null;
     rows: Record<string, unknown>[];
@@ -465,6 +468,19 @@ export function createCustomerRepository(
                     total: asNumber(row.total),
                 }))
                 .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+        },
+
+        async listInquiries(appUserId: string): Promise<ListingInquiryRecord[]> {
+            const result = await execute(`
+                SELECT id, business_id, business_name, business_slug, listing_id, listing_title,
+                       listing_price, listing_currency, listing_image_url, module_id, customer_name,
+                       customer_phone, customer_email, message, status, created_at
+                FROM listing_inquiries
+                WHERE app_user_id = $1
+                ORDER BY created_at DESC
+                LIMIT 200
+            `, [appUserId]);
+            return result.rows.map(mapListingInquiryRecord);
         },
 
         async listReservations(appUserId: string): Promise<CustomerReservationSummary[]> {

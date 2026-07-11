@@ -46,10 +46,34 @@ try {
   process.stdout.write("Task 9 reservation small-viewport reachability passed.\n");
   await verifyGenericCatalog(browser, { width: 390, height: 844 });
   process.stdout.write("Task 9 generic retail catalog passed.\n");
+  await verifyListingInquiryReachability(browser, { width: 360, height: 640 });
+  process.stdout.write("Task 9 listing inquiry small-viewport reachability passed.\n");
   process.stdout.write("Task 5 rendered browser regression passed.\n");
 } finally {
   await browser?.close();
   await cleanupBrowserTestProcesses(children, [fixturePort, expoPort]);
+}
+
+async function verifyListingInquiryReachability(browserInstance, viewport) {
+  const page = await browserInstance.newPage({ viewport });
+  const health = monitorPage(page);
+  try {
+    await page.goto(`${appUrl}/business/task9-listing`, { waitUntil: "networkidle" });
+    const primary = page.getByTestId("business-profile-primary-action");
+    await primary.getByText("İlanları Gör", { exact: true }).waitFor();
+    await primary.click();
+    await page.getByText("İlanları incele", { exact: true }).waitFor();
+    await page.getByText("Ordu Satılık Daire 1", { exact: true }).waitFor();
+    assert.equal(await page.getByTestId("business-profile-scroll").count(), 1, "listing inquiry lost its scroll owner");
+    const submit = page.getByRole("button", { name: "Başvuruyu gönder", exact: true });
+    await submit.scrollIntoViewIfNeeded();
+    const submitBox = await requiredBox(submit, "listing inquiry submit");
+    const navBox = await requiredBox(page.getByTestId("bottom-tab-bar"), "bottom nav");
+    assert.ok(submitBox.y >= 0 && submitBox.y + submitBox.height <= navBox.y, "listing inquiry submit is not reachable above navigation");
+    await assertPageHealthy(page, health);
+  } finally {
+    await page.close();
+  }
 }
 
 async function verifyGenericCatalog(browserInstance, viewport) {

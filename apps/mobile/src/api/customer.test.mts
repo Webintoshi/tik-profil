@@ -69,13 +69,15 @@ test("customer account load sends one bearer token to every account endpoint", a
     }
     if (url.endsWith("/appointments")) return Response.json({ success: true, appointments: [] });
     if (url.endsWith("/orders")) return Response.json({ success: true, orders: [] });
-    return Response.json({ success: true, reservations: [] });
+    if (url.endsWith("/reservations")) return Response.json({ success: true, reservations: [] });
+    return Response.json({ success: true, inquiries: [] });
   };
 
   try {
     const account = await fetchCustomerAccount("access-token", "https://example.test");
     assert.equal(account.email, "customer@example.com");
     assert.deepEqual(requests.map((request) => request.authorization), [
+      "Bearer access-token",
       "Bearer access-token",
       "Bearer access-token",
       "Bearer access-token",
@@ -177,6 +179,17 @@ const validAppointmentsResponse = {
   success: true
 };
 
+const validInquiriesResponse = {
+  inquiries: [{
+    businessId: "business-1", businessName: "Ordu Emlak", businessSlug: "ordu-emlak",
+    cancellable: true, createdAt: "2026-07-11T10:00:00.000Z", customerEmail: "ada@example.com",
+    customerName: "Ada", customerPhone: "05550000000", id: "inquiry-1", listingCurrency: "TRY",
+    listingId: "listing-1", listingImageUrl: null, listingPrice: 3200000,
+    listingTitle: "Merkezde satılık daire", message: "Bilgi alabilir miyim?", moduleId: "emlak", status: "pending"
+  }],
+  success: true
+};
+
 async function rejectsMalformedAccountResponse(pathSuffix: string, malformed: unknown) {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
@@ -185,7 +198,8 @@ async function rejectsMalformedAccountResponse(pathSuffix: string, malformed: un
     if (url.endsWith("/user/profile")) return Response.json(validProfileResponse);
     if (url.endsWith("/appointments")) return Response.json(validAppointmentsResponse);
     if (url.endsWith("/orders")) return Response.json(validOrdersResponse);
-    return Response.json(validReservationsResponse);
+    if (url.endsWith("/reservations")) return Response.json(validReservationsResponse);
+    return Response.json(validInquiriesResponse);
   };
   try {
     await assert.rejects(
@@ -204,6 +218,7 @@ test("success-only customer payloads are rejected for every account endpoint", a
   await rejectsMalformedAccountResponse("/appointments", { success: true });
   await rejectsMalformedAccountResponse("/orders", { success: true });
   await rejectsMalformedAccountResponse("/reservations", { success: true });
+  await rejectsMalformedAccountResponse("/inquiries", { success: true });
 });
 
 test("malformed profile and address fields throw a status-preserving decode error", async () => {
@@ -228,6 +243,13 @@ test("malformed order and reservation fields throw a status-preserving decode er
   });
 });
 
+test("malformed listing inquiry fields throw a status-preserving decode error", async () => {
+  await rejectsMalformedAccountResponse("/inquiries", {
+    success: true,
+    inquiries: [{ ...validInquiriesResponse.inquiries[0], listingPrice: "3200000" }]
+  });
+});
+
 test("valid nested customer payloads are decoded and returned", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
@@ -235,7 +257,8 @@ test("valid nested customer payloads are decoded and returned", async () => {
     if (url.endsWith("/user/profile")) return Response.json(validProfileResponse);
     if (url.endsWith("/appointments")) return Response.json(validAppointmentsResponse);
     if (url.endsWith("/orders")) return Response.json(validOrdersResponse);
-    return Response.json(validReservationsResponse);
+    if (url.endsWith("/reservations")) return Response.json(validReservationsResponse);
+    return Response.json(validInquiriesResponse);
   };
   try {
     const account = await fetchCustomerAccount("access-token", "https://example.test");
@@ -244,6 +267,7 @@ test("valid nested customer payloads are decoded and returned", async () => {
     assert.equal(account.appointments[0].serviceName, "Muayene");
     assert.equal(account.orders[0].itemCount, 2);
     assert.equal(account.reservations[0].reservationType, "hotel");
+    assert.equal(account.inquiries[0].listingTitle, "Merkezde satılık daire");
   } finally {
     globalThis.fetch = originalFetch;
   }

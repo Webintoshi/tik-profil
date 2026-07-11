@@ -321,3 +321,10 @@ test("enables native catalog adapters only for retail IDs with canonical product
     .map((definition) => definition.id);
   assert.deepEqual(enabled, ["pharmacy", "optik", "petshop", "market", "florist", "jewelry", "bookstore", "electronics", "furniture", "clothing", "watchstore"]);
 });
+
+test("enables native listing inquiries only for canonical real-estate IDs", () => {
+  const nativeIds = MODULE_FAMILY_DEFINITIONS
+    .filter((definition) => definition.nativeCapabilities.includes("listing-inquiry"))
+    .map((definition) => definition.id);
+  assert.deepEqual(nativeIds, ["emlak", "realestate"]);
+});

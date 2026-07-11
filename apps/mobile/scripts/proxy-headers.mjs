@@ -17,17 +17,26 @@ const authenticatedPaths = new Set([
   "/api/fastfood/orders",
   "/api/kesfet/user/profile",
   "/api/kesfet/user/favorites",
+  "/api/kesfet/appointments",
+  "/api/kesfet/inquiries",
   "/api/kesfet/orders",
   "/api/kesfet/reservations",
   "/api/mobile/account/avatar"
 ]);
+
+const authenticatedPrefixes = [
+  "/api/kesfet/appointments/",
+  "/api/kesfet/inquiries/",
+  "/api/kesfet/reservations/"
+];
 
 export function isAllowedProxyPath(pathname) {
   return allowedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 export function shouldForwardAuthorization(pathname) {
-  return authenticatedPaths.has(pathname);
+  return authenticatedPaths.has(pathname)
+    || authenticatedPrefixes.some((prefix) => pathname.startsWith(prefix));
 }
 
 function buildUpstreamHeaders(pathname, headers) {

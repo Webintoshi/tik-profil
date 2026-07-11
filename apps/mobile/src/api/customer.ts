@@ -73,10 +73,31 @@ export interface CustomerAppointment {
   vertical: "beauty" | "clinic";
 }
 
+export interface CustomerListingInquiry {
+  businessId: string;
+  businessName: string;
+  businessSlug: string;
+  cancellable: boolean;
+  createdAt: string;
+  customerEmail: string | null;
+  customerName: string;
+  customerPhone: string;
+  id: string;
+  listingCurrency: string;
+  listingId: string;
+  listingImageUrl: string | null;
+  listingPrice: number;
+  listingTitle: string;
+  message: string;
+  moduleId: "emlak" | "realestate";
+  status: "cancelled" | "contacted" | "pending" | "rejected" | "resolved";
+}
+
 export interface CustomerAccount {
   addresses: CustomerAddress[];
   appointments: CustomerAppointment[];
   email: string | null;
+  inquiries: CustomerListingInquiry[];
   orders: CustomerOrder[];
   profile: CustomerProfile | null;
   reservations: CustomerReservation[];
@@ -119,6 +140,11 @@ interface OrdersResponse {
 
 interface ReservationsResponse {
   reservations: CustomerReservation[];
+  success: boolean;
+}
+
+interface InquiriesResponse {
+  inquiries: CustomerListingInquiry[];
   success: boolean;
 }
 
@@ -350,6 +376,28 @@ function decodeAppointmentsResponse(payload: JsonObject, status: number) {
   return { appointments: appointments.filter((appointment): appointment is CustomerAppointment => appointment !== null), success: true };
 }
 
+function decodeInquiry(value: unknown): CustomerListingInquiry | null {
+  if (!isObject(value)
+    || !string(value.businessId) || !string(value.businessName) || !string(value.businessSlug)
+    || typeof value.cancellable !== "boolean" || !string(value.createdAt)
+    || !nullableString(value.customerEmail) || !string(value.customerName) || !string(value.customerPhone)
+    || !string(value.id) || !string(value.listingCurrency) || !string(value.listingId)
+    || !nullableString(value.listingImageUrl) || !finiteNumber(value.listingPrice)
+    || !string(value.listingTitle) || !string(value.message)
+    || (value.moduleId !== "emlak" && value.moduleId !== "realestate")
+    || !["cancelled", "contacted", "pending", "rejected", "resolved"].includes(String(value.status))) return null;
+  return value as unknown as CustomerListingInquiry;
+}
+
+function decodeInquiriesResponse(payload: JsonObject, status: number): InquiriesResponse {
+  const inquiries = Array.isArray(payload.inquiries) ? payload.inquiries.map(decodeInquiry) : null;
+  if (!inquiries || inquiries.some((inquiry) => inquiry === null)) throw decodeError(status, payload);
+  return {
+    inquiries: inquiries.filter((inquiry): inquiry is CustomerListingInquiry => inquiry !== null),
+    success: true
+  };
+}
+
 async function requestJson<T>(
   accessToken: string,
   path: string,
@@ -375,9 +423,10 @@ export async function fetchCustomerAccount(
   accessToken: string,
   baseUrl = DEFAULT_API_BASE_URL
 ): Promise<CustomerAccount> {
-  const [profile, appointments, orders, reservations] = await Promise.all([
+  const [profile, appointments, inquiries, orders, reservations] = await Promise.all([
     requestJson(accessToken, "/api/kesfet/user/profile", decodeProfileResponse, {}, baseUrl),
     requestJson(accessToken, "/api/kesfet/appointments", decodeAppointmentsResponse, {}, baseUrl),
+    requestJson(accessToken, "/api/kesfet/inquiries", decodeInquiriesResponse, {}, baseUrl),
     requestJson(accessToken, "/api/kesfet/orders", decodeOrdersResponse, {}, baseUrl),
     requestJson(accessToken, "/api/kesfet/reservations", decodeReservationsResponse, {}, baseUrl)
   ]);
@@ -386,6 +435,7 @@ export async function fetchCustomerAccount(
     addresses: profile.addresses,
     appointments: appointments.appointments,
     email: profile.email,
+    inquiries: inquiries.inquiries,
     orders: orders.orders,
     profile: profile.profile,
     reservations: reservations.reservations

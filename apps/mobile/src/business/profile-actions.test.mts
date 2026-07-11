@@ -123,6 +123,18 @@ test("reservation modules stay on contact fallback until canonical options enabl
   }
 });
 
+test("real-estate modules stay on contact fallback until canonical listings enable inquiry", () => {
+  for (const moduleId of ["emlak", "realestate"]) {
+    const fallback = resolvePrimaryProfileAction(profile({ modules: [moduleId], nativeCapabilities: [] }));
+    const native = resolvePrimaryProfileAction(profile({ modules: [moduleId], nativeCapabilities: ["listing-inquiry"] }));
+    assert.equal(fallback.mode, "fallback");
+    assert.equal(native.mode, "native");
+    assert.equal(native.nativeCapability, "listing-inquiry");
+    assert.equal(native.panelKind, "listing");
+    assert.equal(native.label, "İlanları Gör");
+  }
+});
+
 test("appointment fallback uses configured WhatsApp and otherwise calls the phone", () => {
   const whatsapp = resolvePrimaryProfileAction(profile({
     modules: ["clinic"],
