@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { fileURLToPath } from "node:url";
 import { join, relative } from "node:path";
@@ -16,6 +16,30 @@ registerHooks({
 const root = fileURLToPath(new URL("..", import.meta.url));
 const appConfig = JSON.parse(readFileSync(join(root, "app.json"), "utf8"));
 const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+export const PRODUCTION_SMOKE_SCENARIOS = [
+  { id: "sign-in", evidence: [{ path: "src/auth/logto-client.test.mts", includes: "PKCE authorization uses S256" }] },
+  { id: "account-load", evidence: [{ path: "src/api/customer.test.mts", includes: "customer account load sends one bearer token" }] },
+  { id: "favorite-persistence", evidence: [{ path: "src/state/discovery-store.tsx", includes: "AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))" }] },
+  { id: "search", evidence: [{ path: "src/api/kesfet.test.mts", includes: "local category fallback keeps matching businesses" }] },
+  { id: "profile-open", evidence: [{ path: "src/api/kesfet.test.mts", includes: "profile preserves an authoritative 404" }] },
+  { id: "menu-load", evidence: [{ path: "src/api/kesfet.test.mts", includes: "menu and storefront invalidation force the next stock read" }] },
+  { id: "product-configuration", evidence: [{ path: "src/components/business/business-profile-components.contract.test.mts", includes: "product modal and checkout inputs" }] },
+  { id: "delivery", evidence: [{ path: "src/checkout/checkout-state.test.mts", includes: "pickup needs no address while delivery requires" }] },
+  { id: "pickup", evidence: [{ path: "src/checkout/checkout-state.test.mts", includes: "pickup needs no address while delivery requires" }] },
+  { id: "order-submission", evidence: [{ path: "src/api/checkout.test.mts", includes: "authenticated fast-food order forwards bearer" }] },
+  { id: "qr-scan", evidence: [{ path: "src/qr/qr-scan-flow.test.mts", includes: "QR flow resolves before one best-effort log and one replace" }] },
+  { id: "theme-persistence", evidence: [{ path: "src/theme/theme-store.tsx", includes: "AsyncStorage.setItem(STORAGE_KEY, nextMode)" }] }
+];
+export const PRODUCTION_FAILURE_SCENARIOS = [
+  { id: "offline-cached-startup", evidence: [{ path: "src/api/request-cache.test.mts", includes: "failed stale refresh retains the last success" }] },
+  { id: "slow-api", evidence: [{ path: "src/api/request-cache.test.mts", includes: "stale reads return data and dedupe refresh" }] },
+  { id: "401-refresh-failure", evidence: [{ path: "src/auth/session-controller.test.mts", includes: "refresh failure after 401 clears secure session" }] },
+  { id: "404-business", evidence: [{ path: "src/api/kesfet.test.mts", includes: "profile preserves an authoritative 404" }] },
+  { id: "empty-menu", evidence: [{ path: "src/components/business/FoodMenuPanel.tsx", includes: "Bu menüde ürün yok." }] },
+  { id: "unavailable-product", evidence: [{ path: "src/checkout/checkout-state.test.mts", includes: "minimum order, and unavailable products" }] },
+  { id: "upload-rejection", evidence: [{ path: "src/api/account.ts", includes: "Profil fotoğrafı en fazla 2MB olabilir." }] },
+  { id: "camera-denial", evidence: [{ path: "src/qr/qr-screen-contract.test.mts", includes: "separates denied permission from camera mount errors" }] }
+];
 const bannedConsumerWords = [
   "backend",
   "sync",
@@ -45,6 +69,15 @@ const files = [
   ...listSourceFiles(join(root, "src"))
 ];
 const combined = files.map((file) => readFileSync(file, "utf8")).join("\n");
+
+for (const scenario of [...PRODUCTION_SMOKE_SCENARIOS, ...PRODUCTION_FAILURE_SCENARIOS]) {
+  for (const evidence of scenario.evidence) {
+    const evidencePath = join(root, evidence.path);
+    if (!existsSync(evidencePath) || !readFileSync(evidencePath, "utf8").includes(evidence.includes)) {
+      throw new Error(`Production scenario ${scenario.id} is missing automated evidence: ${evidence.path}`);
+    }
+  }
+}
 
 if (appConfig.expo.name !== "Tık Profil") {
   throw new Error("Expo app name must be Tık Profil.");

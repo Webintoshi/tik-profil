@@ -156,6 +156,8 @@ async function verifyPrimaryLayout(browserInstance, viewport) {
     }
     assert.match(await sticky.innerText(), /₺126(?:,00)?/);
 
+    await waitForStableBox(sticky);
+
     const stickyBox = await requiredBox(sticky, "sticky cart");
     const navBox = await requiredBox(page.getByTestId("bottom-tab-bar"), "bottom nav");
     assert.ok(stickyBox.y < viewport.height, `${viewport.width} sticky starts below viewport`);
@@ -373,6 +375,24 @@ async function assertPageHealthy(page, issues) {
 
 async function boxY(locator) {
   return (await requiredBox(locator, "element")).y;
+}
+
+async function waitForStableBox(locator, timeoutMs = 1_000) {
+  await locator.evaluate(async (element, timeout) => {
+    const deadline = performance.now() + timeout;
+    let previousY = element.getBoundingClientRect().y;
+    let stableFrames = 0;
+
+    while (performance.now() < deadline) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const nextY = element.getBoundingClientRect().y;
+      stableFrames = Math.abs(nextY - previousY) <= 0.05 ? stableFrames + 1 : 0;
+      if (stableFrames >= 3) return;
+      previousY = nextY;
+    }
+
+    throw new Error("sticky cart entrance did not settle");
+  }, timeoutMs);
 }
 
 function assertWithin(actual, expected, delta, message) {
