@@ -35,6 +35,11 @@ const SIGNING_ENV_NAMES = [
   "TIKPROFIL_ANDROID_KEY_PASSWORD",
   "TIKPROFIL_ANDROID_CERT_SHA256"
 ];
+const PRODUCTION_RUNTIME_ENV_NAMES = [
+  "EXPO_PUBLIC_LOGTO_ENDPOINT",
+  "EXPO_PUBLIC_LOGTO_APP_ID",
+  "EXPO_PUBLIC_LOGTO_API_AUDIENCE"
+];
 
 function copyEntry(sourceRoot, buildRoot, entry) {
   const source = join(sourceRoot, entry);
@@ -128,6 +133,17 @@ export function resolveSigningConfig(variant, env = process.env) {
     keystorePath,
     productionSigned: true
   };
+}
+
+export function resolveProductionRuntimeConfig(variant, env = process.env) {
+  if (variant === "debug") return {};
+
+  const missing = PRODUCTION_RUNTIME_ENV_NAMES.filter((name) => !env[name]?.trim());
+  if (missing.length > 0) {
+    throw new Error(`Production release runtime requires ${missing.join(", ")}.`);
+  }
+
+  return Object.fromEntries(PRODUCTION_RUNTIME_ENV_NAMES.map((name) => [name, env[name].trim()]));
 }
 
 export function renderReleaseSigningGradle() {
@@ -251,6 +267,7 @@ function main() {
   const versionCode = appConfig?.expo?.android?.versionCode ?? "unknown-code";
   const buildVariant = resolveRequestedBuildVariant();
   const signing = resolveSigningConfig(buildVariant);
+  const productionRuntime = resolveProductionRuntimeConfig(buildVariant);
   const gradleTask = buildVariant === "debug" ? "assembleDebug" : "assembleRelease";
   const apkFolder = buildVariant === "debug" ? "debug" : "release";
   const apkName = buildVariant === "debug" ? "app-debug.apk" : "app-release.apk";
@@ -268,6 +285,7 @@ function main() {
     ANDROID_HOME: sdk,
     EXPO_PUBLIC_TIKPROFIL_API_URL: process.env.EXPO_PUBLIC_TIKPROFIL_API_URL ?? "https://tikprofil.com",
     NODE_ENV: resolveNodeEnv(buildVariant),
+    ...productionRuntime,
     ...(signing.productionSigned
       ? { TIKPROFIL_ANDROID_KEYSTORE_PATH: signing.keystorePath }
       : {})

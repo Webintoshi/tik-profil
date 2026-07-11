@@ -272,6 +272,32 @@ test("same idempotency key returns its stable committed response before catalog 
   assert.equal(catalogCalls, 0);
 });
 
+test("same idempotency key returns the existing order current status", async () => {
+  const { deps } = dependencies({
+    findCommittedOrder: async () => ({ orderId: "existing-order", orderNumber: "#7777", status: "delivered", wasCreated: false })
+  });
+  const response = await orders.createFastFoodOrder(input(), deps as never);
+  assert.equal(response.status, "delivered");
+});
+
+test("order-number conflicts generate a fresh reference and retry the atomic commit", async () => {
+  const attemptedNumbers: string[] = [];
+  const numbers = ["#DUPLICATE", "#UNIQUE"];
+  const { deps } = dependencies({
+    orderNumber: () => numbers.shift() ?? "#EXHAUSTED",
+    commitOrder: async (record: Record<string, unknown>) => {
+      attemptedNumbers.push(String(record.orderNumber));
+      if (attemptedNumbers.length === 1) {
+        throw new orders.FastFoodOrderError("ORDER_NUMBER_CONFLICT", "collision", 409);
+      }
+      return { orderId: "order-2", orderNumber: String(record.orderNumber), status: "pending", wasCreated: true };
+    }
+  });
+  const response = await orders.createFastFoodOrder(input(), deps as never);
+  assert.deepEqual(attemptedNumbers, ["#DUPLICATE", "#UNIQUE"]);
+  assert.equal(response.orderNumber, "#UNIQUE");
+});
+
 test("order results expose an internal creation marker for replay-safe side effects", async () => {
   const created = dependencies();
   const createdResponse = await orders.createFastFoodOrder(input(), created.deps as never);

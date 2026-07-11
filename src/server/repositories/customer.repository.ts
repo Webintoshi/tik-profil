@@ -461,7 +461,13 @@ export function createCustomerRepository(
                     businessName: asNullableString(row.business_name),
                     createdAt: asIsoTimestamp(row.created_at),
                     id: asString(row.id),
-                    itemCount: Array.isArray(row.items) ? row.items.length : 0,
+                    itemCount: Array.isArray(row.items)
+                        ? row.items.reduce((sum: number, item: unknown) => {
+                            if (!item || typeof item !== "object") return sum;
+                            const quantity = Number((item as Record<string, unknown>).quantity);
+                            return sum + (Number.isInteger(quantity) && quantity > 0 ? quantity : 0);
+                        }, 0)
+                        : 0,
                     orderNumber: asNullableString(row.order_number),
                     recordType: row.record_type === "ecommerce" ? "ecommerce" : "fastfood",
                     status: asString(row.status),

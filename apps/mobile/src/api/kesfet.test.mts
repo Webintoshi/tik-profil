@@ -29,9 +29,11 @@ const {
   fetchPublicEcommerceSettings,
   fetchPublicFoodMenu,
   fetchPublicProfile,
+  getLocalDiscoveryBootstrap,
   invalidatePublicEcommerceCache,
   invalidatePublicFoodMenuCache,
   KesfetHttpError,
+  searchBusinesses,
   submitPublicEcommerceCheckout
 }: typeof import("./kesfet") = await import(new URL("./kesfet.ts", import.meta.url).href);
 const { clearRequestCache }: typeof import("./request-cache") = await import(
@@ -147,20 +149,19 @@ const validEcommerceProduct = {
   variants: [{ id: "variant-1", name: "Default", price: 125, stock: null, isActive: true }]
 };
 
-test("local category fallback keeps matching businesses and category metadata", async () => {
-  const [businessResponse, categoryResponse] = await withUnavailableNetwork(() => Promise.all([
-    fetchDiscoveryBusinesses({ category: "petshop" }),
-    fetchCategories()
-  ]));
-  const business = businessResponse.businesses.find((item) => item.slug === "cemile-petshop");
-  const category = categoryResponse.categories.find((item) => item.id === "petshop");
+test("production bootstrap contains no bundled discovery businesses or derived categories", () => {
+  const bootstrap = getLocalDiscoveryBootstrap();
+  assert.deepEqual(bootstrap.businesses, []);
+  assert.deepEqual(bootstrap.categories, []);
+  assert.doesNotMatch(JSON.stringify(bootstrap), /atlas-smoke-fastfood-20260605002259/);
+});
 
-  assert.ok(business);
-  assert.equal(business.category, "petshop");
-  assert.equal(business.categoryLabel, "Petshop");
-  assert.ok(category);
-  assert.equal(category.count, 1);
-  assert.equal(category.label, "Petshop");
+test("cold discovery search and category failures reject instead of inventing Ordu results", async () => {
+  await withUnavailableNetwork(async () => {
+    await assert.rejects(() => fetchDiscoveryBusinesses({ city: "Ordu" }), KesfetHttpError);
+    await assert.rejects(() => searchBusinesses("burger"), KesfetHttpError);
+    await assert.rejects(() => fetchCategories(), KesfetHttpError);
+  });
 });
 
 test("local city guide fallback identifies itself as Ordu", async () => {
@@ -237,6 +238,62 @@ test("city guide accepts a valid identity match and requests the trimmed city", 
   }
 });
 
+test("pilot discovery and guide requests stay canonical Ordu regardless of caller labels", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestedUrls: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    requestedUrls.push(url);
+    if (url.includes("/api/cities")) {
+      return Response.json({ id: "ordu", name: "Ordu", plate: 52, coverImage: "https://example.com/ordu.jpg", places: [] });
+    }
+    return Response.json({ success: true, businesses: [], total: 0, page: 1, limit: 16, hasMore: false });
+  };
+  try {
+    await fetchDiscoveryBusinesses({ city: "Istanbul", limit: 16 });
+    const guide = await fetchCityGuide("Ankara");
+    assert.equal(guide?.name, "Ordu");
+    assert.equal(new URL(requestedUrls.find((url) => url.includes("/api/kesfet?"))!).searchParams.get("city"), "Ordu");
+    assert.equal(new URL(requestedUrls.find((url) => url.includes("/api/cities"))!).searchParams.get("name"), "Ordu");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("pilot discovery rejects otherwise valid businesses from another city", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({
+    success: true,
+    businesses: [{
+      id: "istanbul-business",
+      slug: "istanbul-business",
+      name: "Istanbul Business",
+      coverImage: null,
+      logoUrl: null,
+      category: "other",
+      categoryLabel: "Other",
+      industryId: null,
+      district: "Kadikoy",
+      city: "Istanbul",
+      lat: null,
+      lng: null,
+      rating: null,
+      reviewCount: null,
+      createdAt: null,
+      distance: null
+    }],
+    total: 1,
+    page: 1,
+    limit: 16,
+    hasMore: false
+  });
+  try {
+    await assert.rejects(() => fetchDiscoveryBusinesses({ city: "Ordu", limit: 16 }), KesfetHttpError);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("same logical API GET is deduped and local transport URLs are attempted once", async () => {
   const originalFetch = globalThis.fetch;
   const originalLocation = Object.getOwnPropertyDescriptor(globalThis, "location");
@@ -248,7 +305,8 @@ test("same logical API GET is deduped and local transport URLs are attempted onc
   };
 
   try {
-    await Promise.all([fetchCategories(), fetchCategories()]);
+    const outcomes = await Promise.allSettled([fetchCategories(), fetchCategories()]);
+    assert.deepEqual(outcomes.map((outcome) => outcome.status), ["rejected", "rejected"]);
     assert.equal(requestedUrls.length, 2);
     assert.equal(new Set(requestedUrls).size, 2);
     assert.equal(requestedUrls.filter((url) => url.startsWith("http://localhost:8787/")).length, 1);
@@ -623,9 +681,9 @@ test("successful but incomplete bodies are never cached or exposed as usable dat
     clearRequestCache();
     assert.equal((await fetchPublicFoodMenu("incomplete", "fastfood")).success, false);
     clearRequestCache();
-    assert.ok((await fetchDiscoveryBusinesses({ city: "Ordu", limit: 16 })).businesses.length > 0);
+    await assert.rejects(() => fetchDiscoveryBusinesses({ city: "Ordu", limit: 16 }), KesfetHttpError);
     clearRequestCache();
-    assert.ok((await fetchCategories()).categories.length > 0);
+    await assert.rejects(() => fetchCategories(), KesfetHttpError);
     clearRequestCache();
     assert.equal(await fetchPublicEcommerceSettings("incomplete"), null);
 
@@ -771,8 +829,7 @@ test("nested malformed profile and discovery fields are rejected before caching"
       limit: 16,
       hasMore: false
     });
-    const fallback = await fetchDiscoveryBusinesses({ city: "Ordu", limit: 16 });
-    assert.notEqual(fallback.businesses[0]?.slug, "bad-business");
+    await assert.rejects(() => fetchDiscoveryBusinesses({ city: "Ordu", limit: 16 }), KesfetHttpError);
 
     clearRequestCache();
     globalThis.fetch = async () => Response.json({

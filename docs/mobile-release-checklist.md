@@ -14,7 +14,7 @@ Use this checklist for a production candidate only. Record the release version, 
 
 ### Logto
 
-- [ ] Set production `EXPO_PUBLIC_LOGTO_ENDPOINT`, `EXPO_PUBLIC_LOGTO_APP_ID`, and `EXPO_PUBLIC_LOGTO_API_AUDIENCE` values in the build environment.
+- [ ] Set non-empty production `EXPO_PUBLIC_LOGTO_ENDPOINT`, `EXPO_PUBLIC_LOGTO_APP_ID`, and `EXPO_PUBLIC_LOGTO_API_AUDIENCE` values in the build process environment; the release build must fail before staging when any value is absent or blank.
 - [ ] Confirm the Logto native application allows the exact redirect URI generated for the `tikprofil` scheme.
 - [ ] Confirm PKCE, `openid profile email offline_access`, refresh-token rotation, and the production API resource/audience are enabled.
 - [ ] Confirm the API validates the production issuer, audience, signature, expiry, provider link, and active internal customer.
@@ -32,6 +32,7 @@ Use this checklist for a production candidate only. Record the release version, 
 
 - [ ] From the repository root, run `npm run mobile:release`.
 - [ ] Confirm it runs, in order: root `typecheck`, mobile `typecheck`, mobile test, and APK build.
+- [ ] Confirm the release APK build rejects missing or blank production Logto endpoint, app ID, or API audience values.
 - [ ] Confirm all unit, browser, smoke, security, release-sidecar, and checklist tests exit `0`.
 - [ ] Confirm the build starts from a newly cleaned staging directory and does not require `tests/` or `.env` to exist.
 - [ ] Confirm `apksigner verify --verbose --print-certs` succeeds and its signer certificate matches the approved production fingerprint.

@@ -1,4 +1,5 @@
 import { requireAuth } from '@/lib/apiAuth';
+import { randomUUID } from 'node:crypto';
 import { AppError } from '@/lib/errors';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { CustomerAuthenticationError } from '@/server/auth/customer-session';
@@ -79,9 +80,8 @@ function strings(value: unknown): string[] {
     return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
-function generateOrderNumber(): string {
-    const value = Math.floor(Math.random() * 9999) + 1;
-    return `#${value.toString().padStart(4, '0')}`;
+export function generateOrderNumber(): string {
+    return `#${randomUUID().replace(/-/g, '').slice(0, 16).toUpperCase()}`;
 }
 
 async function loadCatalog(businessId: string): Promise<{
@@ -215,7 +215,7 @@ function createOrderDependencies(request: Request): FastFoodOrderDependencies {
             return {
                 orderId: String(row.order_id),
                 orderNumber: String(row.order_number),
-                status: 'pending' as const,
+                status: String(row.status || 'pending'),
                 wasCreated: row.was_created === true,
             };
         },
@@ -233,7 +233,7 @@ function createOrderDependencies(request: Request): FastFoodOrderDependencies {
             return {
                 orderId: String(data.id),
                 orderNumber: String(data.order_number || ''),
-                status: 'pending' as const,
+                status: String(data.status || 'pending'),
                 wasCreated: false,
             };
         },

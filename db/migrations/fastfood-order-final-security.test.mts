@@ -47,3 +47,11 @@ test("outbox claims carry a fresh lease token and terminal updates are fenced", 
   assert.match(claim, /RETURNING[\s\S]*target\.claim_token/i);
   assert.match(migration, /REVOKE ALL ON FUNCTION claim_fastfood_notification_outbox\(integer\) FROM PUBLIC/i);
 });
+
+test("runtime order adapter preserves RPC and stored replay statuses", async () => {
+  const ordersRoute = await source("../../src/app/api/fastfood/orders/route.ts");
+  assert.match(ordersRoute, /status:\s*String\(row\.status \|\| 'pending'\)/i);
+  assert.match(ordersRoute, /status:\s*String\(data\.status \|\| 'pending'\)/i);
+  assert.doesNotMatch(ordersRoute, /status:\s*'pending' as const/i);
+  assert.match(ordersRoute, /randomUUID\(\)[\s\S]*slice\(0, 16\)/i);
+});

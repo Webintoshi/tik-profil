@@ -155,11 +155,11 @@ function createMemoryExecutor() {
         }
 
         if (text.includes("FROM ff_orders")) {
-            return { rows: [{ business_id: "business-2", business_name: "New Shop", created_at: new Date("2026-07-13T12:00:00.000Z"), id: "new", order_number: "FF-2", record_type: "fastfood", status: "ready", total: "250.50" }], rowCount: 1 };
+            return { rows: [{ business_id: "business-2", business_name: "New Shop", created_at: new Date("2026-07-13T12:00:00.000Z"), id: "new", items: [{ quantity: 2 }, { quantity: 3 }], order_number: "FF-2", record_type: "fastfood", status: "ready", total: "250.50" }], rowCount: 1 };
         }
 
         if (text.includes("FROM ecommerce_orders")) {
-            return { rows: [{ business_id: "business-1", business_name: null, created_at: new Date("2026-07-12T12:00:00.000Z"), id: "old", order_number: "EC-1", record_type: "ecommerce", status: "delivered", total: "100" }], rowCount: 1 };
+            return { rows: [{ business_id: "business-1", business_name: null, created_at: new Date("2026-07-12T12:00:00.000Z"), id: "old", items: [{ quantity: 4 }], order_number: "EC-1", record_type: "ecommerce", status: "delivered", total: "100" }], rowCount: 1 };
         }
 
         if (text.includes("FROM hotel_reservations")) {
@@ -344,6 +344,7 @@ test("lists owned orders newest first across supported order tables", async () =
         "2026-07-12T12:00:00.000Z",
     ]);
     assert.equal(orders[0].total, 250.5);
+    assert.deepEqual(orders.map((order) => order.itemCount), [5, 4]);
     assert.equal(calls.filter((call) => /ORDER BY created_at DESC/.test(call.text)).length, 2);
     assert.equal(calls.filter((call) => /LIMIT 100/.test(call.text)).length, 2);
     assert.deepEqual(calls.map((call) => call.values), [["user-1"], ["user-1"]]);

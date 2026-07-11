@@ -1,6 +1,4 @@
 import {
-  buildCanonicalCategoryCounts,
-  businessMatchesCategory,
   getCategoryQueryKey
 } from "@/business/category-catalog";
 import { CustomerApiError } from "@/api/customer";
@@ -408,244 +406,7 @@ export interface PublicFastFoodCouponValidationResponse {
 const BASE_URL = process.env.EXPO_PUBLIC_TIKPROFIL_API_URL ?? "https://tikprofil.com";
 const LOCAL_WEB_PROXY_URL = process.env.EXPO_PUBLIC_TIKPROFIL_LOCAL_PROXY_URL ?? "http://localhost:8787";
 
-const LOCAL_ORDU_BUSINESSES: KesfetBusiness[] = [
-  {
-    id: "0e1b9b30-abc9-4711-99ee-5c78da19cb59",
-    slug: "cemile-petshop",
-    name: "Cemile Petshop",
-    coverImage: "https://cdn.tikprofil.com/covers/0e1b9b30-abc9-4711-99ee-5c78da19cb59/1770556001756_cover.jpeg",
-    logoUrl: "https://cdn.tikprofil.com/logos/0e1b9b30-abc9-4711-99ee-5c78da19cb59/1770555998587_logo.jpeg",
-    category: "petshop",
-    categoryLabel: "Petshop",
-    industryId: "petshop",
-    district: "Akyazi",
-    city: "Ordu",
-    lat: null,
-    lng: null,
-    rating: null,
-    reviewCount: null,
-    createdAt: "2026-02-08T13:06:18.317+00:00",
-    distance: null
-  },
-  {
-    id: "1de50f6f-d68f-45be-8e14-82295e7b60cf",
-    slug: "manchego",
-    name: "MANCHEGO AKYAZI",
-    coverImage: "https://cdn.tikprofil.com/covers/1de50f6f-d68f-45be-8e14-82295e7b60cf/1770511596298_cover.png",
-    logoUrl: "https://cdn.tikprofil.com/logos/1de50f6f-d68f-45be-8e14-82295e7b60cf/1770511063431_logo.jpeg",
-    category: "kahve_shop",
-    categoryLabel: "Kahve Shop",
-    industryId: "kahve_shop",
-    district: "Akyazi",
-    city: "Ordu",
-    lat: null,
-    lng: null,
-    rating: null,
-    reviewCount: null,
-    createdAt: "2026-02-06T07:15:23.888+00:00",
-    distance: null
-  },
-  {
-    id: "23ZU6GH1B3XZrLxA8V6p",
-    slug: "alaz",
-    name: "ALAZ RESTORAN ORDU",
-    coverImage: "https://cdn.tikprofil.com/covers/23ZU6GH1B3XZrLxA8V6p/1768444852031_cover.jpg",
-    logoUrl: "https://cdn.tikprofil.com/logos/23ZU6GH1B3XZrLxA8V6p/1768444850635_logo.jpg",
-    category: "restoran",
-    categoryLabel: "Restoran",
-    industryId: "restoran",
-    district: "Altinordu",
-    city: "Ordu",
-    lat: null,
-    lng: null,
-    rating: null,
-    reviewCount: null,
-    createdAt: "2025-12-29T05:21:08.118+00:00",
-    distance: null
-  },
-  {
-    id: "8IssSPZF1Lw0A3q4UyNz",
-    slug: "bebek-burger-akyazi",
-    name: "BEBEK BURGER AKYAZI",
-    coverImage: "https://cdn.tikprofil.com/covers/8IssSPZF1Lw0A3q4UyNz/1768444855252_cover.jpg",
-    logoUrl: "https://cdn.tikprofil.com/logos/8IssSPZF1Lw0A3q4UyNz/1768444854459_logo.jpg",
-    category: "fast_food",
-    categoryLabel: "Fast Food",
-    industryId: "fast_food",
-    district: "Akyazi",
-    city: "Ordu",
-    lat: null,
-    lng: null,
-    rating: null,
-    reviewCount: null,
-    createdAt: "2025-12-26T16:13:39.223+00:00",
-    distance: null
-  },
-  {
-    id: "670opHVFicU7Tth7kXgZ",
-    slug: "celebi-emlak",
-    name: "CELEBI EMLAK",
-    coverImage: "https://cdn.tikprofil.com/covers/670opHVFicU7Tth7kXgZ/1768444853709_cover.jpg",
-    logoUrl: "https://cdn.tikprofil.com/logos/670opHVFicU7Tth7kXgZ/1768444852952_logo.jpg",
-    category: "emlak_ofisi",
-    categoryLabel: "Emlak ofisi",
-    industryId: "emlak_ofisi",
-    district: "Altinordu",
-    city: "Ordu",
-    lat: null,
-    lng: null,
-    rating: null,
-    reviewCount: null,
-    createdAt: "2025-12-30T03:34:30.449+00:00",
-    distance: null
-  },
-  {
-    id: "gmf6u7OEJ5UDSse7Yr9G",
-    slug: "derycraft",
-    name: "DERYCRAFT",
-    coverImage: "https://cdn.tikprofil.com/covers/gmf6u7OEJ5UDSse7Yr9G/1768444856768_cover.jpg",
-    logoUrl: "https://cdn.tikprofil.com/logos/gmf6u7OEJ5UDSse7Yr9G/1768444856020_logo.jpg",
-    category: "e_ticaret",
-    categoryLabel: "E-Ticaret",
-    industryId: "e_ticaret",
-    district: "Altinordu",
-    city: "Ordu",
-    lat: null,
-    lng: null,
-    rating: null,
-    reviewCount: null,
-    createdAt: "2026-01-08T11:29:42.465+00:00",
-    distance: null
-  },
-  {
-    id: "3a1561f7-40a9-4a66-9e98-0e03d89e7215",
-    slug: "atlas-smoke-fastfood-20260605002259",
-    name: "atlas-smoke-fastfood-20260605002259",
-    coverImage: null,
-    logoUrl: null,
-    category: "fast_food_burger",
-    categoryLabel: "Fast Food (Burger,pizza ve digerleri)",
-    industryId: "fast_food_burger",
-    district: "Altinordu",
-    city: "Ordu",
-    lat: null,
-    lng: null,
-    rating: null,
-    reviewCount: null,
-    createdAt: "2026-06-05T00:27:00.085+00:00",
-    distance: null
-  },
-  {
-    id: "23ccf322-f999-474a-a625-eacdb67caf12",
-    slug: "robotik-muhendisligi",
-    name: "Robotik Muhendisligi",
-    coverImage: null,
-    logoUrl: null,
-    category: "e_ticaret",
-    categoryLabel: "E-Ticaret",
-    industryId: "e_ticaret",
-    district: "Altinordu",
-    city: "Ordu",
-    lat: null,
-    lng: null,
-    rating: null,
-    reviewCount: null,
-    createdAt: "2026-01-31T10:49:25.401+00:00",
-    distance: null
-  },
-  {
-    id: "3a825178-7d0d-4dc6-8c31-4fefaa63b33c",
-    slug: "sedef",
-    name: "Sedef",
-    coverImage: null,
-    logoUrl: null,
-    category: "klinik_saglik",
-    categoryLabel: "Klinik & Saglik",
-    industryId: "klinik_saglik",
-    district: "Altinordu",
-    city: "Ordu",
-    lat: null,
-    lng: null,
-    rating: null,
-    reviewCount: null,
-    createdAt: "2026-01-28T14:23:44.773+00:00",
-    distance: null
-  },
-  {
-    id: "aaa1a17c-af15-419a-96de-a5f3cc6de471",
-    slug: "daglarca",
-    name: "Daglarca",
-    coverImage: null,
-    logoUrl: null,
-    category: "arac_kiralama",
-    categoryLabel: "Arac Kiralama",
-    industryId: "arac_kiralama",
-    district: "Altinordu",
-    city: "Ordu",
-    lat: null,
-    lng: null,
-    rating: null,
-    reviewCount: null,
-    createdAt: "2026-01-29T23:14:21.211+00:00",
-    distance: null
-  },
-  {
-    id: "ebee814e-9f20-4321-9974-459d2deeed61",
-    slug: "makarna",
-    name: "Makarna",
-    coverImage: null,
-    logoUrl: null,
-    category: "fast_food_burger",
-    categoryLabel: "Fast Food (Burger,pizza ve digerleri)",
-    industryId: "fast_food_burger",
-    district: "Altinordu",
-    city: "Ordu",
-    lat: null,
-    lng: null,
-    rating: null,
-    reviewCount: null,
-    createdAt: "2026-03-03T08:26:32.57+00:00",
-    distance: null
-  },
-  {
-    id: "f6b76935-adfd-4d7e-89ae-e6b56526331c",
-    slug: "palmiye-baba",
-    name: "Palmiye Baba",
-    coverImage: null,
-    logoUrl: null,
-    category: "otel_konaklama",
-    categoryLabel: "Otel & Konaklama",
-    industryId: "otel_konaklama",
-    district: "Altinordu",
-    city: "Ordu",
-    lat: null,
-    lng: null,
-    rating: null,
-    reviewCount: null,
-    createdAt: "2026-01-24T21:17:16.172+00:00",
-    distance: null
-  },
-  {
-    id: "otIRVEsgRyzTqPIB6Ou6",
-    slug: "ezmeo",
-    name: "EZMEO",
-    coverImage: null,
-    logoUrl: null,
-    category: "other",
-    categoryLabel: "Other",
-    industryId: "other",
-    district: "Altinordu",
-    city: "Ordu",
-    lat: null,
-    lng: null,
-    rating: null,
-    reviewCount: null,
-    createdAt: "2026-01-03T21:11:39.996+00:00",
-    distance: null
-  }
-];
-
-const LOCAL_ORDU_CATEGORIES: KesfetCategory[] = buildCanonicalCategoryCounts(LOCAL_ORDU_BUSINESSES);
+const LOCAL_ORDU_CATEGORIES: KesfetCategory[] = [];
 
 const LOCAL_ORDU_CITY_GUIDE: CityGuideResponse = {
   id: "ordu",
@@ -684,7 +445,7 @@ const LOCAL_ORDU_CITY_GUIDE: CityGuideResponse = {
 
 export function getLocalDiscoveryBootstrap(category?: string | null) {
   return {
-    businesses: buildLocalDiscoveryResponse({ limit: 24, category }).businesses,
+    businesses: [] as KesfetBusiness[],
     categories: LOCAL_ORDU_CATEGORIES,
     cityGuide: LOCAL_ORDU_CITY_GUIDE
   };
@@ -832,58 +593,6 @@ async function postJson<T>(
   }
 }
 
-function buildLocalDiscoveryResponse(params: {
-  page?: number;
-  limit?: number;
-  category?: string | null;
-}): PaginatedKesfetResponse {
-  const page = params.page ?? 1;
-  const limit = params.limit ?? 20;
-  const filtered = params.category
-    ? LOCAL_ORDU_BUSINESSES.filter((business) => businessMatchesCategory(business, params.category))
-    : LOCAL_ORDU_BUSINESSES;
-  const start = (page - 1) * limit;
-  const businesses = filtered.slice(start, start + limit);
-
-  return {
-    success: true,
-    businesses,
-    total: filtered.length,
-    page,
-    limit,
-    hasMore: start + businesses.length < filtered.length
-  };
-}
-
-function normalizeSearchValue(value: string) {
-  return value
-    .toLocaleLowerCase("tr-TR")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
-function buildLocalSearchResponse(query: string): SearchResponse {
-  const normalizedQuery = normalizeSearchValue(query.trim());
-  const businesses = LOCAL_ORDU_BUSINESSES.filter((business) => {
-    const searchable = [
-      business.name,
-      business.slug,
-      business.category,
-      business.categoryLabel,
-      business.district,
-      business.city
-    ].filter(Boolean).join(" ");
-
-    return normalizeSearchValue(searchable).includes(normalizedQuery);
-  });
-
-  return {
-    success: true,
-    businesses,
-    total: businesses.length
-  };
-}
-
 export function getPublicProfileUrl(slug: string) {
   return `${BASE_URL}/${slug}`;
 }
@@ -1028,23 +737,18 @@ export async function fetchDiscoveryBusinesses(params: {
   const page = params.page ?? 1;
   const limit = params.limit ?? 20;
 
-  return getJson<PaginatedKesfetResponse>(
+  return getJsonOrThrow<PaginatedKesfetResponse>(
     buildUrl("/api/kesfet", {
       page,
       limit,
-      city: params.city,
+      city: "Ordu",
       category: getCategoryQueryKey(params.category),
       distance: params.distance,
       lat: params.coordinates?.lat,
       lng: params.coordinates?.lng
     }),
-    buildLocalDiscoveryResponse({
-      page,
-      limit,
-      category: params.category
-    }),
     CACHE_TTL.discovery,
-    isDiscoveryResponse,
+    isPilotDiscoveryResponse,
     { force: options.force }
   );
 }
@@ -1054,22 +758,20 @@ export async function searchBusinesses(query: string, coordinates?: Coordinates 
     return { success: true, businesses: [], total: 0 };
   }
 
-  return getJson<SearchResponse>(
+  return getJsonOrThrow<SearchResponse>(
     buildUrl("/api/kesfet/search", {
       q: query.trim(),
       lat: coordinates?.lat,
       lng: coordinates?.lng
     }),
-    buildLocalSearchResponse(query),
     CACHE_TTL.search,
-    isSearchResponse
+    isPilotSearchResponse
   );
 }
 
 export async function fetchCategories(options: ReadRequestOptions = {}): Promise<CategoriesResponse> {
-  return getJson<CategoriesResponse>(
+  return getJsonOrThrow<CategoriesResponse>(
     buildUrl("/api/kesfet/categories"),
-    { success: true, categories: LOCAL_ORDU_CATEGORIES, total: LOCAL_ORDU_BUSINESSES.length },
     CACHE_TTL.categories,
     isCategoriesResponse,
     { force: options.force }
@@ -1077,13 +779,9 @@ export async function fetchCategories(options: ReadRequestOptions = {}): Promise
 }
 
 export async function fetchCityGuide(city: string, options: ReadRequestOptions = {}): Promise<CityGuideResponse | null> {
-  const requestedCity = city.trim();
+  const requestedCity = "Ordu";
   const normalizedCity = normalizeCityName(requestedCity);
-  if (!normalizedCity) {
-    return null;
-  }
-
-  const fallback = normalizedCity === "ordu" ? LOCAL_ORDU_CITY_GUIDE : null;
+  const fallback = LOCAL_ORDU_CITY_GUIDE;
   const response = await getJson<unknown>(
     buildUrl("/api/cities", { name: requestedCity }),
     null,
@@ -1317,6 +1015,18 @@ function isSearchResponse(value: unknown): value is SearchResponse {
     && Array.isArray(value.businesses)
     && value.businesses.every(isKesfetBusiness)
     && isFiniteNumber(value.total);
+}
+
+function isPilotBusiness(business: KesfetBusiness) {
+  return normalizeCityName(business.city ?? "") === "ordu";
+}
+
+function isPilotDiscoveryResponse(value: unknown): value is PaginatedKesfetResponse {
+  return isDiscoveryResponse(value) && value.businesses.every(isPilotBusiness);
+}
+
+function isPilotSearchResponse(value: unknown): value is SearchResponse {
+  return isSearchResponse(value) && value.businesses.every(isPilotBusiness);
 }
 
 function isCategoriesResponse(value: unknown): value is CategoriesResponse {

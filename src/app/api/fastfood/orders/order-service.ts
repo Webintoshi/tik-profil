@@ -91,7 +91,7 @@ export interface FastFoodOrderRecord {
 export interface FastFoodOrderResult {
     orderId: string;
     orderNumber: string;
-    status: "pending";
+    status: string;
     wasCreated: boolean;
 }
 
@@ -429,8 +429,7 @@ export async function createFastFoodOrder(
     }
 
     const createdAt = dependencies.now().toISOString();
-    const orderNumber = dependencies.orderNumber();
-    return dependencies.commitOrder({
+    const record: FastFoodOrderRecord = {
         appUserId: customer?.appUserId ?? null,
         businessId: business.id,
         businessName: business.name,
@@ -447,11 +446,25 @@ export async function createFastFoodOrder(
         items,
         idempotencyFingerprint: fingerprint,
         idempotencyKey: input.idempotencyKey,
-        orderNumber,
+        orderNumber: dependencies.orderNumber(),
         paymentMethod: input.paymentMethod,
         status: "pending",
         subtotal,
         tableId: input.tableId,
         total,
-    });
+    };
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+        try {
+            return await dependencies.commitOrder(record);
+        } catch (error) {
+            if (!(error instanceof FastFoodOrderError)
+                || error.code !== "ORDER_NUMBER_CONFLICT"
+                || attempt === 4) {
+                throw error;
+            }
+            record.orderNumber = dependencies.orderNumber();
+        }
+    }
+    throw new Error("Unreachable order-number retry state");
 }

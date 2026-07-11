@@ -1,4 +1,5 @@
 const ATOMIC_ORDER_MESSAGES = {
+    ORDER_NUMBER_CONFLICT: "Order reference collision; retry with a new reference.",
     CATALOG_CHANGED: "Menü bilgileri değişti. Sepeti yenileyip tekrar deneyin.",
     CART_DISABLED: "İşletme şu anda sepetten sipariş almıyor.",
     COUPON_FIRST_ORDER_ONLY: "Bu kupon yalnızca ilk siparişte kullanılabilir.",
@@ -23,7 +24,7 @@ export function mapAtomicOrderError(error: { message: string }) {
     return {
         code,
         message: ATOMIC_ORDER_MESSAGES[code as keyof typeof ATOMIC_ORDER_MESSAGES],
-        status: code === "IDEMPOTENCY_CONFLICT" ? 409 : 400,
+        status: code === "IDEMPOTENCY_CONFLICT" || code === "ORDER_NUMBER_CONFLICT" ? 409 : 400,
     };
 }
 

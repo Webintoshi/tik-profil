@@ -19,6 +19,7 @@ import {
   resolveBuildVariant,
   resolveRequestedBuildVariant,
   resolveNodeEnv,
+  resolveProductionRuntimeConfig,
   resolveSigningConfig,
   stageBuildContext,
   verifySignerCertificateOutput
@@ -131,6 +132,29 @@ test("release builds fail closed without complete production signing credentials
     }),
     /Production Android keystore not found/
   );
+});
+
+test("release builds fail closed without complete production Logto configuration", () => {
+  for (const missingName of [
+    "EXPO_PUBLIC_LOGTO_ENDPOINT",
+    "EXPO_PUBLIC_LOGTO_APP_ID",
+    "EXPO_PUBLIC_LOGTO_API_AUDIENCE"
+  ]) {
+    const environment = {
+      EXPO_PUBLIC_LOGTO_ENDPOINT: "https://auth.example.com",
+      EXPO_PUBLIC_LOGTO_APP_ID: "mobile-production",
+      EXPO_PUBLIC_LOGTO_API_AUDIENCE: "https://api.example.com"
+    };
+    environment[missingName] = "   ";
+    assert.throws(
+      () => resolveProductionRuntimeConfig("release", environment),
+      new RegExp(missingName)
+    );
+  }
+});
+
+test("debug builds do not require production Logto configuration", () => {
+  assert.deepEqual(resolveProductionRuntimeConfig("debug", {}), {});
 });
 
 test("release signing uses environment-backed Gradle configuration without embedding secrets", () => {
