@@ -12,7 +12,13 @@ import clsx from "clsx";
 import { toR2ProxyUrl } from "@/lib/publicImage";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { getCachedMenuData, prefetchMenuData } from "@/lib/menuCache";
+import {
+    getCachedMenuData,
+    normalizePublicMenuData,
+    prefetchMenuData,
+    resolveDefaultPublicMenuPaymentMethod,
+    type PublicMenuPaymentMethod,
+} from "@/lib/menuCache";
 import { ALLERGEN_OPTIONS, TAG_OPTIONS, type AllergenId, type TagId, type TaxRate, type SizeOption } from "@/types/fastfood";
 import { useFastfoodMenuSubscription } from "@/hooks/useMenuRealtime";
 import {
@@ -416,6 +422,7 @@ function CheckoutModal({
     deliveryEnabled = true,
     cashPayment = true,
     cardOnDelivery = true,
+    onlinePayment = false,
     deliveryFeeAmount = 0,
     freeDeliveryAbove = 0,
     tableId,
@@ -430,6 +437,7 @@ function CheckoutModal({
     deliveryEnabled?: boolean;
     cashPayment?: boolean;
     cardOnDelivery?: boolean;
+    onlinePayment?: boolean;
     deliveryFeeAmount?: number;
     freeDeliveryAbove?: number;
     tableId?: string;
@@ -442,7 +450,9 @@ function CheckoutModal({
     const [deliveryType, setDeliveryType] = useState<"pickup" | "delivery" | "table">(
         tableId ? "table" : (pickupEnabled ? "pickup" : "delivery")
     );
-    const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">(cashPayment ? "cash" : "card");
+    const [paymentMethod, setPaymentMethod] = useState<PublicMenuPaymentMethod | null>(() =>
+        resolveDefaultPublicMenuPaymentMethod({ cashPayment, cardOnDelivery, onlinePayment })
+    );
     const [isSubmitting, setIsSubmitting] = useState(false);
     const idempotencyStateRef = useRef<CheckoutIdempotencyState | null>(null);
     // Coupon state
@@ -512,6 +522,11 @@ function CheckoutModal({
             return;
         }
 
+        if (!paymentMethod) {
+            alert("Kullanılabilir bir ödeme yöntemi bulunamadı.");
+            return;
+        }
+
         setIsSubmitting(true);
         try {
             const orderPayload = {
@@ -525,7 +540,7 @@ function CheckoutModal({
                 items: cart.map(item => ({
                     productId: item.product.id,
                     productName: item.product.name,
-                    unitPrice: item.product.price,
+                    unitPrice: resolveActiveProductPrice(item.product),
                     quantity: item.quantity,
                     // Transform field names to match Zod validator: extraId→id, price→priceModifier
                     selectedExtras: item.selectedExtras.map(ext => ({
@@ -716,7 +731,7 @@ function CheckoutModal({
                                     )}
 
                                     {/* Payment Method - Only show if at least one option available */}
-                                    {(cashPayment || cardOnDelivery) && (
+                                    {(cashPayment || cardOnDelivery || onlinePayment) && (
                                         <div>
                                             <label className="block text-xs font-medium text-gray-500 mb-2">Ödeme Yöntemi</label>
                                             <div className="flex gap-2">
@@ -746,6 +761,20 @@ function CheckoutModal({
                                                     >
                                                         <CreditCard className="w-4 h-4" />
                                                         Kart
+                                                    </button>
+                                                )}
+                                                {onlinePayment && (
+                                                    <button
+                                                        onClick={() => setPaymentMethod("online")}
+                                                        className={clsx(
+                                                            "flex-1 h-11 rounded-lg border text-sm font-medium flex items-center justify-center gap-2 transition-all",
+                                                            paymentMethod === "online"
+                                                                ? "border-[#9333ea] bg-[#9333ea]/5 text-[#9333ea]"
+                                                                : "border-gray-200 text-gray-600 hover:border-gray-300"
+                                                        )}
+                                                    >
+                                                        <CreditCard className="w-4 h-4" />
+                                                        Online ödeme
                                                     </button>
                                                 )}
                                             </div>
@@ -902,6 +931,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
     const [deliveryEnabled, setDeliveryEnabled] = useState(true);
     const [cashPayment, setCashPayment] = useState(true);
     const [cardOnDelivery, setCardOnDelivery] = useState(true);
+    const [onlinePayment, setOnlinePayment] = useState(false);
     const [estimatedDeliveryTime, setEstimatedDeliveryTime] = useState('30-45 dk');
     const [coupons, setCoupons] = useState<{ id: string; code: string; title: string; description: string; emoji: string; discountType: string; discountValue: number; minOrderAmount: number; }[]>([]);
     const [showCartBar, setShowCartBar] = useState(false);
@@ -922,11 +952,11 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
             const cached = getCachedMenuData(businessSlug);
             if (cached) {
                 if (cached.businessId) setFetchedBusinessId(cached.businessId);
-                const sortedCats = (cached.categories || []).sort((a: Category, b: Category) => (a.order || 0) - (b.order || 0));
+                const sortedCats = (cached.categories as unknown as Category[]).sort((a, b) => (a.order || 0) - (b.order || 0));
                 setCategories(sortedCats);
-                setProducts(cached.products || []);
-                setCampaigns(cached.campaigns || []);
-                setExtraGroups(cached.extraGroups || []);
+                setProducts(cached.products as unknown as Product[]);
+                setCampaigns(cached.campaigns as unknown as Campaign[]);
+                setExtraGroups(cached.extraGroups as unknown as ExtraGroup[]);
                 setMinOrderAmount(cached.settings.minOrderAmount);
                 setMenuDeliveryFee(cached.settings.deliveryFee);
                 setFreeDeliveryAbove(cached.settings.freeDeliveryAbove);
@@ -934,9 +964,10 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                 setDeliveryEnabled(cached.settings.deliveryEnabled);
                 setCashPayment(cached.settings.cashPayment);
                 setCardOnDelivery(cached.settings.cardOnDelivery);
+                setOnlinePayment(cached.settings.onlinePayment);
                 setEstimatedDeliveryTime(cached.settings.estimatedDeliveryTime);
                 if (sortedCats.length > 0) setSelectedCategory(sortedCats[0].id);
-                setCoupons(cached.coupons || []);
+                setCoupons(cached.coupons as unknown as typeof coupons);
 
                 const useBusinessHours = cached.settings.useBusinessHours !== false;
                 if (useBusinessHours && cached.settings.workingHours) {
@@ -984,26 +1015,32 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
             }
             
             if (data.success && data.data) {
+                const normalized = normalizePublicMenuData(data.data);
                 const {
                     categories: cats, products: prods, businessId: fetchedId, campaigns: camps, extraGroups: extras,
+                    settings
+                } = normalized;
+                const {
                     minOrderAmount: minOrder, deliveryFee: delFee, freeDeliveryAbove: freeAbove,
                     pickupEnabled: pickup, deliveryEnabled: delivery, cashPayment: cash, cardOnDelivery: card,
-                    estimatedDeliveryTime: estTime, workingHours: hours, useBusinessHours: useBizHours
-                } = data.data;
+                    onlinePayment: online, estimatedDeliveryTime: estTime, workingHours: hours,
+                    useBusinessHours: useBizHours
+                } = settings;
                 if (fetchedId) setFetchedBusinessId(fetchedId);
-                const sortedCats = (cats || []).sort((a: Category, b: Category) => (a.order || 0) - (b.order || 0));
+                const sortedCats = (cats as unknown as Category[]).sort((a, b) => (a.order || 0) - (b.order || 0));
                 setCategories(sortedCats);
-                setProducts(prods || []);
-                setCampaigns(camps || []);
-                setExtraGroups(extras || []);
-                setMinOrderAmount(Number(minOrder) || 0);
-                setMenuDeliveryFee(Number(delFee) || 0);
-                setFreeDeliveryAbove(Number(freeAbove) || 0);
-                setPickupEnabled(pickup !== false);
-                setDeliveryEnabled(delivery !== false);
-                setCashPayment(cash !== false);
-                setCardOnDelivery(card !== false);
-                setEstimatedDeliveryTime(estTime || '30-45 dk');
+                setProducts(prods as unknown as Product[]);
+                setCampaigns(camps as unknown as Campaign[]);
+                setExtraGroups(extras as unknown as ExtraGroup[]);
+                setMinOrderAmount(minOrder);
+                setMenuDeliveryFee(delFee);
+                setFreeDeliveryAbove(freeAbove);
+                setPickupEnabled(pickup);
+                setDeliveryEnabled(delivery);
+                setCashPayment(cash);
+                setCardOnDelivery(card);
+                setOnlinePayment(online);
+                setEstimatedDeliveryTime(estTime);
                 if (sortedCats.length > 0) setSelectedCategory(sortedCats[0].id);
 
                 const shouldUseBusinessHours = useBizHours !== false;
@@ -1515,6 +1552,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                                 deliveryEnabled={deliveryEnabled}
                                 cashPayment={cashPayment}
                                 cardOnDelivery={cardOnDelivery}
+                                onlinePayment={onlinePayment}
                                 deliveryFeeAmount={menuDeliveryFee}
                                 freeDeliveryAbove={freeDeliveryAbove}
                                 tableId={tableId}

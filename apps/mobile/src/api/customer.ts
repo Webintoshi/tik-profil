@@ -129,8 +129,8 @@ export class CustomerApiError extends Error {
   readonly payload: unknown;
   readonly status: number;
 
-  constructor(status: number, payload: unknown) {
-    super(mapCustomerApiError(status, payload));
+  constructor(status: number, payload: unknown, serverMessage?: string) {
+    super(serverMessage || mapCustomerApiError(status, payload));
     this.name = "CustomerApiError";
     this.status = status;
     this.payload = payload;

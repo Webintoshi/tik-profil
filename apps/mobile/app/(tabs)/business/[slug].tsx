@@ -31,6 +31,7 @@ import {
   submitPublicEcommerceCheckout
 } from "@/api/kesfet";
 import { EmptyState } from "@/components/business/empty-state";
+import { CustomerApiError } from "@/api/customer";
 import { useCustomerSession } from "@/auth/auth-store";
 import { buildCheckoutAddresses } from "@/business/checkout-addresses";
 import {
@@ -1847,8 +1848,8 @@ function FoodMenuPanel({
       }
 
       setOrderError(response.error || "Sipariş gönderilemedi");
-    } catch {
-      setOrderError("Sipariş gönderilemedi");
+    } catch (error) {
+      setOrderError(error instanceof CustomerApiError ? error.message : "Sipariş gönderilemedi");
     } finally {
       setIsSubmitting(false);
     }
@@ -2175,7 +2176,7 @@ function FoodMenuPanel({
                   <FoodOrderChoiceButton active={paymentMethod === "card"} icon="ticket" label="Kart" onPress={() => setPaymentMethod("card")} />
                 ) : null}
                 {availablePaymentMethods.includes("online") ? (
-                  <FoodOrderChoiceButton active={paymentMethod === "online"} icon="lock" label="Online" onPress={() => setPaymentMethod("online")} />
+                  <FoodOrderChoiceButton active={paymentMethod === "online"} icon="lock" label="Online ödeme" onPress={() => setPaymentMethod("online")} />
                 ) : null}
               </View>
             </View>

@@ -724,7 +724,12 @@ async function postJson<T>(
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
-      if (preserveHttpError) throw new CustomerApiError(response.status, data);
+      if (preserveHttpError) {
+        const serverMessage = data && typeof data === "object"
+          ? (typeof data.error === "string" ? data.error : typeof data.message === "string" ? data.message : undefined)
+          : undefined;
+        throw new CustomerApiError(response.status, data, serverMessage);
+      }
       return {
         ...(typeof fallback === "object" && fallback ? fallback : {}),
         error: data?.error || data?.message || "İşlem tamamlanamadı"

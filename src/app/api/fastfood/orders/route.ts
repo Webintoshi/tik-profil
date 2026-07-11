@@ -3,6 +3,7 @@ import { AppError } from '@/lib/errors';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { CustomerAuthenticationError } from '@/server/auth/customer-session';
 import { requireCustomer } from '@/server/auth/guards';
+import { dispatchStoredFastFoodOrderNotification } from '@/server/fastfood/order-notification-repository';
 
 import {
     createFastFoodOrder,
@@ -15,6 +16,8 @@ import {
     type FastFoodOrderRecord,
     type FastFoodSettings,
 } from './order-service';
+import { mapAtomicOrderError } from './order-error';
+import { finalizeFastFoodOrder } from './order-response';
 
 const TABLE = 'ff_orders';
 
@@ -201,12 +204,9 @@ function createOrderDependencies(request: Request): FastFoodOrderDependencies {
                 p_total: record.total,
             });
             if (error) {
-                const knownCode = [
-                    'IDEMPOTENCY_CONFLICT', 'COUPON_INVALID', 'COUPON_USER_LIMIT',
-                    'COUPON_FIRST_ORDER_ONLY', 'PRICE_MISMATCH',
-                ].find((code) => error.message.includes(code));
-                if (knownCode) {
-                    throw new FastFoodOrderError(knownCode, error.message, knownCode === 'IDEMPOTENCY_CONFLICT' ? 409 : 400);
+                const knownError = mapAtomicOrderError(error);
+                if (knownError) {
+                    throw new FastFoodOrderError(knownError.code, knownError.message, knownError.status);
                 }
                 throw error;
             }
@@ -278,9 +278,16 @@ export async function POST(request: Request) {
     try {
         const body: unknown = await request.json();
         const result = await createFastFoodOrder(body, createOrderDependencies(request));
-        const { wasCreated, ...publicResult } = result;
-        return Response.json({ success: true, ...publicResult }, {
-            headers: { 'x-fastfood-order-created': wasCreated ? '1' : '0' },
+        const bodyRecord = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+        const finalized = await finalizeFastFoodOrder({
+            businessId: String(bodyRecord.businessId || ''),
+            result,
+        }, {
+            dispatch: dispatchStoredFastFoodOrderNotification,
+            reportError: (notifyError) => console.error('[FastFood Order Notification]', notifyError),
+        });
+        return Response.json(finalized.body, {
+            headers: { 'x-fastfood-order-created': finalized.creationHeader },
         });
     } catch (error) {
         if (error instanceof FastFoodOrderError) {

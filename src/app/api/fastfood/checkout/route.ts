@@ -2,10 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { dispatchStoredFastFoodOrderNotification } from '@/server/fastfood/order-notification-repository';
-
 import { adaptLegacyCheckoutInput, type LegacyCheckoutInput } from './checkout-adapter';
-import { notifyCreatedLegacyOrder } from './checkout-notification';
 import { POST as createOrder } from '../orders/route';
 
 export const dynamic = 'force-dynamic';
@@ -85,15 +82,6 @@ export async function POST(request: Request) {
         if (!orderResponse.ok) {
             return NextResponse.json(payload, { status: orderResponse.status });
         }
-
-        await notifyCreatedLegacyOrder({
-            businessId: String(business.id),
-            orderId: String(payload.orderId || ''),
-            wasCreated: orderResponse.headers.get('x-fastfood-order-created') === '1',
-        }, {
-            dispatch: dispatchStoredFastFoodOrderNotification,
-            reportError: (notifyError) => console.error('Notify error:', notifyError),
-        });
 
         return NextResponse.json({
             ...payload,

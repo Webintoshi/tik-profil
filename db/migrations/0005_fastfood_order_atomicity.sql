@@ -6,7 +6,10 @@ BEGIN
         'ff_orders',
         'ff_coupons',
         'ff_coupon_usages',
-        'ff_products'
+        'ff_products',
+        'ff_settings',
+        'ff_extra_groups',
+        'ff_extras'
     ] LOOP
         IF to_regclass(format('public.%I', v_required_table)) IS NULL THEN
             RAISE EXCEPTION 'FASTFOOD_ORDER_ATOMICITY_REQUIRED_TABLE_MISSING: %', v_required_table;
@@ -84,6 +87,29 @@ AS $function$
 DECLARE
     v_existing ff_orders%ROWTYPE;
     v_coupon ff_coupons%ROWTYPE;
+    v_settings ff_settings%ROWTYPE;
+    v_product ff_products%ROWTYPE;
+    v_group ff_extra_groups%ROWTYPE;
+    v_extra ff_extras%ROWTYPE;
+    v_item jsonb;
+    v_authoritative_item jsonb;
+    v_authoritative_items jsonb := '[]'::jsonb;
+    v_authoritative_extras jsonb;
+    v_selected_extra jsonb;
+    v_selected_size jsonb;
+    v_catalog_size jsonb;
+    v_group_id text;
+    v_quantity integer;
+    v_selected_count integer;
+    v_catalog_base_price numeric;
+    v_catalog_unit_price numeric;
+    v_catalog_line_total numeric;
+    v_catalog_subtotal numeric := 0;
+    v_catalog_delivery_fee numeric := 0;
+    v_catalog_total numeric := 0;
+    v_size_modifier numeric;
+    v_extra_total numeric;
+    v_legacy_free_delivery boolean := false;
     v_coupon_discount numeric := 0;
     v_normalized_phone text := regexp_replace(COALESCE(p_customer_phone, ''), '\D', '', 'g');
     v_order_id ff_orders.id%TYPE;
@@ -125,6 +151,203 @@ BEGIN
         ));
     END IF;
 
+    IF jsonb_typeof(p_items) <> 'array' OR jsonb_array_length(p_items) = 0 THEN
+        RAISE EXCEPTION 'CART_EMPTY';
+    END IF;
+
+    SELECT *
+    INTO v_settings
+    FROM ff_settings
+    WHERE business_id = p_business_id
+    LIMIT 1
+    FOR SHARE;
+
+    IF NOT FOUND OR v_settings.is_active IS FALSE THEN
+        RAISE EXCEPTION 'ORDERING_DISABLED';
+    END IF;
+    IF p_delivery_type = 'delivery' AND v_settings.delivery_enabled IS FALSE THEN
+        RAISE EXCEPTION 'DELIVERY_DISABLED';
+    END IF;
+    IF p_delivery_type = 'pickup' AND v_settings.pickup_enabled IS FALSE THEN
+        RAISE EXCEPTION 'PICKUP_DISABLED';
+    END IF;
+    IF p_payment_method = 'cash' AND v_settings.cash_payment IS FALSE THEN
+        RAISE EXCEPTION 'PAYMENT_DISABLED';
+    END IF;
+    IF p_payment_method = 'card' AND v_settings.card_on_delivery IS FALSE THEN
+        RAISE EXCEPTION 'PAYMENT_DISABLED';
+    END IF;
+    IF p_payment_method = 'online' AND v_settings.online_payment IS NOT TRUE THEN
+        RAISE EXCEPTION 'PAYMENT_DISABLED';
+    END IF;
+    IF p_delivery_type NOT IN ('delivery', 'pickup', 'table')
+       OR p_payment_method NOT IN ('cash', 'card', 'online') THEN
+        RAISE EXCEPTION 'VALIDATION_ERROR';
+    END IF;
+
+    FOR v_item IN SELECT value FROM jsonb_array_elements(p_items) AS cart_item(value) LOOP
+        IF COALESCE(v_item->>'productId', '') = ''
+           OR COALESCE(v_item->>'quantity', '') !~ '^[1-9][0-9]*$'
+           OR jsonb_typeof(COALESCE(v_item->'selectedExtras', '[]'::jsonb)) <> 'array' THEN
+            RAISE EXCEPTION 'CATALOG_CHANGED';
+        END IF;
+        v_quantity := (v_item->>'quantity')::integer;
+
+        SELECT *
+        INTO v_product
+        FROM ff_products
+        WHERE business_id = p_business_id
+          AND id::text = v_item->>'productId'
+        LIMIT 1
+        FOR SHARE;
+
+        IF NOT FOUND OR v_product.is_active IS FALSE OR v_product.in_stock IS FALSE THEN
+            RAISE EXCEPTION 'PRODUCT_UNAVAILABLE';
+        END IF;
+
+        v_catalog_base_price := round(CASE
+            WHEN v_product.discount_price IS NOT NULL
+             AND v_product.discount_until IS NOT NULL
+             AND v_product.discount_until > v_now
+                THEN v_product.discount_price
+            ELSE v_product.price
+        END, 2);
+        v_size_modifier := 0;
+        v_selected_size := v_item->'selectedSize';
+        v_catalog_size := NULL;
+
+        IF v_selected_size IS NOT NULL AND jsonb_typeof(v_selected_size) <> 'null' THEN
+            IF jsonb_typeof(v_selected_size) <> 'object' THEN
+                RAISE EXCEPTION 'CATALOG_CHANGED';
+            END IF;
+            SELECT size_option.value
+            INTO v_catalog_size
+            FROM jsonb_array_elements(CASE
+                WHEN jsonb_typeof(v_product.sizes) = 'array' THEN v_product.sizes
+                ELSE '[]'::jsonb
+            END) AS size_option(value)
+            WHERE size_option.value->>'id' = v_selected_size->>'id'
+            LIMIT 1;
+            IF NOT FOUND THEN
+                RAISE EXCEPTION 'CATALOG_CHANGED';
+            END IF;
+            v_size_modifier := COALESCE(
+                NULLIF(v_catalog_size->>'priceModifier', '')::numeric,
+                NULLIF(v_catalog_size->>'price_modifier', '')::numeric,
+                0
+            );
+            IF NULLIF(v_selected_size->>'priceModifier', '') IS NULL
+               OR abs((v_selected_size->>'priceModifier')::numeric - v_size_modifier) > 0.01 THEN
+                RAISE EXCEPTION 'PRICE_MISMATCH';
+            END IF;
+        END IF;
+
+        IF EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(COALESCE(v_item->'selectedExtras', '[]'::jsonb)) AS selected(value)
+            GROUP BY selected.value->>'id'
+            HAVING count(*) > 1
+        ) THEN
+            RAISE EXCEPTION 'EXTRA_SELECTION_INVALID';
+        END IF;
+
+        v_authoritative_extras := '[]'::jsonb;
+        v_extra_total := 0;
+        FOR v_selected_extra IN
+            SELECT value FROM jsonb_array_elements(COALESCE(v_item->'selectedExtras', '[]'::jsonb)) AS selected(value)
+        LOOP
+            SELECT *
+            INTO v_extra
+            FROM ff_extras
+            WHERE id::text = v_selected_extra->>'id'
+            LIMIT 1
+            FOR SHARE;
+
+            IF NOT FOUND
+               OR v_extra.is_active IS FALSE
+               OR NOT (v_extra.group_id = ANY(COALESCE(v_product.extra_group_ids, ARRAY[]::text[]))) THEN
+                RAISE EXCEPTION 'PRODUCT_UNAVAILABLE';
+            END IF;
+            IF NULLIF(v_selected_extra->>'priceModifier', '') IS NULL
+               OR abs((v_selected_extra->>'priceModifier')::numeric - COALESCE(v_extra.price_modifier, 0)) > 0.01 THEN
+                RAISE EXCEPTION 'PRICE_MISMATCH';
+            END IF;
+            v_extra_total := v_extra_total + COALESCE(v_extra.price_modifier, 0);
+            v_authoritative_extras := v_authoritative_extras || jsonb_build_array(jsonb_build_object(
+                'id', v_extra.id,
+                'name', v_extra.name,
+                'priceModifier', COALESCE(v_extra.price_modifier, 0)
+            ));
+        END LOOP;
+
+        FOREACH v_group_id IN ARRAY COALESCE(v_product.extra_group_ids, ARRAY[]::text[]) LOOP
+            SELECT *
+            INTO v_group
+            FROM ff_extra_groups
+            WHERE business_id = p_business_id
+              AND id::text = v_group_id
+            LIMIT 1
+            FOR SHARE;
+
+            IF NOT FOUND OR v_group.is_active IS FALSE THEN
+                RAISE EXCEPTION 'CATALOG_CHANGED';
+            END IF;
+            SELECT count(*)::integer
+            INTO v_selected_count
+            FROM jsonb_array_elements(COALESCE(v_item->'selectedExtras', '[]'::jsonb)) AS selected(value)
+            INNER JOIN ff_extras selected_row ON selected_row.id::text = selected.value->>'id'
+            WHERE selected_row.group_id = v_group.id;
+            IF (v_group.is_required IS TRUE AND v_selected_count = 0)
+               OR (v_group.selection_type = 'single' AND v_selected_count > 1)
+               OR (COALESCE(v_group.max_selections, 0) > 0 AND v_selected_count > v_group.max_selections) THEN
+                RAISE EXCEPTION 'EXTRA_SELECTION_INVALID';
+            END IF;
+        END LOOP;
+
+        v_catalog_unit_price := round(v_catalog_base_price + v_size_modifier + v_extra_total, 2);
+        v_catalog_line_total := round(v_catalog_unit_price * v_quantity, 2);
+        IF NULLIF(v_item->>'unitPrice', '') IS NULL
+           OR (abs((v_item->>'unitPrice')::numeric - v_catalog_unit_price) > 0.01
+               AND abs((v_item->>'unitPrice')::numeric - v_catalog_base_price) > 0.01)
+           OR NULLIF(v_item->>'totalPrice', '') IS NULL
+           OR abs((v_item->>'totalPrice')::numeric - v_catalog_line_total) > 0.01 THEN
+            RAISE EXCEPTION 'PRICE_MISMATCH';
+        END IF;
+
+        v_catalog_subtotal := v_catalog_subtotal + v_catalog_line_total;
+        v_authoritative_item := jsonb_build_object(
+            'productId', v_product.id,
+            'productName', v_product.name,
+            'quantity', v_quantity,
+            'selectedExtras', v_authoritative_extras,
+            'unitPrice', v_catalog_unit_price,
+            'totalPrice', v_catalog_line_total
+        );
+        IF v_catalog_size IS NOT NULL THEN
+            v_authoritative_item := v_authoritative_item || jsonb_build_object('selectedSize', jsonb_build_object(
+                'id', v_catalog_size->>'id',
+                'name', COALESCE(v_catalog_size->>'name', ''),
+                'priceModifier', v_size_modifier
+            ));
+        END IF;
+        v_authoritative_items := v_authoritative_items || jsonb_build_array(v_authoritative_item);
+    END LOOP;
+
+    v_catalog_subtotal := round(v_catalog_subtotal, 2);
+    IF v_catalog_subtotal < COALESCE(v_settings.min_order_amount, 0) THEN
+        RAISE EXCEPTION 'MINIMUM_ORDER';
+    END IF;
+    v_catalog_delivery_fee := CASE
+        WHEN p_delivery_type = 'delivery'
+         AND NOT (COALESCE(v_settings.free_delivery_above, 0) > 0
+                  AND v_catalog_subtotal >= v_settings.free_delivery_above)
+            THEN round(COALESCE(v_settings.delivery_fee, 0), 2)
+        ELSE 0
+    END;
+    IF abs(p_subtotal - v_catalog_subtotal) > 0.01 THEN
+        RAISE EXCEPTION 'PRICE_MISMATCH';
+    END IF;
+
     IF p_coupon_code IS NOT NULL THEN
         SELECT *
         INTO v_coupon
@@ -139,7 +362,7 @@ BEGIN
            OR (p_coupon_id IS NOT NULL AND v_coupon.id::text <> p_coupon_id)
            OR (v_coupon.valid_from IS NOT NULL AND v_coupon.valid_from > v_now)
            OR (v_coupon.valid_until IS NOT NULL AND v_coupon.valid_until < v_now)
-           OR COALESCE(v_coupon.min_order_amount, 0) > p_subtotal
+           OR COALESCE(v_coupon.min_order_amount, 0) > v_catalog_subtotal
            OR (COALESCE(v_coupon.max_usage_count, 0) > 0
                AND COALESCE(v_coupon.current_usage_count, 0) >= v_coupon.max_usage_count) THEN
             RAISE EXCEPTION 'COUPON_INVALID';
@@ -147,7 +370,7 @@ BEGIN
 
         IF v_coupon.applicable_to = 'products' AND NOT EXISTS (
             SELECT 1
-            FROM jsonb_array_elements(p_items) item
+            FROM jsonb_array_elements(v_authoritative_items) item
             WHERE item->>'productId' = ANY(COALESCE(v_coupon.applicable_product_ids, ARRAY[]::text[]))
         ) THEN
             RAISE EXCEPTION 'COUPON_INVALID';
@@ -155,7 +378,7 @@ BEGIN
 
         IF v_coupon.applicable_to = 'categories' AND NOT EXISTS (
             SELECT 1
-            FROM jsonb_array_elements(p_items) item
+            FROM jsonb_array_elements(v_authoritative_items) item
             INNER JOIN ff_products product ON product.id::text = item->>'productId'
             WHERE product.category_id = ANY(COALESCE(v_coupon.applicable_category_ids, ARRAY[]::text[]))
         ) THEN
@@ -189,15 +412,15 @@ BEGIN
         END IF;
 
         IF v_coupon.discount_type = 'fixed' THEN
-            v_coupon_discount := round(least(p_subtotal, COALESCE(v_coupon.discount_value, 0)), 2);
+            v_coupon_discount := round(least(v_catalog_subtotal, COALESCE(v_coupon.discount_value, 0)), 2);
         ELSIF v_coupon.discount_type = 'percentage' THEN
-            v_coupon_discount := round(p_subtotal * COALESCE(v_coupon.discount_value, 0) / 100, 2);
+            v_coupon_discount := round(v_catalog_subtotal * COALESCE(v_coupon.discount_value, 0) / 100, 2);
             IF COALESCE(v_coupon.max_discount_amount, 0) > 0 THEN
                 v_coupon_discount := least(v_coupon_discount, v_coupon.max_discount_amount);
             END IF;
-            v_coupon_discount := least(p_subtotal, v_coupon_discount);
+            v_coupon_discount := least(v_catalog_subtotal, v_coupon_discount);
         ELSIF v_coupon.discount_type = 'free_delivery' THEN
-            v_coupon_discount := p_delivery_fee;
+            v_coupon_discount := v_catalog_delivery_fee;
         ELSE
             RAISE EXCEPTION 'COUPON_INVALID';
         END IF;
@@ -205,8 +428,15 @@ BEGIN
         RAISE EXCEPTION 'COUPON_INVALID';
     END IF;
 
-    IF abs(v_coupon_discount - p_coupon_discount) > 0.01
-       OR abs((p_subtotal + p_delivery_fee - v_coupon_discount) - p_total) > 0.01 THEN
+    v_catalog_total := round(greatest(0, v_catalog_subtotal + v_catalog_delivery_fee - v_coupon_discount), 2);
+    v_legacy_free_delivery := p_coupon_code IS NOT NULL
+        AND v_coupon.discount_type = 'free_delivery'
+        AND abs(p_delivery_fee) <= 0.01
+        AND abs(p_coupon_discount) <= 0.01
+        AND abs(p_total - v_catalog_total) <= 0.01;
+    IF (NOT v_legacy_free_delivery AND abs(v_catalog_delivery_fee - p_delivery_fee) > 0.01)
+       OR (NOT v_legacy_free_delivery AND abs(v_coupon_discount - p_coupon_discount) > 0.01)
+       OR abs(v_catalog_total - p_total) > 0.01 THEN
         RAISE EXCEPTION 'PRICE_MISMATCH';
     END IF;
 
@@ -220,7 +450,7 @@ BEGIN
     ) VALUES (
         p_app_user_id, p_business_id, p_business_name, p_order_number,
         p_customer_name, v_normalized_phone, COALESCE(p_customer_address, ''),
-        p_delivery_type, p_payment_method, p_items, p_subtotal, p_delivery_fee, p_total,
+        p_delivery_type, p_payment_method, v_authoritative_items, v_catalog_subtotal, v_catalog_delivery_fee, v_catalog_total,
         COALESCE(p_customer_note, ''), v_coupon.id, v_coupon.code, v_coupon_discount,
         'pending', jsonb_build_array(jsonb_build_object('status', 'pending', 'timestamp', p_created_at)),
         CASE WHEN p_delivery_type = 'table'
@@ -228,7 +458,7 @@ BEGIN
             ELSE jsonb_build_object('type', p_delivery_type, 'address', COALESCE(p_customer_address, ''))
         END,
         jsonb_build_object('method', p_payment_method),
-        jsonb_build_object('subtotal', p_subtotal, 'deliveryFee', p_delivery_fee, 'couponDiscount', v_coupon_discount, 'total', p_total),
+        jsonb_build_object('subtotal', v_catalog_subtotal, 'deliveryFee', v_catalog_delivery_fee, 'couponDiscount', v_coupon_discount, 'total', v_catalog_total),
         p_table_id, p_idempotency_key, p_idempotency_fingerprint, p_created_at, p_created_at
     )
     RETURNING id INTO v_order_id;

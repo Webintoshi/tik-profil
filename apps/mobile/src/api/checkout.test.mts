@@ -144,6 +144,35 @@ test("repeated authenticated checkout 401 cleans the session after one retry", a
   }
 });
 
+test("authenticated checkout preserves actionable non-401 order errors without refreshing", async () => {
+  const originalFetch = globalThis.fetch;
+  for (const [code, serverMessage] of [
+    ["COUPON_INVALID", "Kupon artik gecerli degil"],
+    ["PRICE_MISMATCH", "Urun fiyati degisti"],
+    ["PRODUCT_UNAVAILABLE", "Urun stokta yok"],
+    ["PAYMENT_DISABLED", "Odeme yontemi kapali"]
+  ] as const) {
+    const context = sessionHarness();
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      return Response.json({ code, error: serverMessage }, { status: 400 });
+    };
+    await context.controller.signIn();
+    await assert.rejects(
+      () => context.controller.runAuthenticated((accessToken) => api.submitPublicFastFoodOrder(order, accessToken)),
+      (error: unknown) => error instanceof CustomerApiError
+        && error.status === 400
+        && error.code === code
+        && error.message === serverMessage
+    );
+    assert.equal(calls, 1);
+    assert.equal(context.refreshCalls, 0);
+    assert.equal(context.controller.getState().status, "signed_in");
+  }
+  globalThis.fetch = originalFetch;
+});
+
 test("coupon validation sends cart ownership fields and exposes rejection messages", async () => {
   const originalFetch = globalThis.fetch;
   let requestBody: unknown = null;

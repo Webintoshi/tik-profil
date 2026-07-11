@@ -1,27 +1,98 @@
 // Menu Data Cache - Global cache for prefetched menu data
 // This allows prefetching to work across component boundaries
 
-type MenuData = {
+export interface PublicMenuWorkingHoursEntry {
+    close: string;
+    isOpen: boolean;
+    open: string;
+}
+
+export interface PublicMenuCheckoutSettings {
+    cardOnDelivery: boolean;
+    cashPayment: boolean;
+    deliveryEnabled: boolean;
+    deliveryFee: number;
+    estimatedDeliveryTime: string;
+    freeDeliveryAbove: number;
+    minOrderAmount: number;
+    onlinePayment: boolean;
+    pickupEnabled: boolean;
+    useBusinessHours: boolean;
+    workingHours: Record<string, PublicMenuWorkingHoursEntry> | null;
+}
+
+export interface PublicMenuPayload {
+    businessId?: unknown;
+    campaigns?: unknown;
+    categories?: unknown;
+    extraGroups?: unknown;
+    products?: unknown;
+    settings?: Partial<Record<keyof PublicMenuCheckoutSettings, unknown>> | null;
+}
+
+export type PublicMenuPaymentMethod = "card" | "cash" | "online";
+
+export function resolveDefaultPublicMenuPaymentMethod(
+    settings: Pick<PublicMenuCheckoutSettings, "cardOnDelivery" | "cashPayment" | "onlinePayment">,
+): PublicMenuPaymentMethod | null {
+    if (settings.cashPayment) return "cash";
+    if (settings.cardOnDelivery) return "card";
+    if (settings.onlinePayment) return "online";
+    return null;
+}
+
+export type MenuData = {
     businessId: string;
-    categories: any[];
-    products: any[];
-    extraGroups: any[];
-    campaigns: any[];
-    settings: {
-        minOrderAmount: number;
-        deliveryFee: number;
-        freeDeliveryAbove: number;
-        pickupEnabled: boolean;
-        deliveryEnabled: boolean;
-        cashPayment: boolean;
-        cardOnDelivery: boolean;
-        estimatedDeliveryTime: string;
-        workingHours: any;
-        useBusinessHours: boolean;
-    };
-    coupons: any[];
+    categories: Record<string, unknown>[];
+    products: Record<string, unknown>[];
+    extraGroups: Record<string, unknown>[];
+    campaigns: Record<string, unknown>[];
+    settings: PublicMenuCheckoutSettings;
+    coupons: Record<string, unknown>[];
     fetchedAt: number;
 };
+
+function records(value: unknown): Record<string, unknown>[] {
+    return Array.isArray(value)
+        ? value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item))
+        : [];
+}
+
+function numeric(value: unknown): number {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function normalizePublicMenuData(payload: PublicMenuPayload, fetchedAt = Date.now()): MenuData {
+    const settings = payload.settings ?? {};
+    const workingHours = settings.workingHours;
+    return {
+        businessId: typeof payload.businessId === "string" ? payload.businessId : "",
+        categories: records(payload.categories),
+        products: records(payload.products),
+        extraGroups: records(payload.extraGroups),
+        campaigns: records(payload.campaigns),
+        settings: {
+            minOrderAmount: numeric(settings.minOrderAmount),
+            deliveryFee: numeric(settings.deliveryFee),
+            freeDeliveryAbove: numeric(settings.freeDeliveryAbove),
+            pickupEnabled: settings.pickupEnabled !== false,
+            deliveryEnabled: settings.deliveryEnabled !== false,
+            cashPayment: settings.cashPayment !== false,
+            cardOnDelivery: settings.cardOnDelivery !== false,
+            onlinePayment: settings.onlinePayment === true,
+            estimatedDeliveryTime: typeof settings.estimatedDeliveryTime === "string"
+                ? settings.estimatedDeliveryTime
+                : "30-45 dk",
+            workingHours: workingHours && typeof workingHours === "object" && !Array.isArray(workingHours)
+                ? workingHours as Record<string, PublicMenuWorkingHoursEntry>
+                : null,
+            useBusinessHours: settings.useBusinessHours !== false,
+        },
+        coupons: [],
+        fetchedAt,
+    };
+}
 
 // Global cache object
 const menuCache: Map<string, MenuData> = new Map();
@@ -42,45 +113,7 @@ export async function prefetchMenuData(businessSlug: string): Promise<void> {
         const data = await res.json();
 
         if (data.success && data.data) {
-            const {
-                businessId,
-                categories,
-                products,
-                extraGroups,
-                campaigns,
-                minOrderAmount,
-                deliveryFee,
-                freeDeliveryAbove,
-                pickupEnabled,
-                deliveryEnabled,
-                cashPayment,
-                cardOnDelivery,
-                estimatedDeliveryTime,
-                workingHours,
-                useBusinessHours
-            } = data.data;
-
-            menuCache.set(businessSlug, {
-                businessId,
-                categories: categories || [],
-                products: products || [],
-                extraGroups: extraGroups || [],
-                campaigns: campaigns || [],
-                settings: {
-                    minOrderAmount: Number(minOrderAmount) || 0,
-                    deliveryFee: Number(deliveryFee) || 0,
-                    freeDeliveryAbove: Number(freeDeliveryAbove) || 0,
-                    pickupEnabled: pickupEnabled !== false,
-                    deliveryEnabled: deliveryEnabled !== false,
-                    cashPayment: cashPayment !== false,
-                    cardOnDelivery: cardOnDelivery !== false,
-                    estimatedDeliveryTime: estimatedDeliveryTime || '30-45 dk',
-                    workingHours: workingHours || null,
-                    useBusinessHours: useBusinessHours !== false,
-                },
-                coupons: [],
-                fetchedAt: Date.now(),
-            });
+            menuCache.set(businessSlug, normalizePublicMenuData(data.data));
 
             // Prefetch coupons separately
             try {
