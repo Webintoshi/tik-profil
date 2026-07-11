@@ -16,8 +16,8 @@ function finiteAmount(value: unknown): number | null {
 
 function hasUsablePaymentMethod(value: unknown): value is Record<string, boolean> {
     if (!isRecord(value)) return false;
-    // The current native checkout submits cash; readiness must reflect that exact path.
-    return value.cash === true;
+    return ["cash", "card", "transfer", "online"]
+        .some((method) => value[method] === true);
 }
 
 function hasUsableShippingOption(value: unknown): value is Array<Record<string, unknown>> {

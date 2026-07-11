@@ -38,3 +38,15 @@ test("catalog migration is additive and rerunnable for fresh canonical schema", 
     assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS uq_ecommerce_orders_business_idempotency/i);
     assert.match(sql, /IF NOT EXISTS \([\s\S]*pg_constraint/i);
 });
+
+test("catalog migration verifies named foreign keys and indexes semantically", async () => {
+    const sql = await readFile(migrationUrl, "utf8");
+
+    assert.match(sql, /contype\s*=\s*'f'/i);
+    assert.match(sql, /confrelid\s*=\s*'public\.app_users'::regclass/i);
+    assert.match(sql, /confdeltype\s*=\s*'n'/i);
+    assert.match(sql, /pg_get_constraintdef/i);
+    assert.match(sql, /pg_get_indexdef/i);
+    assert.match(sql, /RAISE EXCEPTION[\s\S]*ecommerce_orders_app_user_id_fkey/i);
+    assert.match(sql, /RAISE EXCEPTION[\s\S]*uq_ecommerce_orders_business_idempotency/i);
+});

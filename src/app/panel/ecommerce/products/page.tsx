@@ -381,7 +381,8 @@ function ProductModal({
     const [price, setPrice] = useState(String(product?.price || ""));
     const [compareAtPrice, setCompareAtPrice] = useState(String(product?.compareAtPrice || ""));
     const [categoryId, setCategoryId] = useState(product?.categoryId || "");
-    const [stock, setStock] = useState(String(product?.stock ?? ""));
+    const [stock, setStock] = useState(String(product?.stockQuantity ?? product?.stock ?? ""));
+    const [trackStock, setTrackStock] = useState(product?.trackStock ?? true);
     const [images, setImages] = useState<GalleryImage[]>(
         product?.images?.map((url, i) => ({
             id: `img-${i}`,
@@ -412,6 +413,8 @@ function ProductModal({
             compareAtPrice: compareAtPrice ? parseFloat(compareAtPrice) : undefined,
             categoryId: categoryId || undefined,
             stock: stock ? parseInt(stock) : 0,
+            stockQuantity: stock ? parseInt(stock) : 0,
+            trackStock,
             images: images.sort((a, b) => a.order - b.order).map(img => img.url),
             status,
         });
@@ -552,6 +555,29 @@ function ProductModal({
                                 min="0"
                                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none text-gray-900 placeholder:text-gray-400"
                             />
+                        </div>
+
+                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                            <div>
+                                <span className="font-medium text-gray-700">Stok takibi</span>
+                                <p className="text-xs text-gray-500">Siparişte stok miktarını otomatik azaltır.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setTrackStock((value) => !value)}
+                                aria-pressed={trackStock}
+                                className={clsx(
+                                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                                    trackStock ? "bg-emerald-500" : "bg-gray-300"
+                                )}
+                            >
+                                <span
+                                    className={clsx(
+                                        "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                                        trackStock ? "translate-x-6" : "translate-x-1"
+                                    )}
+                                />
+                            </button>
                         </div>
 
                         {/* Product Images */}

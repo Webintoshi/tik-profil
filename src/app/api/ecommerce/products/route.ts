@@ -16,6 +16,8 @@ interface ProductRow {
     description_en: string | null;
     price: string | number;
     image_url: string | null;
+    stock_quantity: number;
+    track_stock: boolean;
     is_active: boolean;
     in_stock: boolean;
     is_featured: boolean;
@@ -37,6 +39,11 @@ function mapProduct(row: ProductRow) {
         descriptionEn: row.description_en,
         price: typeof row.price === "string" ? parseFloat(row.price) : row.price,
         imageUrl: row.image_url,
+        images: row.image_url ? [row.image_url] : [],
+        quantity: row.stock_quantity,
+        stock: row.stock_quantity,
+        stockQuantity: row.stock_quantity,
+        trackStock: row.track_stock,
         isActive: row.is_active,
         inStock: row.in_stock,
         isFeatured: row.is_featured,
@@ -114,6 +121,8 @@ export async function POST(request: NextRequest) {
                 description_en: productData.descriptionEn,
                 price: productData.price,
                 image_url: productData.imageUrl,
+                stock_quantity: productData.stockQuantity ?? productData.stock ?? productData.quantity,
+                track_stock: productData.trackStock,
                 is_active: productData.isActive ?? true,
                 in_stock: productData.inStock ?? true,
                 is_featured: productData.isFeatured ?? false,
@@ -174,6 +183,8 @@ export async function PUT(request: NextRequest) {
                 description_en: updateData.descriptionEn,
                 price: updateData.price,
                 image_url: updateData.imageUrl,
+                stock_quantity: updateData.stockQuantity ?? updateData.stock ?? updateData.quantity,
+                track_stock: updateData.trackStock,
                 is_active: updateData.isActive,
                 in_stock: updateData.inStock,
                 is_featured: updateData.isFeatured,

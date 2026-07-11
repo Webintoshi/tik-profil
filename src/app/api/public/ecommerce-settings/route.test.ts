@@ -14,7 +14,9 @@ test("missing or unusable canonical settings cannot enable native catalog", asyn
     assert.match(route, /is_active/);
     assert.match(route, /data\.is_active !== true/);
     assert.match(route, /hasUsablePaymentMethod/);
-    assert.match(route, /return value\.cash === true/);
+    assert.match(route, /\["cash",\s*"card",\s*"transfer",\s*"online"\]/);
+    assert.match(route, /\.some\(\(method\) => value\[method\] === true\)/);
+    assert.doesNotMatch(route, /return value\.cash === true/);
     assert.match(route, /hasUsableShippingOption/);
     assert.doesNotMatch(route, /getDefaultSettings/);
     assert.match(repository, /SELECT[\s\S]*is_active[\s\S]*FROM ecommerce_settings/i);

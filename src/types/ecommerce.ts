@@ -40,6 +40,9 @@ export const productSchema = z.object({
     sku: z.string().optional(),
     barcode: z.string().optional(),
     quantity: z.number().min(0).default(0),
+    stock: z.number().min(0).optional(),
+    stockQuantity: z.number().min(0).optional(),
+    trackStock: z.boolean().default(true),
     categoryId: z.string().optional(),
     images: z.array(z.string()).default([]),
     isActive: z.boolean().default(true),
@@ -59,10 +62,10 @@ export const settingsSchema = z.object({
     shippingFee: z.number().default(0),
     minOrderAmount: z.number().optional(),
     shippingOptions: z.array(z.any()).optional(),
-    paymentMethods: z.record(z.boolean()).optional(),
-    orderNotifications: z.record(z.boolean()).optional(),
-    stockSettings: z.record(z.any()).optional(),
-    checkoutSettings: z.record(z.any()).optional(),
+    paymentMethods: z.record(z.string(), z.boolean()).optional(),
+    orderNotifications: z.record(z.string(), z.boolean()).optional(),
+    stockSettings: z.record(z.string(), z.unknown()).optional(),
+    checkoutSettings: z.record(z.string(), z.unknown()).optional(),
 });
 
 // Order Status
@@ -184,7 +187,7 @@ export interface Product {
     images: string[];
     isActive: boolean;
     isFeatured: boolean;
-    status?: 'active' | 'inactive' | 'draft';
+    status?: 'active' | 'inactive' | 'draft' | 'archived';
     stock?: number;
     stockQuantity?: number;
     trackStock?: boolean;
@@ -238,7 +241,7 @@ export interface EcommerceSettings {
     storeDescription?: string;
     minOrderAmount?: number;
     shippingOptions?: ShippingOption[];
-    paymentMethods?: string[];
+    paymentMethods?: Partial<Record<'cash' | 'card' | 'transfer' | 'online', boolean>>;
     orderNotifications?: {
         email?: boolean;
         sms?: boolean;

@@ -181,6 +181,12 @@ export function createCatalogOrderRepository(
                     return mapOrder(existing.rows[0], false);
                 }
 
+                if (input.appUserId) {
+                    await transaction("SELECT pg_advisory_xact_lock(hashtext($1))", [
+                        `catalog-customer-business:${input.appUserId}:${input.businessId}`,
+                    ]);
+                }
+
                 const businessResult = await transaction("SELECT id, name FROM businesses WHERE id::text = $1 LIMIT 1", [input.businessId]);
                 if (!businessResult.rows[0]) catalogOrderError("BUSINESS_NOT_FOUND", "Business was not found.", 404);
 

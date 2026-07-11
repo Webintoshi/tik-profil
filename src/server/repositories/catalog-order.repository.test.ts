@@ -103,6 +103,11 @@ if (repositoryModule) {
         assert.match(calls.find((call) => /INSERT INTO ecommerce_orders/i.test(call.text))?.text ?? "", /customer_name[\s\S]*shipping_fee/i);
         assert.doesNotMatch(calls.find((call) => /INSERT INTO ecommerce_orders/i.test(call.text))?.text ?? "", /\bcustomer\b|delivery_fee|shipping_cost/i);
         assert.equal(calls.some((call) => /app_documents/i.test(call.text)), false);
+        const advisoryLocks = calls.filter((call) => /pg_advisory_xact_lock/i.test(call.text));
+        assert.deepEqual(advisoryLocks.map((call) => call.values[0]), [
+            "catalog-checkout:business-1:catalog-checkout-0001",
+            "catalog-customer-business:app-user-1:business-1",
+        ]);
     });
 
     test("returns the committed row on a lost-response retry before loading catalog or changing stock", async () => {
@@ -149,6 +154,18 @@ if (repositoryModule) {
                 return true;
             });
         }
+    });
+
+    test("serializes customer coupon eligibility before reading canonical history", async () => {
+        const { calls, execute } = canonicalExecutor({ firstOrderOnly: true });
+        const repository = repositoryModule.createCatalogOrderRepository(execute, async (operation) => operation(execute));
+
+        await repository.create(input);
+
+        const customerLockIndex = calls.findIndex((call) =>
+            call.values[0] === "catalog-customer-business:app-user-1:business-1");
+        const historyIndex = calls.findIndex((call) => /coupon_count/i.test(call.text));
+        assert.ok(customerLockIndex >= 0 && historyIndex > customerLockIndex);
     });
 
     test("fails closed when a client selects a variant without a canonical variant row", async () => {

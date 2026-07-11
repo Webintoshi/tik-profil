@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X,
@@ -35,6 +35,20 @@ interface EcommerceSheetProps {
 }
 
 type CheckoutStep = 'cart' | 'info' | 'confirm' | 'success';
+type PaymentMethod = 'cash' | 'card' | 'transfer' | 'online';
+
+const paymentMethodLabels: Record<PaymentMethod, string> = {
+    card: "Kart",
+    cash: "Nakit",
+    online: "Online ödeme",
+    transfer: "Havale / EFT",
+};
+
+function createCheckoutKey() {
+    const suffix = globalThis.crypto?.randomUUID?.()
+        ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return `web-${suffix}`;
+}
 
 export default function EcommerceSheet({
     businessId,
@@ -64,8 +78,9 @@ export default function EcommerceSheet({
 
     // Settings and selections
     const [settings, setSettings] = useState<EcommerceSettings | null>(null);
-    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'card' | 'transfer'>('cash');
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>('cash');
     const [selectedShippingOption, setSelectedShippingOption] = useState<ShippingOption | null>(null);
+    const idempotencyRef = useRef<{ fingerprint: string; key: string } | null>(null);
 
     // Fetch products
     useEffect(() => {
@@ -101,6 +116,9 @@ export default function EcommerceSheet({
                     const data = await res.json();
                     if (data?.success !== true || !data.settings) return;
                     setSettings(data.settings);
+                    const firstPaymentMethod = (['cash', 'card', 'transfer', 'online'] as const)
+                        .find((method) => data.settings.paymentMethods?.[method] === true);
+                    if (firstPaymentMethod) setSelectedPaymentMethod(firstPaymentMethod);
                     // Set default shipping option
                     if (data.settings.shippingOptions?.length > 0) {
                         const activeOption = data.settings.shippingOptions.find((o: ShippingOption) => o.isActive);
@@ -161,9 +179,9 @@ export default function EcommerceSheet({
 
     // Calculate totals
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const freeThreshold = settings?.freeShippingThreshold || 500;
-    const baseShipping = selectedShippingOption?.price ?? 49.90;
-    const shippingCost = subtotal >= freeThreshold ? 0 : baseShipping;
+    const freeThreshold = settings?.freeShippingThreshold ?? selectedShippingOption?.freeAbove ?? null;
+    const baseShipping = selectedShippingOption?.price ?? selectedShippingOption?.fee ?? 0;
+    const shippingCost = freeThreshold !== null && subtotal >= freeThreshold ? 0 : baseShipping;
     const total = subtotal + shippingCost - appliedDiscount;
     const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -178,28 +196,36 @@ export default function EcommerceSheet({
 
         setIsSubmitting(true);
         try {
+            const checkoutPayload = {
+                businessId,
+                couponCode: couponCode || undefined,
+                customerInfo: {
+                    address: customerAddress,
+                    city: customerCity,
+                    district: customerDistrict,
+                    email: customerEmail,
+                    name: customerName,
+                    notes: customerNotes,
+                    phone: customerPhone,
+                },
+                items: cart.map(item => ({
+                    productId: item.productId,
+                    quantity: item.quantity,
+                    variantId: item.variantId,
+                })),
+                paymentMethod: selectedPaymentMethod,
+                shippingMethod: selectedShippingOption?.id,
+            };
+            const fingerprint = JSON.stringify(checkoutPayload);
+            if (idempotencyRef.current?.fingerprint !== fingerprint) {
+                idempotencyRef.current = { fingerprint, key: createCheckoutKey() };
+            }
             const res = await fetch("/api/public/checkout", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    businessId,
-                    items: cart.map(item => ({
-                        productId: item.productId,
-                        variantId: item.variantId,
-                        quantity: item.quantity,
-                    })),
-                    customerInfo: {
-                        name: customerName,
-                        phone: customerPhone,
-                        email: customerEmail,
-                        address: customerAddress,
-                        city: customerCity,
-                        district: customerDistrict,
-                        notes: customerNotes,
-                    },
-                    paymentMethod: 'cash',
-                    shippingCost,
-                    couponCode: couponCode || undefined,
+                    ...checkoutPayload,
+                    idempotencyKey: idempotencyRef.current.key,
                 }),
             });
 
@@ -208,6 +234,7 @@ export default function EcommerceSheet({
                 setOrderNumber(data.orderNumber);
                 setStep('success');
                 setCart([]);
+                idempotencyRef.current = null;
             } else {
                 const error = await res.json();
                 alert(error.error || "Sipariş oluşturulamadı");
@@ -522,6 +549,30 @@ export default function EcommerceSheet({
                                             className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none resize-none text-gray-900 placeholder:text-gray-400"
                                         />
                                     </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                            Ödeme yöntemi
+                                        </label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {(Object.keys(paymentMethodLabels) as PaymentMethod[])
+                                                .filter((method) => availablePayments[method] === true)
+                                                .map((method) => (
+                                                    <button
+                                                        key={method}
+                                                        type="button"
+                                                        onClick={() => setSelectedPaymentMethod(method)}
+                                                        className={clsx(
+                                                            "px-3 py-2.5 rounded-xl border text-sm font-medium transition-colors",
+                                                            selectedPaymentMethod === method
+                                                                ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                                                                : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                                                        )}
+                                                    >
+                                                        {paymentMethodLabels[method]}
+                                                    </button>
+                                                ))}
+                                        </div>
+                                    </div>
                                 </div>
                             ) : step === 'confirm' ? (
                                 <div className="space-y-4">
@@ -583,8 +634,8 @@ export default function EcommerceSheet({
                                                 <CreditCard className="h-5 w-5 text-emerald-600" />
                                             </div>
                                             <div>
-                                                <p className="font-medium text-gray-900">Kapıda Ödeme</p>
-                                                <p className="text-sm text-gray-500">Nakit veya kart</p>
+                                                <p className="font-medium text-gray-900">{paymentMethodLabels[selectedPaymentMethod]}</p>
+                                                <p className="text-sm text-gray-500">Seçilen ödeme yöntemi</p>
                                             </div>
                                         </div>
                                     </div>
