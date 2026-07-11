@@ -1178,7 +1178,13 @@ function FoodProductDetailModal({
           justifyContent: "flex-end"
         }}
       >
-        <Pressable accessibilityRole="button" onPress={onClose} style={{ flex: 1 }} />
+        <Pressable
+          testID="food-product-modal-backdrop"
+          accessibilityLabel="Ürün detayını kapat"
+          accessibilityRole="button"
+          onPress={onClose}
+          style={{ flex: 1 }}
+        />
         <View
           style={{
             backgroundColor: colors.surface,
@@ -1197,6 +1203,7 @@ function FoodProductDetailModal({
               </View>
             )}
             <Pressable
+              accessibilityLabel="Ürün detayını kapat"
               accessibilityRole="button"
               onPress={onClose}
               style={({ pressed }) => ({
@@ -1827,6 +1834,7 @@ function FoodCheckoutInput({
     <View style={{ gap: spacing.xs }}>
       <Text style={{ ...typography.small, color: colors.mutedStrong }}>{label}</Text>
       <TextInput
+        accessibilityLabel={label}
         autoCapitalize={autoCapitalize}
         keyboardType={keyboardType}
         multiline={multiline}

@@ -21,7 +21,7 @@ Task 5 is implemented at the current mobile hardening head. The active fast-food
 - Added `useFoodMenuController` so cart items, count, subtotal and checkout step are available to both `FoodMenuPanel` and the root-sibling sticky bar. Successful checkout still clears the cart and enters the existing success state.
 - Compact menu mode hides the cover and support-action grid while preserving identity, favorite/back controls and the primary CTA.
 - The compact product viewport uses an exact 65 percent height minimum. Inner and outer scroll clearance include the sticky bar, gap and bottom navigation.
-- `StickyCartBar` is an absolute sibling after the page `ScrollView`, positioned above runtime bottom-nav/safe-area geometry. Its entrance changes only opacity and a 10 px `translateY`.
+- `StickyCartBar` is an absolute sibling after the page `ScrollView`, positioned above runtime bottom-nav/safe-area geometry. Its entrance changes only opacity and an 8 px `translateY`.
 - Added `minus` and `trash` icons. Quantity decrement shows minus above one and trash at one. Active controls expose exact labels `Adedi azalt`, `Adedi artir` and `Sepete git`.
 - Added stable test IDs for profile cover/compact identity/actions, menu panel/scroll, sticky cart and bottom tab bar.
 - Added a local fixture API with fourteen products and a large deterministic total; browser checks do not depend on live data.
@@ -42,7 +42,7 @@ Browser flow: `/business/task5-fixture` -> open `Siparis Ver` -> add `Buyuk Kari
 - The last fixture product scrolled to `bottom=690`, above the sticky bar at `y=784`.
 - Quantity one rendered the trash path; quantity two rendered the minus path. Decrementing two to one restored trash, and pressing trash removed the line and sticky bar.
 - Pressing `Sepete git` opened the existing checkout info form, removed the products-step sticky bar and kept the bottom navigation visible.
-- A fresh `390x844` tab had meaningful content, no framework overlay and zero console warnings/errors.
+- Every rendered state at `360x800`, `390x844` and `430x932` had no framework overlay, page error, console warning or console error.
 
 ## Commands
 
@@ -56,7 +56,7 @@ Browser flow: `/business/task5-fixture` -> open `Siparis Ver` -> add `Buyuk Kari
    PASS: 0 errors.
 4. Full mobile test gate:
    `npm test`
-   PASS: 93 tests, 0 failures; mobile discovery smoke and committed Task 5 rendered browser regression passed.
+   PASS: 94 tests, 0 failures; mobile discovery smoke and committed Task 5 rendered browser regression passed.
 5. Web export:
    `npm run export:web`
    PASS: 13 static routes exported.
@@ -104,6 +104,25 @@ Browser flow: `/business/task5-fixture` -> open `Siparis Ver` -> add `Buyuk Kari
 - Sticky entrance translation is 8 px, equal to and never larger than the inter-bar gap.
 - `scripts/task5-browser-regression.mjs` starts isolated fixture/Expo servers on free ports, runs headless Chromium, and cleans the full process tree. It verifies all three required viewports, inner/outer scroll stability, rectangle ordering, compact chrome, persistent bottom nav, last-product/form clearance, payable transitions, and sticky absence for empty/loading/error/cart-disabled/success states.
 - `npm test` invokes this rendered browser regression after unit and smoke tests. A fresh environment must run `npx playwright install chromium` once after installing dependencies.
+
+## Final Test And Accessibility Fixes
+
+### RED
+
+1. The accessibility source contract failed before implementation because the product-detail close icon had no explicit accessible name and checkout `TextInput` controls did not inherit their visible labels.
+2. The expanded rendered browser test failed before implementation because the root business `ScrollView` had no deterministic test ID, so outer-scroll movement could not be measured.
+3. Once console monitoring was enabled, the rendered test caught a real `404` console error from `POST /api/qr-scan`; the deterministic fixture did not yet implement the profile-open telemetry contract.
+4. React Native Web did not map `accessibilityElementsHidden` to a rendered `aria-hidden` attribute for the dismiss backdrop. The browser assertion remained RED until the backdrop became an explicitly named dismiss button.
+
+### GREEN
+
+- The rendered matrix now covers normal fast-food with an empty cart, loading, error, empty menu, cart-disabled, restaurant and successful checkout at all three required viewports. Sticky absence, compact chrome, 65vh panel height and persistent bottom navigation are asserted in every applicable state.
+- Inner menu scrolling must change `scrollTop` by at least 100 px and outer page scrolling by at least 50 px before sticky-position stability is accepted. Both surfaces use stable test IDs.
+- Sticky and bottom-nav rectangles are sampled on at least five animation frames from initial render through 190 ms, covering the 170 ms entrance. Every sample requires `sticky.bottom <= nav.y`.
+- Each page installs `console` warning/error and `pageerror` listeners before navigation. The health gate also checks Expo, webpack and framework error-overlay selectors; all matrix and checkout pages completed with no captured issue.
+- `POST /api/qr-scan` is implemented by the deterministic fixture, so browser health is clean without filtering or suppressing the error.
+- The product-detail close icon and dismiss backdrop are both exposed as buttons named `Ürün detayını kapat`. Checkout inputs use `accessibilityLabel={label}`, and Playwright fills the visible `Ad Soyad`, `Telefon`, `Yeni adres` and `Kupon kodu` names.
+- Final gates: typecheck passed; 94 unit tests passed; all 24 Task 4 checkout tests passed; mobile smoke and rendered browser tests passed; web export generated 13 routes; `git diff --check` passed. Expo export reported a Metro cache deserialization warning, recovered with its full-crawl fallback and exited successfully.
 
 ## Remaining Android Manual Gap
 

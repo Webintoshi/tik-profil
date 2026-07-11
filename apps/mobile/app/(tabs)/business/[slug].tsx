@@ -314,6 +314,7 @@ export default function BusinessDetailScreen() {
       <ScrollView
         contentContainerStyle={{ backgroundColor: colors.background, paddingBottom: contentBottomPadding }}
         showsVerticalScrollIndicator={false}
+        testID="business-profile-scroll"
       >
         <BusinessProfileHeader
           compact={isProfileCompact}

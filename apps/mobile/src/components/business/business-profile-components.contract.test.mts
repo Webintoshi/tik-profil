@@ -54,3 +54,14 @@ test("sticky cart renders the controller payable total instead of subtotal", asy
   assert.doesNotMatch(route, /total=\{foodMenuController\.cart\.subtotal\}/);
   assert.match(menu, /calculateFoodMenuPayableModel/);
 });
+
+test("product modal and checkout inputs expose explicit accessibility names", async () => {
+  const menu = await readFile(new URL("FoodMenuPanel.tsx", businessComponentsUrl), "utf8");
+
+  assert.match(menu, /accessibilityLabel="Ürün detayını kapat"/);
+  assert.match(
+    menu,
+    /<Pressable[^>]*testID="food-product-modal-backdrop"[^>]*accessibilityLabel="Ürün detayını kapat"[^>]*accessibilityRole="button"[^>]*>/
+  );
+  assert.match(menu, /<TextInput[\s\S]*accessibilityLabel=\{label\}/);
+});

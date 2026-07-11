@@ -10,7 +10,8 @@ const products = Array.from({ length: 14 }, (_, index) => ({
   inStock: true,
   name: index === 0 ? "Büyük Karışık Menü" : `Test Ürünü ${index + 1}`,
   price: index === 0 ? 101 : index === 13 ? 987654.32 : 100 + index,
-  sortOrder: index
+  sortOrder: index,
+  ...(index === 1 ? { extraGroupIds: ["fixture-sauce"] } : {})
 }));
 
 const baseProfile = {
@@ -41,8 +42,19 @@ const baseMenu = {
     { id: "meals", name: "Menüler", icon: "+", sortOrder: 1 }
   ],
   products,
-  extras: [],
-  extraGroups: [],
+  extras: [
+    { groupId: "fixture-sauce", id: "fixture-ketchup", isDefault: false, name: "Ketçap", priceModifier: 0 }
+  ],
+  extraGroups: [
+    {
+      extras: [{ groupId: "fixture-sauce", id: "fixture-ketchup", isDefault: false, name: "Ketçap", priceModifier: 0 }],
+      id: "fixture-sauce",
+      isRequired: false,
+      maxSelections: 1,
+      name: "Sos",
+      selectionType: "single"
+    }
+  ],
   settings: {
     cartEnabled: true,
     cashPayment: true,
@@ -75,6 +87,8 @@ const server = http.createServer(async (request, response) => {
     body = profile
       ? { profile, redirectTarget: null, success: true }
       : { profile: null, redirectTarget: null, success: false };
+  } else if (url.pathname === "/api/qr-scan" && request.method === "POST") {
+    body = { success: true };
   } else if (url.pathname === "/api/fastfood/public-menu" || url.pathname === "/api/restaurant/public-menu") {
     const slug = url.searchParams.get("businessSlug") || "";
     body = await buildMenuResponse(slug, url.pathname.includes("restaurant"));
