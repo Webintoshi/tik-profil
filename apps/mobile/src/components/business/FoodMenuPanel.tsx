@@ -778,7 +778,7 @@ export function FoodMenuPanel({
               width: 64
             }}
           >
-            <Icon name="verified" color={colors.brand} size={34} />
+            <Icon name="verified" color={colors.blue} size={34} />
           </View>
           <Text style={{ ...typography.title, color: colors.ink, textAlign: "center" }}>Siparişiniz alındı</Text>
           <Text style={{ ...typography.body, color: colors.muted, textAlign: "center" }}>

@@ -70,7 +70,7 @@ export function BusinessProfileHeader({
             <Text numberOfLines={1} style={{ ...typography.label, color: colors.ink, flexShrink: 1, fontSize: 15 }}>
               {profile.name}
             </Text>
-            {profile.isVerified ? <Icon name="verified" color={colors.brand} size={17} /> : null}
+            {profile.isVerified ? <Icon name="verified" color={colors.blue} size={17} /> : null}
           </View>
           <Text numberOfLines={1} style={{ ...typography.small, color: colors.mutedStrong }}>
             {profile.industryLabel}
@@ -118,7 +118,7 @@ export function BusinessProfileHeader({
             <Text numberOfLines={2} style={{ ...typography.title, color: colors.ink, flexShrink: 1, fontSize: 16, lineHeight: 20 }}>
               {profile.name}
             </Text>
-            {profile.isVerified ? <Icon name="verified" color={colors.brand} size={19} /> : null}
+            {profile.isVerified ? <Icon name="verified" color={colors.blue} size={19} /> : null}
           </View>
           <View
             style={{

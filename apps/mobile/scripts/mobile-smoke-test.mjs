@@ -113,6 +113,7 @@ for (const file of [
   "src/account/account-layout.ts",
   "src/auth/task8-browser-session.ts",
   "scripts/task8-browser-regression.mjs",
+  "scripts/task8-visual-diff.mjs",
   "src/components/account/AuthEntryCard.tsx",
   "src/components/account/PhoneInputRow.tsx",
   "src/components/account/SocialButton.tsx",
@@ -242,6 +243,7 @@ const coreTabRoutes = ["index", "explore", "favorites", "account"];
 const tabRouteNames = listRouteNames(mobileTabsPath);
 const accountSource = readFileSync(join(root, "app", "(tabs)", "account.tsx"), "utf8");
 const authStoreSource = readFileSync(join(root, "src", "auth", "auth-store.tsx"), "utf8");
+const task8BrowserSource = readFileSync(join(root, "scripts", "task8-browser-regression.mjs"), "utf8");
 
 if (
   coreTabRoutes.some((route) => !tabRouteNames.includes(route))
@@ -266,9 +268,14 @@ if (
 
 if (
   packageJson.scripts?.["test:browser:task8"] !== "node ./scripts/task8-browser-regression.mjs"
+  || packageJson.scripts?.["test:browser:task8:update"] !== "node ./scripts/task8-browser-regression.mjs --update-baselines"
   || !packageJson.scripts?.test?.includes("npm run test:browser:task8")
+  || packageJson.devDependencies?.pngjs !== "^7.0.0"
+  || packageJson.devDependencies?.["@types/pngjs"] !== "^6.0.5"
+  || !task8BrowserSource.includes("comparePngBuffers")
+  || !task8BrowserSource.includes('resolve(process.cwd(), "..", "..", "artifacts", "task-8")')
 ) {
-  throw new Error("Task 8 must extend the existing Playwright browser gate.");
+  throw new Error("Task 8 must retain the deterministic PNG baseline browser gate.");
 }
 
 console.log("Mobile customer discovery smoke test passed.");

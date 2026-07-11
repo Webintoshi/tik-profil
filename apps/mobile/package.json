@@ -17,6 +17,7 @@
     "test:browser:task6": "node ./scripts/task6-browser-qr-regression.mjs",
     "test:browser:task7": "node ./scripts/task7-browser-regression.mjs",
     "test:browser:task8": "node ./scripts/task8-browser-regression.mjs",
+    "test:browser:task8:update": "node ./scripts/task8-browser-regression.mjs --update-baselines",
     "test:unit": "node --test ./src/**/*.test.mts",
     "build:apk": "node ./scripts/build-android-apk.mjs"
   },
@@ -53,9 +54,11 @@
   },
   "devDependencies": {
     "@types/node": "22.19.3",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "19.2.7",
     "babel-preset-expo": "56.0.14",
     "playwright": "^1.55.0",
+    "pngjs": "^7.0.0",
     "typescript": "6.0.3"
   }
 }

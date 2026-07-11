@@ -114,24 +114,36 @@ function TabItem({ focused, navigation, route, viewportWidth }: {
   const [measuredLabelWidth, setMeasuredLabelWidth] = useState(label.length * 7);
   const layout = getTabBarLayout({ measuredLabelWidth, viewportWidth });
   const width = useSharedValue(focused ? layout.activeWidth : interaction.minTouchTarget);
+  const labelWidth = useSharedValue(focused && layout.showActiveLabel ? measuredLabelWidth : 0);
+  const labelMargin = useSharedValue(focused && layout.showActiveLabel ? 6 : 0);
   const labelOpacity = useSharedValue(focused && layout.showActiveLabel ? 1 : 0);
 
   useEffect(() => {
     const duration = getSelectionDuration(reducedMotion);
     const targetWidth = focused && layout.showActiveLabel ? layout.activeWidth : interaction.minTouchTarget;
+    const targetLabelWidth = focused && layout.showActiveLabel ? measuredLabelWidth : 0;
+    const targetLabelMargin = focused && layout.showActiveLabel ? 6 : 0;
     const targetOpacity = focused && layout.showActiveLabel ? 1 : 0;
     if (duration === 0) {
       width.value = targetWidth;
+      labelWidth.value = targetLabelWidth;
+      labelMargin.value = targetLabelMargin;
       labelOpacity.value = targetOpacity;
       return;
     }
     const timing = { duration, easing: Easing.out(Easing.cubic) };
     width.value = withTiming(targetWidth, timing);
+    labelWidth.value = withTiming(targetLabelWidth, timing);
+    labelMargin.value = withTiming(targetLabelMargin, timing);
     labelOpacity.value = withTiming(targetOpacity, timing);
-  }, [focused, labelOpacity, layout.activeWidth, layout.showActiveLabel, reducedMotion, width]);
+  }, [focused, labelMargin, labelOpacity, labelWidth, layout.activeWidth, layout.showActiveLabel, measuredLabelWidth, reducedMotion, width]);
 
   const widthStyle = useAnimatedStyle(() => ({ width: width.value }));
-  const labelStyle = useAnimatedStyle(() => ({ opacity: labelOpacity.value }));
+  const labelStyle = useAnimatedStyle(() => ({
+    marginLeft: labelMargin.value,
+    opacity: labelOpacity.value,
+    width: labelWidth.value
+  }));
 
   function onPress() {
     const event = navigation.emit({ canPreventDefault: true, target: route.key, type: "tabPress" });
@@ -187,18 +199,21 @@ function TabItem({ focused, navigation, route, viewportWidth }: {
           width: "100%"
         }}
       >
-        <Icon
-          color={focused ? colors.onBrand : colors.mutedStrong}
-          name={tabIcons[routeName]}
-          size={focused ? 21 : 22}
-          strokeWidth={focused ? 2.7 : 2.35}
-        />
+        <View style={{ flexShrink: 0 }} testID={`bottom-tab-icon-${routeName}`}>
+          <Icon
+            color={focused ? colors.onBrand : colors.mutedStrong}
+            name={tabIcons[routeName]}
+            size={focused ? 21 : 22}
+            strokeWidth={focused ? 2.7 : 2.35}
+          />
+        </View>
         <Animated.Text
           numberOfLines={1}
           style={[
-            { ...typography.tab, color: colors.onBrand, marginLeft: 6, textAlign: "center" },
+            { ...typography.tab, color: colors.onBrand, flexShrink: 1, overflow: "hidden", textAlign: "center" },
             labelStyle
           ]}
+          testID={`bottom-tab-label-${routeName}`}
         >
           {label}
         </Animated.Text>

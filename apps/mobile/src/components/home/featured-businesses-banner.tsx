@@ -145,7 +145,7 @@ export function FeaturedBusinessesBanner({ businesses }: FeaturedBusinessesBanne
                   >
                     {primary.name}
                   </Text>
-                  <Icon name="verified" color={colors.brand} size={16} />
+                  <Icon name="verified" color={colors.blue} size={16} />
                 </View>
                 <Text numberOfLines={1} style={{ ...typography.small, color: "rgba(255,255,255,0.76)" }}>
                   {businessMeta(primary)}

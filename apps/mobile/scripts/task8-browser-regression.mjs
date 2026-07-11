@@ -1,15 +1,23 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import process from "node:process";
 
 import { chromium } from "playwright";
 import { cleanupBrowserTestProcesses, getFreePort, spawnManagedNode, waitForUrl } from "./browser-test-processes.mjs";
+import { comparePngBuffers, createDiffPngBuffer } from "./task8-visual-diff.mjs";
 
 const fixturePort = await getFreePort();
 const expoPort = await getFreePort();
 const fixtureUrl = `http://127.0.0.1:${fixturePort}`;
 const appUrl = `http://127.0.0.1:${expoPort}`;
 const viewport = { width: 390, height: 844 };
+const artifactRoot = resolve(process.cwd(), "..", "..", "artifacts", "task-8");
+const baselineRoot = join(artifactRoot, "baselines");
+const diffRoot = join(artifactRoot, "diffs");
+const updateVisualBaselines = process.env.TASK8_UPDATE_BASELINES === "1" || process.argv.includes("--update-baselines");
+const visualThreshold = { channelThreshold: 12, maxChangedPixelRatio: 0.005, maxMeanChannelDelta: 1 };
 const children = [];
 const screenshotCases = [];
 let browser;
@@ -53,6 +61,7 @@ async function verifyLightDarkSurfaceMatrix() {
       const state = await openSurface(surface, { favorites: ["task7-business", "task7-list-1"], mode });
       try {
         await assertTheme(state.page, mode);
+        await assertSurfaceGeometry(state.page, surface);
         await captureStableScreenshot(state.page, `${mode}-${surface}`);
         await assertPageHealthy(state.page, state.issues);
       } finally {
@@ -68,6 +77,7 @@ async function verifyNavigationGeometry() {
     try {
       await state.page.goto(`${appUrl}/business/task5-fixture`, { waitUntil: "domcontentloaded" });
       await state.page.getByTestId("business-profile-primary-action").waitFor();
+      await state.page.waitForTimeout(250);
       const tabBar = await requiredBox(state.page.getByTestId("bottom-tab-bar"), "bottom tab bar");
       const tabList = await requiredBox(state.page.getByRole("tablist"), "tab list");
       const viewportState = await state.page.evaluate(() => ({
@@ -88,6 +98,11 @@ async function verifyNavigationGeometry() {
           box.x >= -0.5 && box.x + box.width <= width + 0.5,
           `${width} ${route} is clipped: ${JSON.stringify({ tabBar, tabList, tabs, viewportState })}`
         );
+        const iconBox = await requiredBox(state.page.getByTestId(`bottom-tab-icon-${route}`), `${route} icon`);
+        const svgBox = await requiredBox(state.page.getByTestId(`bottom-tab-icon-${route}`).locator("svg"), `${route} icon svg`);
+        assert.ok(iconBox.width >= 20 && iconBox.height >= 20, `${width} ${route} icon wrapper is below 20px`);
+        assert.ok(svgBox.width >= 20 && svgBox.height >= 20, `${width} ${route} rendered icon is below 20px`);
+        await assertTabLabelGeometry(state.page, route, route === "index", `${width} ${route}`);
       }
       const selectedTabs = state.page.getByRole("tab", { selected: true });
       assert.equal(
@@ -127,6 +142,14 @@ async function verifyKeyboardFocus() {
     });
     assert.deepEqual(focus, { color: "rgb(198, 0, 62)", offset: "2px", style: "solid", width: "3px" });
     assert.notEqual(focus.color, "rgb(255, 191, 65)");
+    const targetBox = await requiredBox(target, "focused Explore tab");
+    const previousBox = await requiredBox(state.page.getByTestId("bottom-tab-index"), "previous Home tab");
+    const nextBox = await requiredBox(state.page.getByTestId("bottom-tab-favorites"), "next Favorites tab");
+    const ringInset = Number.parseFloat(focus.width) + Number.parseFloat(focus.offset);
+    assert.ok(targetBox.x - ringInset >= 0, "focus ring is clipped on the left");
+    assert.ok(targetBox.x + targetBox.width + ringInset <= viewport.width, "focus ring is clipped on the right");
+    assert.ok(previousBox.x + previousBox.width <= targetBox.x - ringInset, "focus ring overlaps Home tab");
+    assert.ok(targetBox.x + targetBox.width + ringInset <= nextBox.x, "focus ring overlaps Favorites tab");
     await captureStableScreenshot(state.page, "focus-keyboard");
     await assertPageHealthy(state.page, state.issues);
   } finally {
@@ -149,7 +172,9 @@ async function verifyReducedMotion() {
     assert.ok(transform === "none" || transform === "matrix(1, 0, 0, 1, 0, 0)", `reduced press transformed: ${transform}`);
     await captureStableScreenshot(state.page, "reduced-motion-pressed");
     await state.page.mouse.up();
-    await state.page.waitForURL(/\/favorites$/);
+    await state.page.waitForTimeout(50);
+    if (new URL(state.page.url()).pathname !== "/favorites") await target.click();
+    await state.page.waitForFunction(() => window.location.pathname === "/favorites");
     const selected = await requiredBox(state.page.getByTestId("bottom-tab-favorites"), "selected favorites tab");
     await state.page.waitForTimeout(30);
     const settled = await requiredBox(state.page.getByTestId("bottom-tab-favorites"), "settled favorites tab");
@@ -181,8 +206,12 @@ async function verifyFontScale() {
         `${fontScale} summary did not stack: ${JSON.stringify({ summaryItems, summaryState })}`
       );
       assert.ok(summaryItems[2].y > summaryItems[1].y, `${fontScale} summary did not remain stacked`);
-      await state.page.getByRole("button", { name: /Kişisel bilgiler/ }).click();
+      const profileSection = state.page.getByRole("button", { name: /Kişisel bilgiler/ });
+      assert.equal(await profileSection.getAttribute("aria-expanded"), "false");
+      await profileSection.click();
+      assert.equal(await profileSection.getAttribute("aria-expanded"), "true");
       await emulateBrowserFontScale(state.page, fontScale);
+      await state.page.waitForTimeout(250);
       for (const input of await state.page.locator("input, textarea").all()) {
         const box = await requiredBox(input, "account input");
         assert.ok(box.height >= 44, `${fontScale} account input is below 44px`);
@@ -191,7 +220,33 @@ async function verifyFontScale() {
         await state.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
         `${fontScale} account introduced horizontal page overflow`
       );
+      await assertTabLabelGeometry(state.page, "account", true, `${fontScale} account active tab`);
       await captureStableScreenshot(state.page, `font-scale-${String(fontScale).replace(".", "-")}`);
+      await assertPageHealthy(state.page, state.issues);
+    } finally {
+      await state.context.close();
+    }
+  }
+
+  for (const surface of ["favorites", "explore"]) {
+    const state = await createPage({ favorites: ["task7-business", "task7-list-1"], mode: "light" });
+    try {
+      await state.page.goto(`${appUrl}/${surface}?task8FontScale=2`, { waitUntil: "domcontentloaded" });
+      if (surface === "favorites") await state.page.getByTestId("favorites-list").waitFor();
+      if (surface === "explore") await state.page.getByTestId("city-hero-loaded").waitFor();
+      await emulateBrowserFontScale(state.page, 2);
+      await state.page.waitForTimeout(250);
+      const title = state.page.getByTestId(`${surface}-title`);
+      const subtitle = state.page.getByTestId(surface === "favorites" ? "favorites-count" : "explore-subtitle");
+      await assertTextNotClipped(title, `${surface} 200% title`);
+      await assertTextNotClipped(subtitle, `${surface} 200% subtitle`);
+      await assertVerticalOrder(title, subtitle, `${surface} 200% heading`);
+      assert.ok(
+        await state.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        `${surface} 200% introduced horizontal page overflow`
+      );
+      await assertTabLabelGeometry(state.page, surface, true, `${surface} 200% active tab`);
+      await captureStableScreenshot(state.page, `font-scale-2-${surface}`);
       await assertPageHealthy(state.page, state.issues);
     } finally {
       await state.context.close();
@@ -330,10 +385,65 @@ async function assertTheme(page, mode) {
   ), expected);
 }
 
+async function assertSurfaceGeometry(page, surface) {
+  await page.waitForTimeout(250);
+  assert.ok(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    `${surface} introduced horizontal document overflow`
+  );
+  const activeRoute = surface === "explore" ? "explore"
+    : surface === "favorites" ? "favorites"
+      : surface === "account" || surface === "account-signed-out" ? "account"
+        : "index";
+  await assertTabLabelGeometry(page, activeRoute, true, `${surface} active tab`);
+
+  if (surface === "favorites") {
+    const title = page.getByTestId("favorites-title");
+    const count = page.getByTestId("favorites-count");
+    await assertTextNotClipped(title, "favorites title");
+    await assertTextNotClipped(count, "favorites count");
+    await assertVerticalOrder(title, count, "favorites heading");
+  }
+  if (surface === "explore") {
+    const title = page.getByTestId("explore-title");
+    const subtitle = page.getByTestId("explore-subtitle");
+    await assertTextNotClipped(title, "explore title");
+    await assertTextNotClipped(subtitle, "explore subtitle");
+    await assertVerticalOrder(title, subtitle, "explore heading");
+  }
+  if (surface === "account") {
+    const summaryBoxes = await Promise.all(["Adres", "Sipariş", "Rezervasyon"].map((label) => (
+      requiredBox(page.getByTestId(`account-summary-${label}`), `account ${label}`)
+    )));
+    for (let left = 0; left < summaryBoxes.length; left += 1) {
+      for (let right = left + 1; right < summaryBoxes.length; right += 1) {
+        assert.equal(boxesOverlap(summaryBoxes[left], summaryBoxes[right]), false, `account summary ${left}/${right} overlaps`);
+      }
+    }
+  }
+}
+
 async function captureStableScreenshot(page, label) {
   await page.evaluate(() => document.fonts?.ready);
   await page.waitForTimeout(250);
   const options = { animations: "disabled", caret: "hide", fullPage: false };
+  if (process.env.TASK8_INJECT_VISUAL_DRIFT === "1" && label === "light-home") {
+    await page.evaluate(() => {
+      const drift = document.createElement("div");
+      drift.dataset.task8VisualDrift = "1";
+      Object.assign(drift.style, {
+        background: "#00ffff",
+        height: "64px",
+        left: "0",
+        pointerEvents: "none",
+        position: "fixed",
+        top: "0",
+        width: "64px",
+        zIndex: "2147483647"
+      });
+      document.body.appendChild(drift);
+    });
+  }
   const first = await page.screenshot(options);
   await page.waitForTimeout(60);
   const second = await page.screenshot(options);
@@ -344,13 +454,35 @@ async function captureStableScreenshot(page, label) {
     { height, width },
     `${label} screenshot geometry changed without interaction`
   );
-  assert.ok(
-    Math.abs(first.length - second.length) <= Math.max(128, first.length * 0.005),
-    `${label} screenshot payload did not settle`
-  );
+  const settled = comparePngBuffers(first, second, { channelThreshold: 8 });
+  assert.ok(settled.changedPixelRatio <= 0.0005, `${label} pixels did not settle: ${JSON.stringify(settled)}`);
+  assert.ok(settled.meanChannelDelta <= 0.1, `${label} channel delta did not settle: ${JSON.stringify(settled)}`);
   const size = page.viewportSize();
   assert.deepEqual({ height, width }, size, `${label} screenshot dimensions changed`);
   assert.ok(first.length > 4_000, `${label} screenshot is unexpectedly blank`);
+
+  const baselinePath = join(baselineRoot, `${label}.png`);
+  if (updateVisualBaselines) {
+    mkdirSync(baselineRoot, { recursive: true });
+    writeFileSync(baselinePath, first);
+  } else {
+    assert.ok(existsSync(baselinePath), `missing visual baseline: ${baselinePath}`);
+    const baseline = readFileSync(baselinePath);
+    const comparison = comparePngBuffers(baseline, first, { channelThreshold: visualThreshold.channelThreshold });
+    if (
+      comparison.changedPixelRatio > visualThreshold.maxChangedPixelRatio
+      || comparison.meanChannelDelta > visualThreshold.maxMeanChannelDelta
+    ) {
+      mkdirSync(diffRoot, { recursive: true });
+      writeFileSync(join(diffRoot, `${label}-actual.png`), first);
+      writeFileSync(
+        join(diffRoot, `${label}-diff.png`),
+        createDiffPngBuffer(baseline, first, { channelThreshold: visualThreshold.channelThreshold })
+      );
+      assert.fail(`visual drift for ${label}: ${JSON.stringify(comparison)}; artifacts: ${diffRoot}`);
+    }
+  }
+
   screenshotCases.push(`${label} ${width}x${height} ${createHash("sha256").update(first).digest("hex").slice(0, 12)}`);
 }
 
@@ -363,6 +495,54 @@ async function requiredBox(locator, label) {
   const box = await locator.boundingBox();
   assert.ok(box, `${label} did not render`);
   return box;
+}
+
+async function assertTabLabelGeometry(page, route, active, label) {
+  const locator = page.getByTestId(`bottom-tab-label-${route}`);
+  const geometry = await locator.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      clientWidth: element.clientWidth,
+      marginLeft: Number.parseFloat(style.marginLeft),
+      opacity: Number.parseFloat(style.opacity),
+      rectWidth: element.getBoundingClientRect().width,
+      scrollWidth: element.scrollWidth
+    };
+  });
+  if (active) {
+    assert.ok(geometry.rectWidth > 0, `${label} active label has no width`);
+    assert.ok(geometry.opacity >= 0.99, `${label} active label is not opaque`);
+    assert.equal(geometry.marginLeft, 6, `${label} active label margin changed`);
+    assert.ok(geometry.scrollWidth <= geometry.clientWidth + 1, `${label} active label is clipped`);
+  } else {
+    assert.ok(geometry.rectWidth <= 0.5, `${label} inactive label consumes width`);
+    assert.ok(geometry.opacity <= 0.01, `${label} inactive label is visible`);
+    assert.equal(geometry.marginLeft, 0, `${label} inactive label consumes margin`);
+  }
+}
+
+async function assertTextNotClipped(locator, label) {
+  const geometry = await locator.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    clientWidth: element.clientWidth,
+    scrollHeight: element.scrollHeight,
+    scrollWidth: element.scrollWidth
+  }));
+  assert.ok(geometry.scrollWidth <= geometry.clientWidth + 1, `${label} clips horizontally: ${JSON.stringify(geometry)}`);
+  assert.ok(geometry.scrollHeight <= geometry.clientHeight + 4, `${label} clips vertically: ${JSON.stringify(geometry)}`);
+}
+
+async function assertVerticalOrder(first, second, label) {
+  const firstBox = await requiredBox(first, `${label} first`);
+  const secondBox = await requiredBox(second, `${label} second`);
+  assert.ok(firstBox.y + firstBox.height <= secondBox.y + 0.5, `${label} overlaps`);
+}
+
+function boxesOverlap(first, second) {
+  return first.x < second.x + second.width
+    && first.x + first.width > second.x
+    && first.y < second.y + second.height
+    && first.y + first.height > second.y;
 }
 
 function monitorPage(page) {

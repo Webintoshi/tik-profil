@@ -114,8 +114,8 @@ export default function ExploreScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={{ gap: spacing.xs, paddingHorizontal: spacing.screen }}>
-          <Text style={{ ...typography.title, color: colors.ink }}>Keşfet</Text>
-          <Text style={{ ...typography.body, color: colors.muted }}>
+          <Text style={{ ...typography.title, color: colors.ink }} testID="explore-title">Keşfet</Text>
+          <Text style={{ ...typography.body, color: colors.muted }} testID="explore-subtitle">
             {cityName} için şehir rehberleri, yeme içme önerileri ve yerel profiller.
           </Text>
         </View>

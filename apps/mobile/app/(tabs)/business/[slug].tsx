@@ -69,7 +69,7 @@ function getActionColors() {
     whatsapp: { bg: colors.surface, fg: colors.brand },
     location: { bg: colors.surface, fg: colors.brand },
     order: { bg: colors.brand, fg: colors.onBrand },
-    verified: colors.brand,
+    verified: colors.blue,
     pillBg: colors.brandSoft,
     pillText: colors.brandDeep
   } as const;
@@ -656,7 +656,7 @@ function EcommerceOrderPanel({
               width: 64
             }}
           >
-            <Icon name="verified" color={colors.brand} size={34} />
+            <Icon name="verified" color={colors.blue} size={34} />
           </View>
           <Text style={{ ...typography.title, color: colors.ink, textAlign: "center" }}>Siparişiniz alındı</Text>
           <Text style={{ ...typography.body, color: colors.muted, textAlign: "center" }}>

@@ -380,7 +380,7 @@ function formatDate(value: string): string {
 function AccountSection({ children, icon, isOpen, onToggle, summary, title }: { children: ReactNode; icon: IconName; isOpen: boolean; onToggle: () => void; summary: string; title: string }) {
   return (
     <View style={{ borderBottomColor: colors.border, borderBottomWidth: 1 }}>
-      <AnimatedPressable accessibilityLabel={`${title}, ${summary}`} accessibilityRole="button" accessibilityState={{ expanded: isOpen }} onPress={onToggle} pressScale={0.98} style={{ alignItems: "center", flexDirection: "row", gap: spacing.md, minHeight: 64, paddingVertical: spacing.sm }}>
+      <AnimatedPressable accessibilityLabel={`${title}, ${summary}`} accessibilityRole="button" accessibilityState={{ expanded: isOpen }} aria-expanded={isOpen} onPress={onToggle} pressScale={0.98} style={{ alignItems: "center", flexDirection: "row", gap: spacing.md, minHeight: 64, paddingVertical: spacing.sm }}>
         <Icon color={colors.brand} name={icon} size={20} />
         <View style={{ flex: 1, minWidth: 0 }}><Text style={{ ...typography.cardTitle, color: colors.ink }}>{title}</Text><Text style={{ ...typography.small, color: colors.muted }}>{summary}</Text></View>
         <View style={{ transform: [{ rotate: isOpen ? "180deg" : "0deg" }] }}><Icon color={colors.muted} name="chevronDown" size={16} /></View>
