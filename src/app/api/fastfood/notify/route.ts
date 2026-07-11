@@ -40,8 +40,8 @@ export async function POST(request: Request) {
             return NextResponse.json(result, { status: result.error === "ORDER_NOT_FOUND" ? 404 : 400 });
         }
         return NextResponse.json(result);
-    } catch (error) {
-        console.error("[FF WhatsApp] POST error:", error);
+    } catch {
+        console.error("[FastFood Notification] request failed");
         return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
     }
 }

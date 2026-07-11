@@ -1,6 +1,12 @@
 export type DeliveryType = "delivery" | "pickup";
 export type PaymentMethod = "card" | "cash" | "online";
 
+export function getPaymentMethodLabel(method: PaymentMethod): string {
+  if (method === "cash") return "Nakit";
+  if (method === "card") return "Kart";
+  return "Online ödeme";
+}
+
 export interface CheckoutAddressInput {
   city: string;
   district: string;

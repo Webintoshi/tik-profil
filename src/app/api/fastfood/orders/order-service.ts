@@ -35,6 +35,7 @@ export interface FastFoodExtraGroup {
 
 export interface FastFoodSettings {
     cardOnDelivery: boolean;
+    cartEnabled: boolean;
     cashPayment: boolean;
     deliveryEnabled: boolean;
     deliveryFee: number;
@@ -261,7 +262,9 @@ export function parseFastFoodOrderInput(value: unknown): ParsedOrderInput {
         validation("VALIDATION_ERROR", "Siparis tutarlari gecersiz");
     }
     const customerAddress = text(body.customerAddress)?.trim() ?? "";
+    const tableId = text(body.tableId)?.trim() || null;
     if (deliveryType === "delivery" && customerAddress.length < 5) validation("ADDRESS_REQUIRED", "Teslimat adresi gerekli");
+    if (deliveryType === "table" && !tableId) validation("TABLE_REQUIRED", "Masa bilgisi gerekli");
     return {
         businessId: businessId.trim(),
         couponCode: text(body.couponCode)?.trim() || null,
@@ -277,7 +280,7 @@ export function parseFastFoodOrderInput(value: unknown): ParsedOrderInput {
         idempotencyKey,
         paymentMethod: paymentMethod as FastFoodPaymentMethod,
         subtotal,
-        tableId: text(body.tableId)?.trim() || null,
+        tableId,
         total,
     };
 }
@@ -335,6 +338,7 @@ export async function createFastFoodOrder(
     if (!business) throw new FastFoodOrderError("BUSINESS_NOT_FOUND", "Isletme bulunamadi", 404);
     const settings = catalog.settings;
     if (!settings?.isActive) validation("ORDERING_DISABLED", "Siparis alma kapali");
+    if (!settings.cartEnabled) validation("CART_DISABLED", "Sepetten siparis alma kapali");
     if (input.deliveryType === "delivery" && !settings.deliveryEnabled) validation("DELIVERY_DISABLED", "Teslimat kapali");
     if (input.deliveryType === "pickup" && !settings.pickupEnabled) validation("PICKUP_DISABLED", "Magazadan teslim kapali");
     if (input.paymentMethod === "cash" && !settings.cashPayment) validation("PAYMENT_DISABLED", "Nakit odeme kapali");

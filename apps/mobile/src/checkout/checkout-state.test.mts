@@ -187,3 +187,9 @@ test("mobile discount pricing applies only a discount with a future expiry", () 
   assert.equal(checkout.resolveActiveProductPrice({ price: 100, discountPrice: 80, discountUntil: "2026-07-11T11:00:00.000Z" }, now), 100);
   assert.equal(checkout.resolveActiveProductPrice({ price: 100, discountPrice: 80, discountUntil: null }, now), 100);
 });
+
+test("confirmation payment labels distinguish cash card and online", () => {
+  assert.equal(checkout.getPaymentMethodLabel("cash"), "Nakit");
+  assert.equal(checkout.getPaymentMethodLabel("card"), "Kart");
+  assert.equal(checkout.getPaymentMethodLabel("online"), "Online \u00f6deme");
+});

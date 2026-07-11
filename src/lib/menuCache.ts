@@ -9,6 +9,7 @@ export interface PublicMenuWorkingHoursEntry {
 
 export interface PublicMenuCheckoutSettings {
     cardOnDelivery: boolean;
+    cartEnabled: boolean;
     cashPayment: boolean;
     deliveryEnabled: boolean;
     deliveryFee: number;
@@ -80,6 +81,7 @@ export function normalizePublicMenuData(payload: PublicMenuPayload, fetchedAt = 
             deliveryEnabled: settings.deliveryEnabled !== false,
             cashPayment: settings.cashPayment !== false,
             cardOnDelivery: settings.cardOnDelivery !== false,
+            cartEnabled: settings.cartEnabled !== false,
             onlinePayment: settings.onlinePayment === true,
             estimatedDeliveryTime: typeof settings.estimatedDeliveryTime === "string"
                 ? settings.estimatedDeliveryTime

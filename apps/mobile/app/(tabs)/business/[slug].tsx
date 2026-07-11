@@ -41,6 +41,7 @@ import {
   calculateCheckoutTotals,
   calculateDeliveryFee,
   createCheckoutSubmitGuard,
+  getPaymentMethodLabel,
   isDeliveryModeAvailable,
   listAvailablePaymentMethods,
   reconcileCouponForDelivery,
@@ -1417,7 +1418,7 @@ function FoodMenuPanel({
   const idempotencyStateRef = React.useRef<CheckoutIdempotencyState | null>(null);
 
   const settings = data?.settings;
-  const cartEnabled = kind === "fastfood";
+  const cartEnabled = kind === "fastfood" && settings?.cartEnabled !== false;
   const pickupEnabled = settings?.pickupEnabled !== false;
   const deliveryEnabled = settings?.deliveryEnabled !== false;
   const cashPayment = settings?.cashPayment !== false;
@@ -1467,6 +1468,13 @@ function FoodMenuPanel({
     setAppliedCoupon(null);
     setCouponMessage(null);
   }, [data?.businessId, kind]);
+
+  React.useEffect(() => {
+    if (cartEnabled) return;
+    setCartItems({});
+    setProductDetail(null);
+    setStep("products");
+  }, [cartEnabled]);
 
   React.useEffect(() => {
     if (!data) return;
@@ -1548,7 +1556,7 @@ function FoodMenuPanel({
     subtotal
   });
   const deliveryModeAvailable = isDeliveryModeAvailable(deliveryType, { deliveryEnabled, pickupEnabled });
-  const canSubmitOrder = checkoutValidation === null && deliveryModeAvailable && paymentMethod !== null;
+  const canSubmitOrder = cartEnabled && checkoutValidation === null && deliveryModeAvailable && paymentMethod !== null;
   const couponCartKey = `${subtotal}:${cartRows.map((item) => `${item.product.id}:${item.quantity}`).join("|")}`;
   const menuMaxHeight = cartRows.length > 0
     ? Math.max(520, Math.round(screenHeight * 0.64))
@@ -2213,7 +2221,7 @@ function FoodMenuPanel({
               {deliveryType === "delivery" ? form.address : "Mağazadan teslim"}
             </Text>
             <Text style={{ ...typography.small, color: colors.muted }}>
-              Ödeme: {paymentMethod === "cash" ? "Nakit" : "Kart"}
+              Ödeme: {paymentMethod ? getPaymentMethodLabel(paymentMethod) : "-"}
             </Text>
           </View>
         </View>

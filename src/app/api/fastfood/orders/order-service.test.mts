@@ -67,6 +67,7 @@ function dependencies(overrides: Record<string, unknown> = {}) {
         }],
         settings: {
           cardOnDelivery: true,
+          cartEnabled: true,
           cashPayment: true,
           deliveryEnabled: true,
           deliveryFee: 10,
@@ -356,6 +357,42 @@ test("online payment follows the authoritative online_payment setting", async ()
     assert.equal((error as { code?: string }).code, "PAYMENT_DISABLED");
     return true;
   });
+});
+
+test("disabled cart rejects delivery pickup and table order modes", async () => {
+  const base = dependencies();
+  const catalog = await base.deps.getCatalog();
+  for (const deliveryType of ["delivery", "pickup", "table"] as const) {
+    const { deps, inserted } = dependencies({
+      getCatalog: async () => ({ ...catalog, settings: { ...catalog.settings, cartEnabled: false } })
+    });
+    await assert.rejects(() => orders.createFastFoodOrder(input({
+      customerAddress: deliveryType === "delivery" ? "Valid delivery address" : "",
+      deliveryFee: deliveryType === "delivery" ? 10 : 0,
+      deliveryType,
+      tableId: deliveryType === "table" ? "table-7" : undefined,
+      total: deliveryType === "delivery" ? 240 : 230
+    }), deps as never), (error: unknown) => {
+      assert.equal((error as { code?: string }).code, "CART_DISABLED");
+      return true;
+    });
+    assert.equal(inserted.length, 0);
+  }
+});
+
+test("table checkout requires a table identifier before commit", async () => {
+  const { deps, inserted } = dependencies();
+  await assert.rejects(() => orders.createFastFoodOrder(input({
+    customerAddress: "",
+    deliveryFee: 0,
+    deliveryType: "table",
+    tableId: undefined,
+    total: 230
+  }), deps as never), (error: unknown) => {
+    assert.equal((error as { code?: string }).code, "TABLE_REQUIRED");
+    return true;
+  });
+  assert.equal(inserted.length, 0);
 });
 
 test("legacy free-delivery zero fields are accepted but atomic persistence receives authoritative amounts", async () => {

@@ -61,10 +61,13 @@ export async function GET(request: Request) {
         if (tableId) {
             const { data: tableData } = await supabase
                 .from('fb_tables')
-                .select('name')
+                .select('*')
                 .eq('id', tableId)
+                .eq('business_id', businessId)
                 .maybeSingle();
-            tableName = tableData?.name || null;
+            tableName = tableData && (tableData as Record<string, unknown>).is_active !== false
+                ? tableData.name || null
+                : null;
         }
 
         // ============================================

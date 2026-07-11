@@ -90,8 +90,8 @@ export async function POST(request: Request) {
             success: true,
             total: data.total,
         });
-    } catch (error) {
-        console.error('[FastFood Checkout] Error:', error);
+    } catch {
+        console.error('[FastFood Checkout] request failed');
         return NextResponse.json({ success: false, error: 'Bir hata oluştu' }, { status: 500 });
     }
 }

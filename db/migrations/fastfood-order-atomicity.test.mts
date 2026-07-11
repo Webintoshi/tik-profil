@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const migrationUrl = new URL("./0005_fastfood_order_atomicity.sql", import.meta.url);
+const migrationUrl = new URL("./0006_fastfood_order_outbox_hardening.sql", import.meta.url);
 
 async function migrationSql() {
   return readFile(migrationUrl, "utf8");
@@ -93,4 +93,44 @@ test("atomic RPC revalidates the full catalog and checkout snapshot under databa
   assert.ok(functionBody.indexOf("v_catalog_subtotal") < functionBody.indexOf("INSERT INTO ff_orders"));
   assert.ok(functionBody.indexOf("FROM ff_settings") < functionBody.indexOf("INSERT INTO ff_orders"));
   assert.ok(functionBody.indexOf("FROM ff_products") < functionBody.indexOf("INSERT INTO ff_orders"));
+});
+
+test("atomic RPC rejects cart-disabled stores and validates owned table rows before insert", async () => {
+  const sql = await migrationSql();
+  const guard = sql.match(/DO \$migration_guard\$[\s\S]*?\$migration_guard\$;/i)?.[0] ?? "";
+  const functionBody = sql.match(/CREATE OR REPLACE FUNCTION create_fastfood_order_atomic[\s\S]*?\$function\$;/i)?.[0] ?? "";
+  assert.match(guard, /fb_tables/i);
+  assert.match(functionBody, /v_settings\.cart_enabled[\s\S]*RAISE EXCEPTION 'CART_DISABLED'/i);
+  assert.match(functionBody, /p_delivery_type = 'table'[\s\S]*p_table_id[\s\S]*RAISE EXCEPTION 'TABLE_REQUIRED'/i);
+  assert.match(functionBody, /information_schema\.columns[\s\S]*column_name = 'is_active'/i);
+  assert.match(functionBody, /FROM fb_tables[\s\S]*business_id[\s\S]*FOR SHARE/i);
+  assert.match(functionBody, /TABLE_INVALID/i);
+  assert.ok(functionBody.indexOf("CART_DISABLED") < functionBody.indexOf("INSERT INTO ff_orders"));
+  assert.ok(functionBody.indexOf("TABLE_INVALID") < functionBody.indexOf("INSERT INTO ff_orders"));
+});
+
+test("new orders atomically enqueue one durable notification event and replay cannot duplicate it", async () => {
+  const sql = await migrationSql();
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS ff_order_notification_outbox/i);
+  assert.match(sql, /UNIQUE\s*\(order_id, event_type\)/i);
+  assert.match(sql, /UNIQUE\s*\(idempotency_key\)/i);
+  const functionBody = sql.match(/CREATE OR REPLACE FUNCTION create_fastfood_order_atomic[\s\S]*?\$function\$;/i)?.[0] ?? "";
+  const enqueue = functionBody.match(/INSERT INTO ff_order_notification_outbox[\s\S]*?ON CONFLICT\s*\(order_id, event_type\)\s*DO NOTHING/i)?.[0] ?? "";
+  assert.ok(enqueue, "missing transactional outbox insert");
+  assert.match(enqueue, /'order\.created'/i);
+  assert.match(enqueue, /'fastfood-order:'\s*\|\|\s*v_order_id::text\s*\|\|\s*':created'/i);
+  assert.doesNotMatch(enqueue, /customer_phone|customer_address|message|whatsapp/i);
+  assert.ok(functionBody.indexOf("INSERT INTO ff_orders") < functionBody.indexOf("INSERT INTO ff_order_notification_outbox"));
+  assert.ok(functionBody.indexOf("RETURN QUERY SELECT v_existing") < functionBody.indexOf("INSERT INTO ff_order_notification_outbox"));
+});
+
+test("outbox claim is concurrent-worker safe and failed events remain retryable", async () => {
+  const sql = await migrationSql();
+  const claim = sql.match(/CREATE OR REPLACE FUNCTION claim_fastfood_notification_outbox[\s\S]*?\$claim\$;/i)?.[0] ?? "";
+  assert.ok(claim, "missing outbox claim function");
+  assert.match(claim, /FOR UPDATE SKIP LOCKED/i);
+  assert.match(claim, /status = 'processing'/i);
+  assert.match(claim, /attempt_count = [\s\S]*attempt_count[\s\S]*\+ 1/i);
+  const outboxTable = sql.match(/CREATE TABLE IF NOT EXISTS ff_order_notification_outbox[\s\S]*?\);/i)?.[0] ?? "";
+  assert.match(outboxTable, /status[\s\S]*CHECK[\s\S]*'pending'[\s\S]*'processing'[\s\S]*'sent'/i);
 });

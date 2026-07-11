@@ -567,7 +567,7 @@ function CheckoutModal({
             const data = await res.json();
             if (data.success) { idempotencyStateRef.current = null; onOrderSuccess(data.orderNumber); }
             else { alert(data.error || "Sipariş gönderilemedi."); }
-        } catch (error) { console.error("Order error:", error); alert("Bir hata oluştu."); }
+        } catch { alert("Bir hata oluştu."); }
         setIsSubmitting(false);
     };
 
@@ -931,6 +931,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
     const [deliveryEnabled, setDeliveryEnabled] = useState(true);
     const [cashPayment, setCashPayment] = useState(true);
     const [cardOnDelivery, setCardOnDelivery] = useState(true);
+    const [cartEnabled, setCartEnabled] = useState(true);
     const [onlinePayment, setOnlinePayment] = useState(false);
     const [estimatedDeliveryTime, setEstimatedDeliveryTime] = useState('30-45 dk');
     const [coupons, setCoupons] = useState<{ id: string; code: string; title: string; description: string; emoji: string; discountType: string; discountValue: number; minOrderAmount: number; }[]>([]);
@@ -945,6 +946,13 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => { setMounted(true); }, []);
+    useEffect(() => {
+        if (cartEnabled) return;
+        setCart([]);
+        setShowCartBar(false);
+        setShowCheckout(false);
+        setShowProductDetail(false);
+    }, [cartEnabled]);
     const refreshMenu = useCallback(async (useCache: boolean = true, showLoading: boolean = true) => {
         if (showLoading) setLoading(true);
 
@@ -964,6 +972,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                 setDeliveryEnabled(cached.settings.deliveryEnabled);
                 setCashPayment(cached.settings.cashPayment);
                 setCardOnDelivery(cached.settings.cardOnDelivery);
+                setCartEnabled(cached.settings.cartEnabled);
                 setOnlinePayment(cached.settings.onlinePayment);
                 setEstimatedDeliveryTime(cached.settings.estimatedDeliveryTime);
                 if (sortedCats.length > 0) setSelectedCategory(sortedCats[0].id);
@@ -997,15 +1006,6 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
             setError(null);
             const res = await fetch(`/api/fastfood/public-menu?businessSlug=${businessSlug}`);
             const data = await res.json();
-            
-            console.log('[FastFoodInlineMenu] API Response:', {
-                success: data.success,
-                error: data.error,
-                categories: data.data?.categories?.length || 0,
-                products: data.data?.products?.length || 0,
-                debug: data.debug
-            });
-            
             if (!data.success) {
                 const errorMsg = data.error || 'Menü yüklenemedi';
                 const debugInfo = data.debug ? ` (Modül: ${data.debug.active_module})` : '';
@@ -1023,7 +1023,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                 const {
                     minOrderAmount: minOrder, deliveryFee: delFee, freeDeliveryAbove: freeAbove,
                     pickupEnabled: pickup, deliveryEnabled: delivery, cashPayment: cash, cardOnDelivery: card,
-                    onlinePayment: online, estimatedDeliveryTime: estTime, workingHours: hours,
+                    cartEnabled: cart, onlinePayment: online, estimatedDeliveryTime: estTime, workingHours: hours,
                     useBusinessHours: useBizHours
                 } = settings;
                 if (fetchedId) setFetchedBusinessId(fetchedId);
@@ -1039,6 +1039,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                 setDeliveryEnabled(delivery);
                 setCashPayment(cash);
                 setCardOnDelivery(card);
+                setCartEnabled(cart);
                 setOnlinePayment(online);
                 setEstimatedDeliveryTime(estTime);
                 if (sortedCats.length > 0) setSelectedCategory(sortedCats[0].id);
@@ -1051,14 +1052,6 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                     const turkeyNow = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Istanbul"}));
                     const currentDay = days[turkeyNow.getDay()];
                     const todayHours = hours[currentDay];
-                    
-                    console.log('[FastFoodInlineMenu] Business Hours Check:', {
-                        turkeyTime: turkeyNow.toLocaleString('tr-TR'),
-                        currentDay,
-                        todayHours,
-                        isOpenNow: isBusinessOpen
-                    });
-                    
                     if (todayHours && todayHours.isOpen) {
                         const currentTime = turkeyNow.getHours() * 60 + turkeyNow.getMinutes();
                         const [openHour, openMin] = todayHours.open.split(':').map(Number);
@@ -1066,17 +1059,6 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                         const openMinutes = openHour * 60 + openMin;
                         const closeMinutes = closeHour * 60 + closeMin;
                         const isOpen = currentTime >= openMinutes && currentTime < closeMinutes;
-                        
-                        console.log('[FastFoodInlineMenu] Time Comparison:', {
-                            currentTime: `${turkeyNow.getHours()}:${turkeyNow.getMinutes().toString().padStart(2, '0')}`,
-                            currentTimeMinutes: currentTime,
-                            openTime: todayHours.open,
-                            openMinutes,
-                            closeTime: todayHours.close,
-                            closeMinutes,
-                            isOpen
-                        });
-                        
                         setIsBusinessOpen(isOpen);
                     } else {
                         setIsBusinessOpen(false);
@@ -1085,8 +1067,8 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                     setIsBusinessOpen(true);
                 }
             }
-        } catch (error) {
-            console.error("Failed to fetch menu:", error);
+        } catch {
+            setError("Menü yüklenemedi");
         }
 
         if (showLoading) setLoading(false);
@@ -1101,6 +1083,8 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
 
     // Cart functions
     const addToCart = (product: Product, quantity: number, extras: CartItem['selectedExtras']) => {
+        if (!cartEnabled) return;
+
         const extraTotal = extras.reduce((sum, e) => sum + e.price, 0);
         const totalPrice = (product.price + extraTotal) * quantity;
 
@@ -1134,6 +1118,8 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
     };
 
     const openProductDetail = (product: Product) => {
+        if (!cartEnabled) return;
+
         setSelectedProduct(product);
         setShowProductDetail(true);
     };
@@ -1146,12 +1132,8 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
     };
 
     const getProductExtraGroups = (product: Product) => {
-        // Only show extra groups that are explicitly assigned to this product
-        console.log('[getProductExtraGroups] Product:', product.name, 'extraGroupIds:', product.extraGroupIds);
-        console.log('[getProductExtraGroups] Available extraGroups:', extraGroups);
         if (product.extraGroupIds && product.extraGroupIds.length > 0) {
             const matched = extraGroups.filter(g => product.extraGroupIds?.includes(g.id));
-            console.log('[getProductExtraGroups] Matched groups:', matched);
             return matched;
         }
         // If no extraGroupIds assigned, show no extras
@@ -1411,8 +1393,11 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                                                     return (
                                                         <div
                                                             key={product.id}
-                                                            onClick={() => openProductDetail(product)}
-                                                            className="flex items-center gap-3 p-3 rounded-2xl hover:bg-gray-50 cursor-pointer transition-colors -mx-1 border border-transparent hover:border-gray-100"
+                                                            onClick={cartEnabled ? () => openProductDetail(product) : undefined}
+                                                            className={clsx(
+                                                                "flex items-center gap-3 p-3 rounded-2xl transition-colors -mx-1 border border-transparent",
+                                                                cartEnabled ? "hover:bg-gray-50 cursor-pointer hover:border-gray-100" : "cursor-default opacity-70"
+                                                            )}
                                                         >
                                                             {/* Image - Larger */}
                                                             <div className="w-[88px] h-[88px] flex-shrink-0 rounded-xl overflow-hidden bg-gray-100">
@@ -1486,7 +1471,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
 
                         {/* 4. FLOATING CART BAR - Auto-hides after 4 seconds - Only show when business is open */}
                         <AnimatePresence>
-                            {isBusinessOpen && totalItems > 0 && showCartBar && !showCheckout && (
+                            {cartEnabled && isBusinessOpen && totalItems > 0 && showCartBar && !showCheckout && (
                                 <motion.div
                                     initial={{ y: 100, opacity: 0 }}
                                     animate={{ y: 0, opacity: 1 }}
@@ -1526,7 +1511,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                     </div>
 
                     {/* Modals */}
-                    {mounted && showProductDetail && (
+                    {mounted && cartEnabled && showProductDetail && (
                         createPortal(
                             <ProductDetailModal
                                 product={selectedProduct}
@@ -1539,7 +1524,7 @@ export function FastFoodInlineMenu({ isOpen, businessSlug, businessName, busines
                         )
                     )}
 
-                    {mounted && showCheckout && (
+                    {mounted && cartEnabled && showCheckout && (
                         createPortal(
                             <CheckoutModal
                                 isOpen={showCheckout}

@@ -16,36 +16,18 @@ const response: typeof import("./order-response") = await import(new URL("./orde
 
 const created = { orderId: "order-1", orderNumber: "#1234", status: "pending" as const, wasCreated: true };
 
-test("direct orders dispatches exactly once only for a newly created order", async () => {
-  const calls: unknown[] = [];
-  const result = await response.finalizeFastFoodOrder({ businessId: "business-1", result: created }, {
-    dispatch: async (input) => { calls.push(input); return { success: true }; },
-    reportError: () => undefined
+test("direct order response is stable while durable notification ownership stays in the RPC", () => {
+  assert.deepEqual(response.finalizeFastFoodOrder(created), {
+    body: { success: true, orderId: "order-1", orderNumber: "#1234", status: "pending" },
+    creationHeader: "1"
   });
-  assert.deepEqual(calls, [{ businessId: "business-1", orderId: "order-1", status: "pending" }]);
-  assert.deepEqual(result.body, { success: true, orderId: "order-1", orderNumber: "#1234", status: "pending" });
-  assert.equal(result.creationHeader, "1");
+  assert.equal(response.finalizeFastFoodOrder({ ...created, wasCreated: false }).creationHeader, "0");
 });
 
-test("idempotent direct replay skips dispatch and notification failure preserves order response", async () => {
-  let replayCalls = 0;
-  const replay = await response.finalizeFastFoodOrder({ businessId: "business-1", result: { ...created, wasCreated: false } }, {
-    dispatch: async () => { replayCalls += 1; return { success: true }; },
-    reportError: () => undefined
-  });
-  assert.equal(replayCalls, 0);
-  assert.equal(replay.creationHeader, "0");
-
-  const errors: unknown[] = [];
-  const failedNotification = await response.finalizeFastFoodOrder({ businessId: "business-1", result: created }, {
-    dispatch: async () => ({ error: "provider unavailable", success: false }),
-    reportError: (error) => errors.push(error)
-  });
-  assert.equal(errors.length, 1);
-  assert.deepEqual(failedNotification.body, replay.body);
-});
-
-test("legacy checkout delegates notification ownership to direct orders without a second dispatch", async () => {
-  const source = await readFile(new URL("../checkout/route.ts", import.meta.url), "utf8");
-  assert.doesNotMatch(source, /dispatchStoredFastFoodOrderNotification|notifyCreatedLegacyOrder/);
+test("direct and legacy routes contain no post-commit notification dispatch", async () => {
+  const sources = await Promise.all([
+    readFile(new URL("./route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../checkout/route.ts", import.meta.url), "utf8")
+  ]);
+  assert.doesNotMatch(sources.join("\n"), /dispatchStoredFastFoodOrderNotification|notifyCreatedLegacyOrder|dispatchFastFoodNotificationOutbox/);
 });

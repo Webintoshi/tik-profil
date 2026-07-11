@@ -22,6 +22,7 @@ test("public menu cache reads configured checkout settings from data.settings", 
     products: [],
     settings: {
       cardOnDelivery: false,
+      cartEnabled: false,
       cashPayment: false,
       deliveryEnabled: true,
       deliveryFee: 37.5,
@@ -36,6 +37,7 @@ test("public menu cache reads configured checkout settings from data.settings", 
   }, 123);
   assert.deepEqual(normalized.settings, {
     cardOnDelivery: false,
+    cartEnabled: false,
     cashPayment: false,
     deliveryEnabled: true,
     deliveryFee: 37.5,

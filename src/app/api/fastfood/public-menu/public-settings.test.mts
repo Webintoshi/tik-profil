@@ -16,12 +16,14 @@ const settings: typeof import("./public-settings") = await import(new URL("./pub
 test("public fast-food settings preserve pickup and all payment capabilities", () => {
   assert.deepEqual(settings.mapPublicFastFoodCheckoutSettings({
     card_on_delivery: false,
+    cart_enabled: false,
     cash_payment: false,
     delivery_enabled: true,
     online_payment: true,
     pickup_enabled: false
   }), {
     cardOnDelivery: false,
+    cartEnabled: false,
     cashPayment: false,
     deliveryEnabled: true,
     onlinePayment: true,

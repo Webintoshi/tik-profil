@@ -1,5 +1,6 @@
 const ATOMIC_ORDER_MESSAGES = {
     CATALOG_CHANGED: "Menü bilgileri değişti. Sepeti yenileyip tekrar deneyin.",
+    CART_DISABLED: "İşletme şu anda sepetten sipariş almıyor.",
     COUPON_FIRST_ORDER_ONLY: "Bu kupon yalnızca ilk siparişte kullanılabilir.",
     COUPON_INVALID: "Kupon geçersiz veya kullanım koşulları değişti.",
     COUPON_USER_LIMIT: "Bu kupon için kullanım limitinize ulaştınız.",
@@ -12,6 +13,8 @@ const ATOMIC_ORDER_MESSAGES = {
     PICKUP_DISABLED: "Mağazadan teslim şu anda kullanılamıyor.",
     PRICE_MISMATCH: "Ürün fiyatı veya sipariş toplamı değişti.",
     PRODUCT_UNAVAILABLE: "Sepetteki bir ürün artık kullanılamıyor.",
+    TABLE_INVALID: "Masa bu işletme için kullanılamıyor.",
+    TABLE_REQUIRED: "Masa siparişi için geçerli bir masa gerekli.",
 } as const;
 
 export function mapAtomicOrderError(error: { message: string }) {

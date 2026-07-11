@@ -41,13 +41,3 @@ export async function prepareStoredFastFoodOrderNotification(
         },
     });
 }
-
-export async function dispatchStoredFastFoodOrderNotification(
-    input: StoredNotificationInput,
-): Promise<FastFoodNotificationResult> {
-    const result = await prepareStoredFastFoodOrderNotification(input);
-    if (result.success && !result.disabled && result.whatsappUrl) {
-        console.info("[FastFood Order Notification]", result.whatsappUrl);
-    }
-    return result;
-}

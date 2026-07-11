@@ -3,7 +3,6 @@ import { AppError } from '@/lib/errors';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { CustomerAuthenticationError } from '@/server/auth/customer-session';
 import { requireCustomer } from '@/server/auth/guards';
-import { dispatchStoredFastFoodOrderNotification } from '@/server/fastfood/order-notification-repository';
 
 import {
     createFastFoodOrder,
@@ -143,6 +142,7 @@ async function loadCatalog(businessId: string): Promise<{
         })),
         settings: {
             cardOnDelivery: settings?.card_on_delivery !== false,
+            cartEnabled: settings?.cart_enabled !== false,
             cashPayment: settings?.cash_payment !== false,
             deliveryEnabled: settings?.delivery_enabled !== false,
             deliveryFee: number(settings?.delivery_fee),
@@ -278,14 +278,7 @@ export async function POST(request: Request) {
     try {
         const body: unknown = await request.json();
         const result = await createFastFoodOrder(body, createOrderDependencies(request));
-        const bodyRecord = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
-        const finalized = await finalizeFastFoodOrder({
-            businessId: String(bodyRecord.businessId || ''),
-            result,
-        }, {
-            dispatch: dispatchStoredFastFoodOrderNotification,
-            reportError: (notifyError) => console.error('[FastFood Order Notification]', notifyError),
-        });
+        const finalized = finalizeFastFoodOrder(result);
         return Response.json(finalized.body, {
             headers: { 'x-fastfood-order-created': finalized.creationHeader },
         });
