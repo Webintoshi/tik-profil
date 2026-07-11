@@ -7,8 +7,8 @@ Keep Logto's standards-based authentication security while making the sign-in jo
 ## Authentication Experience
 
 - Logto remains the identity provider and the authorization-code plus PKCE flow remains unchanged.
-- The hosted Logto experience is replaced with a Tık Profil-branded custom UI using Logto's Bring your UI capability.
-- The custom experience uses the mobile application's Jost typography, amber brand color, light/dark surface tokens, Tık logo, Turkish copy, and existing button hierarchy.
+- The hosted Logto experience is branded with application-level Custom CSS so every built-in Logto flow remains available.
+- The branded experience uses the mobile application's Jost typography, amber brand color, light/dark surface tokens, Tık logo, Turkish copy, and existing button hierarchy.
 - Android opens authentication in the secure system-backed in-app browser tab and returns through `tikprofil://auth/callback`.
 - Web uses the current tab and returns to `/account`; no popup or additional browser tab is created.
 - Email/password, registration, password recovery, Apple, and Google actions remain owned by Logto. Credentials are never collected or stored by the Tık Profil application.
@@ -26,13 +26,13 @@ Keep Logto's standards-based authentication security while making the sign-in jo
 
 - `apps/mobile/src/auth`: owns PKCE, redirects, callback verification, tokens, and session adoption only.
 - `apps/mobile/src/components/account`: owns the local account entry presentation and sign-in actions.
-- Logto custom experience package: owns only the hosted authentication presentation and calls Logto Experience APIs; it does not call Tık Profil customer APIs.
+- `infra/logto/tikprofil-sign-in.css`: owns only the hosted authentication presentation and does not call Tık Profil customer APIs.
 - `apps/mobile/app/(tabs)/account.tsx`: owns the restored theme orb control.
 
 ## Failure Handling
 
 - Missing or expired OAuth state fails closed and clears transient callback data.
-- A failed Logto experience load shows a retry action and never falls back to an embedded WebView.
+- A failed Logto experience load preserves Logto's built-in retry behavior and never falls back to an embedded WebView.
 - Android cancellation returns to the application without creating a session.
 - Theme changes remain local and work even when authentication is unavailable.
 
@@ -49,4 +49,5 @@ Keep Logto's standards-based authentication security while making the sign-in jo
 - No password grant or application-owned password storage.
 - No OAuth flow inside an embedded WebView.
 - No replacement of Logto with a new identity backend.
+- No partial Bring your UI package that removes password recovery, social sign-in, or future MFA support.
 - No unrelated account-page or navigation redesign.
