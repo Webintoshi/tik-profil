@@ -1,0 +1,124 @@
+#app {
+  --tik-amber: #ffb347;
+  --tik-amber-deep: #8a4a00;
+  --tik-canvas: #faf8f4;
+  --tik-surface: #ffffff;
+  --tik-ink: #1d1912;
+  --tik-muted: #625a50;
+  --tik-border: #e9e1d5;
+  font-family: Jost, "Trebuchet MS", sans-serif;
+  color: var(--tik-ink);
+  background: var(--tik-canvas);
+}
+
+#app .logto_page-container {
+  min-height: 100vh;
+  background: var(--tik-canvas);
+}
+
+#app .logto_main-content {
+  width: min(100% - 2rem, 28rem);
+  margin: 0 auto;
+  padding: 2rem 0 3rem;
+}
+
+#app .logto_branding-header {
+  margin-bottom: 1.5rem;
+  color: var(--tik-ink);
+  text-align: center;
+}
+
+#app input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+#app select,
+#app textarea {
+  width: 100%;
+  min-height: 2.875rem;
+  border: 1px solid var(--tik-border);
+  border-radius: 0.5rem;
+  background: var(--tik-surface);
+  color: var(--tik-ink);
+  padding: 0.7rem 0.85rem;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+#app input::placeholder,
+#app textarea::placeholder {
+  color: var(--tik-muted);
+  opacity: 0.8;
+}
+
+#app input:focus-visible,
+#app select:focus-visible,
+#app textarea:focus-visible,
+#app button:focus-visible,
+#app a:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--tik-amber) 60%, transparent);
+  outline-offset: 2px;
+}
+
+#app button[type="submit"] {
+  width: 100%;
+  min-height: 2.875rem;
+  margin-top: 0.75rem;
+  border: 1px solid var(--tik-amber-deep);
+  border-radius: 0.5rem;
+  background: var(--tik-amber);
+  color: var(--tik-ink);
+  padding: 0.7rem 1rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#app button[type="submit"]:hover {
+  background: color-mix(in srgb, var(--tik-amber) 82%, white);
+}
+
+#app a {
+  color: var(--tik-amber-deep);
+  text-decoration-thickness: 0.1em;
+  text-underline-offset: 0.16em;
+}
+
+#app .logto_main-content > :last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 30rem) {
+  #app .logto_main-content {
+    width: min(100% - 1.25rem, 28rem);
+    padding-top: 1.25rem;
+    padding-bottom: 2rem;
+  }
+
+  #app .logto_branding-header {
+    margin-bottom: 1.125rem;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  #app {
+    --tik-canvas: #1d1912;
+    --tik-surface: #2a251e;
+    --tik-ink: #fff8ed;
+    --tik-muted: #c7bcae;
+    --tik-border: #5b5043;
+    --tik-amber-deep: #ffc875;
+  }
+
+  #app .logto_page-container {
+    background: var(--tik-canvas);
+  }
+
+  #app input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  #app select,
+  #app textarea {
+    background: var(--tik-surface);
+    color: var(--tik-ink);
+  }
+
+  #app button[type="submit"] {
+    color: #1d1912;
+  }
+}
