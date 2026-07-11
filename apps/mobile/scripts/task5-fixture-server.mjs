@@ -16,17 +16,51 @@ const products = Array.from({ length: 14 }, (_, index) => ({
   ...(index === 1 ? { extraGroupIds: ["fixture-sauce"] } : {})
 }));
 
-const task7Products = Array.from({ length: 200 }, (_, index) => ({
-  categoryId: index < 100 ? "popular" : "second",
-  description: `Task 7 deterministic product ${index + 1}`,
-  id: `task7-product-${index + 1}`,
-  image: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" id="task7-image-${index + 1}" width="112" height="104"><rect width="112" height="104" fill="teal"/></svg>`,
-  imageUrl: null,
-  inStock: true,
-  name: `Task 7 Ürünü ${index + 1}`,
-  price: 100 + index,
-  sortOrder: index
+const task7Products = Array.from({ length: 200 }, (_, index) => {
+  const itemNumber = index + 1;
+  const [red, green, blue] = task7ProductColor(itemNumber);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" data-product="${itemNumber}" width="112" height="104"><rect width="112" height="104" fill="rgb(${red},${green},${blue})"/></svg>`;
+  return {
+    categoryId: index < 100 ? "popular" : "second",
+    description: `Task 7 deterministic product ${itemNumber}`,
+    id: `task7-product-${itemNumber}`,
+    image: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`,
+    imageUrl: null,
+    inStock: true,
+    name: `Task 7 Ürünü ${itemNumber}`,
+    price: 100 + index,
+    sortOrder: index
+  };
+});
+
+const task7EcommerceProducts = Array.from({ length: 12 }, (_, index) => ({
+  businessId: "88888888-8888-4888-8888-888888888888",
+  categoryId: index < 6 ? "home" : "office",
+  categoryName: index < 6 ? "Home" : "Office",
+  description: `Distinct ecommerce fixture product ${index + 1}`,
+  id: `task7-ecommerce-product-${index + 1}`,
+  images: [],
+  isActive: true,
+  name: `Ecommerce Product ${index + 1}`,
+  price: 40 + index,
+  sortOrder: index,
+  status: "active",
+  stock: 20,
+  trackStock: true
 }));
+
+const task7EcommerceSettings = {
+  checkoutSettings: { allowNotes: true, requireAddress: true, requireEmail: false, requirePhone: true },
+  currency: "TRY",
+  freeShippingThreshold: 500,
+  id: "88888888-8888-4888-8888-888888888888",
+  minOrderAmount: 0,
+  paymentMethods: { card: false, cash: true, online: false, transfer: false },
+  shippingOptions: [{ estimatedDays: "2 days", id: "standard", isActive: true, name: "Standard", price: 49.9 }],
+  storeDescription: "Task 7 checkout fixture",
+  storeName: "Task 7 Ecommerce",
+  taxRate: 0
+};
 
 const task7Businesses = Array.from({ length: 13 }, (_, index) => ({
   category: "fast_food",
@@ -79,7 +113,9 @@ const baseProfile = {
   modules: ["fastfood"],
   hasRestaurantModule: false,
   cartEnabled: true,
-  social: {}
+  showHours: false,
+  social: {},
+  workingHours: null
 };
 
 const baseMenu = {
@@ -120,6 +156,7 @@ const server = http.createServer(async (request, response) => {
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   response.setHeader("Access-Control-Allow-Origin", "*");
+  response.setHeader("Cache-Control", "no-store");
 
   if (request.method === "OPTIONS") {
     response.writeHead(204).end();
@@ -143,6 +180,12 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "GET" && url.pathname.startsWith("/api/")) recordRequest(url);
   if (task7ResponseDelayMs > 0 && ["/api/kesfet", "/api/kesfet/categories", "/api/cities"].includes(url.pathname)) {
     await new Promise((resolve) => setTimeout(resolve, task7ResponseDelayMs));
+  }
+  if (task7ResponseDelayMs > 0 && (
+    url.pathname === "/api/public/profile/task7-business"
+    || url.pathname.startsWith("/api/public/profile/task7-profile-")
+  )) {
+    await new Promise((resolve) => setTimeout(resolve, Math.max(5_000, task7ResponseDelayMs)));
   }
 
   if (url.pathname.startsWith("/api/public/profile/")) {
@@ -185,6 +228,19 @@ const server = http.createServer(async (request, response) => {
     };
   } else if (url.pathname === "/api/fastfood/orders" && request.method === "POST") {
     body = { orderId: "fixture-order", orderNumber: "T5-001", status: "pending", success: true };
+  } else if (url.pathname === "/api/public/products") {
+    body = {
+      categories: [
+        { id: "home", name: "Home", sortOrder: 0 },
+        { id: "office", name: "Office", sortOrder: 1 }
+      ],
+      products: task7EcommerceProducts,
+      success: true
+    };
+  } else if (url.pathname === "/api/public/ecommerce-settings") {
+    body = { settings: task7EcommerceSettings, success: true };
+  } else if (url.pathname === "/api/public/checkout" && request.method === "POST") {
+    body = { orderId: "task7-ecommerce-order", orderNumber: "T7-E-001", success: true, total: 131.9 };
   } else {
     response.writeHead(404, { "Content-Type": "application/json" });
     response.end(JSON.stringify({ error: "Not found" }));
@@ -207,6 +263,7 @@ process.on("SIGINT", close);
 process.on("SIGTERM", close);
 
 function buildProfile(slug) {
+  const isGeometryProfile = /^task7-profile-(360|390|430)$/.test(slug);
   const knownSlugs = new Set([
     "task5-fixture",
     "task5-loading",
@@ -215,19 +272,21 @@ function buildProfile(slug) {
     "task5-cart-disabled",
     "task5-restaurant",
     "task7-200",
-    "task7-business"
+    "task7-business",
+    "task7-ecommerce"
   ]);
-  if (!knownSlugs.has(slug)) return null;
+  if (!knownSlugs.has(slug) && !isGeometryProfile) return null;
 
   const isRestaurant = slug === "task5-restaurant";
+  const isEcommerce = slug === "task7-ecommerce";
   return {
     ...baseProfile,
     hasRestaurantModule: isRestaurant,
-    industry: isRestaurant ? "restaurant" : "fastfood",
-    industryLabel: isRestaurant ? "Restoran" : "Fast Food",
-    modules: [isRestaurant ? "restaurant" : "fastfood"],
-    id: slug.startsWith("task7-") ? "77777777-7777-4777-8777-777777777777" : baseProfile.id,
-    name: slug === "task7-business" ? "Task 7 Test İşletmesi" : slug === "task7-200" ? "Task 7 200 Ürün" : baseProfile.name,
+    industry: isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood",
+    industryLabel: isEcommerce ? "Ecommerce" : isRestaurant ? "Restoran" : "Fast Food",
+    modules: [isEcommerce ? "ecommerce" : isRestaurant ? "restaurant" : "fastfood"],
+    id: isEcommerce ? task7EcommerceSettings.id : slug.startsWith("task7-") ? "77777777-7777-4777-8777-777777777777" : baseProfile.id,
+    name: isEcommerce ? "Task 7 Ecommerce" : slug === "task7-business" ? "Task 7 Test İşletmesi" : slug === "task7-200" ? "Task 7 200 Ürün" : baseProfile.name,
     slug
   };
 }
@@ -276,4 +335,12 @@ function recordRequest(url) {
     pathname: url.pathname,
     search
   });
+}
+
+function task7ProductColor(itemNumber) {
+  return [
+    32 + (itemNumber * 37) % 192,
+    32 + (itemNumber * 67) % 192,
+    32 + (itemNumber * 97) % 192
+  ];
 }

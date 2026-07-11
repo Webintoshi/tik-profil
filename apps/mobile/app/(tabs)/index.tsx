@@ -26,11 +26,15 @@ import { useDiscoveryStore } from "@/state/discovery-store";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { useThemeMode } from "@/theme/theme-store";
 
+const disableLocalBootstrap = process.env.EXPO_PUBLIC_DISABLE_LOCAL_DISCOVERY_BOOTSTRAP === "1";
+
 export default function DiscoverScreen() {
   const { isDark } = useThemeMode();
   const discovery = useDiscoveryStore();
   const { width } = useWindowDimensions();
-  const initialDiscovery = React.useMemo(() => getLocalDiscoveryBootstrap(), []);
+  const initialDiscovery = React.useMemo(() => disableLocalBootstrap
+    ? { businesses: [], categories: [], cityGuide: null }
+    : getLocalDiscoveryBootstrap(), []);
   const [businesses, setBusinesses] = React.useState<KesfetBusiness[]>(initialDiscovery.businesses);
   const [categories, setCategories] = React.useState<KesfetCategory[]>(initialDiscovery.categories);
   const [cityGuide, setCityGuide] = React.useState<CityGuideResponse | null>(initialDiscovery.cityGuide);
@@ -41,7 +45,7 @@ export default function DiscoverScreen() {
   const [requestedCategoryPageKey, setRequestedCategoryPageKey] = React.useState(0);
   const [coordinates, setCoordinates] = React.useState<Coordinates | null>(null);
   const [district, setDistrict] = React.useState<string | null>(PILOT_DISTRICT);
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(disableLocalBootstrap);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [isLocating, setIsLocating] = React.useState(false);
   const requestGuardRef = React.useRef(createLatestRequestGuard());
@@ -224,9 +228,7 @@ export default function DiscoverScreen() {
         </View>
 
         {isLoading ? (
-          <View style={{ gap: spacing.md, paddingHorizontal: spacing.screen }}>
-            <FeaturedBusinessSkeleton />
-          </View>
+          <FeaturedBusinessSkeleton />
         ) : (
           <FeaturedBusinessesBanner businesses={featured} />
         )}

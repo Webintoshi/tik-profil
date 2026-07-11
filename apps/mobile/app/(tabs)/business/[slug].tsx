@@ -35,7 +35,7 @@ import {
   FoodMenuPanel,
   useFoodMenuController
 } from "@/components/business/FoodMenuPanel";
-import { getOrderSurfaceBottomPadding } from "@/components/business/menu-layout";
+import { getCompactMenuMinHeight, getOrderSurfaceBottomPadding } from "@/components/business/menu-layout";
 import { ProfileActionBar } from "@/components/business/ProfileActionBar";
 import { StickyCartBar } from "@/components/business/StickyCartBar";
 import { useCustomerSession } from "@/auth/auth-store";
@@ -418,6 +418,7 @@ function EcommerceOrderPanel({
   businessName: string;
 }) {
   const { height: screenHeight } = useWindowDimensions();
+  const checkoutViewportHeight = getCompactMenuMinHeight(screenHeight);
   const actionColors = getActionColors();
   const [categories, setCategories] = React.useState<PublicEcommerceCategory[]>([]);
   const [products, setProducts] = React.useState<PublicEcommerceProduct[]>([]);
@@ -578,6 +579,7 @@ function EcommerceOrderPanel({
         borderColor: colors.border,
         borderRadius: 24,
         borderWidth: 1,
+        height: step === "info" || step === "confirm" ? checkoutViewportHeight : undefined,
         overflow: "hidden",
         ...shadows.soft
       }}
@@ -788,7 +790,14 @@ function EcommerceOrderPanel({
           </View>
         </>
       ) : step === "info" ? (
-        <View style={{ gap: spacing.md, padding: spacing.lg }}>
+        <ScrollView
+          contentContainerStyle={{ gap: spacing.md, padding: spacing.lg, paddingBottom: spacing.xl }}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+          style={{ flex: 1, minHeight: 0 }}
+          testID="ecommerce-info-scroll"
+        >
           <EcommerceInput label="Ad Soyad" value={form.name} onChangeText={(value) => setForm((current) => ({ ...current, name: value }))} />
           <EcommerceInput label="Telefon" keyboardType="phone-pad" value={form.phone} onChangeText={(value) => setForm((current) => ({ ...current, phone: value }))} />
           <EcommerceInput label="E-posta" keyboardType="email-address" value={form.email} onChangeText={(value) => setForm((current) => ({ ...current, email: value }))} />
@@ -802,12 +811,22 @@ function EcommerceOrderPanel({
             </View>
           </View>
           <EcommerceInput label="Sipariş notu" multiline value={form.notes} onChangeText={(value) => setForm((current) => ({ ...current, notes: value }))} />
-          <EcommerceInput label="Kupon kodu" autoCapitalize="characters" value={form.couponCode} onChangeText={(value) => setForm((current) => ({ ...current, couponCode: value }))} />
-        </View>
+          <EcommerceInput label="Kupon kodu" autoCapitalize="characters" testID="ecommerce-coupon-input" value={form.couponCode} onChangeText={(value) => setForm((current) => ({ ...current, couponCode: value }))} />
+        </ScrollView>
       ) : (
-        <View style={{ gap: spacing.md, padding: spacing.lg }}>
-          {cartRows.map((item) => (
-            <View key={item.product.id} style={{ flexDirection: "row", justifyContent: "space-between", gap: spacing.md }}>
+        <ScrollView
+          contentContainerStyle={{ gap: spacing.md, padding: spacing.lg, paddingBottom: spacing.xl }}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+          style={{ flex: 1, minHeight: 0 }}
+          testID="ecommerce-confirm-scroll"
+        >
+          {cartRows.map((item, index) => (
+            <View
+              key={item.product.id}
+              testID={index === cartRows.length - 1 ? "ecommerce-confirm-last-row" : undefined}
+              style={{ flexDirection: "row", justifyContent: "space-between", gap: spacing.md }}
+            >
               <Text style={{ ...typography.body, color: colors.ink, flex: 1 }}>
                 {item.quantity} x {item.product.name}
               </Text>
@@ -826,11 +845,12 @@ function EcommerceOrderPanel({
               {form.address}, {form.district ? `${form.district} ` : ""}{form.city}
             </Text>
           </View>
-        </View>
+        </ScrollView>
       )}
 
       {step !== "success" && cartRows.length > 0 ? (
         <View
+          testID="ecommerce-checkout-footer"
           style={{
             backgroundColor: colors.surface,
             borderTopColor: colors.border,

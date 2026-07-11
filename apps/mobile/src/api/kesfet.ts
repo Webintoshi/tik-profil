@@ -288,6 +288,11 @@ export interface PublicEcommerceSettings {
   };
 }
 
+export interface PublicEcommerceSettingsResponse {
+  success: boolean;
+  settings: PublicEcommerceSettings;
+}
+
 export interface PublicEcommerceCheckoutInput {
   businessId: string;
   items: Array<{
@@ -955,12 +960,13 @@ export async function fetchPublicEcommerceSettings(
     return null;
   }
 
-  return getJson<PublicEcommerceSettings | null>(
+  const response = await getJson<PublicEcommerceSettingsResponse | null>(
     buildUrl("/api/public/ecommerce-settings", { businessId: businessId.trim() }),
     null,
     CACHE_TTL.ecommerce,
-    isNullableObject
+    isEcommerceSettingsResponse
   );
+  return response?.settings ?? null;
 }
 
 export function invalidatePublicEcommerceCache(businessId: string) {
@@ -1057,43 +1063,179 @@ export async function fetchCityGuide(city: string): Promise<CityGuideResponse | 
     : fallback;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isOptionalString(value: unknown) {
+  return value === undefined || value === null || typeof value === "string";
+}
+
+function isNullableString(value: unknown) {
+  return value === null || typeof value === "string";
+}
+
+function isNullableFiniteNumber(value: unknown) {
+  return value === null || isFiniteNumber(value);
+}
+
+function isKesfetBusiness(value: unknown): value is KesfetBusiness {
+  if (!isRecord(value)) return false;
+  return isNonEmptyString(value.id)
+    && isNonEmptyString(value.slug)
+    && isNonEmptyString(value.name)
+    && isNonEmptyString(value.category)
+    && isNonEmptyString(value.categoryLabel)
+    && isNullableString(value.coverImage)
+    && isNullableString(value.logoUrl)
+    && isNullableString(value.industryId)
+    && isNullableString(value.district)
+    && isNullableString(value.city)
+    && isNullableFiniteNumber(value.lat)
+    && isNullableFiniteNumber(value.lng)
+    && isNullableFiniteNumber(value.rating)
+    && isNullableFiniteNumber(value.reviewCount)
+    && isNullableString(value.createdAt)
+    && isNullableFiniteNumber(value.distance);
+}
+
+function isFoodMenuExtra(value: unknown): value is PublicFoodMenuExtra {
+  return isRecord(value)
+    && isNonEmptyString(value.id)
+    && isNonEmptyString(value.groupId)
+    && isNonEmptyString(value.name)
+    && isFiniteNumber(value.priceModifier);
+}
+
+function isFoodMenuData(value: unknown): value is PublicFoodMenuData {
+  if (!isRecord(value)
+    || !isNonEmptyString(value.businessId)
+    || !isNonEmptyString(value.businessName)
+    || !Array.isArray(value.categories)
+    || !Array.isArray(value.products)) {
+    return false;
+  }
+
+  const categoriesValid = value.categories.every((category) => isRecord(category)
+    && isNonEmptyString(category.id)
+    && isNonEmptyString(category.name));
+  const productsValid = value.products.every((product) => isRecord(product)
+    && isNonEmptyString(product.id)
+    && isNonEmptyString(product.name)
+    && isNonEmptyString(product.categoryId)
+    && isFiniteNumber(product.price));
+  const extrasValid = value.extras === undefined || (Array.isArray(value.extras) && value.extras.every(isFoodMenuExtra));
+  const groupsValid = value.extraGroups === undefined || (Array.isArray(value.extraGroups) && value.extraGroups.every((group) => isRecord(group)
+    && isNonEmptyString(group.id)
+    && isNonEmptyString(group.name)
+    && Array.isArray(group.extras)
+    && group.extras.every(isFoodMenuExtra)));
+  return categoriesValid && productsValid && extrasValid && groupsValid;
+}
+
 function isSuccessResponse(value: unknown): value is PublicFoodMenuResponse {
-  return typeof value === "object" && value !== null && typeof (value as { success?: unknown }).success === "boolean";
+  return isRecord(value) && value.success === true && isFoodMenuData(value.data);
 }
 
 function isPublicProfileResponse(value: unknown): value is PublicProfileResponse {
-  if (typeof value !== "object" || value === null) return false;
-  const response = value as { profile?: unknown; success?: unknown };
-  return typeof response.success === "boolean"
-    && (response.profile === null || typeof response.profile === "object");
+  if (!isRecord(value) || value.success !== true) return false;
+  if (value.profile === null) return isNonEmptyString(value.redirectTarget);
+  if (!isRecord(value.profile)) return false;
+
+  const profile = value.profile;
+  return isNonEmptyString(profile.id)
+    && isNonEmptyString(profile.slug)
+    && isNonEmptyString(profile.name)
+    && isNonEmptyString(profile.industry)
+    && isNonEmptyString(profile.industryLabel)
+    && typeof profile.isVerified === "boolean"
+    && typeof profile.showHours === "boolean"
+    && Array.isArray(profile.modules)
+    && profile.modules.every((module) => typeof module === "string")
+    && typeof profile.hasRestaurantModule === "boolean"
+    && typeof profile.cartEnabled === "boolean"
+    && Object.hasOwn(profile, "workingHours")
+    && isOptionalString(profile.logo)
+    && isOptionalString(profile.cover)
+    && isOptionalString(profile.phone)
+    && isOptionalString(profile.whatsapp)
+    && isOptionalString(profile.about)
+    && isOptionalString(profile.address)
+    && isOptionalString(profile.mapsUrl)
+    && isRecord(profile.social)
+    && Object.values(profile.social).every(isOptionalString);
 }
 
 function isEcommerceProductsResponse(value: unknown): value is PublicEcommerceProductsResponse {
-  if (typeof value !== "object" || value === null) return false;
-  const response = value as { categories?: unknown; products?: unknown; success?: unknown };
-  return typeof response.success === "boolean" && Array.isArray(response.categories) && Array.isArray(response.products);
+  if (!isRecord(value) || value.success !== true || !Array.isArray(value.categories) || !Array.isArray(value.products)) {
+    return false;
+  }
+  return value.categories.every((category) => isRecord(category)
+      && isNonEmptyString(category.id)
+      && isNonEmptyString(category.name))
+    && value.products.every((product) => isRecord(product)
+      && isNonEmptyString(product.id)
+      && isNonEmptyString(product.name)
+      && isFiniteNumber(product.price));
 }
 
-function isNullableObject(value: unknown): value is PublicEcommerceSettings | null {
-  return value === null || typeof value === "object";
+function isEcommerceSettingsResponse(value: unknown): value is PublicEcommerceSettingsResponse {
+  if (!isRecord(value) || value.success !== true || !isRecord(value.settings)) return false;
+  const settings = value.settings;
+  return isNonEmptyString(settings.id)
+    && isNonEmptyString(settings.storeName)
+    && typeof settings.storeDescription === "string"
+    && isNonEmptyString(settings.currency)
+    && isFiniteNumber(settings.minOrderAmount)
+    && isFiniteNumber(settings.taxRate)
+    && Array.isArray(settings.shippingOptions)
+    && settings.shippingOptions.every((option) => isRecord(option)
+      && isNonEmptyString(option.id)
+      && isNonEmptyString(option.name)
+      && (option.price === undefined || isFiniteNumber(option.price))
+      && (option.fee === undefined || isFiniteNumber(option.fee)))
+    && isRecord(settings.paymentMethods)
+    && Object.values(settings.paymentMethods).every((enabled) => typeof enabled === "boolean")
+    && isRecord(settings.checkoutSettings)
+    && typeof settings.checkoutSettings.requirePhone === "boolean"
+    && typeof settings.checkoutSettings.requireEmail === "boolean"
+    && typeof settings.checkoutSettings.requireAddress === "boolean"
+    && typeof settings.checkoutSettings.allowNotes === "boolean";
 }
 
 function isDiscoveryResponse(value: unknown): value is PaginatedKesfetResponse {
-  if (typeof value !== "object" || value === null) return false;
-  const response = value as { businesses?: unknown; success?: unknown };
-  return typeof response.success === "boolean" && Array.isArray(response.businesses);
+  return isRecord(value)
+    && value.success === true
+    && Array.isArray(value.businesses)
+    && value.businesses.every(isKesfetBusiness)
+    && isFiniteNumber(value.total)
+    && isFiniteNumber(value.page)
+    && isFiniteNumber(value.limit)
+    && typeof value.hasMore === "boolean";
 }
 
 function isSearchResponse(value: unknown): value is SearchResponse {
-  if (typeof value !== "object" || value === null) return false;
-  const response = value as { businesses?: unknown; success?: unknown };
-  return typeof response.success === "boolean" && Array.isArray(response.businesses);
+  return isRecord(value)
+    && value.success === true
+    && Array.isArray(value.businesses)
+    && value.businesses.every(isKesfetBusiness)
+    && isFiniteNumber(value.total);
 }
 
 function isCategoriesResponse(value: unknown): value is CategoriesResponse {
-  if (typeof value !== "object" || value === null) return false;
-  const response = value as { categories?: unknown; success?: unknown };
-  return typeof response.success === "boolean" && Array.isArray(response.categories);
+  return isRecord(value)
+    && value.success === true
+    && Array.isArray(value.categories)
+    && value.categories.every((category) => isRecord(category)
+      && isNonEmptyString(category.id)
+      && isNonEmptyString(category.label)
+      && typeof category.emoji === "string"
+      && isFiniteNumber(category.count))
+    && isFiniteNumber(value.total);
 }
 
 function isCityGuideResponse(value: unknown): value is CityGuideResponse {

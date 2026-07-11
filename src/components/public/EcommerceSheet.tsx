@@ -99,10 +99,11 @@ export default function EcommerceSheet({
                 const res = await fetch(`/api/public/ecommerce-settings?businessId=${businessId}`);
                 if (res.ok) {
                     const data = await res.json();
-                    setSettings(data);
+                    if (data?.success !== true || !data.settings) return;
+                    setSettings(data.settings);
                     // Set default shipping option
-                    if (data.shippingOptions?.length > 0) {
-                        const activeOption = data.shippingOptions.find((o: ShippingOption) => o.isActive);
+                    if (data.settings.shippingOptions?.length > 0) {
+                        const activeOption = data.settings.shippingOptions.find((o: ShippingOption) => o.isActive);
                         if (activeOption) setSelectedShippingOption(activeOption);
                     }
                 }

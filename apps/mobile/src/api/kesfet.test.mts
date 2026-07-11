@@ -51,6 +51,41 @@ async function withUnavailableNetwork<T>(run: () => Promise<T>) {
   }
 }
 
+const validProfile = {
+  id: "profile-1",
+  slug: "strict-profile",
+  name: "Strict Profile",
+  industry: "fastfood",
+  industryLabel: "Fast Food",
+  isVerified: false,
+  showHours: false,
+  workingHours: null,
+  modules: ["fastfood"],
+  hasRestaurantModule: false,
+  cartEnabled: true,
+  social: {}
+};
+
+const validMenu = {
+  businessId: "profile-1",
+  businessName: "Strict Profile",
+  categories: [],
+  products: [],
+  settings: { cartEnabled: true }
+};
+
+const validSettings = {
+  id: "profile-1",
+  storeName: "Strict Store",
+  storeDescription: "",
+  currency: "TRY",
+  minOrderAmount: 0,
+  taxRate: 0,
+  shippingOptions: [],
+  paymentMethods: { cash: true },
+  checkoutSettings: { requirePhone: true, requireEmail: false, requireAddress: true, allowNotes: true }
+};
+
 test("local category fallback keeps matching businesses and category metadata", async () => {
   const [businessResponse, categoryResponse] = await withUnavailableNetwork(() => Promise.all([
     fetchDiscoveryBusinesses({ category: "petshop" }),
@@ -170,10 +205,10 @@ test("all read wrappers dedupe by complete canonical URL", async () => {
   globalThis.fetch = async (input) => {
     const url = String(input);
     requestedUrls.push(url);
-    if (url.includes("/api/public/profile/")) return Response.json({ success: true, profile: null });
-    if (url.includes("public-menu")) return Response.json({ success: true, data: null });
+    if (url.includes("/api/public/profile/")) return Response.json({ success: true, profile: validProfile });
+    if (url.includes("public-menu")) return Response.json({ success: true, data: validMenu });
     if (url.includes("/api/public/products")) return Response.json({ success: true, categories: [], products: [] });
-    if (url.includes("ecommerce-settings")) return Response.json({ enabled: true });
+    if (url.includes("ecommerce-settings")) return Response.json({ success: true, settings: validSettings });
     if (url.includes("/api/cities")) return Response.json({
       id: "ordu", name: "Ordu", plate: 52, coverImage: "https://example.com/ordu.jpg",
       places: [{ id: "one", name: "One", image: "https://example.com/one.jpg", category: "Gezi" }]
@@ -258,9 +293,9 @@ test("menu and storefront invalidation force the next stock read", async () => {
     const url = String(input);
     const key = url.includes("public-menu") ? "menu" : url.includes("/api/public/products") ? "products" : "settings";
     calls.set(key, (calls.get(key) ?? 0) + 1);
-    if (key === "menu") return Response.json({ success: true, data: null });
+    if (key === "menu") return Response.json({ success: true, data: validMenu });
     if (key === "products") return Response.json({ success: true, categories: [], products: [] });
-    return Response.json({ enabled: true });
+    return Response.json({ success: true, settings: validSettings });
   };
 
   try {
@@ -275,6 +310,160 @@ test("menu and storefront invalidation force the next stock read", async () => {
     await Promise.all([fetchPublicEcommerceProducts("business-1"), fetchPublicEcommerceSettings("business-1")]);
 
     assert.deepEqual(Object.fromEntries(calls), { menu: 2, products: 2, settings: 2 });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("application failures and incomplete refreshes retain every usable cached response", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  let now = 20_000;
+  let failing = false;
+  Date.now = () => now;
+
+  const categories = { success: true, categories: [], total: 0 };
+  const discovery = { success: true, businesses: [], total: 0, page: 1, limit: 16, hasMore: false };
+  const products = { success: true, categories: [], products: [] };
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/api/public/profile/")) {
+      return Response.json(failing ? { success: false, profile: validProfile } : { success: true, profile: validProfile });
+    }
+    if (url.includes("public-menu")) {
+      return Response.json(failing ? { success: false, data: validMenu } : { success: true, data: validMenu });
+    }
+    if (url.includes("/api/public/products")) {
+      return Response.json(failing ? { success: false, categories: [], products: [] } : products);
+    }
+    if (url.includes("ecommerce-settings")) {
+      return Response.json(failing ? { success: false, settings: validSettings } : { success: true, settings: validSettings });
+    }
+    if (url.includes("/api/kesfet/categories")) {
+      return Response.json(failing ? { success: false, categories: [], total: 0 } : categories);
+    }
+    return Response.json(failing ? { ...discovery, success: false } : discovery);
+  };
+
+  try {
+    const seeded = {
+      categories: await fetchCategories(),
+      discovery: await fetchDiscoveryBusinesses({ city: "Ordu", limit: 16 }),
+      menu: await fetchPublicFoodMenu("strict-profile", "fastfood"),
+      products: await fetchPublicEcommerceProducts("profile-1"),
+      profile: await fetchPublicProfile("strict-profile"),
+      settings: await fetchPublicEcommerceSettings("profile-1")
+    };
+    assert.deepEqual(seeded.settings, validSettings);
+
+    failing = true;
+    now += 6 * 60_000;
+    const stale = {
+      categories: await fetchCategories(),
+      discovery: await fetchDiscoveryBusinesses({ city: "Ordu", limit: 16 }),
+      menu: await fetchPublicFoodMenu("strict-profile", "fastfood"),
+      products: await fetchPublicEcommerceProducts("profile-1"),
+      profile: await fetchPublicProfile("strict-profile"),
+      settings: await fetchPublicEcommerceSettings("profile-1")
+    };
+    assert.deepEqual(stale, seeded);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const afterFailedRefresh = {
+      categories: await fetchCategories(),
+      discovery: await fetchDiscoveryBusinesses({ city: "Ordu", limit: 16 }),
+      menu: await fetchPublicFoodMenu("strict-profile", "fastfood"),
+      products: await fetchPublicEcommerceProducts("profile-1"),
+      profile: await fetchPublicProfile("strict-profile"),
+      settings: await fetchPublicEcommerceSettings("profile-1")
+    };
+    assert.deepEqual(afterFailedRefresh, seeded);
+  } finally {
+    Date.now = originalNow;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("successful but incomplete bodies are never cached or exposed as usable data", async () => {
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = async () => Response.json({ success: true });
+    await assert.rejects(() => fetchPublicProfile("incomplete"), KesfetHttpError);
+
+    clearRequestCache();
+    assert.equal((await fetchPublicFoodMenu("incomplete", "fastfood")).success, false);
+    clearRequestCache();
+    assert.ok((await fetchDiscoveryBusinesses({ city: "Ordu", limit: 16 })).businesses.length > 0);
+    clearRequestCache();
+    assert.ok((await fetchCategories()).categories.length > 0);
+    clearRequestCache();
+    assert.equal(await fetchPublicEcommerceSettings("incomplete"), null);
+
+    clearRequestCache();
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      return calls === 1
+        ? Response.json({ success: true })
+        : Response.json({ success: true, settings: validSettings });
+    };
+    assert.equal(await fetchPublicEcommerceSettings("retry-valid"), null);
+    assert.deepEqual(await fetchPublicEcommerceSettings("retry-valid"), validSettings);
+    assert.equal(calls, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("nested malformed profile and discovery fields are rejected before caching", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => Response.json({
+      success: true,
+      profile: { ...validProfile, phone: 12345 }
+    });
+    await assert.rejects(() => fetchPublicProfile("nested-invalid"), KesfetHttpError);
+
+    clearRequestCache();
+    globalThis.fetch = async () => Response.json({
+      success: true,
+      businesses: [{
+        id: "bad-business",
+        slug: "bad-business",
+        name: "Bad Business",
+        coverImage: null,
+        logoUrl: null,
+        category: "other",
+        categoryLabel: "Other",
+        industryId: null,
+        district: "Altinordu",
+        city: "Ordu",
+        lat: null,
+        lng: null,
+        rating: "five",
+        reviewCount: null,
+        createdAt: null,
+        distance: null
+      }],
+      total: 1,
+      page: 1,
+      limit: 16,
+      hasMore: false
+    });
+    const fallback = await fetchDiscoveryBusinesses({ city: "Ordu", limit: 16 });
+    assert.notEqual(fallback.businesses[0]?.slug, "bad-business");
+
+    clearRequestCache();
+    globalThis.fetch = async () => Response.json({
+      success: true,
+      data: {
+        ...validMenu,
+        extraGroups: [{ id: "bad-group", name: "Bad Group", extras: [null] }]
+      }
+    });
+    assert.equal((await fetchPublicFoodMenu("nested-invalid", "fastfood")).success, false);
   } finally {
     globalThis.fetch = originalFetch;
   }

@@ -7,6 +7,8 @@ export const CITY_HERO_ASPECT_RATIO = 1.95;
 export const BUSINESS_PROFILE_COVER_HEIGHT = 150;
 export const DENSE_BUSINESS_ROW_HEIGHT = 96;
 export const FEATURED_BUSINESS_IMAGE_HEIGHT = 214;
+export const FEATURED_BUSINESS_CARD_HEIGHT = FEATURED_BUSINESS_IMAGE_HEIGHT + 2;
+export const FEATURED_BUSINESS_HEADER_HEIGHT = 22;
 
 export function getCategoryTileHeight(tileWidth: number) {
   return Math.round(tileWidth * CATEGORY_TILE_ASPECT_RATIO);

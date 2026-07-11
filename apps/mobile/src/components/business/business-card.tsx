@@ -227,6 +227,7 @@ function DenseBusinessListCard({
 
   return (
     <View
+      testID="dense-business-loaded"
       style={{
         alignItems: "center",
         backgroundColor: colors.surface,

@@ -122,3 +122,55 @@ test("invalidation is key-scoped and clear resets every entry", async () => {
   clearRequestCache();
   assert.equal(await cachedGet("two", async () => 20, 1_000), 20);
 });
+
+test("invalidating a cold in-flight entry prevents stale completion from repopulating", async () => {
+  let resolveFirst!: (value: string) => void;
+  let resolveSecond!: (value: string) => void;
+  let calls = 0;
+
+  const first = cachedGet("race", () => {
+    calls += 1;
+    return new Promise<string>((resolve) => { resolveFirst = resolve; });
+  }, 1_000);
+  assert.equal(invalidateRequestCache("race"), true);
+  const second = cachedGet("race", () => {
+    calls += 1;
+    return new Promise<string>((resolve) => { resolveSecond = resolve; });
+  }, 1_000);
+  assert.equal(calls, 2);
+
+  resolveSecond("current");
+  assert.equal(await second, "current");
+  resolveFirst("invalidated");
+  assert.equal(await first, "invalidated");
+  assert.equal(await cachedGet("race", async () => "unexpected", 1_000), "current");
+});
+
+test("invalidating a stale refresh prevents its completion from replacing the next generation", async () => {
+  const originalNow = Date.now;
+  let now = 5_000;
+  Date.now = () => now;
+  let resolveRefresh!: (value: string) => void;
+  let replacementCalls = 0;
+
+  try {
+    assert.equal(await cachedGet("stale-race", async () => "seed", 10), "seed");
+    now = 5_011;
+    assert.equal(await cachedGet("stale-race", () => new Promise<string>((resolve) => {
+      resolveRefresh = resolve;
+    }), 10), "seed");
+    assert.equal(invalidateRequestCache("stale-race"), true);
+
+    const replacement = cachedGet("stale-race", async () => {
+      replacementCalls += 1;
+      return "replacement";
+    }, 10);
+    resolveRefresh("invalidated-refresh");
+    assert.equal(await replacement, "replacement");
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(replacementCalls, 1);
+    assert.equal(await cachedGet("stale-race", async () => "unexpected", 10), "replacement");
+  } finally {
+    Date.now = originalNow;
+  }
+});

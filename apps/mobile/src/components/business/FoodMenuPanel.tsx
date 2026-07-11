@@ -416,7 +416,6 @@ export function FoodMenuPanel({
   const canSubmitOrder = cartEnabled && checkoutValidation === null && deliveryModeAvailable && paymentMethod !== null;
   const couponCartKey = `${subtotal}:${cartRows.map((item) => `${item.product.id}:${item.quantity}`).join("|")}`;
   const menuViewportHeight = getCompactMenuMinHeight(screenHeight);
-  const orderFormMaxHeight = Math.max(430, Math.round(screenHeight * 0.62));
 
   React.useEffect(() => {
     activeCategoryRef.current = activeCategoryId;
@@ -742,6 +741,7 @@ export function FoodMenuPanel({
           borderColor: colors.border,
           borderRadius: 24,
           borderWidth: 1,
+          height: step === "info" || step === "confirm" ? menuViewportHeight : undefined,
           minHeight: menuViewportHeight,
           overflow: "hidden",
           ...shadows.soft
@@ -899,7 +899,7 @@ export function FoodMenuPanel({
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
           showsVerticalScrollIndicator={false}
-          style={{ maxHeight: orderFormMaxHeight }}
+          style={{ flex: 1, minHeight: 0 }}
           testID="food-order-form-scroll"
         >
           {(pickupEnabled || deliveryEnabled) ? (
@@ -1032,9 +1032,19 @@ export function FoodMenuPanel({
           <FoodCheckoutInput label="Sipariş notu" multiline testID="food-notes-input" value={form.notes} onChangeText={(value) => setForm((current) => ({ ...current, notes: value }))} />
         </ScrollView>
       ) : data && step === "confirm" ? (
-        <View style={{ gap: spacing.md, padding: spacing.lg }}>
-          {cartRows.map((item) => (
-            <View key={item.key} style={{ flexDirection: "row", justifyContent: "space-between", gap: spacing.md }}>
+        <ScrollView
+          contentContainerStyle={{ gap: spacing.md, padding: spacing.lg, paddingBottom: spacing.xl }}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+          style={{ flex: 1, minHeight: 0 }}
+          testID="food-order-confirm-scroll"
+        >
+          {cartRows.map((item, index) => (
+            <View
+              key={item.key}
+              testID={index === cartRows.length - 1 ? "food-confirm-last-row" : undefined}
+              style={{ flexDirection: "row", justifyContent: "space-between", gap: spacing.md }}
+            >
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={{ ...typography.body, color: colors.ink }}>
                   {item.quantity} x {item.product.name}
@@ -1064,7 +1074,7 @@ export function FoodMenuPanel({
               Ödeme: {paymentMethod ? getPaymentMethodLabel(paymentMethod) : "-"}
             </Text>
           </View>
-        </View>
+        </ScrollView>
       ) : null}
 
       {cartEnabled && step !== "success" && step !== "products" && cartRows.length > 0 ? (
@@ -1688,6 +1698,7 @@ function FeaturedFoodOrderProductCard({
             recyclingKey={product.id}
             source={{ uri: imageUri }}
             style={{ height: "100%", width: "100%" }}
+            testID={`food-product-image-${product.id}`}
             transition={0}
           />
         ) : (
@@ -1770,6 +1781,7 @@ function CompactFoodOrderProductCard({
               recyclingKey={product.id}
               source={{ uri: imageUri }}
               style={{ height: "100%", width: "100%" }}
+              testID={`food-product-image-${product.id}`}
               transition={0}
             />
           ) : (

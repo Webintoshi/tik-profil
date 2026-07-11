@@ -27,6 +27,8 @@ test("category and surface skeleton geometry matches loaded owners", () => {
   }
 
   assert.equal(geometry.FEATURED_BUSINESS_IMAGE_HEIGHT, 214);
+  assert.equal(geometry.FEATURED_BUSINESS_CARD_HEIGHT, 216);
+  assert.equal(geometry.FEATURED_BUSINESS_HEADER_HEIGHT, 22);
   assert.equal(geometry.DENSE_BUSINESS_ROW_HEIGHT, 96);
   assert.equal(geometry.CITY_HERO_ASPECT_RATIO, 1.95);
   assert.equal(geometry.BUSINESS_PROFILE_COVER_HEIGHT, 150);

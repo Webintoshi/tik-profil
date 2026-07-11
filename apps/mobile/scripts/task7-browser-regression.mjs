@@ -18,6 +18,7 @@ try {
   }));
   children.push(spawnManagedNode(["node_modules/expo/bin/cli", "start", "--web", "--port", String(expoPort)], {
     CI: "1",
+    EXPO_PUBLIC_DISABLE_LOCAL_DISCOVERY_BOOTSTRAP: "1",
     EXPO_PUBLIC_TIKPROFIL_API_URL: fixtureUrl
   }));
 
@@ -35,6 +36,7 @@ try {
   if (!focus || focus === "request") await verifyRequestDedupeAndWarnings(browser);
   if (!focus || focus === "profile") await verifyWarmProfile(browser);
   if (!focus || focus === "list") await verifyTwoHundredProductList(browser);
+  if (!focus || focus === "checkout") await verifyCheckoutScrollOwnership(browser);
   process.stdout.write("Task 7 rendered request/layout/list/warning regression passed.\n");
 } finally {
   await browser?.close();
@@ -47,16 +49,34 @@ async function verifyStableGeometry(browserInstance, viewport) {
   const issues = monitorPage(page);
   try {
     await page.goto(appUrl, { waitUntil: "domcontentloaded" });
-    const targets = ["home-category-section", "featured-business-loaded", "home-business-list-section"];
-    await page.getByTestId(targets[0]).waitFor();
-    await page.waitForTimeout(600);
-    const before = await boxes(page, targets);
-    await page.waitForTimeout(1800);
-    const after = await boxes(page, targets);
-    for (const id of targets) {
-      assertWithin(after[id].y, before[id].y, 1, `${viewport.width} ${id} y shifted`);
-      assertWithin(after[id].height, before[id].height, 1, `${viewport.width} ${id} height shifted`);
+    const homePairs = [
+      ["category-grid-skeleton", "category-grid-loaded", "category"],
+      ["featured-business-skeleton", "featured-business-loaded", "hero"],
+      ["dense-business-skeleton", "dense-business-loaded", "dense row"]
+    ];
+    await page.getByTestId(homePairs[0][0]).waitFor();
+    const skeletonBoxes = {};
+    for (const [skeletonId, , label] of homePairs) {
+      skeletonBoxes[label] = await requiredScrollableBox(page.getByTestId(skeletonId).first(), `${label} skeleton`);
     }
+    for (const [, loadedId] of homePairs) await page.getByTestId(loadedId).first().waitFor();
+    for (const [, loadedId, label] of homePairs) {
+      const loadedBox = await requiredScrollableBox(page.getByTestId(loadedId).first(), `${label} loaded`);
+      assertMatchingBox(loadedBox, skeletonBoxes[label], 1, `${viewport.width} ${label}`);
+    }
+
+    const profilePage = await browserInstance.newPage({ viewport });
+    const profileIssues = monitorPage(profilePage);
+    await profilePage.goto(appUrl, { waitUntil: "domcontentloaded" });
+    const profileCard = profilePage.getByRole("button", { name: /Task 7 Test İşletmesi/ }).first();
+    await profileCard.waitFor();
+    await profileCard.click();
+    const profileSkeleton = await requiredBox(profilePage.getByTestId("business-profile-skeleton-cover"), "profile skeleton cover");
+    await profilePage.getByTestId("business-profile-cover").waitFor();
+    const profileLoaded = await requiredBox(profilePage.getByTestId("business-profile-cover"), "profile loaded cover");
+    assertMatchingBox(profileLoaded, profileSkeleton, 1, `${viewport.width} profile`);
+    await assertPageHealthy(profilePage, profileIssues);
+    await profilePage.close();
     await assertPageHealthy(page, issues);
   } finally {
     await page.close();
@@ -131,13 +151,30 @@ async function verifyTwoHundredProductList(browserInstance) {
       scrollHeight: element.scrollHeight
     }));
     assertWithin(initialMetrics.clientHeight, Math.round(844 * 0.65), 1, "FlashList viewport height mismatch");
-    assert.ok(initialRows < 60, `FlashList mounted ${initialRows} of 200 products initially: ${JSON.stringify(initialMetrics)}`);
-    process.stdout.write(`Task 7 200-product list: initial mounted rows=${initialRows}, viewport=${initialMetrics.clientHeight}px.\n`);
+    const mountedRowBound = Math.ceil(initialMetrics.clientHeight / 68) + 10;
+    const mountedChildBound = mountedRowBound * 24;
+    assert.ok(initialRows <= mountedRowBound, `FlashList initially mounted ${initialRows}, bound ${mountedRowBound}: ${JSON.stringify(initialMetrics)}`);
+    assert.ok(initialMetrics.childCount <= mountedChildBound, `FlashList initially mounted ${initialMetrics.childCount} children, bound ${mountedChildBound}`);
+    const firstPixel = await sampleImageCenterPixel(page.getByTestId("food-product-image-task7-product-1"));
+    assert.deepEqual(firstPixel, task7ProductColor(1), "first product image pixels do not match its fixture");
 
     await list.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-    await page.getByText("Task 7 Ürünü 200", { exact: true }).waitFor();
-    const lastImage = page.locator('img[src*="task7-image-200"]').first();
-    await lastImage.waitFor();
+    const finalText = page.getByText("Task 7 Ürünü 200", { exact: true });
+    await finalText.waitFor();
+    assert.equal(await finalText.innerText(), "Task 7 Ürünü 200");
+    const postRows = await page.getByText(/Task 7 Ürünü \d+/, { exact: true }).count();
+    const postMetrics = await list.evaluate((element) => ({
+      childCount: element.querySelectorAll("*").length,
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      scrollTop: element.scrollTop
+    }));
+    assert.ok(postRows <= mountedRowBound, `FlashList mounted ${postRows} rows after scroll, bound ${mountedRowBound}: ${JSON.stringify(postMetrics)}`);
+    assert.ok(postMetrics.childCount <= mountedChildBound, `FlashList mounted ${postMetrics.childCount} children after scroll, bound ${mountedChildBound}`);
+    const finalPixel = await sampleImageCenterPixel(page.getByTestId("food-product-image-task7-product-200"));
+    assert.deepEqual(finalPixel, task7ProductColor(200), "final recycled product retained the wrong image pixels");
+    assert.notDeepEqual(finalPixel, firstPixel, "distinct fixture images recycled to the same color");
+    process.stdout.write(`Task 7 200-product list: rows ${initialRows}->${postRows}/${mountedRowBound}, children ${initialMetrics.childCount}->${postMetrics.childCount}/${mountedChildBound}, RGB ${firstPixel.join(",")}->${finalPixel.join(",")}.\n`);
     const beforeCategoryJump = await list.evaluate((element) => element.scrollTop);
     await page.getByRole("button", { name: /İkinci kategori/ }).click();
     await page.waitForTimeout(150);
@@ -149,6 +186,89 @@ async function verifyTwoHundredProductList(browserInstance) {
   }
 }
 
+async function sampleImageCenterPixel(locator) {
+  await locator.waitFor();
+  return locator.evaluate(async (element) => {
+    const image = element instanceof HTMLImageElement ? element : element.querySelector("img");
+    if (!image) throw new Error("recycled image element was not rendered");
+    if (!image.complete) await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = 3;
+    canvas.height = 3;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("2D canvas is unavailable");
+    context.drawImage(image, 0, 0, 3, 3);
+    return [...context.getImageData(1, 1, 1, 1).data.slice(0, 3)];
+  });
+}
+
+function task7ProductColor(itemNumber) {
+  return [
+    32 + (itemNumber * 37) % 192,
+    32 + (itemNumber * 67) % 192,
+    32 + (itemNumber * 97) % 192
+  ];
+}
+
+async function verifyCheckoutScrollOwnership(browserInstance) {
+  const viewport = { width: 360, height: 640 };
+  const page = await browserInstance.newPage({ viewport });
+  const issues = monitorPage(page);
+  try {
+    await page.goto(`${appUrl}/business/task5-fixture`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("business-profile-primary-action").click();
+    await page.getByTestId("food-menu-scroll").waitFor();
+    await page.getByRole("button", { name: /Büyük Karışık Menü/ }).click();
+    await page.getByRole("button", { name: /Test Ürünü 3/ }).click();
+    await page.getByRole("button", { name: "Sepete git", exact: true }).click();
+    await page.getByLabel("Yeni adres", { exact: true }).fill("Task 7 address");
+    await page.getByLabel("Ad Soyad", { exact: true }).fill("Task 7 User");
+    await page.getByLabel("Telefon", { exact: true }).fill("05551112233");
+    await assertCheckoutReachability(page, "food-order-form-scroll", "food-notes-input", "food-checkout-footer", viewport.height);
+    await page.getByRole("button", { name: /Özeti Gör/ }).click();
+    await assertCheckoutReachability(page, "food-order-confirm-scroll", "food-confirm-last-row", "food-checkout-footer", viewport.height);
+    await page.getByRole("button", { name: /Siparişi Onayla/ }).waitFor();
+
+    await page.goto(`${appUrl}/business/task7-ecommerce`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("business-profile-primary-action").click();
+    await page.getByTestId("ecommerce-product-list").waitFor();
+    await page.getByRole("button", { name: "Sepete ekle", exact: true }).first().click();
+    await page.getByRole("button", { name: "Sepete ekle", exact: true }).first().click();
+    await page.getByRole("button", { name: /Sepete Git/ }).first().click();
+    await page.getByPlaceholder("Ad Soyad", { exact: true }).fill("Task 7 User");
+    await page.getByPlaceholder("Telefon", { exact: true }).fill("05551112233");
+    await page.getByPlaceholder("Adres", { exact: true }).fill("Task 7 ecommerce address");
+    await assertCheckoutReachability(page, "ecommerce-info-scroll", "ecommerce-coupon-input", "ecommerce-checkout-footer", viewport.height);
+    await page.getByRole("button", { name: /Özeti Gör/ }).click();
+    await assertCheckoutReachability(page, "ecommerce-confirm-scroll", "ecommerce-confirm-last-row", "ecommerce-checkout-footer", viewport.height);
+    await page.getByRole("button", { name: /Siparişi Tamamla/ }).waitFor();
+    await assertPageHealthy(page, issues);
+  } finally {
+    await page.close();
+  }
+}
+
+async function assertCheckoutReachability(page, scrollId, lastContentId, footerId, viewportHeight) {
+  const scroll = page.getByTestId(scrollId);
+  await scroll.waitFor();
+  const metrics = await scroll.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    return {
+      clientHeight: element.clientHeight,
+      overflowY: getComputedStyle(element).overflowY,
+      scrollHeight: element.scrollHeight,
+      scrollTop: element.scrollTop
+    };
+  });
+  await page.waitForTimeout(50);
+  assert.ok(metrics.clientHeight > 0 && metrics.clientHeight < viewportHeight, `${scrollId} is not viewport bounded: ${JSON.stringify(metrics)}`);
+  assert.ok(["auto", "scroll"].includes(metrics.overflowY), `${scrollId} does not own vertical scrolling: ${JSON.stringify(metrics)}`);
+  const lastBox = await requiredBox(page.getByTestId(lastContentId), lastContentId);
+  const footerBox = await requiredBox(page.getByTestId(footerId), footerId);
+  assert.ok(lastBox.y + lastBox.height <= footerBox.y + 1, `${lastContentId} is hidden behind ${footerId}`);
+  assert.ok(footerBox.y + footerBox.height <= viewportHeight + 1, `${footerId} is below the ${viewportHeight}px viewport`);
+}
+
 async function boxes(page, ids) {
   const result = {};
   for (const id of ids) result[id] = await requiredBox(page.getByTestId(id), id);
@@ -156,13 +276,53 @@ async function boxes(page, ids) {
 }
 
 async function requiredBox(locator, label) {
-  const box = await locator.boundingBox();
-  assert.ok(box, `${label} has no box`);
+  const box = await locator.evaluate((element) => new Promise((resolve) => {
+    const deadline = performance.now() + 4_000;
+    const measure = () => {
+      const rect = element.getBoundingClientRect();
+      if ((rect.width > 0 && rect.height > 0) || performance.now() >= deadline) {
+        resolve({ height: rect.height, width: rect.width, x: rect.x, y: rect.y });
+        return;
+      }
+      requestAnimationFrame(measure);
+    };
+    measure();
+  }));
+  assert.ok(box.width > 0 && box.height > 0, `${label} has no box: ${JSON.stringify(box)}`);
+  return box;
+}
+
+async function requiredScrollableBox(locator, label) {
+  await locator.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await locator.page().waitForTimeout(80);
+  const box = await locator.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    let owner = element.parentElement;
+    while (owner && owner !== document.body) {
+      const style = getComputedStyle(owner);
+      if (owner.scrollHeight > owner.clientHeight && ["auto", "scroll"].includes(style.overflowY)) break;
+      owner = owner.parentElement;
+    }
+    const ownerRect = owner?.getBoundingClientRect() ?? { x: 0, y: 0 };
+    return {
+      height: rect.height,
+      width: rect.width,
+      x: rect.x - ownerRect.x + (owner?.scrollLeft ?? window.scrollX),
+      y: rect.y - ownerRect.y + (owner?.scrollTop ?? window.scrollY)
+    };
+  });
+  assert.ok(box.width > 0 && box.height > 0, `${label} has no scroll-content box: ${JSON.stringify(box)}`);
   return box;
 }
 
 function assertWithin(actual, expected, delta, message) {
   assert.ok(Math.abs(actual - expected) <= delta, `${message}: ${actual} vs ${expected}`);
+}
+
+function assertMatchingBox(actual, expected, delta, label) {
+  for (const field of ["x", "y", "width", "height"]) {
+    assertWithin(actual[field], expected[field], delta, `${label} ${field} shifted`);
+  }
 }
 
 function findCount(counts, pathname, search) {

@@ -1,10 +1,24 @@
 type RequestCacheEntry<T> = {
   data?: T;
+  generation: number;
   inFlight?: Promise<T>;
   updatedAt: number;
 };
 
 const requestCache = new Map<string, RequestCacheEntry<unknown>>();
+let nextGeneration = 0;
+
+function createEntry<T>(data?: T, updatedAt = 0): RequestCacheEntry<T> {
+  return {
+    data,
+    generation: ++nextGeneration,
+    updatedAt
+  };
+}
+
+function isCurrentEntry<T>(key: string, entry: RequestCacheEntry<T>) {
+  return requestCache.get(key) === entry;
+}
 
 export function canonicalRequestKey(key: string) {
   const trimmed = key.trim();
@@ -35,13 +49,14 @@ export function cachedGet<T>(key: string, loader: () => Promise<T>, ttlMs: numbe
     if (!entry.inFlight) {
       entry.inFlight = loader()
         .then((data) => {
-          requestCache.set(canonicalKey, { data, updatedAt: Date.now() });
+          if (isCurrentEntry(canonicalKey, entry)) {
+            requestCache.set(canonicalKey, createEntry(data, Date.now()));
+          }
           return data;
         })
         .catch(() => entry.data as T)
         .finally(() => {
-          const current = requestCache.get(canonicalKey) as RequestCacheEntry<T> | undefined;
-          if (current === entry) entry.inFlight = undefined;
+          if (isCurrentEntry(canonicalKey, entry)) entry.inFlight = undefined;
         });
     }
     return Promise.resolve(entry.data);
@@ -49,14 +64,16 @@ export function cachedGet<T>(key: string, loader: () => Promise<T>, ttlMs: numbe
 
   if (entry?.inFlight) return entry.inFlight;
 
-  const nextEntry: RequestCacheEntry<T> = { updatedAt: 0 };
+  const nextEntry = createEntry<T>();
   nextEntry.inFlight = loader()
     .then((data) => {
-      requestCache.set(canonicalKey, { data, updatedAt: Date.now() });
+      if (isCurrentEntry(canonicalKey, nextEntry)) {
+        requestCache.set(canonicalKey, createEntry(data, Date.now()));
+      }
       return data;
     })
     .catch((error) => {
-      if (requestCache.get(canonicalKey) === nextEntry) requestCache.delete(canonicalKey);
+      if (isCurrentEntry(canonicalKey, nextEntry)) requestCache.delete(canonicalKey);
       throw error;
     });
   requestCache.set(canonicalKey, nextEntry);

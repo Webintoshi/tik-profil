@@ -58,29 +58,35 @@ export async function GET(request: NextRequest) {
             .single();
 
         if (error || !data) {
-            return NextResponse.json(getDefaultSettings(businessId));
+            return NextResponse.json({
+                success: true,
+                settings: getDefaultSettings(businessId),
+            });
         }
 
         return NextResponse.json({
-            id: businessId,
-            storeName: data.store_name || "Magazam",
-            storeDescription: data.store_description || "",
-            currency: data.currency || "TRY",
-            minOrderAmount: typeof data.min_order_amount === "string" ? parseFloat(data.min_order_amount) : (data.min_order_amount || 0),
-            freeShippingThreshold: data.free_shipping_threshold ? (typeof data.free_shipping_threshold === "string" ? parseFloat(data.free_shipping_threshold) : data.free_shipping_threshold) : undefined,
-            taxRate: typeof data.tax_rate === "string" ? parseFloat(data.tax_rate) : (data.tax_rate || 0),
-            shippingOptions: data.shipping_options || [],
-            paymentMethods: data.payment_methods || {
-                cash: true,
-                card: false,
-                transfer: false,
-                online: false,
-            },
-            checkoutSettings: data.checkout_settings || {
-                requirePhone: true,
-                requireEmail: false,
-                requireAddress: true,
-                allowNotes: true,
+            success: true,
+            settings: {
+                id: businessId,
+                storeName: data.store_name || "Magazam",
+                storeDescription: data.store_description || "",
+                currency: data.currency || "TRY",
+                minOrderAmount: typeof data.min_order_amount === "string" ? parseFloat(data.min_order_amount) : (data.min_order_amount || 0),
+                freeShippingThreshold: data.free_shipping_threshold ? (typeof data.free_shipping_threshold === "string" ? parseFloat(data.free_shipping_threshold) : data.free_shipping_threshold) : undefined,
+                taxRate: typeof data.tax_rate === "string" ? parseFloat(data.tax_rate) : (data.tax_rate || 0),
+                shippingOptions: data.shipping_options || [],
+                paymentMethods: data.payment_methods || {
+                    cash: true,
+                    card: false,
+                    transfer: false,
+                    online: false,
+                },
+                checkoutSettings: data.checkout_settings || {
+                    requirePhone: true,
+                    requireEmail: false,
+                    requireAddress: true,
+                    allowNotes: true,
+                },
             },
         });
     } catch (error) {

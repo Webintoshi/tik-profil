@@ -4,7 +4,8 @@ import { AccessibilityInfo, Animated, Platform, StyleSheet, View, type ViewStyle
 import {
   BUSINESS_PROFILE_COVER_HEIGHT,
   DENSE_BUSINESS_ROW_HEIGHT,
-  FEATURED_BUSINESS_IMAGE_HEIGHT,
+  FEATURED_BUSINESS_CARD_HEIGHT,
+  FEATURED_BUSINESS_HEADER_HEIGHT,
   getCategoryGridGeometry,
   getCityHeroImageHeight
 } from "@/performance/geometry";
@@ -15,6 +16,7 @@ interface SkeletonProps {
   height?: number;
   borderRadius?: number;
   style?: ViewStyle;
+  testID?: string;
 }
 
 const sharedSkeletonOpacity = new Animated.Value(0.45);
@@ -70,7 +72,7 @@ function useReducedMotion() {
   return reducedMotion;
 }
 
-export function Skeleton({ width = "100%", height = 16, borderRadius = radii.sm, style }: SkeletonProps) {
+export function Skeleton({ width = "100%", height = 16, borderRadius = radii.sm, style, testID }: SkeletonProps) {
   const reducedMotion = useReducedMotion();
 
   useEffect(() => {
@@ -80,6 +82,7 @@ export function Skeleton({ width = "100%", height = 16, borderRadius = radii.sm,
 
   return (
     <Animated.View
+      testID={testID}
       style={[
         styles.base,
         { width, height, borderRadius, opacity: reducedMotion ? 0.65 : sharedSkeletonOpacity },
@@ -111,11 +114,11 @@ export function CategoryGridSkeleton({ viewportWidth }: { viewportWidth: number 
 export function FeaturedBusinessSkeleton() {
   return (
     <View style={{ gap: spacing.md, marginHorizontal: spacing.screen }} testID="featured-business-skeleton">
-      <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between" }}>
+      <View style={{ alignItems: "center", flexDirection: "row", height: FEATURED_BUSINESS_HEADER_HEIGHT, justifyContent: "space-between" }}>
         <Skeleton height={18} width={150} />
         <Skeleton height={18} width={76} />
       </View>
-      <Skeleton borderRadius={radii.xl} height={FEATURED_BUSINESS_IMAGE_HEIGHT} />
+      <Skeleton borderRadius={radii.xl} height={FEATURED_BUSINESS_CARD_HEIGHT} />
       <View style={{ alignItems: "center" }}><Skeleton borderRadius={radii.pill} height={5} width={48} /></View>
     </View>
   );
@@ -154,7 +157,7 @@ export function CityHeroImageSkeleton({ contentWidth }: { contentWidth: number }
 export function BusinessProfileSkeleton({ topInset }: { topInset: number }) {
   return (
     <View style={{ backgroundColor: colors.background, flex: 1 }} testID="business-profile-skeleton">
-      <Skeleton borderRadius={0} height={BUSINESS_PROFILE_COVER_HEIGHT + topInset} />
+      <Skeleton borderRadius={0} height={BUSINESS_PROFILE_COVER_HEIGHT + topInset} testID="business-profile-skeleton-cover" />
       <View style={{ alignItems: "flex-start", flexDirection: "row", gap: spacing.md, marginTop: -26, paddingHorizontal: spacing.screen }}>
         <Skeleton borderRadius={radii.pill} height={96} width={96} />
         <View style={{ flex: 1, gap: spacing.sm, paddingTop: spacing.xxl }}>
