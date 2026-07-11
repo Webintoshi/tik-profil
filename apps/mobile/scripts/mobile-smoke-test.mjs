@@ -20,7 +20,7 @@ export const PRODUCTION_SMOKE_SCENARIOS = [
   { id: "sign-in", evidence: [{ path: "src/auth/logto-client.test.mts", includes: "PKCE authorization uses S256" }] },
   { id: "account-load", evidence: [{ path: "src/api/customer.test.mts", includes: "customer account load sends one bearer token" }] },
   { id: "favorite-persistence", evidence: [{ path: "scripts/task8-browser-regression.mjs", includes: "Task 10 favorite and theme persistence passed." }] },
-  { id: "search", evidence: [{ path: "src/api/kesfet.test.mts", includes: "local category fallback keeps matching businesses" }] },
+  { id: "search", evidence: [{ path: "src/api/kesfet.test.mts", includes: "cold discovery search and category failures reject" }] },
   { id: "profile-open", evidence: [{ path: "src/api/kesfet.test.mts", includes: "profile preserves an authoritative 404" }] },
   { id: "menu-load", evidence: [{ path: "src/api/kesfet.test.mts", includes: "menu and storefront invalidation force the next stock read" }] },
   { id: "product-configuration", evidence: [{ path: "src/components/business/business-profile-components.contract.test.mts", includes: "product modal and checkout inputs" }] },
