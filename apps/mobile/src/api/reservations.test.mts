@@ -62,6 +62,23 @@ if (api) {
     }
   });
 
+  test("older reservation options fall back to the canonical top-level slots", async () => {
+    const originalFetch = globalThis.fetch;
+    const legacyResource = { ...optionsPayload.resources[0] } as Record<string, unknown>;
+    delete legacyResource.timeSlots;
+    globalThis.fetch = async () => Response.json({
+      ...optionsPayload,
+      resources: [legacyResource],
+      timeSlots: ["18:00"],
+    }) as never;
+    try {
+      const result = await api.fetchReservationOptions("ordu-konak", "https://example.test");
+      assert.deepEqual(result.resources[0].timeSlots, ["18:00"]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   test("availability, create, history, and cancel use strict URLs and customer bearer", async () => {
     const calls: Array<{ authorization: string | null; body: string | null; method: string; url: string }> = [];
     const originalFetch = globalThis.fetch;

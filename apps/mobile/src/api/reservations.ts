@@ -77,15 +77,19 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(isString);
+}
+
 function isVertical(value: unknown): value is ReservationVertical {
   return value === "hotel" || value === "restaurant" || value === "vehicle";
 }
 
-function decodeResource(value: unknown): ReservationResource | null {
+function decodeResource(value: unknown, fallbackTimeSlots: string[]): ReservationResource | null {
   if (!isObject(value) || !isString(value.id) || !isString(value.name)
     || !isNullableString(value.description) || !isNullableString(value.imageUrl)
     || !isFiniteNumber(value.capacity) || value.capacity < 0
-    || !Array.isArray(value.timeSlots) || !value.timeSlots.every(isString)
+    || (value.timeSlots !== undefined && !isStringArray(value.timeSlots))
     || !isFiniteNumber(value.unitPrice) || value.unitPrice < 0) return null;
   return {
     capacity: value.capacity,
@@ -93,7 +97,7 @@ function decodeResource(value: unknown): ReservationResource | null {
     id: value.id,
     imageUrl: value.imageUrl,
     name: value.name,
-    timeSlots: value.timeSlots,
+    timeSlots: isStringArray(value.timeSlots) ? value.timeSlots : fallbackTimeSlots,
     unitPrice: value.unitPrice
   };
 }
@@ -103,14 +107,15 @@ function decodeOptions(value: unknown): ReservationOptions | null {
   if (!value.nativeEnabled) return emptyOptions;
   if (!isVertical(value.vertical) || !isObject(value.business)
     || !isString(value.business.id) || !isString(value.business.name) || !isString(value.business.slug)
-    || !Array.isArray(value.resources) || !Array.isArray(value.timeSlots) || !value.timeSlots.every(isString)) return null;
-  const resources = value.resources.map(decodeResource);
+    || !Array.isArray(value.resources) || !isStringArray(value.timeSlots)) return null;
+  const timeSlots = value.timeSlots;
+  const resources = value.resources.map((resource) => decodeResource(resource, timeSlots));
   if (resources.some((resource) => resource === null)) return null;
   return {
     business: { id: value.business.id, name: value.business.name, slug: value.business.slug },
     nativeEnabled: true,
     resources: resources.filter((resource): resource is ReservationResource => resource !== null),
-    timeSlots: value.timeSlots,
+    timeSlots,
     vertical: value.vertical
   };
 }
