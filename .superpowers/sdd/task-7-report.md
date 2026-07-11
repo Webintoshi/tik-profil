@@ -3,6 +3,7 @@
 Date: 2026-07-11
 Implementation base: `016ddd0`
 Review-fix base: `6882f6e`
+Final-validation base: `7d828c7`
 
 ## Status
 
@@ -28,6 +29,7 @@ Task 7 and its review fixes are implemented at the post-Task-6 head. Mobile GETs
 16. Forced fresh-read tests failed because cache options were ignored: Home/Explore pull-to-refresh could finish from a fresh cache entry without a network request or newly committed data.
 17. Optional ecommerce fields such as `businessId`, `images`, status, stock, active flags, and variants passed through the shallow product validator.
 18. The strengthened `360x640` checkout gate failed because the food footer overlapped the bottom tab bar even though it remained inside the browser viewport.
+19. The final ecommerce settings RED tests failed because string `freeShippingThreshold`, `freeAbove`, `isActive`, and `estimatedDays` values passed the validator and a malformed stale refresh replaced the known-good settings entry.
 
 ## Request and API Work
 
@@ -41,6 +43,7 @@ Task 7 and its review fixes are implemented at the post-Task-6 head. Mobile GETs
 - `KesfetHttpError` preserves status/body. Profile discovery/not-found handling runs only for an authoritative 404 or 410; transient failures preserve local/stale profile UI and do not issue the `limit=100` compatibility request.
 - Categories, discovery businesses, profiles, menus, ecommerce products, and ecommerce settings require `success === true` plus usable nested field types. Application failures and malformed refreshes throw inside the loader, retaining the prior good cache entry. Public ecommerce settings now consistently use `{ success: true, settings }` in the route, web sheet, mobile wrapper, and fixture.
 - Ecommerce products validate every present consumed optional field, including string image arrays, allowed status, nullable finite stock, stock tracking, active/featured flags, ordering/date/category fields, and nested variant identities/prices/stock/active flags.
+- Ecommerce settings validate every declared or consumed field. Store and shipping identities/names/descriptions/types are checked; prices, fees, minimums, and tax are finite; `freeShippingThreshold` and shipping `freeAbove` accept only a finite number, `null`, or absence; `estimatedDays` is a string; `isActive` and all payment/checkout flags are booleans. Malformed cold responses fall back without entering cache, while malformed stale refreshes retain the prior complete entry.
 - Home and Explore pass `force: true` only for pull-to-refresh. Forced reads bypass a fresh TTL, dedupe the same key, await the network value, and commit it through the existing request-generation guard; ordinary reads retain SWR behavior.
 - Home and Explore request the same canonical `city=Ordu&limit=16&page=1` discovery URL and retain generation guards. Menu completion also has a route generation guard.
 - Successful fast-food/ecommerce checkout invalidates menu, product, and settings keys before the next stock read.
@@ -60,7 +63,7 @@ Task 7 and its review fixes are implemented at the post-Task-6 head. Mobile GETs
 
 - Geometry: an explicitly empty initial Home renders real category, featured hero, and dense-row skeletons; an in-app profile navigation renders the real profile skeleton. Their `x`, `y`, `width`, and `height` differ from delayed loaded fixtures by no more than 1 px at `360x800`, `390x844`, and `430x932`.
 - Request counts after Home -> Explore: guide `1`, discovery `1`, categories `1`.
-- Warm profile reopen: 84 ms in the final deterministic run with one total profile GET and no blocking reopen GET.
+- Warm profile reopen: 74 ms in the final deterministic run with one total profile GET and no blocking reopen GET.
 - Checkout reachability: at `360x640`, five distinct food products and six distinct ecommerce products create real overflow in info and confirm owners. Each records a positive scroll offset, exposes its final field/row, and keeps the footer fully above the bottom tab bar.
 - 200-product menu: mounted rows changed `11 -> 13` against a viewport-derived bound of `19`; descendant nodes changed `165 -> 193` against a bound of `456`. Product 1 sampled RGB `69,99,129`; after recycling to product 200 the exact final text and RGB `136,184,40` were verified through canvas pixels. Category jump still uses the stable section index.
 - Console gate: no `useNativeDriver is not supported` warning, page error, or framework overlay.
@@ -68,8 +71,9 @@ Task 7 and its review fixes are implemented at the post-Task-6 head. Mobile GETs
 
 ## Verification
 
-- `npm test` in `apps/mobile`: 149 Node tests passed, smoke passed, Task 5 matrix/checkout passed, Task 6 QR browser passed, and Task 7 browser passed.
-- After the final safe-inset adjustment, the 149-test unit suite, mobile typecheck, Task 7 browser gate, and `git diff --check` were rerun and passed.
+- `npm test` in `apps/mobile`: 151 Node tests passed, smoke passed, Task 5 matrix/checkout passed, Task 6 QR browser passed, and Task 7 browser passed.
+- The final validator-focused API suite passed 19/19, including per-field cold rejection/no-cache retry and malformed stale-refresh retention.
+- After the final ecommerce settings validation adjustment, the 151-test unit suite, mobile typecheck, all Task 5/6/7 browser gates, and `git diff --check` were rerun and passed.
 - `npm run typecheck` in `apps/mobile`: passed with zero errors.
 - `npm run export:web` in `apps/mobile`: passed and exported 13 static routes.
 - Task 4 focused root checkout/security regression: 52 tests passed. Mobile proxy/security regression: 26 tests passed.

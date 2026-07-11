@@ -288,7 +288,7 @@ export interface PublicEcommerceShippingOption {
   fee?: number;
   estimatedDays?: string;
   isActive?: boolean;
-  freeAbove?: number;
+  freeAbove?: number | null;
 }
 
 export interface PublicEcommerceSettings {
@@ -297,7 +297,7 @@ export interface PublicEcommerceSettings {
   storeDescription?: string;
   currency?: string;
   minOrderAmount?: number;
-  freeShippingThreshold?: number;
+  freeShippingThreshold?: number | null;
   taxRate?: number;
   shippingOptions?: PublicEcommerceShippingOption[];
   paymentMethods?: Record<string, boolean>;
@@ -1263,6 +1263,17 @@ function isEcommerceProductsResponse(value: unknown): value is PublicEcommercePr
     && value.products.every(isEcommerceProduct);
 }
 
+function isEcommerceShippingOption(value: unknown): value is PublicEcommerceShippingOption {
+  return isRecord(value)
+    && isNonEmptyString(value.id)
+    && isNonEmptyString(value.name)
+    && isOptionalFiniteNumber(value.price)
+    && isOptionalFiniteNumber(value.fee)
+    && (value.estimatedDays === undefined || typeof value.estimatedDays === "string")
+    && isOptionalBoolean(value.isActive)
+    && isOptionalNullableFiniteNumber(value.freeAbove);
+}
+
 function isEcommerceSettingsResponse(value: unknown): value is PublicEcommerceSettingsResponse {
   if (!isRecord(value) || value.success !== true || !isRecord(value.settings)) return false;
   const settings = value.settings;
@@ -1271,13 +1282,10 @@ function isEcommerceSettingsResponse(value: unknown): value is PublicEcommerceSe
     && typeof settings.storeDescription === "string"
     && isNonEmptyString(settings.currency)
     && isFiniteNumber(settings.minOrderAmount)
+    && isOptionalNullableFiniteNumber(settings.freeShippingThreshold)
     && isFiniteNumber(settings.taxRate)
     && Array.isArray(settings.shippingOptions)
-    && settings.shippingOptions.every((option) => isRecord(option)
-      && isNonEmptyString(option.id)
-      && isNonEmptyString(option.name)
-      && (option.price === undefined || isFiniteNumber(option.price))
-      && (option.fee === undefined || isFiniteNumber(option.fee)))
+    && settings.shippingOptions.every(isEcommerceShippingOption)
     && isRecord(settings.paymentMethods)
     && Object.values(settings.paymentMethods).every((enabled) => typeof enabled === "boolean")
     && isRecord(settings.checkoutSettings)

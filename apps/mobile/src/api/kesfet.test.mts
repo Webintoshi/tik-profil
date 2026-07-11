@@ -80,8 +80,17 @@ const validSettings = {
   storeDescription: "",
   currency: "TRY",
   minOrderAmount: 0,
+  freeShippingThreshold: null,
   taxRate: 0,
-  shippingOptions: [],
+  shippingOptions: [{
+    id: "standard",
+    name: "Standard Shipping",
+    price: 49.9,
+    fee: 49.9,
+    estimatedDays: "2-3 business days",
+    isActive: true,
+    freeAbove: null
+  }],
   paymentMethods: { cash: true },
   checkoutSettings: { requirePhone: true, requireEmail: false, requireAddress: true, allowNotes: true }
 };
@@ -603,6 +612,97 @@ test("successful but incomplete bodies are never cached or exposed as usable dat
     assert.deepEqual(await fetchPublicEcommerceSettings("retry-valid"), validSettings);
     assert.equal(calls, 2);
   } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("ecommerce settings rejects every malformed declared or consumed field", async () => {
+  const originalFetch = globalThis.fetch;
+  const invalidCases = [
+    ["id", { ...validSettings, id: 1 }],
+    ["storeName", { ...validSettings, storeName: 1 }],
+    ["storeDescription", { ...validSettings, storeDescription: 1 }],
+    ["currency", { ...validSettings, currency: 1 }],
+    ["minOrderAmount", { ...validSettings, minOrderAmount: "0" }],
+    ["freeShippingThreshold", { ...validSettings, freeShippingThreshold: "500" }],
+    ["taxRate", { ...validSettings, taxRate: "0" }],
+    ["shippingOptions", { ...validSettings, shippingOptions: {} }],
+    ["shipping option id", { ...validSettings, shippingOptions: [{ ...validSettings.shippingOptions[0], id: 1 }] }],
+    ["shipping option name", { ...validSettings, shippingOptions: [{ ...validSettings.shippingOptions[0], name: 1 }] }],
+    ["shipping option price", { ...validSettings, shippingOptions: [{ ...validSettings.shippingOptions[0], price: "49.9" }] }],
+    ["shipping option fee", { ...validSettings, shippingOptions: [{ ...validSettings.shippingOptions[0], fee: "49.9" }] }],
+    ["shipping option estimatedDays", { ...validSettings, shippingOptions: [{ ...validSettings.shippingOptions[0], estimatedDays: 2 }] }],
+    ["shipping option isActive", { ...validSettings, shippingOptions: [{ ...validSettings.shippingOptions[0], isActive: "yes" }] }],
+    ["shipping option freeAbove", { ...validSettings, shippingOptions: [{ ...validSettings.shippingOptions[0], freeAbove: "500" }] }],
+    ["payment method", { ...validSettings, paymentMethods: { cash: "yes" } }],
+    ["requirePhone", { ...validSettings, checkoutSettings: { ...validSettings.checkoutSettings, requirePhone: "yes" } }],
+    ["requireEmail", { ...validSettings, checkoutSettings: { ...validSettings.checkoutSettings, requireEmail: "no" } }],
+    ["requireAddress", { ...validSettings, checkoutSettings: { ...validSettings.checkoutSettings, requireAddress: 1 } }],
+    ["allowNotes", { ...validSettings, checkoutSettings: { ...validSettings.checkoutSettings, allowNotes: null } }]
+  ];
+
+  try {
+    for (const [name, settings] of invalidCases) {
+      clearRequestCache();
+      globalThis.fetch = async () => Response.json({ success: true, settings });
+      assert.equal(await fetchPublicEcommerceSettings(`invalid-${name}`), null, String(name));
+    }
+
+    clearRequestCache();
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      return Response.json({
+        success: true,
+        settings: calls === 1
+          ? { ...validSettings, freeShippingThreshold: "not-a-number" }
+          : validSettings
+      });
+    };
+    assert.equal(await fetchPublicEcommerceSettings("invalid-cold-not-cached"), null);
+    assert.deepEqual(await fetchPublicEcommerceSettings("invalid-cold-not-cached"), validSettings);
+    assert.equal(calls, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("malformed ecommerce settings refresh preserves the last usable stale entry", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  let now = 40_000;
+  let malformed = false;
+  let calls = 0;
+  Date.now = () => now;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return Response.json({
+      success: true,
+      settings: malformed
+        ? {
+            ...validSettings,
+            freeShippingThreshold: "500",
+            shippingOptions: [{
+              ...validSettings.shippingOptions[0],
+              estimatedDays: 3,
+              isActive: "yes",
+              freeAbove: "500"
+            }]
+          }
+        : validSettings
+    });
+  };
+
+  try {
+    assert.deepEqual(await fetchPublicEcommerceSettings("stale-settings"), validSettings);
+    malformed = true;
+    now += 6 * 60_000;
+    assert.deepEqual(await fetchPublicEcommerceSettings("stale-settings"), validSettings);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(await fetchPublicEcommerceSettings("stale-settings"), validSettings);
+    assert.ok(calls >= 2);
+  } finally {
+    Date.now = originalNow;
     globalThis.fetch = originalFetch;
   }
 });
