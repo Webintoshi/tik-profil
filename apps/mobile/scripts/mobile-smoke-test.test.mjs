@@ -43,6 +43,11 @@ test("every production scenario is backed by automatable evidence", () => {
       assert.equal(typeof item.path, "string", `${scenario.id} evidence path`);
       assert.equal(typeof item.includes, "string", `${scenario.id} evidence marker`);
       assert.notEqual(item.includes.trim(), "", `${scenario.id} evidence marker must not be empty`);
+      assert.match(
+        item.path,
+        /(?:\.test\.mts|browser-regression\.mjs)$/,
+        `${scenario.id} evidence must be an executed behavioral test`
+      );
     }
   }
 });

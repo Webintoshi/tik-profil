@@ -46,6 +46,7 @@ try {
   if (!focus || focus === "motion") await verifyReducedMotion();
   if (!focus || focus === "font") await verifyFontScale();
   if (!focus || focus === "sparse") await verifySparseAndGroupedStates();
+  if (!focus || focus === "persistence") await verifyPreferencePersistence();
 
   process.stdout.write(`Task 8 screenshot matrix passed ${screenshotCases.length} deterministic cases.\n`);
   process.stdout.write(`${screenshotCases.join("\n")}\n`);
@@ -68,6 +69,41 @@ async function verifyLightDarkSurfaceMatrix() {
         await state.context.close();
       }
     }
+  }
+}
+
+async function verifyPreferencePersistence() {
+  const state = await createPage({ favorites: [], mode: "light" });
+  try {
+    await state.page.goto(`${appUrl}/`, { waitUntil: "domcontentloaded" });
+    await state.page.getByTestId("home-business-list-section").waitFor();
+    await state.page.getByRole("button", { name: "Favorilere ekle", exact: true }).first().click();
+    await state.page.waitForFunction(() => {
+      const value = localStorage.getItem("tikprofil:v2:discovery");
+      if (!value) return false;
+      try {
+        return JSON.parse(value).favoriteSlugs?.length === 1;
+      } catch {
+        return false;
+      }
+    });
+
+    await state.page.reload({ waitUntil: "domcontentloaded" });
+    await state.page.goto(`${appUrl}/favorites`, { waitUntil: "domcontentloaded" });
+    await state.page.getByTestId("favorites-list").waitFor();
+    assert.match(await state.page.getByTestId("favorites-count").innerText(), /^1 /);
+
+    await state.page.goto(`${appUrl}/account`, { waitUntil: "domcontentloaded" });
+    await state.page.getByRole("button", { name: "Koyu temaya geç", exact: true }).click();
+    await state.page.waitForFunction(() => localStorage.getItem("tikprofil.themeMode") === "dark");
+    await assertTheme(state.page, "dark");
+    await state.page.reload({ waitUntil: "domcontentloaded" });
+    await state.page.getByRole("button", { name: "Açık temaya geç", exact: true }).waitFor();
+    await assertTheme(state.page, "dark");
+    await assertPageHealthy(state.page, state.issues);
+    process.stdout.write("Task 10 favorite and theme persistence passed.\n");
+  } finally {
+    await state.context.close();
   }
 }
 
@@ -357,13 +393,17 @@ async function openSurface(surface, options) {
 async function createPage({ favorites = [], mode = "light", reducedMotion = "no-preference", viewport: pageViewport = viewport } = {}) {
   const context = await browser.newContext({ colorScheme: mode, reducedMotion, viewport: pageViewport });
   await context.addInitScript(({ favoriteSlugs, themeMode }) => {
-    localStorage.setItem("tikprofil.themeMode", themeMode);
-    localStorage.setItem("tikprofil:v2:discovery", JSON.stringify({
-      favoriteSlugs,
-      lastSelectedCity: null,
-      recentSearches: [],
-      savedAddressLabel: null
-    }));
+    if (localStorage.getItem("tikprofil.themeMode") === null) {
+      localStorage.setItem("tikprofil.themeMode", themeMode);
+    }
+    if (localStorage.getItem("tikprofil:v2:discovery") === null) {
+      localStorage.setItem("tikprofil:v2:discovery", JSON.stringify({
+        favoriteSlugs,
+        lastSelectedCity: null,
+        recentSearches: [],
+        savedAddressLabel: null
+      }));
+    }
   }, { favoriteSlugs: favorites, themeMode: mode });
   await context.route("**/*", (route) => {
     const request = route.request();

@@ -56,3 +56,22 @@ test("avatar upload preserves unauthorized HTTP status for session retry", async
     globalThis.fetch = originalFetch;
   }
 });
+
+test("oversize avatar rejection happens before any upload request", async () => {
+  const originalFetch = globalThis.fetch;
+  let fetchCalls = 0;
+  globalThis.fetch = async () => {
+    fetchCalls += 1;
+    return Response.json({ success: true, imageUrl: "https://cdn.example/avatar.jpg" });
+  };
+
+  try {
+    await assert.rejects(
+      uploadAccountAvatar({ fileSize: 2 * 1024 * 1024 + 1, uri: "oversize.jpg" }, "access-token"),
+      /en fazla 2MB/
+    );
+    assert.equal(fetchCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

@@ -32,7 +32,8 @@ const SIGNING_ENV_NAMES = [
   "TIKPROFIL_ANDROID_KEYSTORE_PATH",
   "TIKPROFIL_ANDROID_KEYSTORE_PASSWORD",
   "TIKPROFIL_ANDROID_KEY_ALIAS",
-  "TIKPROFIL_ANDROID_KEY_PASSWORD"
+  "TIKPROFIL_ANDROID_KEY_PASSWORD",
+  "TIKPROFIL_ANDROID_CERT_SHA256"
 ];
 
 function copyEntry(sourceRoot, buildRoot, entry) {
@@ -88,6 +89,25 @@ export function resolveBuildVariant(value) {
   return variant;
 }
 
+export function resolveRequestedBuildVariant(args = process.argv.slice(2), env = process.env) {
+  const wantsDebug = args.includes("--debug");
+  const wantsRelease = args.includes("--release");
+  if (wantsDebug && wantsRelease) {
+    throw new Error("Choose only one Android build variant flag: --debug or --release.");
+  }
+  if (wantsRelease) return "release";
+  if (wantsDebug) return "debug";
+  return resolveBuildVariant(env.TIKPROFIL_ANDROID_VARIANT);
+}
+
+function normalizeCertificateFingerprint(value) {
+  const normalized = value.replace(/[^0-9a-f]/gi, "").toUpperCase();
+  if (normalized.length !== 64) {
+    throw new Error("TIKPROFIL_ANDROID_CERT_SHA256 must contain one SHA-256 certificate fingerprint.");
+  }
+  return normalized;
+}
+
 export function resolveSigningConfig(variant, env = process.env) {
   if (variant === "debug") {
     return { productionSigned: false };
@@ -103,7 +123,11 @@ export function resolveSigningConfig(variant, env = process.env) {
     throw new Error(`Production Android keystore not found: ${keystorePath}`);
   }
 
-  return { keystorePath, productionSigned: true };
+  return {
+    expectedCertificateSha256: normalizeCertificateFingerprint(env.TIKPROFIL_ANDROID_CERT_SHA256),
+    keystorePath,
+    productionSigned: true
+  };
 }
 
 export function renderReleaseSigningGradle() {
@@ -136,8 +160,8 @@ export function getDependencyInstallArgs() {
   return ["ci"];
 }
 
-export function resolveNodeEnv(variant, currentValue = process.env.NODE_ENV) {
-  return currentValue?.trim() || (variant === "release" ? "production" : "development");
+export function resolveNodeEnv(variant) {
+  return variant === "release" ? "production" : "development";
 }
 
 function run(command, args, cwd, env = process.env) {
@@ -150,6 +174,36 @@ function run(command, args, cwd, env = process.env) {
 
   if (result.status !== 0) {
     throw new Error(`${command} ${args.join(" ")} failed`);
+  }
+}
+
+function runCapture(command, args, cwd, env = process.env) {
+  const result = spawnSync(command, args, {
+    cwd,
+    encoding: "utf8",
+    env,
+    shell: process.platform === "win32"
+  });
+  const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+  if (output) process.stdout.write(output);
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(" ")} failed`);
+  }
+  return output;
+}
+
+export function verifySignerCertificateOutput(output, expectedFingerprint) {
+  const signerCount = Number(output.match(/Number of signers:\s*(\d+)/i)?.[1]);
+  if (signerCount !== 1) {
+    throw new Error("Production APK must contain exactly one signer.");
+  }
+  const actualFingerprint = output.match(/certificate SHA-256 digest:\s*([0-9a-f:]+)/i)?.[1];
+  if (!actualFingerprint) {
+    throw new Error("apksigner did not report a signer certificate SHA-256 digest.");
+  }
+  if (normalizeCertificateFingerprint(actualFingerprint) !== normalizeCertificateFingerprint(expectedFingerprint)) {
+    throw new Error("APK signer certificate does not match TIKPROFIL_ANDROID_CERT_SHA256.");
   }
 }
 
@@ -195,7 +249,7 @@ function main() {
   const appConfig = JSON.parse(readFileSync(join(root, "app.json"), "utf8"));
   const appVersion = appConfig?.expo?.version ?? "unknown-version";
   const versionCode = appConfig?.expo?.android?.versionCode ?? "unknown-code";
-  const buildVariant = resolveBuildVariant(process.env.TIKPROFIL_ANDROID_VARIANT);
+  const buildVariant = resolveRequestedBuildVariant();
   const signing = resolveSigningConfig(buildVariant);
   const gradleTask = buildVariant === "debug" ? "assembleDebug" : "assembleRelease";
   const apkFolder = buildVariant === "debug" ? "debug" : "release";
@@ -233,7 +287,15 @@ function main() {
     throw new Error("APK was not produced.");
   }
 
-  run(findApkSigner(sdk), ["verify", "--verbose", "--print-certs", builtApk], buildRoot, buildEnv);
+  const signerOutput = runCapture(
+    findApkSigner(sdk),
+    ["verify", "--verbose", "--print-certs", builtApk],
+    buildRoot,
+    buildEnv
+  );
+  if (signing.productionSigned) {
+    verifySignerCertificateOutput(signerOutput, signing.expectedCertificateSha256);
+  }
   copyFileSync(builtApk, outputApk);
   console.log(describeArtifact(buildVariant, outputApk));
 }

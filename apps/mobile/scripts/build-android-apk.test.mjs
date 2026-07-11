@@ -17,9 +17,11 @@ import {
   getDependencyInstallArgs,
   renderReleaseSigningGradle,
   resolveBuildVariant,
+  resolveRequestedBuildVariant,
   resolveNodeEnv,
   resolveSigningConfig,
-  stageBuildContext
+  stageBuildContext,
+  verifySignerCertificateOutput
 } from "./build-android-apk.mjs";
 
 test("clean Android projects receive a dedicated idempotent release signing hook", () => {
@@ -53,7 +55,13 @@ test("clean staging installs the locked dependency graph reproducibly", () => {
 test("native builds provide Expo an explicit environment mode", () => {
   assert.equal(resolveNodeEnv("release"), "production");
   assert.equal(resolveNodeEnv("debug"), "development");
-  assert.equal(resolveNodeEnv("release", "test"), "test");
+  assert.equal(resolveNodeEnv("release", "test"), "production");
+});
+
+test("an explicit release request cannot be downgraded by the environment", () => {
+  assert.equal(resolveRequestedBuildVariant(["--release"], { TIKPROFIL_ANDROID_VARIANT: "debug" }), "release");
+  assert.equal(resolveRequestedBuildVariant(["--debug"], { TIKPROFIL_ANDROID_VARIANT: "release" }), "debug");
+  assert.throws(() => resolveRequestedBuildVariant(["--debug", "--release"], {}), /Choose only one/);
 });
 
 test("clean staging replaces old content and skips absent optional entries", () => {
@@ -118,7 +126,8 @@ test("release builds fail closed without complete production signing credentials
       TIKPROFIL_ANDROID_KEYSTORE_PATH: "missing.jks",
       TIKPROFIL_ANDROID_KEYSTORE_PASSWORD: "store-secret",
       TIKPROFIL_ANDROID_KEY_ALIAS: "upload",
-      TIKPROFIL_ANDROID_KEY_PASSWORD: "key-secret"
+      TIKPROFIL_ANDROID_KEY_PASSWORD: "key-secret",
+      TIKPROFIL_ANDROID_CERT_SHA256: "AA".repeat(32)
     }),
     /Production Android keystore not found/
   );
@@ -134,7 +143,8 @@ test("release signing uses environment-backed Gradle configuration without embed
       TIKPROFIL_ANDROID_KEYSTORE_PATH: keystorePath,
       TIKPROFIL_ANDROID_KEYSTORE_PASSWORD: "store-secret",
       TIKPROFIL_ANDROID_KEY_ALIAS: "upload",
-      TIKPROFIL_ANDROID_KEY_PASSWORD: "key-secret"
+      TIKPROFIL_ANDROID_KEY_PASSWORD: "key-secret",
+      TIKPROFIL_ANDROID_CERT_SHA256: "AA".repeat(32)
     });
     const gradle = renderReleaseSigningGradle();
 
@@ -145,6 +155,17 @@ test("release signing uses environment-backed Gradle configuration without embed
   } finally {
     rmSync(fixtureRoot, { force: true, recursive: true });
   }
+});
+
+test("production signer output must match the one approved certificate", () => {
+  const digest = "aa11".repeat(16);
+  const output = `Verifies\nNumber of signers: 1\nSigner #1 certificate SHA-256 digest: ${digest}\n`;
+  assert.doesNotThrow(() => verifySignerCertificateOutput(output, "AA11".repeat(16)));
+  assert.throws(() => verifySignerCertificateOutput(output, "0011".repeat(16)), /does not match/);
+  assert.throws(
+    () => verifySignerCertificateOutput(output.replace("Number of signers: 1", "Number of signers: 2"), "AA11BB22"),
+    /exactly one signer/
+  );
 });
 
 test("only debug and release variants are accepted and debug is labeled non-production", () => {

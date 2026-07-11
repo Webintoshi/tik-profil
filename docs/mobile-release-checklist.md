@@ -23,7 +23,7 @@ Use this checklist for a production candidate only. Record the release version, 
 ### Signing And Build
 
 - [ ] Use the production upload keystore. Do not use a debug keystore or a newly generated replacement.
-- [ ] Set `TIKPROFIL_ANDROID_KEYSTORE_PATH`, `TIKPROFIL_ANDROID_KEYSTORE_PASSWORD`, `TIKPROFIL_ANDROID_KEY_ALIAS`, and `TIKPROFIL_ANDROID_KEY_PASSWORD` in the build process environment.
+- [ ] Set `TIKPROFIL_ANDROID_KEYSTORE_PATH`, `TIKPROFIL_ANDROID_KEYSTORE_PASSWORD`, `TIKPROFIL_ANDROID_KEY_ALIAS`, `TIKPROFIL_ANDROID_KEY_PASSWORD`, and the approved public fingerprint `TIKPROFIL_ANDROID_CERT_SHA256` in the build process environment.
 - [ ] Confirm the keystore is backed up, access is restricted, the alias is correct, and the expected certificate SHA-256 fingerprint is recorded.
 - [ ] Set and verify the production API origin and all required `EXPO_PUBLIC_*` values. Do not depend on an untracked `.env` file being present in clean staging.
 - [ ] Confirm `app.json` has the approved version, version code, package `com.tikprofil.v2`, permissions, camera copy, and `tikprofil` scheme.

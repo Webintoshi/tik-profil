@@ -7,7 +7,7 @@ const rootPackageJson = JSON.parse(readFileSync(new URL("../../../package.json",
 test("root mobile release gate runs every required command in order", () => {
   assert.equal(
     rootPackageJson.scripts?.["mobile:release"],
-    "npm run typecheck && npm run mobile:typecheck && npm run mobile:test && npm --prefix apps/mobile run build:apk"
+    "npm run typecheck && npm run mobile:typecheck && npm run mobile:test && npm --prefix apps/mobile run build:apk -- --release"
   );
 });
 

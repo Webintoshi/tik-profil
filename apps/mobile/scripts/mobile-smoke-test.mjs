@@ -19,7 +19,7 @@ const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
 export const PRODUCTION_SMOKE_SCENARIOS = [
   { id: "sign-in", evidence: [{ path: "src/auth/logto-client.test.mts", includes: "PKCE authorization uses S256" }] },
   { id: "account-load", evidence: [{ path: "src/api/customer.test.mts", includes: "customer account load sends one bearer token" }] },
-  { id: "favorite-persistence", evidence: [{ path: "src/state/discovery-store.tsx", includes: "AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))" }] },
+  { id: "favorite-persistence", evidence: [{ path: "scripts/task8-browser-regression.mjs", includes: "Task 10 favorite and theme persistence passed." }] },
   { id: "search", evidence: [{ path: "src/api/kesfet.test.mts", includes: "local category fallback keeps matching businesses" }] },
   { id: "profile-open", evidence: [{ path: "src/api/kesfet.test.mts", includes: "profile preserves an authoritative 404" }] },
   { id: "menu-load", evidence: [{ path: "src/api/kesfet.test.mts", includes: "menu and storefront invalidation force the next stock read" }] },
@@ -28,16 +28,16 @@ export const PRODUCTION_SMOKE_SCENARIOS = [
   { id: "pickup", evidence: [{ path: "src/checkout/checkout-state.test.mts", includes: "pickup needs no address while delivery requires" }] },
   { id: "order-submission", evidence: [{ path: "src/api/checkout.test.mts", includes: "authenticated fast-food order forwards bearer" }] },
   { id: "qr-scan", evidence: [{ path: "src/qr/qr-scan-flow.test.mts", includes: "QR flow resolves before one best-effort log and one replace" }] },
-  { id: "theme-persistence", evidence: [{ path: "src/theme/theme-store.tsx", includes: "AsyncStorage.setItem(STORAGE_KEY, nextMode)" }] }
+  { id: "theme-persistence", evidence: [{ path: "scripts/task8-browser-regression.mjs", includes: "Task 10 favorite and theme persistence passed." }] }
 ];
 export const PRODUCTION_FAILURE_SCENARIOS = [
   { id: "offline-cached-startup", evidence: [{ path: "src/api/request-cache.test.mts", includes: "failed stale refresh retains the last success" }] },
   { id: "slow-api", evidence: [{ path: "src/api/request-cache.test.mts", includes: "stale reads return data and dedupe refresh" }] },
   { id: "401-refresh-failure", evidence: [{ path: "src/auth/session-controller.test.mts", includes: "refresh failure after 401 clears secure session" }] },
   { id: "404-business", evidence: [{ path: "src/api/kesfet.test.mts", includes: "profile preserves an authoritative 404" }] },
-  { id: "empty-menu", evidence: [{ path: "src/components/business/FoodMenuPanel.tsx", includes: "Bu menüde ürün yok." }] },
+  { id: "empty-menu", evidence: [{ path: "scripts/task5-browser-regression.mjs", includes: "task5-empty" }] },
   { id: "unavailable-product", evidence: [{ path: "src/checkout/checkout-state.test.mts", includes: "minimum order, and unavailable products" }] },
-  { id: "upload-rejection", evidence: [{ path: "src/api/account.ts", includes: "Profil fotoğrafı en fazla 2MB olabilir." }] },
+  { id: "upload-rejection", evidence: [{ path: "src/api/account.test.mts", includes: "oversize avatar rejection happens before any upload request" }] },
   { id: "camera-denial", evidence: [{ path: "src/qr/qr-screen-contract.test.mts", includes: "separates denied permission from camera mount errors" }] }
 ];
 const bannedConsumerWords = [

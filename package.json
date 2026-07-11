@@ -19,7 +19,7 @@
     "migration:validate:p0-runtime": "node scripts/migration/validate-p0-runtime.mjs",
     "mobile:test": "npm --prefix apps/mobile run test && node --test apps/mobile/scripts/*.test.mjs",
     "mobile:typecheck": "npm --prefix apps/mobile run typecheck",
-    "mobile:release": "npm run typecheck && npm run mobile:typecheck && npm run mobile:test && npm --prefix apps/mobile run build:apk"
+    "mobile:release": "npm run typecheck && npm run mobile:typecheck && npm run mobile:test && npm --prefix apps/mobile run build:apk -- --release"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.969.0",
