@@ -11,7 +11,7 @@ Key completed contracts:
 - Exact light/dark brand, accent, surface, border, focus, disabled, pressed, motion, and two-level elevation tokens.
 - Shared `AnimatedPressable` timing with no spring overshoot, no layout wrapper, reduced-motion snapping, disabled state, pressed opacity, and brand focus ring.
 - Four ordered 44px minimum tabs, centered at 360/390/430 widths, with 180ms selection timing, immediate reduced-motion selection, semantic tab roles, selected state, long-press events, one haptic per accepted press, and Home context on business profiles.
-- Inactive tab labels collapse width, margin, and opacity to zero; icon wrappers cannot shrink, rendered icons remain at least 20x20 CSS pixels at 360/390/430, and active labels remain unclipped at 200% browser font scale.
+- Inactive tab labels collapse width, margin, and opacity to zero; icon wrappers cannot shrink and inactive icons remain exactly 22x22 CSS pixels at 360/390/430. Active label width is derived from rendered text, rounded up with 2px slack, and retains all four full labels without ellipsis at both 100% and 200% font scale.
 - Favorites title/count, load retry, zero-state action, up to three recommendations for short lists, and category grouping beginning at seven favorites.
 - Explore editorial order, reduced image transitions, quiet inline states, and one coalesced state for fully sparse guide/business data.
 - Account quiet section rows, wrapping labels, busy/disabled semantics, 44px inputs/actions, reactive 160%/200% layout policy, and deterministic signed-in/signed-out browser fixtures without credential material.
@@ -24,7 +24,7 @@ Key completed contracts:
 `npm run test:browser:task8` captures every case twice, decodes PNGs to RGBA pixels, verifies the state has settled, and compares against committed baselines in `artifacts/task-8/baselines`. Per-channel deltas up to 12 are treated as antialias noise; the gate fails above 0.5% changed pixels or a mean channel delta above 1. Failure actual/diff PNGs are written to `artifacts/task-8/diffs`.
 
 - Light and dark at `390x844`: Home, Explore, Favorites, signed-in Account, signed-out Account, business profile, menu, product modal, and checkout (18 cases).
-- Navigation geometry: `360x800`, `390x844`, and `430x932` (3 cases).
+- Navigation geometry: `360x800`, `390x844`, and `430x932`, with every tab activated at 100% and 200% font scale (3 screenshot cases plus 24 route/scale DOM states).
 - Keyboard focus and exact brand focus ring (1 case).
 - OS reduced-motion press and selection behavior (1 case).
 - Account text/layout at 160% and 200% with no horizontal page overflow (2 cases).
@@ -32,13 +32,14 @@ Key completed contracts:
 - Light/dark sparse Favorites and grouped Favorites (4 cases).
 - Light/dark fully sparse Explore (2 cases).
 
-Total: 33 deterministic screenshot cases. The committed baseline set is 1,677,383 bytes; with `artifacts/task-8/README.md`, the committed visual evidence contains 34 artifacts. Coverage and regeneration commands are documented in that README.
+Total: 33 deterministic screenshot cases. The committed baseline set is 1,680,846 bytes; with `artifacts/task-8/README.md`, the committed visual evidence contains 34 artifacts. Coverage and regeneration commands are documented in that README.
 
-Browser assertions also cover tab/icon geometry, inactive-label flex collapse, active-label clipping, focus-ring viewport and adjacent-tab overlap, Account summary overlap, 44px Account inputs, rendered accordion ARIA state, and horizontal overflow on required surfaces. A fault-injection run changed 4,096 pixels (1.244%) in `light-home` and failed as expected, proving the gate detects pixel drift; its temporary failure artifacts were inspected and removed.
+Browser assertions also cover tab/icon geometry, inactive-label flex collapse, zero-tolerance `scrollWidth <= clientWidth`, absence of active `text-overflow: ellipsis`, Range-based text bounds, exact 21px active and 22px inactive icons, focus-ring viewport and adjacent-tab overlap, Account summary overlap, 44px Account inputs, rendered accordion ARIA state, and horizontal overflow on required surfaces. A fault-injection run changed 4,096 pixels (1.244%) in `light-home` and failed as expected, proving the gate detects pixel drift; its temporary failure artifacts were inspected and removed.
 
 ## Verification
 
-- `npm test` in `apps/mobile`: pass, 182/182 unit tests, smoke gate, Task 5 browser, Task 6 browser, Task 7 browser, and all 33 Task 8 baseline/DOM cases.
+- `npm test` in `apps/mobile`: pass, 183/183 unit tests, smoke gate, Task 5 browser, Task 6 browser, Task 7 browser, and all 33 Task 8 baseline/DOM cases.
+- `npm run test:browser:task8:update` in `apps/mobile`: pass, all 33 PNG baselines regenerated after review of geometry and 200% label surfaces.
 - `npm run test:browser:task8` in `apps/mobile`: pass, all 33 baseline comparisons and DOM geometry assertions.
 - `npm run typecheck` in `apps/mobile`: pass.
 - `npm run export:web` in `apps/mobile`: pass, 13 static routes exported to ignored `dist/` output.

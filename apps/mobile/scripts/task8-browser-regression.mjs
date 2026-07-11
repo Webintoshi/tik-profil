@@ -116,6 +116,10 @@ async function verifyNavigationGeometry() {
       assert.ok(Math.abs((left + right) / 2 - width / 2) <= 1, `${width} tabs are not centered`);
       assert.ok(tabBar.height >= 44, `${width} tab bar height is invalid`);
       await captureStableScreenshot(state.page, `geometry-${width}`);
+      await assertAllActiveTabLabels(state.page, width, 1);
+      await emulateBrowserFontScale(state.page, 2);
+      await state.page.waitForTimeout(250);
+      await assertAllActiveTabLabels(state.page, width, 2);
       await assertPageHealthy(state.page, state.issues);
     } finally {
       await state.context.close();
@@ -506,18 +510,55 @@ async function assertTabLabelGeometry(page, route, active, label) {
       marginLeft: Number.parseFloat(style.marginLeft),
       opacity: Number.parseFloat(style.opacity),
       rectWidth: element.getBoundingClientRect().width,
-      scrollWidth: element.scrollWidth
+      scrollHeight: element.scrollHeight,
+      scrollWidth: element.scrollWidth,
+      textOverflow: style.textOverflow,
+      textRect: (() => {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const rect = range.getBoundingClientRect();
+        return { bottom: rect.bottom, left: rect.left, right: rect.right, top: rect.top };
+      })(),
+      elementRect: (() => {
+        const rect = element.getBoundingClientRect();
+        return { bottom: rect.bottom, left: rect.left, right: rect.right, top: rect.top };
+      })()
     };
   });
   if (active) {
     assert.ok(geometry.rectWidth > 0, `${label} active label has no width`);
     assert.ok(geometry.opacity >= 0.99, `${label} active label is not opaque`);
     assert.equal(geometry.marginLeft, 6, `${label} active label margin changed`);
-    assert.ok(geometry.scrollWidth <= geometry.clientWidth + 1, `${label} active label is clipped`);
+    assert.ok(geometry.scrollWidth <= geometry.clientWidth, `${label} active label scroll width is clipped: ${JSON.stringify(geometry)}`);
+    assert.notEqual(geometry.textOverflow, "ellipsis", `${label} active label uses ellipsis`);
+    assert.ok(geometry.textRect.left >= geometry.elementRect.left, `${label} active text clips left: ${JSON.stringify(geometry)}`);
+    assert.ok(geometry.textRect.right <= geometry.elementRect.right, `${label} active text clips right: ${JSON.stringify(geometry)}`);
+    assert.ok(geometry.textRect.top >= geometry.elementRect.top, `${label} active text clips top: ${JSON.stringify(geometry)}`);
+    assert.ok(geometry.textRect.bottom <= geometry.elementRect.bottom, `${label} active text clips bottom: ${JSON.stringify(geometry)}`);
   } else {
     assert.ok(geometry.rectWidth <= 0.5, `${label} inactive label consumes width`);
     assert.ok(geometry.opacity <= 0.01, `${label} inactive label is visible`);
     assert.equal(geometry.marginLeft, 0, `${label} inactive label consumes margin`);
+  }
+}
+
+async function assertAllActiveTabLabels(page, width, fontScale) {
+  const routes = ["index", "explore", "favorites", "account"];
+  const routePaths = { account: "/account", explore: "/explore", favorites: "/favorites", index: "/" };
+  for (const activeRoute of routes) {
+    const activeTab = page.getByTestId(`bottom-tab-${activeRoute}`);
+    if (await activeTab.getAttribute("aria-selected") !== "true") {
+      await activeTab.click();
+      await page.waitForFunction((path) => window.location.pathname === path, routePaths[activeRoute]);
+      await page.waitForTimeout(250);
+    }
+    for (const route of routes) {
+      const active = route === activeRoute;
+      await assertTabLabelGeometry(page, route, active, `${width}px ${fontScale * 100}% ${route}`);
+      const svgBox = await requiredBox(page.getByTestId(`bottom-tab-icon-${route}`).locator("svg"), `${route} icon svg`);
+      assert.equal(svgBox.width, active ? 21 : 22, `${width}px ${fontScale * 100}% ${route} icon width changed`);
+      assert.equal(svgBox.height, active ? 21 : 22, `${width}px ${fontScale * 100}% ${route} icon height changed`);
+    }
   }
 }
 

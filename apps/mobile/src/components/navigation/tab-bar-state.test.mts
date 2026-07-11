@@ -47,6 +47,14 @@ test("390 wide 200 percent text retains a measured active label", () => {
   assert.ok(layout.totalWidth <= 390);
 });
 
+test("active label allocation rounds actual text width up with pixel slack", () => {
+  for (const measuredLabelWidth of [43.01, 56.5, 112]) {
+    const layout = getTabBarLayout({ measuredLabelWidth, viewportWidth: 390 });
+    assert.equal(layout.labelWidth, Math.ceil(measuredLabelWidth) + 2);
+    assert.equal(layout.activeWidth, 20 + 22 + 6 + layout.labelWidth);
+  }
+});
+
 test("selection timing is 180 ms without motion and immediate with reduced motion", () => {
   assert.equal(getSelectionDuration(false), 180);
   assert.equal(getSelectionDuration(true), 0);

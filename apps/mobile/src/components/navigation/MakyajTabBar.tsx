@@ -14,6 +14,7 @@ import {
 } from "@/components/navigation/tab-bar-metrics";
 import {
   CORE_TAB_ROUTES,
+  TAB_ITEM_GAP,
   getSelectionDuration,
   getTabBarLayout,
   resolveActiveTab,
@@ -80,7 +81,7 @@ export function MakyajTabBar({ navigation, state }: BottomTabBarProps) {
           style={{
             alignItems: "center",
             flexDirection: "row",
-            gap: 12,
+            gap: TAB_ITEM_GAP,
             height: BOTTOM_NAVIGATION_DOCK_HEIGHT,
             justifyContent: "center",
             paddingHorizontal: 20,
@@ -114,14 +115,14 @@ function TabItem({ focused, navigation, route, viewportWidth }: {
   const [measuredLabelWidth, setMeasuredLabelWidth] = useState(label.length * 7);
   const layout = getTabBarLayout({ measuredLabelWidth, viewportWidth });
   const width = useSharedValue(focused ? layout.activeWidth : interaction.minTouchTarget);
-  const labelWidth = useSharedValue(focused && layout.showActiveLabel ? measuredLabelWidth : 0);
+  const labelWidth = useSharedValue(focused && layout.showActiveLabel ? layout.labelWidth : 0);
   const labelMargin = useSharedValue(focused && layout.showActiveLabel ? 6 : 0);
   const labelOpacity = useSharedValue(focused && layout.showActiveLabel ? 1 : 0);
 
   useEffect(() => {
     const duration = getSelectionDuration(reducedMotion);
     const targetWidth = focused && layout.showActiveLabel ? layout.activeWidth : interaction.minTouchTarget;
-    const targetLabelWidth = focused && layout.showActiveLabel ? measuredLabelWidth : 0;
+    const targetLabelWidth = focused && layout.showActiveLabel ? layout.labelWidth : 0;
     const targetLabelMargin = focused && layout.showActiveLabel ? 6 : 0;
     const targetOpacity = focused && layout.showActiveLabel ? 1 : 0;
     if (duration === 0) {
@@ -136,7 +137,7 @@ function TabItem({ focused, navigation, route, viewportWidth }: {
     labelWidth.value = withTiming(targetLabelWidth, timing);
     labelMargin.value = withTiming(targetLabelMargin, timing);
     labelOpacity.value = withTiming(targetOpacity, timing);
-  }, [focused, labelMargin, labelOpacity, labelWidth, layout.activeWidth, layout.showActiveLabel, measuredLabelWidth, reducedMotion, width]);
+  }, [focused, labelMargin, labelOpacity, labelWidth, layout.activeWidth, layout.labelWidth, layout.showActiveLabel, reducedMotion, width]);
 
   const widthStyle = useAnimatedStyle(() => ({ width: width.value }));
   const labelStyle = useAnimatedStyle(() => ({
@@ -208,9 +209,9 @@ function TabItem({ focused, navigation, route, viewportWidth }: {
           />
         </View>
         <Animated.Text
-          numberOfLines={1}
+          numberOfLines={focused ? undefined : 1}
           style={[
-            { ...typography.tab, color: colors.onBrand, flexShrink: 1, overflow: "hidden", textAlign: "center" },
+            { ...typography.tab, color: colors.onBrand, flexShrink: 1, lineHeight: 18, overflow: "hidden", textAlign: "center" },
             labelStyle
           ]}
           testID={`bottom-tab-label-${routeName}`}
