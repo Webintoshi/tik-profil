@@ -35,6 +35,14 @@ test('keeps the Logto branding stylesheet credential-free and scoped', async () 
     css,
     /\.logto_branding-header::before\s*{[\s\S]*?content:\s*['"]{2};[\s\S]*?background-image:\s*var\(--tik-brand-logo\);[\s\S]*?background-size:\s*contain;/i,
   );
+  assert.match(
+    css,
+    /\.logto_main-content:not\(:has\(\.logto_branding-header\)\)\s*>\s*:nth-child\(2\)\s*{[\s\S]*?border-radius:\s*1rem;[\s\S]*?background:\s*#fff(?:fff)?;/i,
+  );
+  assert.match(
+    css,
+    /\.logto_main-content:not\(:has\(\.logto_branding-header\)\)\s*>\s*:nth-child\(2\)::before\s*{[\s\S]*?background-image:\s*var\(--tik-brand-logo\);/i,
+  );
   assert.equal(css.match(/data:image\/png;base64,/gi)?.length, 2);
   assert.match(
     css,

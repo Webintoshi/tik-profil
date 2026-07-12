@@ -58,6 +58,29 @@
   background-size: contain;
 }
 
+/* Direct identifier routes omit Logto's branding header. */
+#app .logto_main-content:not(:has(.logto_branding-header)) > :nth-child(2) {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 2rem 1.5rem;
+  border: 1px solid #e9e1d5;
+  border-radius: 1rem;
+  background: #ffffff;
+  color: #1d1912;
+}
+
+#app .logto_main-content:not(:has(.logto_branding-header)) > :nth-child(2)::before {
+  content: "";
+  display: block;
+  width: 5.875rem;
+  height: 2.75rem;
+  margin: 0 auto 1.25rem;
+  background-image: var(--tik-brand-logo);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+
 #app button:focus-visible,
 #app a:focus-visible {
   outline: 3px solid var(--tik-focus);
@@ -102,6 +125,10 @@
 
   #app .logto_branding-header {
     margin-bottom: 1.125rem;
+  }
+
+  #app .logto_main-content:not(:has(.logto_branding-header)) > :nth-child(2) {
+    padding: 1.5rem 1rem;
   }
 }
 
