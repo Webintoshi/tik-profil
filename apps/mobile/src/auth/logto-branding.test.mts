@@ -18,6 +18,14 @@ test('keeps the Logto branding stylesheet credential-free and scoped', async () 
   assert.match(css, /#app,\s*#app\s+\*\s*{[\s\S]*font-family:\s*["']Jost["']/i);
   assert.match(css, /\.logto_page-container/);
   assert.match(css, /\.logto_main-content/);
+  assert.match(
+    css,
+    /\.logto_main-content\s*{[\s\S]*?height:\s*auto;[\s\S]*?min-height:\s*min\(28rem,\s*calc\(100svh\s*-\s*4rem\)\)/i,
+  );
+  assert.doesNotMatch(
+    css,
+    /#app\s+input:not\(\[type=["']checkbox["']\]\):not\(\[type=["']radio["']\]\):not\(\[type=["']file["']\]\)/i,
+  );
   assert.match(css, /button\[type=['"]submit['"]\]/);
   assert.match(css, /prefers-color-scheme:\s*dark/);
   assert.match(css, /--tik-focus:\s*#8A4A00/i);

@@ -34,8 +34,10 @@
 
 #app .logto_main-content {
   width: min(100% - 2rem, 28rem);
+  height: auto;
+  min-height: min(28rem, calc(100svh - 4rem));
   margin: 0 auto;
-  padding: 2rem 0 3rem;
+  padding: 1.5rem 0 2rem;
 }
 
 #app .logto_branding-header {
@@ -56,29 +58,6 @@
   background-size: contain;
 }
 
-#app input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
-#app select,
-#app textarea {
-  width: 100%;
-  min-height: 2.875rem;
-  border: 1px solid var(--tik-border);
-  border-radius: 0.5rem;
-  background: var(--tik-surface);
-  color: var(--tik-ink);
-  padding: 0.7rem 0.85rem;
-  font: inherit;
-  box-sizing: border-box;
-}
-
-#app input::placeholder,
-#app textarea::placeholder {
-  color: var(--tik-muted);
-  opacity: 0.8;
-}
-
-#app input:focus-visible,
-#app select:focus-visible,
-#app textarea:focus-visible,
 #app button:focus-visible,
 #app a:focus-visible {
   outline: 3px solid var(--tik-focus);
@@ -116,8 +95,9 @@
 @media (max-width: 30rem) {
   #app .logto_main-content {
     width: min(100% - 1.25rem, 28rem);
-    padding-top: 1.25rem;
-    padding-bottom: 2rem;
+    min-height: min(27rem, calc(100svh - 2.5rem));
+    padding-top: 1rem;
+    padding-bottom: 1.5rem;
   }
 
   #app .logto_branding-header {
@@ -139,13 +119,6 @@
 
   #app .logto_page-container {
     background: var(--tik-canvas);
-  }
-
-  #app input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
-  #app select,
-  #app textarea {
-    background: var(--tik-surface);
-    color: var(--tik-ink);
   }
 
   #app button[type="submit"] {
