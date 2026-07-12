@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { applyThemeMode, type ThemeMode } from "./tokens";
 
@@ -20,12 +20,13 @@ function isThemeMode(value: string | null): value is ThemeMode {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>("light");
+  const hasExplicitSelection = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
     AsyncStorage.getItem(STORAGE_KEY)
       .then((savedMode) => {
-        if (!isMounted || !isThemeMode(savedMode)) return;
+        if (!isMounted || hasExplicitSelection.current || !isThemeMode(savedMode)) return;
         applyThemeMode(savedMode);
         setModeState(savedMode);
       })
@@ -37,6 +38,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setMode = useCallback((nextMode: ThemeMode) => {
+    hasExplicitSelection.current = true;
     applyThemeMode(nextMode);
     setModeState(nextMode);
     AsyncStorage.setItem(STORAGE_KEY, nextMode).catch(() => undefined);

@@ -640,7 +640,7 @@ function ThemeModeFloatingButton({ currentMode, top }: { currentMode: ThemeMode;
 
   return (
     <AnimatedPressable
-      accessibilityLabel={isDarkMode ? "Gece modu aktif" : "Gündüz modu aktif"}
+      accessibilityLabel={isDarkMode ? "Açık temaya geç" : "Koyu temaya geç"}
       accessibilityRole="button"
       onPress={() => {
         selectionImpact();
