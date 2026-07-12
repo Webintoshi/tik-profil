@@ -199,9 +199,19 @@ export async function authorizeWithAuthSession(
 ): Promise<StoredSession | null> {
   const discovery = await dependencies.fetchDiscoveryAsync(configuration.endpoint);
   const redirectUri = dependencies.makeRedirectUri(getLogtoRedirectOptions(platform));
-  const extraParams: Record<string, string> = { resource: configuration.audience };
-  if (mode === "signUp") extraParams.first_screen = "register";
-  if (directSignIn) extraParams.direct_sign_in = `social:${directSignIn}`;
+  const extraParams: Record<string, string> = {
+    resource: configuration.audience,
+    ui_locales: "tr-TR"
+  };
+  if (directSignIn) {
+    if (mode === "signUp") extraParams.first_screen = "register";
+    extraParams.direct_sign_in = `social:${directSignIn}`;
+  } else {
+    extraParams.first_screen = mode === "signUp"
+      ? "identifier:register"
+      : "identifier:sign-in";
+    extraParams.identifier = "phone";
+  }
 
   const request = dependencies.createRequest({
     clientId: configuration.appId,

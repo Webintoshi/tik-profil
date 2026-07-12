@@ -63,7 +63,8 @@ test("PKCE authorization uses S256, native redirect, API resource, and offline s
     extraParams: {
       direct_sign_in: "social:google",
       first_screen: "register",
-      resource: "https://api.example.test"
+      resource: "https://api.example.test",
+      ui_locales: "tr-TR"
     },
     prompt: "consent",
     redirectUri: "tikprofil://auth/callback",
@@ -72,6 +73,40 @@ test("PKCE authorization uses S256, native redirect, API resource, and offline s
     usePKCE: true
   });
   assert.equal(session?.refreshToken, "refresh");
+});
+
+test("mobile identifier authentication opens phone-only Turkish screens", async () => {
+  const observed: Array<Record<string, string> | undefined> = [];
+
+  for (const mode of ["signIn", "signUp"] as const) {
+    await authorizeWithAuthSession(configuredLogto, mode, undefined, {
+      createRequest(config) {
+        observed.push(config.extraParams as Record<string, string> | undefined);
+        return {
+          codeVerifier: "unused",
+          promptAsync: async () => ({ type: "cancel" })
+        };
+      },
+      exchangeCodeAsync: async () => { throw new Error("must not exchange"); },
+      fetchDiscoveryAsync: async () => ({}),
+      makeRedirectUri: () => "tikprofil://auth/callback"
+    });
+  }
+
+  assert.deepEqual(observed, [
+    {
+      first_screen: "identifier:sign-in",
+      identifier: "phone",
+      resource: "https://api.example.test",
+      ui_locales: "tr-TR"
+    },
+    {
+      first_screen: "identifier:register",
+      identifier: "phone",
+      resource: "https://api.example.test",
+      ui_locales: "tr-TR"
+    }
+  ]);
 });
 
 test("web authorization redirects the current tab and preserves PKCE state", async () => {
