@@ -1,6 +1,7 @@
 #app {
   --tik-amber: #ffb347;
   --tik-amber-deep: #8a4a00;
+  --tik-focus: #8a4a00;
   --tik-canvas: #faf8f4;
   --tik-surface: #ffffff;
   --tik-ink: #1d1912;
@@ -53,7 +54,7 @@
 #app textarea:focus-visible,
 #app button:focus-visible,
 #app a:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--tik-amber) 60%, transparent);
+  outline: 3px solid var(--tik-focus);
   outline-offset: 2px;
 }
 
@@ -105,6 +106,7 @@
     --tik-muted: #c7bcae;
     --tik-border: #5b5043;
     --tik-amber-deep: #ffc875;
+    --tik-focus: #ffc875;
   }
 
   #app .logto_page-container {

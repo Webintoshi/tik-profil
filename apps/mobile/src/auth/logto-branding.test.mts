@@ -16,5 +16,8 @@ test('keeps the Logto branding stylesheet credential-free and scoped', async () 
   assert.match(css, /\.logto_main-content/);
   assert.match(css, /button\[type=['"]submit['"]\]/);
   assert.match(css, /prefers-color-scheme:\s*dark/);
+  assert.match(css, /--tik-focus:\s*#8A4A00/i);
+  assert.match(css, /outline:\s*3px\s+solid\s+var\(--tik-focus\)/i);
+  assert.match(css, /prefers-color-scheme:\s*dark[\s\S]*--tik-focus:\s*#FFC875/i);
   assert.doesNotMatch(css, /password|secret|token/i);
 });
