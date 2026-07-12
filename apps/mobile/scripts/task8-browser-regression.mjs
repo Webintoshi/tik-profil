@@ -40,13 +40,13 @@ try {
 
   const focus = process.env.TASK8_BROWSER_FOCUS;
   await setFixtureScenario("default");
+  if (!focus || focus === "persistence") await verifyPreferencePersistence();
   if (!focus || focus === "surfaces") await verifyLightDarkSurfaceMatrix();
   if (!focus || focus === "geometry") await verifyNavigationGeometry();
   if (!focus || focus === "focus") await verifyKeyboardFocus();
   if (!focus || focus === "motion") await verifyReducedMotion();
   if (!focus || focus === "font") await verifyFontScale();
   if (!focus || focus === "sparse") await verifySparseAndGroupedStates();
-  if (!focus || focus === "persistence") await verifyPreferencePersistence();
 
   process.stdout.write(`Task 8 screenshot matrix passed ${screenshotCases.length} deterministic cases.\n`);
   process.stdout.write(`${screenshotCases.join("\n")}\n`);

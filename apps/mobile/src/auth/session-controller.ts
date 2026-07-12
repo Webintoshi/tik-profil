@@ -36,6 +36,7 @@ type Listener = (state: SessionState) => void;
 
 const INVALIDATED_SESSION = JSON.stringify({ invalidated: true });
 const CLEAR_ATTEMPTS = 3;
+const AUTHORIZATION_FAILURE = "Giriş tamamlanamadı. Lütfen tekrar deneyin.";
 const CLEANUP_WARNING = "Oturum kapatıldı ancak güvenli cihaz kaydı temizlenemedi; kayıt geçersizleştirildi.";
 const CLEANUP_FAILURE = "Oturum cihazdan güvenli biçimde temizlenemedi. Uygulamayı kapatıp tekrar deneyin.";
 
@@ -253,6 +254,12 @@ export function createSessionController(dependencies: SessionControllerDependenc
   };
 
   return {
+    failAuthorization() {
+      generation += 1;
+      activeOperation = null;
+      session = null;
+      emit({ error: AUTHORIZATION_FAILURE, type: "AUTHORIZATION_FAILED" });
+    },
     async completeAuthorization(authorized: StoredSession) {
       if (activeOperation) return;
       generation += 1;

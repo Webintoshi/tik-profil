@@ -115,6 +115,17 @@ test("completed web authorization persists the session and loads the customer", 
   assert.match(context.stored ?? "", /redirect-refresh/);
 });
 
+test("failed web authorization is shown as a retryable signed-out error", () => {
+  const context = harness();
+
+  context.controller.failAuthorization();
+
+  assert.equal(context.controller.getState().status, "signed_out");
+  assert.equal(context.controller.getState().accessToken, null);
+  assert.equal(context.controller.getState().customer, null);
+  assert.equal(context.controller.getState().error, "Giriş tamamlanamadı. Lütfen tekrar deneyin.");
+});
+
 test("sign-out during refresh suppresses rotated session", async () => {
   const refresh = deferred<ReturnType<typeof token>>();
   const context = harness({ refresh: () => refresh.promise });

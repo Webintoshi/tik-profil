@@ -635,20 +635,22 @@ function SupportLinksSection({ compact = false }: { compact?: boolean }) {
 }
 
 function ThemeModeFloatingButton({ currentMode, top }: { currentMode: ThemeMode; top: number }) {
-  const { setMode } = useThemeMode();
+  const { isReady, setMode } = useThemeMode();
   const isDarkMode = currentMode === "dark";
 
   return (
     <AnimatedPressable
       accessibilityLabel={isDarkMode ? "Açık temaya geç" : "Koyu temaya geç"}
       accessibilityRole="button"
+      accessibilityState={{ disabled: !isReady }}
+      disabled={!isReady}
       onPress={() => {
         selectionImpact();
         setMode(isDarkMode ? "light" : "dark");
       }}
       style={({ pressed }) => ({
         alignItems: "center",
-        opacity: pressed ? 0.84 : 1,
+        opacity: !isReady ? 0.72 : pressed ? 0.84 : 1,
         position: "absolute",
         right: spacing.screen,
         top,

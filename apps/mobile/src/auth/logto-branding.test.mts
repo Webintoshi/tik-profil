@@ -12,6 +12,10 @@ test('keeps the Logto branding stylesheet credential-free and scoped', async () 
   const css = await readFile(stylesheetPath, 'utf8');
 
   assert.match(css, /--tik-amber:\s*#FFB347/i);
+  assert.match(css, /@font-face\s*{[\s\S]*font-family:\s*["']Jost["']/i);
+  assert.match(css, /src:\s*url\(["']?data:font\/ttf;base64,/i);
+  assert.match(css, /font-weight:\s*100\s+900/i);
+  assert.match(css, /#app,\s*#app\s+\*\s*{[\s\S]*font-family:\s*["']Jost["']/i);
   assert.match(css, /\.logto_page-container/);
   assert.match(css, /\.logto_main-content/);
   assert.match(css, /button\[type=['"]submit['"]\]/);

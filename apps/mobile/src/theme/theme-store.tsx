@@ -7,6 +7,7 @@ const STORAGE_KEY = "tikprofil.themeMode";
 
 interface ThemeModeContextValue {
   isDark: boolean;
+  isReady: boolean;
   mode: ThemeMode;
   setMode: (mode: ThemeMode) => void;
   toggleMode: () => void;
@@ -20,6 +21,7 @@ function isThemeMode(value: string | null): value is ThemeMode {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>("light");
+  const [isReady, setIsReady] = useState(false);
   const hasExplicitSelection = useRef(false);
 
   useEffect(() => {
@@ -30,7 +32,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         applyThemeMode(savedMode);
         setModeState(savedMode);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (isMounted) setIsReady(true);
+      });
 
     return () => {
       isMounted = false;
@@ -51,11 +56,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       isDark: mode === "dark",
+      isReady,
       mode,
       setMode,
       toggleMode
     }),
-    [mode, setMode, toggleMode]
+    [isReady, mode, setMode, toggleMode]
   );
 
   return <ThemeModeContext.Provider value={value}>{children}</ThemeModeContext.Provider>;

@@ -24,6 +24,7 @@ export interface SessionState {
 
 export type SessionAction =
   | { type: "AUTH_STARTED" }
+  | { type: "AUTHORIZATION_FAILED"; error: string }
   | { type: "CUSTOMER_LOADED"; customer: CustomerAccount }
   | { type: "CUSTOMER_REFRESH_STARTED" }
   | { type: "FAILED"; error: string }
@@ -92,6 +93,8 @@ export function reduceSession(state: SessionState, action: SessionAction): Sessi
   switch (action.type) {
     case "AUTH_STARTED":
       return { ...state, error: null, status: "authenticating" };
+    case "AUTHORIZATION_FAILED":
+      return { ...signedOutState, error: action.error };
     case "CUSTOMER_LOADED":
       return { ...state, customer: action.customer, error: null, status: "signed_in" };
     case "CUSTOMER_REFRESH_STARTED":

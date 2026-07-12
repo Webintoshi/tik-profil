@@ -187,7 +187,65 @@ test("web callback rejects mismatched OAuth state before code exchange", async (
     }
   }), /doğrulama/i);
   assert.equal(exchangeCalls, 0);
+  assert.equal(pending.size, 1);
+});
+
+test("web callback validates OAuth errors before consuming the pending login", async () => {
+  let replacedWith: string | undefined;
+  const pending = new Map<string, string>([["tikprofil.logto.pending", JSON.stringify({
+    codeVerifier: "pkce-verifier",
+    createdAt: 1_000,
+    redirectUri: "http://localhost:8082/account",
+    state: "expected-state"
+  })]]);
+
+  await assert.rejects(() => completeWebAuthRedirect(configuredLogto, {
+    createRequest: () => { throw new Error("must not create a second request"); },
+    exchangeCodeAsync: async () => { throw new Error("must not exchange"); },
+    fetchDiscoveryAsync: async () => ({}),
+    makeRedirectUri: () => "http://localhost:8082/account",
+    web: {
+      assign: () => undefined,
+      getCurrentUrl: () => "http://localhost:8082/account?error=access_denied&error_description=Kullan%C4%B1c%C4%B1+giri%C5%9Fi+iptal+etti&state=wrong-state",
+      getItem: (key) => pending.get(key) ?? null,
+      now: () => 2_000,
+      removeItem: (key) => { pending.delete(key); },
+      replaceUrl(url) { replacedWith = url; },
+      setItem: (key, value) => { pending.set(key, value); }
+    }
+  }), /doğrulama/i);
+
+  assert.equal(pending.size, 1);
+  assert.equal(replacedWith, undefined);
+});
+
+test("validated OAuth error consumes its pending login and cleans the URL", async () => {
+  let replacedWith: string | undefined;
+  const pending = new Map<string, string>([["tikprofil.logto.pending", JSON.stringify({
+    codeVerifier: "pkce-verifier",
+    createdAt: 1_000,
+    redirectUri: "http://localhost:8082/account",
+    state: "expected-state"
+  })]]);
+
+  await assert.rejects(() => completeWebAuthRedirect(configuredLogto, {
+    createRequest: () => { throw new Error("must not create a second request"); },
+    exchangeCodeAsync: async () => { throw new Error("must not exchange"); },
+    fetchDiscoveryAsync: async () => ({}),
+    makeRedirectUri: () => "http://localhost:8082/account",
+    web: {
+      assign: () => undefined,
+      getCurrentUrl: () => "http://localhost:8082/account?error=access_denied&error_description=Kullan%C4%B1c%C4%B1+giri%C5%9Fi+iptal+etti&state=expected-state",
+      getItem: (key) => pending.get(key) ?? null,
+      now: () => 2_000,
+      removeItem: (key) => { pending.delete(key); },
+      replaceUrl(url) { replacedWith = url; },
+      setItem: (key, value) => { pending.set(key, value); }
+    }
+  }), /Kullanıcı girişi iptal etti/i);
+
   assert.equal(pending.size, 0);
+  assert.equal(replacedWith, "http://localhost:8082/account");
 });
 
 test("PKCE cancellation returns null without code exchange", async () => {

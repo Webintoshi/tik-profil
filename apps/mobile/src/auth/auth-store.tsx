@@ -71,7 +71,8 @@ function RuntimeCustomerSessionProvider({ children }: { children: ReactNode }) {
           return;
         }
       } catch {
-        // The callback URL is cleaned by the auth client; restore leaves the user able to retry.
+        controller.failAuthorization();
+        return;
       }
       await controller.restore();
     })();

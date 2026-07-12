@@ -260,15 +260,10 @@ export async function completeWebAuthRedirect(
   const authorizationCode = callbackUrl.searchParams.get("code");
   const returnedState = callbackUrl.searchParams.get("state");
   const authorizationError = callbackUrl.searchParams.get("error");
+  const authorizationErrorDescription = callbackUrl.searchParams.get("error_description");
   if (!authorizationCode && !authorizationError) return null;
 
   const pending = parsePendingWebAuthorization(runtime.getItem(WEB_AUTH_PENDING_KEY));
-  runtime.removeItem(WEB_AUTH_PENDING_KEY);
-  runtime.replaceUrl(cleanAuthorizationCallbackUrl(callbackUrl));
-
-  if (authorizationError) {
-    throw new Error(callbackUrl.searchParams.get("error_description") || "Logto girişi iptal edildi.");
-  }
   if (!pending || runtime.now() - pending.createdAt > WEB_AUTH_MAX_AGE_MS) {
     throw new Error("Giriş doğrulaması bulunamadı veya süresi doldu.");
   }
@@ -279,6 +274,16 @@ export async function completeWebAuthRedirect(
   const expectedCallback = new URL(pending.redirectUri);
   if (callbackUrl.origin !== expectedCallback.origin || callbackUrl.pathname !== expectedCallback.pathname) {
     throw new Error("Giriş dönüş adresi doğrulanamadı.");
+  }
+
+  runtime.removeItem(WEB_AUTH_PENDING_KEY);
+  runtime.replaceUrl(cleanAuthorizationCallbackUrl(callbackUrl));
+
+  if (authorizationError) {
+    throw new Error(authorizationErrorDescription || "Logto girişi iptal edildi.");
+  }
+  if (!authorizationCode) {
+    throw new Error("Logto giriş kodu bulunamadı.");
   }
 
   const discovery = await dependencies.fetchDiscoveryAsync(configuration.endpoint);
