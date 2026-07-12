@@ -63,8 +63,18 @@ function RuntimeCustomerSessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = controller.subscribe(setState);
-    completePendingWebAuthSession().catch(() => undefined);
-    void controller.restore();
+    void (async () => {
+      try {
+        const authorized = await completePendingWebAuthSession();
+        if (authorized) {
+          await controller.completeAuthorization(authorized);
+          return;
+        }
+      } catch {
+        // The callback URL is cleaned by the auth client; restore leaves the user able to retry.
+      }
+      await controller.restore();
+    })();
     return unsubscribe;
   }, [controller]);
 

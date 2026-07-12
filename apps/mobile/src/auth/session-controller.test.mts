@@ -92,6 +92,29 @@ test("sign-out during authorize suppresses token and storage writes", async () =
   assert.doesNotMatch(context.stored ?? "", /stale-access/);
 });
 
+test("completed web authorization persists the session and loads the customer", async () => {
+  let logoutMarkerCleared = 0;
+  const context = harness({
+    fetchCustomer: async (accessToken: string) => {
+      assert.equal(accessToken, "redirect-access");
+      return customer("redirect@example.com");
+    },
+    logoutMarker: {
+      clear: async () => { logoutMarkerCleared += 1; },
+      read: async () => false,
+      write: async () => undefined
+    }
+  });
+
+  await context.controller.completeAuthorization(token("redirect"));
+
+  assert.equal(context.controller.getState().status, "signed_in");
+  assert.equal(context.controller.getState().accessToken, "redirect-access");
+  assert.equal(context.controller.getState().customer?.email, "redirect@example.com");
+  assert.equal(logoutMarkerCleared, 1);
+  assert.match(context.stored ?? "", /redirect-refresh/);
+});
+
 test("sign-out during refresh suppresses rotated session", async () => {
   const refresh = deferred<ReturnType<typeof token>>();
   const context = harness({ refresh: () => refresh.promise });

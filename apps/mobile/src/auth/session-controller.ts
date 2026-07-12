@@ -253,6 +253,29 @@ export function createSessionController(dependencies: SessionControllerDependenc
   };
 
   return {
+    async completeAuthorization(authorized: StoredSession) {
+      if (activeOperation) return;
+      generation += 1;
+      const expectedGeneration = generation;
+      const operationToken = Symbol("complete-authorization");
+      activeOperation = operationToken;
+      emit({ type: "AUTH_STARTED" }, expectedGeneration);
+      try {
+        try {
+          await storageBarrier;
+          if (!isCurrent(expectedGeneration)) return;
+          session = authorized;
+          emit({ accessToken: authorized.accessToken, type: "TOKEN_RESTORED" }, expectedGeneration);
+          if (!await persist(authorized, expectedGeneration, true)) return;
+        } catch (error) {
+          await expire(message(error, "Giriş tamamlanamadı."), expectedGeneration);
+          return;
+        }
+        await loadCustomerRecoverably(expectedGeneration);
+      } finally {
+        if (activeOperation === operationToken) activeOperation = null;
+      }
+    },
     getState: () => state,
     subscribe(listener: Listener) {
       listeners.add(listener);

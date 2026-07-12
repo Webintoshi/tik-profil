@@ -13,6 +13,7 @@ registerHooks({
 
 const {
   authorizeWithAuthSession,
+  completeWebAuthRedirect,
   getLogtoRedirectOptions,
   readLogtoConfiguration,
   toStoredSession
@@ -73,23 +74,120 @@ test("PKCE authorization uses S256, native redirect, API resource, and offline s
   assert.equal(session?.refreshToken, "refresh");
 });
 
-test("web authorization uses the account callback registered in Logto", async () => {
+test("web authorization redirects the current tab and preserves PKCE state", async () => {
   let redirectOptions: unknown;
   let requestConfig: Record<string, unknown> | undefined;
-  await authorizeWithAuthSession(configuredLogto, "signIn", undefined, {
+  let promptCalls = 0;
+  let redirectedTo: string | undefined;
+  const pending = new Map<string, string>();
+  const result = await authorizeWithAuthSession(configuredLogto, "signIn", undefined, {
     createRequest(config) {
       requestConfig = config;
       return {
         codeVerifier: "pkce-verifier",
-        promptAsync: async () => ({ params: { code: "authorization-code" }, type: "success" })
+        makeAuthUrlAsync: async () => "https://auth.example.test/oidc/auth?state=csrf-state",
+        promptAsync: async () => {
+          promptCalls += 1;
+          return { params: { code: "authorization-code" }, type: "success" };
+        },
+        state: "csrf-state"
       };
     },
     exchangeCodeAsync: async () => ({ accessToken: "access", issuedAt: 1000, refreshToken: "refresh" }),
     fetchDiscoveryAsync: async () => ({}),
-    makeRedirectUri(options) { redirectOptions = options; return "http://localhost:8082/account"; }
+    makeRedirectUri(options) { redirectOptions = options; return "http://localhost:8082/account"; },
+    web: {
+      assign(url) { redirectedTo = url; },
+      getCurrentUrl: () => "http://localhost:8082/account",
+      getItem: (key) => pending.get(key) ?? null,
+      now: () => 1_000,
+      removeItem: (key) => { pending.delete(key); },
+      replaceUrl: () => undefined,
+      setItem: (key, value) => { pending.set(key, value); }
+    }
   }, "web");
   assert.deepEqual(redirectOptions, { path: "account" });
   assert.equal(requestConfig?.redirectUri, "http://localhost:8082/account");
+  assert.equal(promptCalls, 0);
+  assert.equal(redirectedTo, "https://auth.example.test/oidc/auth?state=csrf-state");
+  assert.equal(result, null);
+  assert.deepEqual(JSON.parse([...pending.values()][0] ?? "null"), {
+    codeVerifier: "pkce-verifier",
+    createdAt: 1_000,
+    redirectUri: "http://localhost:8082/account",
+    state: "csrf-state"
+  });
+});
+
+test("web callback validates state, exchanges the code, and cleans the callback URL", async () => {
+  let exchangeConfig: Record<string, unknown> | undefined;
+  let replacedWith: string | undefined;
+  const pending = new Map<string, string>([["tikprofil.logto.pending", JSON.stringify({
+    codeVerifier: "pkce-verifier",
+    createdAt: 1_000,
+    redirectUri: "http://localhost:8082/account",
+    state: "csrf-state"
+  })]]);
+
+  const session = await completeWebAuthRedirect(configuredLogto, {
+    createRequest: () => { throw new Error("must not create a second request"); },
+    exchangeCodeAsync: async (config) => {
+      exchangeConfig = config;
+      return { accessToken: "access", expiresIn: 900, issuedAt: 2_000, refreshToken: "refresh" };
+    },
+    fetchDiscoveryAsync: async () => ({ tokenEndpoint: "https://auth.example.test/oidc/token" }),
+    makeRedirectUri: () => "http://localhost:8082/account",
+    web: {
+      assign: () => undefined,
+      getCurrentUrl: () => "http://localhost:8082/account?code=authorization-code&state=csrf-state",
+      getItem: (key) => pending.get(key) ?? null,
+      now: () => 2_000,
+      removeItem: (key) => { pending.delete(key); },
+      replaceUrl(url) { replacedWith = url; },
+      setItem: (key, value) => { pending.set(key, value); }
+    }
+  });
+
+  assert.deepEqual(exchangeConfig, {
+    clientId: "mobile-app",
+    code: "authorization-code",
+    extraParams: { code_verifier: "pkce-verifier", resource: "https://api.example.test" },
+    redirectUri: "http://localhost:8082/account"
+  });
+  assert.equal(session?.refreshToken, "refresh");
+  assert.equal(pending.size, 0);
+  assert.equal(replacedWith, "http://localhost:8082/account");
+});
+
+test("web callback rejects mismatched OAuth state before code exchange", async () => {
+  let exchangeCalls = 0;
+  const pending = new Map<string, string>([["tikprofil.logto.pending", JSON.stringify({
+    codeVerifier: "pkce-verifier",
+    createdAt: 1_000,
+    redirectUri: "http://localhost:8082/account",
+    state: "expected-state"
+  })]]);
+
+  await assert.rejects(() => completeWebAuthRedirect(configuredLogto, {
+    createRequest: () => { throw new Error("must not create a second request"); },
+    exchangeCodeAsync: async () => {
+      exchangeCalls += 1;
+      throw new Error("must not exchange");
+    },
+    fetchDiscoveryAsync: async () => ({}),
+    makeRedirectUri: () => "http://localhost:8082/account",
+    web: {
+      assign: () => undefined,
+      getCurrentUrl: () => "http://localhost:8082/account?code=authorization-code&state=wrong-state",
+      getItem: (key) => pending.get(key) ?? null,
+      now: () => 2_000,
+      removeItem: (key) => { pending.delete(key); },
+      replaceUrl: () => undefined,
+      setItem: (key, value) => { pending.set(key, value); }
+    }
+  }), /doğrulama/i);
+  assert.equal(exchangeCalls, 0);
+  assert.equal(pending.size, 0);
 });
 
 test("PKCE cancellation returns null without code exchange", async () => {
