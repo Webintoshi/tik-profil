@@ -83,3 +83,23 @@ test('keeps the Logto branding stylesheet credential-free and scoped', async () 
   );
   assert.doesNotMatch(css, /(?:password|secret|token)\s*[:=]\s*["'][^"']+/i);
 });
+
+test('keeps Logto field labels in a reserved row above their controls', async () => {
+  const css = await readFile(stylesheetPath, 'utf8');
+  const identifierLabelBlock = css.match(
+    /div:has\(>\s*input\[name=["']identifier["']\]\)\s*\+\s*div\s+label\s*{([^}]*)}/i,
+  )?.[1] ?? '';
+  const passwordLabelBlock = css.match(
+    /div:has\(>\s*input\[name=["']password["']\]\)\s*\+\s*div\s+label\s*{([^}]*)}/i,
+  )?.[1] ?? '';
+
+  assert.match(
+    css,
+    /form\s*>\s*div:has\(input\[name=["']identifier["']\]\),[\s\S]*?padding-top:\s*1\.25rem\s*!important/i,
+  );
+  for (const labelBlock of [identifierLabelBlock, passwordLabelBlock]) {
+    assert.match(labelBlock, /inset:\s*-1\.25rem\s+auto\s+auto\s+0\s*!important/i);
+    assert.match(labelBlock, /transform:\s*none\s*!important/i);
+    assert.match(labelBlock, /margin:\s*0\s*!important/i);
+  }
+});

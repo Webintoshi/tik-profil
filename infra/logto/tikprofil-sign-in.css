@@ -252,6 +252,7 @@ html[data-theme="dark"] #app {
 #app .logto_main-content form > div:has(input[name="identifier"]),
 #app .logto_main-content form > div:has(input[name="password"]) {
   margin: 0 !important;
+  padding-top: 1.25rem !important;
 }
 
 #app .logto_main-content form > div:has(input[name="identifier"]) > div,
@@ -303,21 +304,34 @@ html[data-theme="dark"] #app {
 }
 
 #app .logto_main-content form div:has(> input[name="identifier"]) + div label {
-  margin-left: 4.75rem;
+  inset: -1.25rem auto auto 0 !important;
+  height: 1rem;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
   color: transparent !important;
   font-size: 0 !important;
+  line-height: 1rem;
+  transform: none !important;
 }
 
 #app .logto_main-content form div:has(> input[name="identifier"]) + div label::after {
   content: "Telefon numarası";
   color: var(--tik-muted);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
 }
 
 #app .logto_main-content form div:has(> input[name="password"]) + div label {
-  padding: 0 0.25rem;
-  background: var(--tik-field);
+  inset: -1.25rem auto auto 0 !important;
+  height: 1rem;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
   color: var(--tik-muted) !important;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  transform: none !important;
 }
 
 #app .logto_main-content form button[type="button"] {
