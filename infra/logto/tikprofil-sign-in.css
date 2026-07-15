@@ -46,12 +46,16 @@
   text-align: center;
 }
 
+#app .logto_branding-header > * {
+  display: none !important;
+}
+
 #app .logto_branding-header::before {
   content: "";
   display: block;
   width: 5.875rem;
   height: 2.75rem;
-  margin: 0 auto 0.75rem;
+  margin: 0 auto;
   background-image: var(--tik-brand-logo);
   background-repeat: no-repeat;
   background-position: center;
