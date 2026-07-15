@@ -41,9 +41,11 @@
 }
 
 #app .logto_branding-header {
+  min-height: 5.125rem;
   margin-bottom: 1.5rem;
   color: var(--tik-ink);
   text-align: center;
+  justify-content: center;
 }
 
 #app .logto_branding-header > * {

@@ -58,6 +58,10 @@ test('keeps the Logto branding stylesheet credential-free and scoped', async () 
   );
   assert.match(
     css,
+    /\.logto_branding-header\s*{[^}]*min-height:\s*5\.125rem;[^}]*justify-content:\s*center;/i,
+  );
+  assert.match(
+    css,
     /\.logto_branding-header::before\s*{[\s\S]*?margin:\s*0\s+auto;/i,
   );
   assert.doesNotMatch(css, /(?:password|secret|token)\s*[:=]\s*["'][^"']+/i);
