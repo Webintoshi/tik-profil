@@ -239,3 +239,207 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Native account entry parity. Keep Logto behavior, mirror the mobile account surface. */
+#app {
+  color-scheme: light;
+  --tik-canvas: #FAF8F4;
+  --tik-surface: #FFFFFF;
+  --tik-ink: #1D1912;
+  --tik-muted: #625A50;
+  --tik-border: #B9B2A7;
+  --tik-amber: #FFB347;
+  --tik-amber-deep: #8A4A00;
+  --tik-focus: #7A4100;
+}
+
+#app .logto_page-container {
+  min-height: 100svh;
+  padding: 0 1.25rem !important;
+  background: #FAF8F4 !important;
+  color: #1D1912 !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+}
+
+#app .logto_main-content {
+  box-sizing: border-box;
+  width: min(100%, 26.875rem);
+  min-height: 100svh;
+  height: auto;
+  margin: 0 auto;
+  padding: 2.5rem 0 2rem;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #1D1912 !important;
+  justify-content: flex-start !important;
+}
+
+#app .logto_main-content > :first-child,
+#app .logto_main-content > :nth-child(3) {
+  display: none !important;
+}
+
+#app .logto_main-content > :nth-child(2) {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #1D1912 !important;
+}
+
+#app .logto_branding-header {
+  width: 100%;
+  min-height: 2.625rem;
+  margin: 0 0 1.75rem;
+  color: #1D1912 !important;
+  justify-content: center;
+}
+
+#app .logto_branding-header::before,
+#app .logto_main-content:not(:has(.logto_branding-header)) > :nth-child(2)::before {
+  width: 7rem;
+  height: 2.625rem;
+  margin: 0 auto;
+}
+
+#app .logto_main-content form {
+  width: 100%;
+  margin: 0 !important;
+  gap: 0.75rem !important;
+  color: #1D1912 !important;
+}
+
+#app .logto_main-content form > div:has(input[name="identifier"]),
+#app .logto_main-content form > div:has(input[name="password"]) {
+  width: 100%;
+  padding-top: 1.25rem !important;
+}
+
+#app .logto_main-content form > div:has(input[name="identifier"]) > div,
+#app .logto_main-content form > div:has(input[name="password"]) > div {
+  min-height: 3.125rem;
+  overflow: hidden;
+  border: 1px solid #B9B2A7;
+  border-radius: 1rem;
+  background: #FFFFFF !important;
+  box-shadow: none;
+}
+
+#app .logto_main-content form > div:has(input:focus) > div {
+  border-color: #7A4100;
+  box-shadow: 0 0 0 3px rgb(122 65 0 / 14%);
+}
+
+#app .logto_main-content input[name="identifier"],
+#app .logto_main-content input[name="password"] {
+  min-height: 3.125rem;
+  background: transparent !important;
+  color: #1D1912 !important;
+  caret-color: #8A4A00;
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+}
+
+#app .logto_main-content input[name="identifier"]::placeholder,
+#app .logto_main-content input[name="password"]::placeholder {
+  color: #625A50 !important;
+  opacity: 1;
+}
+
+#app .logto_main-content form [data-testid="prefix"] > [role="button"] {
+  border-right: 1px solid #B9B2A7;
+  background: #FFFDF9 !important;
+  color: #1D1912 !important;
+}
+
+#app .logto_main-content form div:has(> input[name="identifier"]) + div label::after,
+#app .logto_main-content form div:has(> input[name="password"]) + div label {
+  color: #625A50 !important;
+}
+
+#app .logto_main-content form button[type="button"] {
+  color: #625A50 !important;
+}
+
+#app button[type="submit"] {
+  width: 100%;
+  min-height: 3.125rem;
+  margin-top: 0.25rem;
+  padding: 0.75rem 1rem;
+  border: 0;
+  border-radius: 1rem;
+  background: #FFB347;
+  box-shadow: none;
+  color: #2B1800 !important;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.25rem;
+}
+
+#app button[type="submit"]:hover {
+  background: #FFB347;
+  opacity: 0.92;
+}
+
+#app button[type="submit"]:active {
+  background: #F59A23;
+  transform: scale(0.99);
+}
+
+#app .logto_main-content form + * {
+  width: 100%;
+  margin: 1rem 0 0 !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+
+#app .logto_main-content form + * a {
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  background: #1D1912;
+  color: #FFFFFF !important;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9375rem !important;
+  font-weight: 700;
+  line-height: 1.25rem;
+  text-decoration: none !important;
+}
+
+#app .logto_main-content form + * a:hover {
+  opacity: 0.9;
+}
+
+#app .logto_signature {
+  display: none !important;
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+  pointer-events: none !important;
+}
+
+@media (max-width: 30rem) {
+  #app .logto_page-container {
+    padding-right: 1.25rem !important;
+    padding-left: 1.25rem !important;
+  }
+
+  #app .logto_main-content {
+    width: 100%;
+    min-height: 100svh;
+    padding-top: 2.5rem;
+    padding-bottom: 2rem;
+  }
+}

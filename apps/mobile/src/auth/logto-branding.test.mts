@@ -94,3 +94,34 @@ test('limits hosted auth overrides to stable input controls', async () => {
     assert.match(labelBlock, /margin:\s*0\s*!important/i);
   }
 });
+
+test('mirrors the native account entry surface on hosted authentication', async () => {
+  const css = await readFile(stylesheetPath, 'utf8');
+  const parityStart = css.indexOf('Native account entry parity');
+  const darkModeStart = css.indexOf('@media (prefers-color-scheme: dark)');
+  const parityCss = parityStart >= 0 ? css.slice(parityStart) : '';
+
+  assert.ok(parityStart > darkModeStart, 'native parity overrides must win after legacy dark-mode rules');
+  assert.match(parityCss, /#app\s*{[^}]*color-scheme:\s*light;[^}]*--tik-canvas:\s*#FAF8F4/i);
+  assert.match(
+    parityCss,
+    /\.logto_page-container\s*{[^}]*background:\s*#FAF8F4\s*!important;[^}]*justify-content:\s*flex-start\s*!important/i,
+  );
+  assert.match(
+    parityCss,
+    /\.logto_main-content\s*{[^}]*width:\s*min\(100%,\s*26\.875rem\)[^}]*min-height:\s*100svh[^}]*background:\s*transparent\s*!important[^}]*box-shadow:\s*none\s*!important/i,
+  );
+  assert.match(
+    parityCss,
+    /button\[type=["']submit["']\]\s*{[^}]*min-height:\s*3\.125rem[^}]*border-radius:\s*1rem[^}]*background:\s*#FFB347/i,
+  );
+  assert.match(
+    parityCss,
+    /form\s*\+\s*\*\s+a\s*{[^}]*min-height:\s*3rem[^}]*border-radius:\s*1rem[^}]*background:\s*#1D1912[^}]*font-size:\s*0\.9375rem\s*!important/i,
+  );
+  assert.doesNotMatch(parityCss, /a\[href\*=["']\/(?:register|sign-in)["']\]::after/i);
+  assert.match(
+    parityCss,
+    /\.logto_signature\s*{[^}]*position:\s*absolute\s*!important[^}]*width:\s*1px\s*!important[^}]*height:\s*1px\s*!important[^}]*clip-path:\s*inset\(50%\)\s*!important/i,
+  );
+});
