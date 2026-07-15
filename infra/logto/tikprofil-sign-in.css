@@ -10,7 +10,7 @@
 #app {
   --tik-amber: #ffb347;
   --tik-amber-deep: #8a4a00;
-  --tik-focus: #8a4a00;
+  --tik-focus: #3c4047;
   --tik-canvas: #faf8f4;
   --tik-surface: #ffffff;
   --tik-ink: #1d1912;
@@ -150,5 +150,254 @@
 
   #app button[type="submit"] {
     color: #1d1912;
+  }
+}
+
+/* Polished hosted authentication surface. Keep this block last so the
+   experience follows Logto's explicit theme instead of the device theme. */
+#app {
+  --tik-amber: #ffb347;
+  --tik-amber-hover: #ffc467;
+  --tik-amber-pressed: #f09a27;
+  --tik-amber-deep: #7a3f00;
+  --tik-canvas: #f4f5f7;
+  --tik-surface: #ffffff;
+  --tik-field: #f8f9fb;
+  --tik-ink: #1b1d21;
+  --tik-muted: #6c7078;
+  --tik-border: #dfe2e7;
+  --tik-focus: #3c4047;
+  color: var(--tik-ink);
+  background: var(--tik-canvas);
+}
+
+html[data-theme="dark"] #app {
+  --tik-canvas: #111315;
+  --tik-surface: #1c1f22;
+  --tik-field: #25292d;
+  --tik-ink: #fbfbfc;
+  --tik-muted: #aeb4bc;
+  --tik-border: #373c42;
+  --tik-amber: #ffb347;
+  --tik-amber-hover: #ffc875;
+  --tik-amber-pressed: #e9911e;
+  --tik-amber-deep: #ffd69a;
+  --tik-focus: #e2e5e9;
+}
+
+#app .logto_page-container {
+  box-sizing: border-box;
+  min-height: 100svh;
+  padding: max(1.25rem, env(safe-area-inset-top)) 1rem max(1.25rem, env(safe-area-inset-bottom));
+  border-top: 4px solid var(--tik-amber);
+  background: var(--tik-canvas) !important;
+}
+
+#app .logto_main-content {
+  width: min(calc(100% - 2rem), 26rem);
+  height: auto;
+  min-height: 0;
+  margin: auto;
+  padding: 0;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--tik-ink) !important;
+}
+
+#app .logto_main-content > :nth-child(2) {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 2rem;
+  border: 1px solid var(--tik-border);
+  border-radius: 8px;
+  background: var(--tik-surface) !important;
+  box-shadow: 0 18px 48px rgb(25 30 35 / 10%);
+  color: var(--tik-ink) !important;
+}
+
+#app .logto_branding-header {
+  margin: -2rem -2rem 1.75rem;
+  padding: 1.75rem 2rem 1.5rem;
+  border-radius: 7px 7px 0 0;
+  background: var(--tik-amber);
+  color: #1b1d21 !important;
+  text-align: center;
+}
+
+#app .logto_branding-header::before,
+#app .logto_main-content:not(:has(.logto_branding-header)) > :nth-child(2)::before {
+  width: 5.5rem;
+  height: 2.5rem;
+  margin: 0 auto 1rem;
+}
+
+#app .logto_branding-header::before {
+  filter: brightness(0) saturate(100%);
+}
+
+#app .logto_branding-header > :first-child {
+  color: #1b1d21 !important;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+#app .logto_main-content form {
+  gap: 0.875rem !important;
+  color: var(--tik-ink) !important;
+}
+
+#app .logto_main-content form > div:has(input[name="identifier"]),
+#app .logto_main-content form > div:has(input[name="password"]) {
+  margin: 0 !important;
+}
+
+#app .logto_main-content form > div:has(input[name="identifier"]) > div,
+#app .logto_main-content form > div:has(input[name="password"]) > div {
+  border: 1px solid var(--tik-border);
+  border-radius: 8px;
+  background: var(--tik-field);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+#app .logto_main-content form > div:has(input:focus) > div {
+  border-color: var(--tik-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tik-focus) 14%, transparent);
+}
+
+#app .logto_main-content form div:has(> input[name="identifier"]) + div fieldset,
+#app .logto_main-content form div:has(> input[name="password"]) + div fieldset {
+  border: 0 !important;
+}
+
+#app .logto_main-content input[name="identifier"],
+#app .logto_main-content input[name="password"] {
+  background: transparent !important;
+  color: var(--tik-ink) !important;
+  caret-color: var(--tik-amber-deep);
+}
+
+#app .logto_main-content input[name="identifier"]:-webkit-autofill,
+#app .logto_main-content input[name="password"]:-webkit-autofill {
+  -webkit-text-fill-color: var(--tik-ink);
+  box-shadow: 0 0 0 1000px var(--tik-field) inset;
+}
+
+#app .logto_main-content form [data-testid="prefix"] {
+  width: 4.75rem !important;
+  min-width: 4.75rem;
+  flex: 0 0 4.75rem;
+  overflow: visible;
+}
+
+#app .logto_main-content form [data-testid="prefix"] > [role="button"] {
+  position: static !important;
+  width: 100%;
+  height: 100%;
+  justify-content: center;
+  border-right: 1px solid var(--tik-border);
+  color: var(--tik-ink) !important;
+  opacity: 1 !important;
+}
+
+#app .logto_main-content form div:has(> input[name="identifier"]) + div label {
+  margin-left: 4.75rem;
+  color: transparent !important;
+  font-size: 0 !important;
+}
+
+#app .logto_main-content form div:has(> input[name="identifier"]) + div label::after {
+  content: "Telefon numarası";
+  color: var(--tik-muted);
+  font-size: 0.8125rem;
+}
+
+#app .logto_main-content form div:has(> input[name="password"]) + div label {
+  padding: 0 0.25rem;
+  background: var(--tik-field);
+  color: var(--tik-muted) !important;
+}
+
+#app .logto_main-content form button[type="button"] {
+  color: var(--tik-muted) !important;
+}
+
+#app .logto_main-content button[type="submit"] {
+  min-height: 3rem;
+  margin-top: 0.25rem;
+  border: 0;
+  border-radius: 8px;
+  background: var(--tik-amber);
+  color: #1b1d21 !important;
+  box-shadow: 0 6px 18px rgb(255 179 71 / 24%);
+  transition: transform 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+#app .logto_main-content button[type="submit"]:hover {
+  background: var(--tik-amber-hover);
+  box-shadow: 0 8px 22px rgb(255 179 71 / 30%);
+}
+
+#app .logto_main-content button[type="submit"]:active {
+  transform: translateY(1px) scale(0.995);
+  background: var(--tik-amber-pressed);
+  box-shadow: 0 3px 10px rgb(255 179 71 / 22%);
+}
+
+#app .logto_main-content > :nth-child(2) > :last-child:not(form) {
+  margin-top: 1.25rem;
+  color: var(--tik-muted) !important;
+  text-align: center;
+}
+
+#app .logto_main-content a {
+  color: var(--tik-amber-deep) !important;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+#app .logto_main-content a:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 0.1em;
+  text-underline-offset: 0.18em;
+}
+
+#app .logto_signature,
+#app .logto_signature a {
+  color: var(--tik-muted) !important;
+}
+
+@media (max-width: 30rem) {
+  #app .logto_page-container {
+    align-items: flex-start;
+    padding-right: 0.75rem;
+    padding-left: 0.75rem;
+  }
+
+  #app .logto_main-content {
+    width: 100%;
+    margin-top: clamp(1rem, 7svh, 3.5rem);
+  }
+
+  #app .logto_main-content > :nth-child(2) {
+    padding: 1.5rem;
+  }
+
+  #app .logto_branding-header {
+    margin: -1.5rem -1.5rem 1.5rem;
+    padding: 1.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #app *,
+  #app *::before,
+  #app *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

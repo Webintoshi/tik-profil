@@ -20,7 +20,7 @@ test('keeps the Logto branding stylesheet credential-free and scoped', async () 
   assert.match(css, /\.logto_main-content/);
   assert.match(
     css,
-    /\.logto_main-content\s*{[\s\S]*?height:\s*auto;[\s\S]*?min-height:\s*min\(28rem,\s*calc\(100svh\s*-\s*4rem\)\)/i,
+    /\.logto_main-content\s*{[\s\S]*?min-height:\s*0;[\s\S]*?background:\s*transparent\s*!important/i,
   );
   assert.doesNotMatch(
     css,
@@ -28,9 +28,38 @@ test('keeps the Logto branding stylesheet credential-free and scoped', async () 
   );
   assert.match(css, /button\[type=['"]submit['"]\]/);
   assert.match(css, /prefers-color-scheme:\s*dark/);
-  assert.match(css, /--tik-focus:\s*#8A4A00/i);
+  assert.match(css, /--tik-focus:\s*#3C4047/i);
   assert.match(css, /outline:\s*3px\s+solid\s+var\(--tik-focus\)/i);
-  assert.match(css, /prefers-color-scheme:\s*dark[\s\S]*--tik-focus:\s*#FFC875/i);
+  assert.match(css, /html\[data-theme=["']dark["']\]\s*#app\s*{[\s\S]*--tik-focus:\s*#E2E5E9/i);
+  assert.match(
+    css,
+    /\.logto_page-container\s*{[\s\S]*?border-top:\s*4px\s+solid\s+var\(--tik-amber\)[\s\S]*?background:\s*var\(--tik-canvas\)\s*!important/i,
+  );
+  assert.match(
+    css,
+    /\.logto_main-content\s*>\s*:nth-child\(2\)\s*{[\s\S]*?border-radius:\s*8px[\s\S]*?box-shadow:/i,
+  );
+  assert.match(
+    css,
+    /\.logto_branding-header\s*{[\s\S]*?margin:\s*-2rem\s+-2rem\s+1\.75rem[\s\S]*?background:\s*var\(--tik-amber\)/i,
+  );
+  assert.match(
+    css,
+    /\[data-testid=["']prefix["']\]\s*{[\s\S]*?width:\s*4\.75rem\s*!important[\s\S]*?min-width:\s*4\.75rem/i,
+  );
+  assert.match(
+    css,
+    /\[data-testid=["']prefix["']\]\s*>\s*\[role=["']button["']\]\s*{[\s\S]*?opacity:\s*1\s*!important/i,
+  );
+  assert.match(
+    css,
+    /form\s*>\s*div:has\(input:focus\)\s*>\s*div\s*{[\s\S]*?box-shadow:\s*0\s+0\s+0\s+3px/i,
+  );
+  assert.match(
+    css,
+    /input\[name=["']identifier["']\]\)[\s\S]*?label::after\s*{[\s\S]*?content:\s*["']Telefon numarası["']/i,
+  );
+  assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/i);
   assert.match(
     css,
     /\.logto_branding-header::before\s*{[\s\S]*?content:\s*['"]{2};[\s\S]*?background-image:\s*var\(--tik-brand-logo\);[\s\S]*?background-size:\s*contain;/i,
@@ -52,5 +81,5 @@ test('keeps the Logto branding stylesheet credential-free and scoped', async () 
     css,
     /\.logto_branding-header\s*{[^}]*(?:display:\s*none|visibility:\s*hidden|font-size:\s*0|text-indent:)/i,
   );
-  assert.doesNotMatch(css, /password|secret|token/i);
+  assert.doesNotMatch(css, /(?:password|secret|token)\s*[:=]\s*["'][^"']+/i);
 });
