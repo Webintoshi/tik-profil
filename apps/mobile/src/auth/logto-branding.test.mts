@@ -20,7 +20,7 @@ test('keeps the Logto branding stylesheet credential-free and scoped', async () 
   assert.match(css, /\.logto_main-content/);
   assert.match(
     css,
-    /\.logto_main-content\s*{[\s\S]*?min-height:\s*0;[\s\S]*?background:\s*transparent\s*!important/i,
+    /\.logto_main-content\s*{[\s\S]*?height:\s*auto;[\s\S]*?min-height:\s*min\(28rem,\s*calc\(100svh\s*-\s*4rem\)\)/i,
   );
   assert.doesNotMatch(
     css,
@@ -28,38 +28,9 @@ test('keeps the Logto branding stylesheet credential-free and scoped', async () 
   );
   assert.match(css, /button\[type=['"]submit['"]\]/);
   assert.match(css, /prefers-color-scheme:\s*dark/);
-  assert.match(css, /--tik-focus:\s*#3C4047/i);
+  assert.match(css, /--tik-focus:\s*#8A4A00/i);
   assert.match(css, /outline:\s*3px\s+solid\s+var\(--tik-focus\)/i);
-  assert.match(css, /html\[data-theme=["']dark["']\]\s*#app\s*{[\s\S]*--tik-focus:\s*#E2E5E9/i);
-  assert.match(
-    css,
-    /\.logto_page-container\s*{[\s\S]*?border-top:\s*4px\s+solid\s+var\(--tik-amber\)[\s\S]*?background:\s*var\(--tik-canvas\)\s*!important/i,
-  );
-  assert.match(
-    css,
-    /\.logto_main-content\s*>\s*:nth-child\(2\)\s*{[\s\S]*?border-radius:\s*8px[\s\S]*?box-shadow:/i,
-  );
-  assert.match(
-    css,
-    /\.logto_branding-header\s*{[\s\S]*?margin:\s*-2rem\s+-2rem\s+1\.75rem[\s\S]*?background:\s*var\(--tik-amber\)/i,
-  );
-  assert.match(
-    css,
-    /\[data-testid=["']prefix["']\]\s*{[\s\S]*?width:\s*4\.75rem\s*!important[\s\S]*?min-width:\s*4\.75rem/i,
-  );
-  assert.match(
-    css,
-    /\[data-testid=["']prefix["']\]\s*>\s*\[role=["']button["']\]\s*{[\s\S]*?opacity:\s*1\s*!important/i,
-  );
-  assert.match(
-    css,
-    /form\s*>\s*div:has\(input:focus\)\s*>\s*div\s*{[\s\S]*?box-shadow:\s*0\s+0\s+0\s+3px/i,
-  );
-  assert.match(
-    css,
-    /input\[name=["']identifier["']\]\)[\s\S]*?label::after\s*{[\s\S]*?content:\s*["']Telefon numarası["']/i,
-  );
-  assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/i);
+  assert.match(css, /prefers-color-scheme:\s*dark[\s\S]*--tik-focus:\s*#FFC875/i);
   assert.match(
     css,
     /\.logto_branding-header::before\s*{[\s\S]*?content:\s*['"]{2};[\s\S]*?background-image:\s*var\(--tik-brand-logo\);[\s\S]*?background-size:\s*contain;/i,
@@ -84,20 +55,28 @@ test('keeps the Logto branding stylesheet credential-free and scoped', async () 
   assert.doesNotMatch(css, /(?:password|secret|token)\s*[:=]\s*["'][^"']+/i);
 });
 
-test('keeps Logto field labels in a reserved row above their controls', async () => {
+test('limits hosted auth overrides to stable input controls', async () => {
   const css = await readFile(stylesheetPath, 'utf8');
-  const identifierLabelBlock = css.match(
-    /div:has\(>\s*input\[name=["']identifier["']\]\)\s*\+\s*div\s+label\s*{([^}]*)}/i,
-  )?.[1] ?? '';
-  const passwordLabelBlock = css.match(
-    /div:has\(>\s*input\[name=["']password["']\]\)\s*\+\s*div\s+label\s*{([^}]*)}/i,
-  )?.[1] ?? '';
 
+  assert.doesNotMatch(css, /Polished hosted authentication surface/i);
+  assert.doesNotMatch(css, /border-top:\s*4px\s+solid\s+var\(--tik-amber\)/i);
   assert.match(
     css,
     /form\s*>\s*div:has\(input\[name=["']identifier["']\]\),[\s\S]*?padding-top:\s*1\.25rem\s*!important/i,
   );
-  for (const labelBlock of [identifierLabelBlock, passwordLabelBlock]) {
+  assert.match(
+    css,
+    /\[data-testid=["']prefix["']\]\s*>\s*\[role=["']button["']\]\s*{[\s\S]*?position:\s*static\s*!important/i,
+  );
+
+  for (const fieldName of ['identifier', 'password']) {
+    const labelBlock = css.match(
+      new RegExp(
+        `div:has\\(>\\s*input\\[name=["']${fieldName}["']\\]\\)\\s*\\+\\s*div\\s+label\\s*{([^}]*)}`,
+        'i',
+      ),
+    )?.[1] ?? '';
+
     assert.match(labelBlock, /inset:\s*-1\.25rem\s+auto\s+auto\s+0\s*!important/i);
     assert.match(labelBlock, /transform:\s*none\s*!important/i);
     assert.match(labelBlock, /margin:\s*0\s*!important/i);
