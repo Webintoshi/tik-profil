@@ -137,3 +137,12 @@ An Android release APK was not launched in this workspace. Release QA still need
 - Missing batches and candidate/batch mismatches now return stable `import_not_found` 404 errors.
 
 Verification: focused review suite passed (26 tests), all `src/server/business-imports/*.test.ts` passed (42 tests), `npm run typecheck` passed, and `git diff --check` passed.
+
+## Import API Concurrency Fixes (2026-07-23)
+
+- Batch creation now returns atomic `created` eligibility. Replayed idempotency keys return the stored status and do not register another `after()` callback.
+- New batches begin `pending`; `claimBatch()` atomically changes only `pending` batches to `running`. Runner replays and concurrent callbacks make at most one Places discovery call.
+- Completion and failure writes require a currently `running` batch, preserving terminal batches from late callbacks.
+- Candidate review now locks the candidate, validates state, replaces optional facts, reloads effective facts, validates approval completeness, and transitions in one transaction. Invalid terminal and incomplete reviews roll back fact changes.
+
+Verification: focused Task 5 suite passed (26 tests), all `src/server/business-imports/*.test.ts` passed, `npm run typecheck` passed, and `git diff --check` passed.

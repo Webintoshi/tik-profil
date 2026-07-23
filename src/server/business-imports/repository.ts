@@ -79,9 +79,12 @@ export interface BatchCounters {
 export interface FailedBatchCounters extends BatchCounters {
     failureCode: ImportErrorCode;
 }
+export interface CreatedImportBatch { batch: ImportBatch; created: boolean; }
+export interface CandidateReview extends CandidateTransition { sourceFacts?: SourceFactInput[]; }
 
 export interface BusinessImportRepository {
-    createOrGetBatch(input: StartImportInput): Promise<ImportBatch>;
+    createOrGetBatch(input: StartImportInput): Promise<CreatedImportBatch>;
+    claimBatch(batchId: string): Promise<ImportBatch | null>;
     upsertDiscoveredPlace(input: DiscoveredPlaceRef & { batchId: string }): Promise<ImportCandidate>;
     listCandidates(batchId: string): Promise<ImportCandidate[]>;
     getBatch(batchId: string): Promise<ImportBatch>;
@@ -90,6 +93,7 @@ export interface BusinessImportRepository {
     completeBatch(input: BatchCounters): Promise<ImportBatch>;
     failBatch(input: FailedBatchCounters): Promise<ImportBatch>;
     transitionCandidate(input: CandidateTransition): Promise<ImportCandidate>;
+    reviewCandidate(input: CandidateReview): Promise<ImportCandidate>;
     reserveAlias(candidateId: string, alias: string): Promise<boolean>;
     recordProvisioningStep(input: ProvisioningStepUpdate): Promise<void>;
 }
@@ -206,16 +210,24 @@ export function createBusinessImportRepository(
                      LIMIT 1 FOR UPDATE`,
                     ["google_places_petshop", input.idempotencyKey],
                 );
-                if (existing.rows[0]) return mapBatch(existing.rows[0]);
+                if (existing.rows[0]) return { batch: mapBatch(existing.rows[0]), created: false };
                 const created = await transactionExecute(
                     `INSERT INTO business_import_batches (
                         source_type, source_ref, city, import_status, metadata, created_by_user_id
                     ) VALUES ($1, $2, $3, $4, $5::jsonb, $6)
                     RETURNING *`,
-                    ["google_places_petshop", input.idempotencyKey, input.city, "running", JSON.stringify({ districts: input.districts }), input.actorId],
+                    ["google_places_petshop", input.idempotencyKey, input.city, "pending", JSON.stringify({ districts: input.districts }), input.actorId],
                 );
-                return mapBatch(requireRow(created, "import batch"));
+                return { batch: mapBatch(requireRow(created, "import batch")), created: true };
             });
+        },
+
+        async claimBatch(batchId) {
+            const result = await execute(
+                `UPDATE business_import_batches SET import_status = 'running', updated_at = now()
+                 WHERE id = $1 AND import_status = 'pending' RETURNING *`, [batchId],
+            );
+            return result.rows[0] ? mapBatch(result.rows[0]) : null;
         },
 
         async getBatch(batchId) {
@@ -232,11 +244,11 @@ export function createBusinessImportRepository(
                  SET import_status = 'completed', imported_count = $2, matched_count = $3,
                      skipped_count = $4, failed_count = $5,
                      metadata = COALESCE(metadata, '{}'::jsonb) - 'failureCode', updated_at = now()
-                 WHERE id = $1
+                 WHERE id = $1 AND import_status = 'running'
                  RETURNING *`,
                 [input.batchId, input.importedCount, input.matchedCount, input.skippedCount, input.failedCount],
             );
-            return mapBatch(requireRow(result, "import batch"));
+            return result.rows[0] ? mapBatch(result.rows[0]) : this.getBatch(input.batchId);
         },
 
         async failBatch(input) {
@@ -245,11 +257,11 @@ export function createBusinessImportRepository(
                  SET import_status = 'failed', imported_count = $2, matched_count = $3,
                      skipped_count = $4, failed_count = $5,
                      metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('failureCode', $6::text), updated_at = now()
-                 WHERE id = $1
+                 WHERE id = $1 AND import_status = 'running'
                  RETURNING *`,
                 [input.batchId, input.importedCount, input.matchedCount, input.skippedCount, input.failedCount, input.failureCode],
             );
-            return mapBatch(requireRow(result, "import batch"));
+            return result.rows[0] ? mapBatch(result.rows[0]) : this.getBatch(input.batchId);
         },
 
         async upsertDiscoveredPlace(input) {
@@ -355,6 +367,26 @@ export function createBusinessImportRepository(
                         input.matchedBusinessId ?? null, input.dedupeReason ?? null, input.failureCode ?? null,
                     ],
                 );
+                return mapCandidate(requireRow(updated, "import candidate"));
+            });
+        },
+
+        async reviewCandidate(input) {
+            return runInTransaction(async (transactionExecute) => {
+                const locked = await transactionExecute(`SELECT ${CANDIDATE_COLUMNS} FROM business_import_candidates WHERE id = $1 FOR UPDATE`, [input.candidateId]);
+                const current = mapCandidate(requireRow(locked, "import candidate"));
+                assertAllowedTransition(current.candidateStatus, input.status);
+                if (input.sourceFacts) {
+                    await transactionExecute("DELETE FROM business_source_facts WHERE candidate_id = $1", [input.candidateId]);
+                    for (const fact of input.sourceFacts) {
+                        await transactionExecute(`INSERT INTO business_source_facts (candidate_id, field_key, field_value, source_type, source_url, verified_by_user_id, verified_at) VALUES ($1, $2, $3, $4, $5, $6, now())`, [input.candidateId, fact.fieldKey, fact.fieldValue, fact.sourceType, fact.sourceUrl ?? null, input.actorId]);
+                    }
+                }
+                const facts = await transactionExecute("SELECT field_key, field_value, source_type, source_url FROM business_source_facts WHERE candidate_id = $1 ORDER BY field_key ASC, source_type ASC", [input.candidateId]);
+                const effectiveFacts = facts.rows.map((row) => ({ fieldKey: asString(row.field_key), fieldValue: asString(row.field_value), sourceType: asString(row.source_type) as SourceFactInput["sourceType"], ...(asNullableString(row.source_url) ? { sourceUrl: asNullableString(row.source_url) ?? undefined } : {}) }));
+                if (input.status === "approved" && !((new Set(effectiveFacts.map((fact) => fact.fieldKey))).has("name") || (new Set(effectiveFacts.map((fact) => fact.fieldKey))).has("business_name")) ) throw new ImportError("invalid_state");
+                if (input.status === "approved" && !((new Set(effectiveFacts.map((fact) => fact.fieldKey))).has("address") || (new Set(effectiveFacts.map((fact) => fact.fieldKey))).has("business_address")) ) throw new ImportError("invalid_state");
+                const updated = await transactionExecute(`UPDATE business_import_candidates SET candidate_status = $2, reviewed_by_user_id = $3::uuid, reviewed_at = now(), matched_business_id = $4, dedupe_reason = $5, failure_code = $6, updated_at = now() WHERE id = $1 RETURNING ${CANDIDATE_COLUMNS}`, [input.candidateId, input.status, input.actorId, input.matchedBusinessId ?? null, input.dedupeReason ?? null, input.failureCode ?? null]);
                 return mapCandidate(requireRow(updated, "import candidate"));
             });
         },

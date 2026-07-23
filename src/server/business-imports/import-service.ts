@@ -46,7 +46,7 @@ export interface ReviewCandidateRequest extends ReviewCandidateInput {
 }
 
 export interface BusinessImportService {
-    startPetshopDiscovery(input: Omit<StartImportInput, "actorId">, actor: PlatformAdminActor): Promise<ImportBatch>;
+    startPetshopDiscovery(input: Omit<StartImportInput, "actorId">, actor: PlatformAdminActor): Promise<{ batch: ImportBatch; created: boolean }>;
     getBatch(batchId: string): Promise<ImportBatchSummary>;
     listCandidates(batchId: string): Promise<AdminCandidateProjection[]>;
     reviewCandidate(input: ReviewCandidateRequest, actor: PlatformAdminActor): Promise<ImportCandidate>;
@@ -108,11 +108,10 @@ export function createBusinessImportService(options: CreateBusinessImportService
     const discoverPetshops = options.discoverPetshops ?? ((input) => discoverOrduPetshops(input));
     return {
         async startPetshopDiscovery(input, actor) {
-            const batch = await options.repository.createOrGetBatch({
+            return options.repository.createOrGetBatch({
                 ...input,
                 actorId: actor.appUserId,
             });
-            return batch;
         },
 
         async getBatch(batchId) {
@@ -148,17 +147,11 @@ export function createBusinessImportService(options: CreateBusinessImportService
                 throw new ImportError("invalid_state");
             }
 
-            const effectiveFacts = input.sourceFacts
-                ? (await options.repository.replaceSourceFacts(input.candidateId, input.sourceFacts, actor.appUserId), await options.repository.listSourceFacts(input.candidateId))
-                : await options.repository.listSourceFacts(input.candidateId);
-            if (input.decision === "approved" && !hasCompleteProfileFacts(effectiveFacts)) {
-                throw new ImportError("invalid_state");
-            }
-
-            return options.repository.transitionCandidate({
+            return options.repository.reviewCandidate({
                 candidateId: input.candidateId,
                 status: input.decision,
                 actorId: actor.appUserId,
+                ...(input.sourceFacts ? { sourceFacts: input.sourceFacts } : {}),
                 ...(input.decision === "duplicate" ? {
                     matchedBusinessId: input.duplicateBusinessId,
                     dedupeReason: input.dedupeReason,
@@ -167,7 +160,9 @@ export function createBusinessImportService(options: CreateBusinessImportService
         },
 
         async runPetshopDiscoveryBatch(batchId) {
-            const batch = await options.repository.getBatch(batchId);
+            const claimed = await options.repository.claimBatch(batchId);
+            if (!claimed) return options.repository.getBatch(batchId);
+            const batch = claimed;
             const counters = { batchId, importedCount: 0, matchedCount: 0, skippedCount: 0, failedCount: 0 };
             try {
                 const discovered = await discoverPetshops({ client: options.places, districts: batch.districts });
