@@ -1,7 +1,10 @@
 const MOJIBAKE_TURKISH_REPLACEMENTS: ReadonlyArray<readonly [string, string]> = [
     ["\u00C3\u2021", "C"], ["\u00C3\u00A7", "c"], ["\u00C4\u009E", "G"], ["\u00C4\u009F", "g"],
     ["\u00C4\u00B0", "I"], ["\u00C4\u00B1", "i"], ["\u00C3\u0096", "O"], ["\u00C3\u00B6", "o"],
-    ["\u00C5\u0178", "S"], ["\u00C5\u015F", "s"], ["\u00C3\u009C", "U"], ["\u00C3\u00BC", "u"],
+    ["\u00C5\u015F", "s"], ["\u00C3\u009C", "U"], ["\u00C3\u00BC", "u"],
+    ["\u00C4\u017E", "G"], ["\u00C4\u0178", "g"],
+    ["\u00C5\u017E", "S"], ["\u00C5\u0178", "s"],
+    ["\u00C3\u2013", "O"], ["\u00C3\u0153", "U"],
 ];
 
 const MAX_SLUG_LENGTH = 63;
@@ -56,7 +59,7 @@ export function createBusinessSlug(value: string): string {
 }
 
 export function createLoginLocalPart(businessName: string, collisionSuffix: string): string {
-    const suffix = createBusinessSlug(collisionSuffix);
+    const suffix = createBusinessSlug(collisionSuffix).slice(0, MAX_LOGIN_LOCAL_PART_LENGTH - 2);
     const availableSlugLength = Math.max(1, MAX_LOGIN_LOCAL_PART_LENGTH - suffix.length - 1);
     const slug = createBusinessSlug(businessName).slice(0, availableSlugLength).replace(/-+$/g, "") || "isletme";
     return `${slug}-${suffix}`;
