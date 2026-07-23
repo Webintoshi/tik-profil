@@ -178,3 +178,32 @@ Review-fix base: `e396ff8dbe04aba91909392aa4149980b1863f8f`
 - Root `npm run typecheck`: passed.
 - `git diff --check`: passed with line-ending notices only.
 - Live PostgreSQL integration: not run because `DATABASE_URL` is unset. Applying migration `0015` and exercising lock takeover/publication against a real PostgreSQL instance remains an explicit deployment verification gate.
+
+---
+
+# Task 7 Second Security Review
+
+Date: 2026-07-23
+Review-fix base: `d99d595286ad51d7fe3d1d77185efc8bd89abe54`
+
+## Identity Collision Fix
+
+- Alias reservation now locks and checks the candidate's issuance first. The same candidate and alias returns success for an idempotent retry; a different or absent ownership record cannot claim an email already present in `app_users`, allowing the alias allocator to continue to district and candidate-suffix options.
+- App-user creation uses `INSERT ... ON CONFLICT DO NOTHING RETURNING id, email`. A newly inserted user may receive the new Logto link. A conflicting existing user is accepted only when the candidate issuance already records that exact app user, provider user ID, login alias, and exact Logto provider link. Otherwise binding fails before role, membership, issuance, or password mutation.
+- Adversarial repository coverage includes an unlinked app-user collision, candidate-owned alias retry, unlinked binding rejection, and valid existing issuance/link retry.
+
+## Delivery Generation Fix
+
+- Migration `0015` now adds nullable UUID `business_account_issuances.delivery_generation`; it remains non-secret and contains no credential material.
+- Initial provision and every reset generate a new UUID in memory after identity validation. The generation is persisted with `issuance_status = 'issued'` only after Logto password mutation while the account remains suspended, and is returned with the immediate no-store credential response.
+- Credential acknowledgement requires a strict UUID JSON body. Under the business advisory lock, PostgreSQL validates the exact current generation, issued status, published candidate, active business, exact app-user/provider link, and active membership with the system owner role before any Logto lookup or suspension update.
+- Delivery marking is conditional on the same generation and issued status. A stale, repeated, failed-state, or pre-reset generation returns a sanitized conflict without touching Logto. A successful unsuspend followed by failed database delivery persistence best-effort re-suspends and records failure.
+- Route coverage includes invalid-body `400`, missing-account `404`, stale/invalid-state `409`, and no-store headers. Service coverage includes all invalid candidate/business/issuance/member/role states, reset generation rotation, repeated acknowledgement rejection, and fail-closed re-suspension.
+
+## Verification
+
+- Focused Task 7 repository/provisioning/profile/migration, Task 6 Logto client, and visibility tests: 64 passed.
+- All business-import, admin import route, Task 6 Logto client, migration, profile-contract, and visibility tests: 112 passed.
+- Root `npm run typecheck`: passed.
+- `git diff --check`: passed with line-ending notices only.
+- Live PostgreSQL remains an explicit deployment gate because `DATABASE_URL` is unset.

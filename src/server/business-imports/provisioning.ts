@@ -11,6 +11,7 @@ import { createBusinessSlug } from "./normalization.ts";
 import {
     businessProvisioningRepository,
     type BusinessProvisioningRepository,
+    CredentialDeliveryError,
     type ProvisioningClaim,
 } from "./repository.ts";
 import {
@@ -26,6 +27,7 @@ export interface ImmediateBusinessCredential {
     businessName: string;
     loginEmail: string;
     initialPassword: string;
+    deliveryGeneration: string;
 }
 
 export type ProvisionCandidateResult =
@@ -57,7 +59,7 @@ export interface BusinessProvisioningService {
     provisionApprovedBatch(batchId: string): Promise<ProvisionBatchResult>;
     provisionCandidate(batchId: string, candidateId: string): Promise<ProvisionCandidateResult>;
     resetBusinessCredential(businessId: string): Promise<ImmediateBusinessCredential>;
-    acknowledgeCredentialDelivery(businessId: string): Promise<CredentialDeliveryResult>;
+    acknowledgeCredentialDelivery(businessId: string, deliveryGeneration: string): Promise<CredentialDeliveryResult>;
 }
 
 interface ProvisioningDependencies {
@@ -66,6 +68,7 @@ interface ProvisioningDependencies {
     logto: LogtoManagementClient;
     generatePassword?: () => string;
     createAttemptId?: () => string;
+    createDeliveryGeneration?: () => string;
     afterPasswordSet?: () => Promise<void>;
 }
 
@@ -151,6 +154,7 @@ async function resolveImportedUser(
 export function createBusinessProvisioningService(dependencies: ProvisioningDependencies): BusinessProvisioningService {
     const generatePassword = dependencies.generatePassword ?? generateInitialPassword;
     const createAttemptId = dependencies.createAttemptId ?? randomUUID;
+    const createDeliveryGeneration = dependencies.createDeliveryGeneration ?? randomUUID;
 
     async function provisionCandidate(batchId: string, candidateId: string): Promise<ProvisionCandidateResult> {
         return dependencies.repository.withProvisioningLock(candidateId, async () => {
@@ -230,10 +234,13 @@ export function createBusinessProvisioningService(dependencies: ProvisioningDepe
 
                 await dependencies.logto.setSuspended(providerUserId, true);
                 const initialPassword = generatePassword();
+                const deliveryGeneration = createDeliveryGeneration();
                 passwordMutationStarted = true;
                 await dependencies.logto.setPassword(providerUserId, initialPassword);
                 await dependencies.afterPasswordSet?.();
-                await dependencies.repository.recordCredentialIssued({ candidateId, attemptId, providerUserId });
+                await dependencies.repository.recordCredentialIssued({
+                    candidateId, attemptId, providerUserId, deliveryGeneration,
+                });
                 await recordStep("credential_set", {
                     completed: true,
                     providerUserId,
@@ -251,6 +258,7 @@ export function createBusinessProvisioningService(dependencies: ProvisioningDepe
                         businessName: identity.businessName,
                         loginEmail,
                         initialPassword,
+                        deliveryGeneration,
                     },
                 };
             } catch (error) {
@@ -268,16 +276,26 @@ export function createBusinessProvisioningService(dependencies: ProvisioningDepe
         });
     }
 
-    async function resolveCredentialAccount(businessId: string) {
+    async function loadCredentialAccount(businessId: string) {
         const account = await dependencies.repository.getCredentialAccount(businessId);
-        if (!account) throw new Error("credential_account_not_found");
+        if (!account) throw new CredentialDeliveryError("credential_account_not_found");
+        return account;
+    }
+
+    async function resolveLogtoUser(account: Awaited<ReturnType<typeof loadCredentialAccount>>) {
         const user = await dependencies.logto.findUserByPrimaryEmail(account.loginEmail);
         if (!user || !isOwnedImportedUser(user, {
             candidateId: account.candidateId,
             loginEmail: account.loginEmail,
             recordedProviderUserId: account.providerUserId,
         })) throw new Error("provider_identity_conflict");
+        return user;
+    }
+
+    async function resolveCredentialAccount(businessId: string) {
+        const account = await loadCredentialAccount(businessId);
         await dependencies.repository.verifyCredentialBinding(account);
+        const user = await resolveLogtoUser(account);
         return { account, user };
     }
 
@@ -308,14 +326,16 @@ export function createBusinessProvisioningService(dependencies: ProvisioningDepe
                 try {
                     await dependencies.logto.setSuspended(user.id, true);
                     const initialPassword = generatePassword();
+                    const deliveryGeneration = createDeliveryGeneration();
                     passwordMutationStarted = true;
                     await dependencies.logto.setPassword(user.id, initialPassword);
-                    await dependencies.repository.recordCredentialReset(businessId, user.id);
+                    await dependencies.repository.recordCredentialReset(businessId, user.id, deliveryGeneration);
                     return {
                         businessId: account.businessId,
                         businessName: account.businessName,
                         loginEmail: account.loginEmail,
                         initialPassword,
+                        deliveryGeneration,
                     };
                 } catch (error) {
                     if (passwordMutationStarted) {
@@ -326,14 +346,16 @@ export function createBusinessProvisioningService(dependencies: ProvisioningDepe
                 }
             });
         },
-        async acknowledgeCredentialDelivery(businessId) {
+        async acknowledgeCredentialDelivery(businessId, deliveryGeneration) {
             return dependencies.repository.withProvisioningLock(businessId, async () => {
-                const { user } = await resolveCredentialAccount(businessId);
+                const account = await loadCredentialAccount(businessId);
+                await dependencies.repository.verifyCredentialDelivery(account, deliveryGeneration);
+                const user = await resolveLogtoUser(account);
                 let unsuspended = false;
                 try {
                     await dependencies.logto.setSuspended(user.id, false);
                     unsuspended = true;
-                    await dependencies.repository.markCredentialDelivered(businessId, user.id);
+                    await dependencies.repository.markCredentialDelivered(businessId, user.id, deliveryGeneration);
                     return { businessId, status: "delivered" as const };
                 } catch (error) {
                     if (unsuspended) {

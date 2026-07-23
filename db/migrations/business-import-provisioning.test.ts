@@ -71,5 +71,6 @@ test("identity hardening allows only one provider identity per app user", async 
 
     assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS\s+idx_auth_provider_links_app_user_provider_unique/i);
     assert.match(sql, /ON auth_provider_links\s*\(app_user_id, provider\)/i);
+    assert.match(sql, /ALTER TABLE business_account_issuances[\s\S]*ADD COLUMN IF NOT EXISTS delivery_generation uuid/i);
     assert.doesNotMatch(sql, /password|secret|token/i);
 });

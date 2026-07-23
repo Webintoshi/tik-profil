@@ -19,6 +19,12 @@ const batchId = "3d572eff-2a15-4491-a1f6-f3b6570e81c1";
 const candidateId = "7b5c53c5-3648-4162-bc1d-081b9834d6a8";
 const businessId = candidateId;
 const loginEmail = "ordu-pati@tikprofil.com";
+const deliveryGenerations = [
+    "00000000-0000-4000-8000-000000000001",
+    "00000000-0000-4000-8000-000000000002",
+    "00000000-0000-4000-8000-000000000003",
+    "00000000-0000-4000-8000-000000000004",
+] as const;
 const facts: SourceFactInput[] = [
     { fieldKey: "name", fieldValue: "Ordu Pati", sourceType: "admin_verified" },
     { fieldKey: "city", fieldValue: "Ordu", sourceType: "admin_verified" },
@@ -33,6 +39,11 @@ class FakeRepository implements BusinessProvisioningRepository {
     state: Record<string, unknown> = {};
     alias: string | null = null;
     providerUserId: string | null = null;
+    deliveryGeneration: string | null = null;
+    issuanceStatus: "reserved" | "issued" | "delivered" | "failed" = "reserved";
+    businessStatus: "active" | "hidden" = "active";
+    membershipActive = true;
+    ownerRoleSystem = true;
     activeAttempt: string | null = null;
     identityCount = 0;
     membershipCount = 0;
@@ -108,9 +119,11 @@ class FakeRepository implements BusinessProvisioningRepository {
         return { appUserId: "app-user-1", membershipId: "membership-1" };
     }
 
-    async recordCredentialIssued(input: { attemptId: string; providerUserId: string }): Promise<void> {
+    async recordCredentialIssued(input: { attemptId: string; providerUserId: string; deliveryGeneration: string }): Promise<void> {
         assert.equal(input.attemptId, this.activeAttempt);
         assert.equal(input.providerUserId, this.providerUserId);
+        this.deliveryGeneration = input.deliveryGeneration;
+        this.issuanceStatus = "issued";
         this.issuanceCount = 1;
     }
 
@@ -136,8 +149,32 @@ class FakeRepository implements BusinessProvisioningRepository {
         if (this.verificationConflict) throw new Error("provider_identity_conflict");
     }
 
-    async recordCredentialReset(): Promise<void> { this.resetCount += 1; }
-    async markCredentialDelivered(): Promise<void> { this.deliveredCount += 1; }
+    async verifyCredentialDelivery(_account: CredentialAccount, generation: string): Promise<void> {
+        if (this.verificationConflict) throw new Error("provider_identity_conflict");
+        if (
+            generation !== this.deliveryGeneration
+            || this.issuanceStatus !== "issued"
+            || this.status !== "published"
+            || this.businessStatus !== "active"
+            || !this.membershipActive
+            || !this.ownerRoleSystem
+        ) {
+            throw Object.assign(new Error("invalid_state"), { code: "invalid_state", statusCode: 409 });
+        }
+    }
+
+    async recordCredentialReset(_businessId: string, _providerUserId: string, generation: string): Promise<void> {
+        this.deliveryGeneration = generation;
+        this.issuanceStatus = "issued";
+        this.resetCount += 1;
+    }
+    async markCredentialDelivered(_businessId: string, _providerUserId: string, generation: string): Promise<void> {
+        if (this.issuanceStatus !== "issued" || generation !== this.deliveryGeneration) {
+            throw Object.assign(new Error("invalid_state"), { code: "invalid_state", statusCode: 409 });
+        }
+        this.issuanceStatus = "delivered";
+        this.deliveredCount += 1;
+    }
     async markCredentialFailed(): Promise<void> { this.credentialFailureCount += 1; }
 }
 
@@ -163,12 +200,13 @@ class FakeProfiles implements PublicProfileWriter {
 class FakeLogto implements LogtoManagementClient {
     users = new Map<string, LogtoUser>();
     createCalls = 0;
+    lookupCalls = 0;
     passwordCalls: Array<{ userId: string; password: string }> = [];
     suspensionCalls: Array<{ userId: string; isSuspended: boolean }> = [];
     failPasswordOnce = false;
     passwordGate: Promise<void> | null = null;
 
-    async findUserByPrimaryEmail(email: string): Promise<LogtoUser | null> { return this.users.get(email) ?? null; }
+    async findUserByPrimaryEmail(email: string): Promise<LogtoUser | null> { this.lookupCalls += 1; return this.users.get(email) ?? null; }
     async createUser(input: { primaryEmail: string; name: string; customData: Record<string, unknown>; isSuspended: boolean }): Promise<LogtoUser> {
         this.createCalls += 1;
         const user = { id: "logto-1", name: input.name, primaryEmail: input.primaryEmail, customData: input.customData, isSuspended: input.isSuspended };
@@ -194,15 +232,21 @@ function setup(overrides: { afterPasswordSet?: () => Promise<void> } = {}) {
     const logto = new FakeLogto();
     let passwordNumber = 0;
     let attemptNumber = 0;
+    let generationNumber = 0;
     const service = createBusinessProvisioningService({
         repository,
         profiles,
         logto,
         generatePassword: () => `ValidPassword${++passwordNumber}!`,
+        createDeliveryGeneration: () => deliveryGenerations[generationNumber++] ?? randomGeneration(generationNumber),
         createAttemptId: () => `attempt-${++attemptNumber}`,
         afterPasswordSet: overrides.afterPasswordSet,
     });
     return { logto, profiles, repository, service };
+}
+
+function randomGeneration(index: number): string {
+    return `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
 }
 
 function ownedUser(overrides: Partial<LogtoUser> = {}): LogtoUser {
@@ -228,6 +272,7 @@ test("two provision requests serialize through one saga and only one returns cre
     releasePassword();
     const [first, second] = await Promise.all([firstPromise, secondPromise]);
     assert.equal(first.status, "provisioned");
+    assert.equal(first.credentials.deliveryGeneration, deliveryGenerations[0]);
     assert.equal(second.status, "already_published");
     assert.equal("credentials" in second, false);
     assert.equal(fake.logto.createCalls, 1);
@@ -249,6 +294,7 @@ test("a failed lock holder can be taken over and a post-password retry returns a
 
     const retry = await fake.service.provisionCandidate(batchId, candidateId);
     assert.equal(retry.status, "provisioned");
+    assert.equal(retry.credentials.deliveryGeneration, deliveryGenerations[1]);
     assert.notEqual(retry.credentials.initialPassword, unknownPassword);
     assert.equal(fake.logto.users.get(loginEmail)?.isSuspended, true);
     assert.equal(fake.logto.createCalls, 1);
@@ -298,14 +344,16 @@ test("provision and reset credentials remain suspended until delivery acknowledg
     const fake = setup();
     const provisioned = await fake.service.provisionCandidate(batchId, candidateId);
     assert.equal(provisioned.status, "provisioned");
+    assert.equal(provisioned.credentials.deliveryGeneration, deliveryGenerations[0]);
     assert.equal(fake.logto.users.get(loginEmail)?.isSuspended, true);
 
     const reset = await fake.service.resetBusinessCredential(businessId);
+    assert.equal(reset.deliveryGeneration, deliveryGenerations[1]);
     assert.equal(fake.logto.passwordCalls.at(-1)?.password, reset.initialPassword);
     assert.equal(fake.logto.users.get(loginEmail)?.isSuspended, true);
     assert.equal(fake.repository.resetCount, 1);
 
-    assert.deepEqual(await fake.service.acknowledgeCredentialDelivery(businessId), { businessId, status: "delivered" });
+    assert.deepEqual(await fake.service.acknowledgeCredentialDelivery(businessId, reset.deliveryGeneration), { businessId, status: "delivered" });
     assert.equal(fake.logto.users.get(loginEmail)?.isSuspended, false);
     assert.equal(fake.repository.deliveredCount, 1);
 });
@@ -323,6 +371,7 @@ test("concurrent resets serialize on the same lock and each response matches its
     releasePassword();
     const results = await Promise.all([first, second]);
     assert.notEqual(results[0].initialPassword, results[1].initialPassword);
+    assert.notEqual(results[0].deliveryGeneration, results[1].deliveryGeneration);
     assert.deepEqual(fake.logto.passwordCalls.slice(-2).map((call) => call.password), results.map((result) => result.initialPassword));
     assert.equal(fake.repository.maxConcurrentLocks, 1);
     assert.equal(fake.logto.users.get(loginEmail)?.isSuspended, true);
@@ -345,9 +394,73 @@ test("reset and acknowledgement reject a broken provider link before mutating Lo
     fake.repository.verificationConflict = true;
 
     await assert.rejects(fake.service.resetBusinessCredential(businessId), /provider_identity_conflict/);
-    await assert.rejects(fake.service.acknowledgeCredentialDelivery(businessId), /provider_identity_conflict/);
+    await assert.rejects(fake.service.acknowledgeCredentialDelivery(businessId, fake.repository.deliveryGeneration!), /provider_identity_conflict/);
     assert.equal(fake.logto.passwordCalls.length, passwordCalls);
     assert.equal(fake.logto.suspensionCalls.length, suspensionCalls);
+});
+
+test("acknowledgement rejects failed candidate, business, issuance, membership, or role state before Logto", async () => {
+    const invalidations: Array<(repository: FakeRepository) => void> = [
+        (repository) => { repository.status = "failed"; },
+        (repository) => { repository.businessStatus = "hidden"; },
+        (repository) => { repository.issuanceStatus = "failed"; },
+        (repository) => { repository.membershipActive = false; },
+        (repository) => { repository.ownerRoleSystem = false; },
+    ];
+    for (const invalidate of invalidations) {
+        const fake = setup();
+        const provisioned = await fake.service.provisionCandidate(batchId, candidateId);
+        assert.equal(provisioned.status, "provisioned");
+        invalidate(fake.repository);
+        const providerCalls = fake.logto.lookupCalls + fake.logto.suspensionCalls.length;
+        await assert.rejects(
+            fake.service.acknowledgeCredentialDelivery(businessId, provisioned.credentials.deliveryGeneration),
+            /invalid_state/,
+        );
+        assert.equal(fake.logto.lookupCalls + fake.logto.suspensionCalls.length, providerCalls);
+    }
+});
+
+test("reset rotates delivery generation so stale or repeated acknowledgements cannot activate the account", async () => {
+    const fake = setup();
+    const provisioned = await fake.service.provisionCandidate(batchId, candidateId);
+    assert.equal(provisioned.status, "provisioned");
+    const reset = await fake.service.resetBusinessCredential(businessId);
+
+    const providerCallsBeforeStale = fake.logto.lookupCalls + fake.logto.suspensionCalls.length;
+    await assert.rejects(
+        fake.service.acknowledgeCredentialDelivery(businessId, provisioned.credentials.deliveryGeneration),
+        /invalid_state/,
+    );
+    assert.equal(fake.logto.lookupCalls + fake.logto.suspensionCalls.length, providerCallsBeforeStale);
+
+    await fake.service.acknowledgeCredentialDelivery(businessId, reset.deliveryGeneration);
+    assert.equal(fake.logto.users.get(loginEmail)?.isSuspended, false);
+    const callsAfterDelivery = fake.logto.lookupCalls + fake.logto.suspensionCalls.length;
+    await assert.rejects(fake.service.acknowledgeCredentialDelivery(businessId, reset.deliveryGeneration), /invalid_state/);
+    assert.equal(fake.logto.lookupCalls + fake.logto.suspensionCalls.length, callsAfterDelivery);
+
+    const laterReset = await fake.service.resetBusinessCredential(businessId);
+    assert.equal(fake.logto.users.get(loginEmail)?.isSuspended, true);
+    await assert.rejects(fake.service.acknowledgeCredentialDelivery(businessId, reset.deliveryGeneration), /invalid_state/);
+    assert.notEqual(laterReset.deliveryGeneration, reset.deliveryGeneration);
+    assert.equal(fake.logto.users.get(loginEmail)?.isSuspended, true);
+});
+
+test("acknowledgement re-suspends and fails closed when delivery persistence fails after unsuspend", async () => {
+    const fake = setup();
+    const provisioned = await fake.service.provisionCandidate(batchId, candidateId);
+    assert.equal(provisioned.status, "provisioned");
+    fake.repository.markCredentialDelivered = async () => { throw new Error("database_unavailable"); };
+
+    await assert.rejects(
+        fake.service.acknowledgeCredentialDelivery(businessId, provisioned.credentials.deliveryGeneration),
+        /database_unavailable/,
+    );
+
+    assert.deepEqual(fake.logto.suspensionCalls.slice(-2).map((call) => call.isSuspended), [false, true]);
+    assert.equal(fake.logto.users.get(loginEmail)?.isSuspended, true);
+    assert.equal(fake.repository.credentialFailureCount, 1);
 });
 
 test("partial publication is compensated by hiding the profile", async () => {
@@ -393,14 +506,51 @@ test("provision, reset, and acknowledgement routes require admin and send no-sto
     const provisioned = await provision(new Request("http://localhost", { method: "POST" }), { params: Promise.resolve({ batchId }) });
     assert.equal(provisioned.status, 200);
     assert.equal(provisioned.headers.get("Cache-Control"), "no-store, max-age=0");
+    const provisionBody = await provisioned.json() as { credentials: Array<{ deliveryGeneration: string }> };
 
     const reset = createCredentialResetRoute({ requireAdmin, service: fake.service });
     const resetResponse = await reset(new Request("http://localhost", { method: "POST" }), { params: Promise.resolve({ id: businessId }) });
     assert.equal(resetResponse.status, 200);
     assert.equal(resetResponse.headers.get("Cache-Control"), "no-store, max-age=0");
+    const resetBody = await resetResponse.json() as { deliveryGeneration: string };
 
     const acknowledge = createCredentialAcknowledgeRoute({ requireAdmin, service: fake.service });
-    const acknowledged = await acknowledge(new Request("http://localhost", { method: "POST" }), { params: Promise.resolve({ id: businessId }) });
+    const invalidBody = await acknowledge(
+        new Request("http://localhost", { method: "POST", body: JSON.stringify({ deliveryGeneration: "not-a-uuid" }) }),
+        { params: Promise.resolve({ id: businessId }) },
+    );
+    assert.equal(invalidBody.status, 400);
+    assert.deepEqual(await invalidBody.json(), { error: "invalid_request" });
+
+    const stale = await acknowledge(
+        new Request("http://localhost", {
+            method: "POST",
+            body: JSON.stringify({ deliveryGeneration: provisionBody.credentials[0]?.deliveryGeneration }),
+        }),
+        { params: Promise.resolve({ id: businessId }) },
+    );
+    assert.equal(stale.status, 409);
+    assert.deepEqual(await stale.json(), { error: "invalid_state" });
+    assert.equal(stale.headers.get("Cache-Control"), "no-store, max-age=0");
+
+    const missing = await acknowledge(
+        new Request("http://localhost", {
+            method: "POST",
+            body: JSON.stringify({ deliveryGeneration: resetBody.deliveryGeneration }),
+        }),
+        { params: Promise.resolve({ id: "missing-business" }) },
+    );
+    assert.equal(missing.status, 404);
+    assert.deepEqual(await missing.json(), { error: "credential_account_not_found" });
+    assert.equal(missing.headers.get("Cache-Control"), "no-store, max-age=0");
+
+    const acknowledged = await acknowledge(
+        new Request("http://localhost", {
+            method: "POST",
+            body: JSON.stringify({ deliveryGeneration: resetBody.deliveryGeneration }),
+        }),
+        { params: Promise.resolve({ id: businessId }) },
+    );
     assert.equal(acknowledged.status, 200);
     assert.equal(acknowledged.headers.get("Cache-Control"), "no-store, max-age=0");
 });

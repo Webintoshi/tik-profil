@@ -151,6 +151,8 @@ test("locks the candidate before reserving an alias and recording provisioning s
         calls.push({ text, values });
         if (/INSERT INTO business_account_issuances/i.test(text)) return { rowCount: 1, rows: [{ candidate_id: "candidate-1" }] };
         if (/SELECT id FROM business_import_candidates/i.test(text)) return { rowCount: 1, rows: [{ id: "candidate-1" }] };
+        if (/FROM business_account_issuances/i.test(text)) return { rowCount: 0, rows: [] };
+        if (/FROM app_users/i.test(text)) return { rowCount: 0, rows: [] };
         return { rowCount: 1, rows: [] };
     };
     const repository = createBusinessImportRepository(execute, async (operation) => operation(execute));
@@ -164,11 +166,11 @@ test("locks the candidate before reserving an alias and recording provisioning s
 
     assert.match(calls[0]?.text ?? "", /SELECT id FROM business_import_candidates/i);
     assert.match(calls[0]?.text ?? "", /FOR UPDATE/i);
-    assert.match(calls[1]?.text ?? "", /ON CONFLICT DO NOTHING/i);
-    assert.deepEqual(calls[1]?.values, ["candidate-1", "pati@tikprofil.com"]);
-    assert.match(calls[2]?.text ?? "", /FOR UPDATE/i);
-    assert.match(calls[3]?.text ?? "", /provisioning_state/i);
-    assert.deepEqual(calls[3]?.values, ["candidate-1", "logto_user", JSON.stringify({ status: "created", providerUserId: "logto-1" })]);
+    assert.match(calls[3]?.text ?? "", /ON CONFLICT DO NOTHING/i);
+    assert.deepEqual(calls[3]?.values, ["candidate-1", "pati@tikprofil.com"]);
+    assert.match(calls[4]?.text ?? "", /FOR UPDATE/i);
+    assert.match(calls[5]?.text ?? "", /provisioning_state/i);
+    assert.deepEqual(calls[5]?.values, ["candidate-1", "logto_user", JSON.stringify({ status: "created", providerUserId: "logto-1" })]);
 });
 
 test("reads persisted source facts and finalizes batches with explicit terminal counters", async () => {
@@ -274,15 +276,50 @@ test("provisioning alias reservation uses the injected transaction and remains i
     const execute: QueryExecutor = async (text, values) => {
         calls.push({ text, values });
         if (/SELECT id FROM business_import_candidates/i.test(text)) return { rowCount: 1, rows: [{ id: "candidate-1" }] };
+        if (/FROM business_account_issuances/i.test(text)) return { rowCount: 0, rows: [] };
+        if (/FROM app_users/i.test(text)) return { rowCount: 0, rows: [] };
         if (/INSERT INTO business_account_issuances/i.test(text)) return { rowCount: 1, rows: [{ candidate_id: "candidate-1" }] };
         return { rowCount: 0, rows: [] };
     };
     const repository = createBusinessProvisioningRepository(execute, async (operation) => operation(execute));
 
     assert.equal(await repository.reserveAlias("candidate-1", "pati@tikprofil.com"), true);
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 4);
     assert.match(calls[0]?.text ?? "", /FOR UPDATE/i);
-    assert.match(calls[1]?.text ?? "", /ON CONFLICT DO NOTHING/i);
+    assert.match(calls[1]?.text ?? "", /business_account_issuances/i);
+    assert.match(calls[2]?.text ?? "", /app_users/i);
+    assert.match(calls[3]?.text ?? "", /ON CONFLICT DO NOTHING/i);
+});
+
+test("alias reservation rejects an unlinked app-user email without inserting an issuance", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        if (/SELECT id FROM business_import_candidates/i.test(text)) return { rowCount: 1, rows: [{ id: "candidate-1" }] };
+        if (/FROM business_account_issuances/i.test(text)) return { rowCount: 0, rows: [] };
+        if (/FROM app_users/i.test(text)) return { rowCount: 1, rows: [{ id: "unlinked-user" }] };
+        throw new Error("issuance_must_not_be_inserted");
+    };
+    const repository = createBusinessProvisioningRepository(execute, async (operation) => operation(execute));
+
+    assert.equal(await repository.reserveAlias("candidate-1", "pati@tikprofil.com"), false);
+    assert.equal(calls.some((call) => /INSERT INTO business_account_issuances/i.test(call.text)), false);
+});
+
+test("alias reservation accepts the candidate's existing identical issuance before app-user collision checks", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        if (/SELECT id FROM business_import_candidates/i.test(text)) return { rowCount: 1, rows: [{ id: "candidate-1" }] };
+        if (/FROM business_account_issuances/i.test(text)) {
+            return { rowCount: 1, rows: [{ candidate_id: "candidate-1", login_alias: "pati@tikprofil.com" }] };
+        }
+        throw new Error("retry_must_return_before_app_user_lookup");
+    };
+    const repository = createBusinessProvisioningRepository(execute, async (operation) => operation(execute));
+
+    assert.equal(await repository.reserveAlias("candidate-1", "pati@tikprofil.com"), true);
+    assert.equal(calls.length, 2);
 });
 
 test("claims only a complete approved candidate linked to the requested batch while holding its row lock", async () => {
@@ -347,7 +384,7 @@ test("ensures canonical owner identity records transactionally without accepting
         if (/FROM business_account_issuances/i.test(text)) {
             return { rowCount: 1, rows: [{ login_alias: "pati@tikprofil.com", provider_user_id: null }] };
         }
-        if (/SELECT id, email FROM app_users/i.test(text)) return { rowCount: 1, rows: [{ id: "app-user-1", email: "pati@tikprofil.com" }] };
+        if (/INSERT INTO app_users/i.test(text)) return { rowCount: 1, rows: [{ id: "app-user-1", email: "pati@tikprofil.com" }] };
         if (/FROM auth_provider_links/i.test(text)) return { rowCount: 0, rows: [] };
         if (/INSERT INTO business_roles/i.test(text)) return { rowCount: 1, rows: [{ id: "role-1" }] };
         if (/INSERT INTO business_memberships/i.test(text)) return { rowCount: 1, rows: [{ id: "membership-1" }] };
@@ -379,6 +416,160 @@ test("ensures canonical owner identity records transactionally without accepting
     assert.match(sql, /UPDATE business_account_issuances/i);
     assert.match(sql, /INSERT INTO business_discovery_profiles/i);
     assert.doesNotMatch(sql, /plaintext_password|initial_password|password_hash/i);
+});
+
+test("binding rejects an unlinked existing app user before roles, memberships, or password-facing state", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        if (/FROM business_import_candidates WHERE/i.test(text)) {
+            return { rowCount: 1, rows: [candidateRow({
+                candidate_status: "provisioning",
+                provisioning_state: {
+                    provisioning_attempt: { attemptId: "attempt-1", status: "active" },
+                    logto_user: { providerUserId: "logto-1", loginEmail: "pati@tikprofil.com" },
+                },
+            })] };
+        }
+        if (/FROM business_account_issuances/i.test(text)) {
+            return { rowCount: 1, rows: [{ login_alias: "pati@tikprofil.com", app_user_id: null, provider_user_id: null }] };
+        }
+        if (/INSERT INTO app_users/i.test(text)) return { rowCount: 0, rows: [] };
+        if (/SELECT id, email FROM app_users/i.test(text)) {
+            return { rowCount: 1, rows: [{ id: "unlinked-user", email: "pati@tikprofil.com" }] };
+        }
+        throw new Error("identity_side_effect_must_not_run");
+    };
+    const repository = createBusinessProvisioningRepository(execute, async (operation) => operation(execute));
+
+    await assert.rejects(repository.bindOwnerIdentity({
+        attemptId: "attempt-1", batchId: "batch-1", businessId: "business-1", businessName: "Pati",
+        candidateId: "candidate-1", providerPlaceId: "place-1", providerUserId: "logto-1",
+        loginEmail: "pati@tikprofil.com", city: "Ordu", district: "Altinordu", address: "Merkez",
+    }), /provider_identity_conflict/);
+    assert.equal(calls.some((call) => /INSERT INTO business_roles|INSERT INTO business_memberships/i.test(call.text)), false);
+});
+
+test("binding accepts an existing app user only for the candidate's exact issuance and Logto link", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        if (/FROM business_import_candidates WHERE/i.test(text)) {
+            return { rowCount: 1, rows: [candidateRow({
+                candidate_status: "provisioning",
+                provisioning_state: {
+                    provisioning_attempt: { attemptId: "attempt-1", status: "active" },
+                    logto_user: { providerUserId: "logto-1", loginEmail: "pati@tikprofil.com" },
+                },
+            })] };
+        }
+        if (/FROM business_account_issuances/i.test(text)) {
+            return { rowCount: 1, rows: [{ login_alias: "pati@tikprofil.com", app_user_id: "app-user-1", provider_user_id: "logto-1" }] };
+        }
+        if (/INSERT INTO app_users/i.test(text)) return { rowCount: 0, rows: [] };
+        if (/SELECT id, email FROM app_users/i.test(text)) return { rowCount: 1, rows: [{ id: "app-user-1", email: "pati@tikprofil.com" }] };
+        if (/FROM auth_provider_links/i.test(text)) {
+            return { rowCount: 1, rows: [{ id: "link-1", app_user_id: "app-user-1", provider_user_id: "logto-1", provider_email: "pati@tikprofil.com" }] };
+        }
+        if (/INSERT INTO business_roles/i.test(text)) return { rowCount: 1, rows: [{ id: "role-1" }] };
+        if (/INSERT INTO business_memberships/i.test(text)) return { rowCount: 1, rows: [{ id: "membership-1" }] };
+        if (/UPDATE business_account_issuances/i.test(text)) return { rowCount: 1, rows: [{ id: "issuance-1" }] };
+        return { rowCount: 1, rows: [] };
+    };
+    const repository = createBusinessProvisioningRepository(execute, async (operation) => operation(execute));
+
+    assert.deepEqual(await repository.bindOwnerIdentity({
+        attemptId: "attempt-1", batchId: "batch-1", businessId: "business-1", businessName: "Pati",
+        candidateId: "candidate-1", providerPlaceId: "place-1", providerUserId: "logto-1",
+        loginEmail: "pati@tikprofil.com", city: "Ordu", district: "Altinordu", address: "Merkez",
+    }), { appUserId: "app-user-1", membershipId: "membership-1" });
+    assert.equal(calls.some((call) => /INSERT INTO auth_provider_links/i.test(call.text)), false);
+});
+
+test("credential issuance persists a non-secret delivery generation only after password mutation", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        return { rowCount: 1, rows: [{ id: "issuance-1" }] };
+    };
+    const repository = createBusinessProvisioningRepository(execute, async (operation) => operation(execute));
+
+    await repository.recordCredentialIssued({
+        candidateId: "candidate-1",
+        attemptId: "attempt-1",
+        providerUserId: "logto-1",
+        deliveryGeneration: "00000000-0000-4000-8000-000000000001",
+    });
+
+    assert.match(calls[0]?.text ?? "", /delivery_generation = \$4::uuid/i);
+    assert.match(calls[0]?.text ?? "", /issuance_status = 'issued'/i);
+    assert.deepEqual(calls[0]?.values, [
+        "candidate-1", "attempt-1", "logto-1", "00000000-0000-4000-8000-000000000001",
+    ]);
+    assert.doesNotMatch(calls[0]?.text ?? "", /password|secret/i);
+});
+
+test("delivery acknowledgement validates generation and every published owner invariant in PostgreSQL", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        return { rowCount: 1, rows: [{ id: "issuance-1" }] };
+    };
+    const repository = createBusinessProvisioningRepository(execute, async (operation) => operation(execute));
+    const account = {
+        candidateId: "candidate-1", businessId: "business-1", businessName: "Pati",
+        loginEmail: "pati@tikprofil.com", providerUserId: "logto-1",
+    };
+
+    await repository.verifyCredentialDelivery(account, "00000000-0000-4000-8000-000000000001");
+
+    const sql = calls[0]?.text ?? "";
+    assert.match(sql, /delivery_generation = \$3::uuid/i);
+    assert.match(sql, /issuance_status = 'issued'/i);
+    assert.match(sql, /candidate_status = 'published'/i);
+    assert.match(sql, /business\.status = 'active'/i);
+    assert.match(sql, /membership_status = 'active'/i);
+    assert.match(sql, /role_key = 'owner'/i);
+    assert.match(sql, /is_system = true/i);
+    assert.deepEqual(calls[0]?.values, [
+        "candidate-1", "business-1", "00000000-0000-4000-8000-000000000001",
+        "pati@tikprofil.com", "logto-1",
+    ]);
+});
+
+test("delivery acknowledgement conditionally marks only the matching issued generation", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        return { rowCount: 1, rows: [{ id: "issuance-1" }] };
+    };
+    const repository = createBusinessProvisioningRepository(execute, async (operation) => operation(execute));
+
+    await repository.markCredentialDelivered(
+        "business-1", "logto-1", "00000000-0000-4000-8000-000000000001",
+    );
+
+    assert.match(calls[0]?.text ?? "", /delivery_generation = \$3::uuid/i);
+    assert.match(calls[0]?.text ?? "", /issuance_status = 'issued'/i);
+    assert.deepEqual(calls[0]?.values, ["business-1", "logto-1", "00000000-0000-4000-8000-000000000001"]);
+});
+
+test("credential reset rotates the persisted generation while returning issuance to issued", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        return { rowCount: 1, rows: [{ id: "issuance-1" }] };
+    };
+    const repository = createBusinessProvisioningRepository(execute, async (operation) => operation(execute));
+
+    await repository.recordCredentialReset(
+        "business-1", "logto-1", "00000000-0000-4000-8000-000000000002",
+    );
+
+    assert.match(calls[0]?.text ?? "", /delivery_generation = \$3::uuid/i);
+    assert.match(calls[0]?.text ?? "", /issuance_status = 'issued'/i);
+    assert.match(calls[0]?.text ?? "", /delivered_at = NULL/i);
+    assert.deepEqual(calls[0]?.values, ["business-1", "logto-1", "00000000-0000-4000-8000-000000000002"]);
 });
 
 test("rejects a candidate identity-state conflict before creating any canonical identity row", async () => {

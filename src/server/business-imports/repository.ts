@@ -130,6 +130,20 @@ export interface CredentialAccount {
     providerUserId: string;
 }
 
+export type CredentialDeliveryErrorCode = "credential_account_not_found" | "invalid_state";
+
+export class CredentialDeliveryError extends Error {
+    readonly code: CredentialDeliveryErrorCode;
+    readonly statusCode: 404 | 409;
+
+    constructor(code: CredentialDeliveryErrorCode) {
+        super(code);
+        this.name = "CredentialDeliveryError";
+        this.code = code;
+        this.statusCode = code === "credential_account_not_found" ? 404 : 409;
+    }
+}
+
 export interface BusinessProvisioningRepository {
     withProvisioningLock<T>(candidateOrBusinessId: string, operation: () => Promise<T>): Promise<T>;
     listProvisioningCandidateIds(batchId: string): Promise<string[]>;
@@ -137,13 +151,14 @@ export interface BusinessProvisioningRepository {
     reserveAlias(candidateId: string, alias: string): Promise<boolean>;
     recordStep(input: ProvisioningStepUpdate & { attemptId: string }): Promise<void>;
     bindOwnerIdentity(input: EnsureOwnerIdentityInput): Promise<{ appUserId: string; membershipId: string }>;
-    recordCredentialIssued(input: { candidateId: string; attemptId: string; providerUserId: string }): Promise<void>;
+    recordCredentialIssued(input: { candidateId: string; attemptId: string; providerUserId: string; deliveryGeneration: string }): Promise<void>;
     markPublished(input: { candidateId: string; attemptId: string; businessId: string }): Promise<void>;
     markFailed(input: { candidateId: string; attemptId: string; failureCode: string }): Promise<void>;
     getCredentialAccount(businessId: string): Promise<CredentialAccount | null>;
     verifyCredentialBinding(account: CredentialAccount): Promise<void>;
-    recordCredentialReset(businessId: string, providerUserId: string): Promise<void>;
-    markCredentialDelivered(businessId: string, providerUserId: string): Promise<void>;
+    verifyCredentialDelivery(account: CredentialAccount, deliveryGeneration: string): Promise<void>;
+    recordCredentialReset(businessId: string, providerUserId: string, deliveryGeneration: string): Promise<void>;
+    markCredentialDelivered(businessId: string, providerUserId: string, deliveryGeneration: string): Promise<void>;
     markCredentialFailed(businessId: string, providerUserId: string, failureCode: string): Promise<void>;
 }
 
@@ -455,6 +470,24 @@ export function createBusinessImportRepository(
                     [candidateId],
                 );
                 requireRow(candidate, "import candidate");
+                const candidateIssuance = await transactionExecute(
+                    `SELECT candidate_id, login_alias
+                     FROM business_account_issuances
+                     WHERE candidate_id = $1
+                     FOR UPDATE`,
+                    [candidateId],
+                );
+                if (candidateIssuance.rows[0]) {
+                    return asString(candidateIssuance.rows[0].login_alias) === alias;
+                }
+                const existingAppUser = await transactionExecute(
+                    `SELECT id
+                     FROM app_users
+                     WHERE lower(email) = lower($1)
+                     LIMIT 1`,
+                    [alias],
+                );
+                if (existingAppUser.rows[0]) return false;
                 const inserted = await transactionExecute(
                     `INSERT INTO business_account_issuances (candidate_id, login_alias)
                      VALUES ($1, $2)
@@ -463,13 +496,7 @@ export function createBusinessImportRepository(
                     [candidateId, alias],
                 );
                 if (inserted.rows[0]) return true;
-                const existing = await transactionExecute(
-                    `SELECT candidate_id
-                     FROM business_account_issuances
-                     WHERE candidate_id = $1 AND login_alias = $2`,
-                    [candidateId, alias],
-                );
-                return Boolean(existing.rows[0]);
+                return false;
             });
         },
 
@@ -706,6 +733,24 @@ export function createBusinessProvisioningRepository(
                     [candidateId],
                 );
                 requireRow(candidate, "import candidate");
+                const candidateIssuance = await transactionExecute(
+                    `SELECT candidate_id, login_alias
+                     FROM business_account_issuances
+                     WHERE candidate_id = $1
+                     FOR UPDATE`,
+                    [candidateId],
+                );
+                if (candidateIssuance.rows[0]) {
+                    return asString(candidateIssuance.rows[0].login_alias) === alias;
+                }
+                const existingAppUser = await transactionExecute(
+                    `SELECT id
+                     FROM app_users
+                     WHERE lower(email) = lower($1)
+                     LIMIT 1`,
+                    [alias],
+                );
+                if (existingAppUser.rows[0]) return false;
                 const inserted = await transactionExecute(
                     `INSERT INTO business_account_issuances (candidate_id, login_alias)
                      VALUES ($1, $2)
@@ -714,13 +759,7 @@ export function createBusinessProvisioningRepository(
                     [candidateId, alias],
                 );
                 if (inserted.rows[0]) return true;
-                const existing = await transactionExecute(
-                    `SELECT candidate_id
-                     FROM business_account_issuances
-                     WHERE candidate_id = $1 AND login_alias = $2`,
-                    [candidateId, alias],
-                );
-                return Boolean(existing.rows[0]);
+                return false;
             });
         },
 
@@ -767,21 +806,34 @@ export function createBusinessProvisioningRepository(
                     throw new Error("provider_identity_conflict");
                 }
 
-                await transactionExecute(
+                const insertedUser = await transactionExecute(
                     `INSERT INTO app_users (email, display_name, status)
                      VALUES ($1, $2, 'active')
-                     ON CONFLICT DO NOTHING`,
+                     ON CONFLICT DO NOTHING
+                     RETURNING id, email`,
                     [input.loginEmail, input.businessName],
                 );
-                const userResult = await transactionExecute(
-                    `SELECT id, email FROM app_users WHERE lower(email) = lower($1) LIMIT 2 FOR UPDATE`,
-                    [input.loginEmail],
-                );
+                const insertedAppUser = insertedUser.rows[0];
+                const userResult = insertedAppUser
+                    ? insertedUser
+                    : await transactionExecute(
+                        `SELECT id, email FROM app_users WHERE lower(email) = lower($1) LIMIT 2 FOR UPDATE`,
+                        [input.loginEmail],
+                    );
                 if (
                     userResult.rows.length !== 1
                     || asString(userResult.rows[0]?.email) !== input.loginEmail
                 ) throw new Error("provider_identity_conflict");
                 const appUserId = asString(userResult.rows[0]?.id);
+                const issuanceAppUserId = asNullableString(issuance.app_user_id);
+                const adoptingExistingUser = !insertedAppUser;
+                if (
+                    (issuanceAppUserId && issuanceAppUserId !== appUserId)
+                    || (adoptingExistingUser && (
+                        issuanceAppUserId !== appUserId
+                        || issuanceProviderId !== input.providerUserId
+                    ))
+                ) throw new Error("provider_identity_conflict");
 
                 const providerLink = await transactionExecute(
                     `SELECT id, app_user_id, provider_user_id, provider_email
@@ -807,7 +859,10 @@ export function createBusinessProvisioningRepository(
                 ) {
                     throw new Error("provider_identity_conflict");
                 }
-                if (!providerLink.rows[0] && !userLink.rows[0]) {
+                if (adoptingExistingUser && (!providerLink.rows[0] || !userLink.rows[0])) {
+                    throw new Error("provider_identity_conflict");
+                }
+                if (!adoptingExistingUser && !providerLink.rows[0] && !userLink.rows[0]) {
                     await transactionExecute(
                         `INSERT INTO auth_provider_links (
                             app_user_id, provider, provider_user_id, logto_user_id, provider_email, provider_metadata
@@ -850,6 +905,7 @@ export function createBusinessProvisioningRepository(
                          updated_at = now()
                      WHERE candidate_id = $1
                        AND login_alias = $5
+                       AND (app_user_id IS NULL OR app_user_id = $3)
                        AND (provider_user_id IS NULL OR provider_user_id = $4)
                      RETURNING id`,
                     [input.candidateId, input.businessId, appUserId, input.providerUserId, input.loginEmail],
@@ -895,6 +951,7 @@ export function createBusinessProvisioningRepository(
             const result = await execute(
                 `UPDATE business_account_issuances issuance
                  SET issuance_status = 'issued',
+                     delivery_generation = $4::uuid,
                      issued_at = now(),
                      delivered_at = NULL,
                      updated_at = now()
@@ -906,7 +963,7 @@ export function createBusinessProvisioningRepository(
                    AND candidate.provisioning_state->'provisioning_attempt'->>'attemptId' = $2
                    AND candidate.provisioning_state->'provisioning_attempt'->>'status' = 'active'
                  RETURNING issuance.id`,
-                [input.candidateId, input.attemptId, input.providerUserId],
+                [input.candidateId, input.attemptId, input.providerUserId, input.deliveryGeneration],
             );
             if (result.rows.length !== 1) throw new Error("provisioning_attempt_lost");
         },
@@ -1010,28 +1067,69 @@ export function createBusinessProvisioningRepository(
             ) throw new Error("provider_identity_conflict");
         },
 
-        async recordCredentialReset(businessId, providerUserId) {
+        async verifyCredentialDelivery(account, deliveryGeneration) {
+            const result = await execute(
+                `SELECT issuance.id
+                 FROM business_account_issuances issuance
+                 INNER JOIN business_import_candidates candidate ON candidate.id = issuance.candidate_id
+                 INNER JOIN businesses business ON business.id = issuance.business_id
+                 INNER JOIN app_users app_user ON app_user.id = issuance.app_user_id
+                 INNER JOIN auth_provider_links provider_link
+                    ON provider_link.app_user_id = app_user.id AND provider_link.provider = issuance.provider
+                 INNER JOIN business_memberships membership
+                    ON membership.business_id = issuance.business_id
+                   AND membership.app_user_id = issuance.app_user_id
+                   AND membership.membership_status = 'active'
+                 INNER JOIN business_roles role
+                    ON role.id = membership.role_id
+                   AND role.business_id = membership.business_id
+                   AND role.role_key = 'owner'
+                   AND role.is_system = true
+                 WHERE issuance.candidate_id = $1
+                   AND issuance.business_id = $2
+                   AND issuance.delivery_generation = $3::uuid
+                   AND issuance.login_alias = $4
+                   AND issuance.provider = 'logto'
+                   AND issuance.provider_user_id = $5
+                   AND issuance.issuance_status = 'issued'
+                   AND candidate.candidate_status = 'published'
+                   AND business.status = 'active'
+                   AND app_user.email = $4
+                   AND provider_link.provider_user_id = $5
+                   AND provider_link.provider_email = $4
+                 LIMIT 2`,
+                [account.candidateId, account.businessId, deliveryGeneration, account.loginEmail, account.providerUserId],
+            );
+            if (result.rows.length !== 1) throw new CredentialDeliveryError("invalid_state");
+        },
+
+        async recordCredentialReset(businessId, providerUserId, deliveryGeneration) {
             const result = await execute(
                 `UPDATE business_account_issuances
-                 SET issuance_status = 'issued', reset_at = now(), delivered_at = NULL, updated_at = now()
+                 SET issuance_status = 'issued', delivery_generation = $3::uuid,
+                     reset_at = now(), delivered_at = NULL, updated_at = now()
                  WHERE business_id = $1
                    AND provider = 'logto'
                    AND provider_user_id = $2
                  RETURNING id`,
-                [businessId, providerUserId],
+                [businessId, providerUserId, deliveryGeneration],
             );
             if (!result.rows[0]) throw new Error("credential_account_not_found");
         },
 
-        async markCredentialDelivered(businessId, providerUserId) {
+        async markCredentialDelivered(businessId, providerUserId, deliveryGeneration) {
             const result = await execute(
                 `UPDATE business_account_issuances
                  SET issuance_status = 'delivered', delivered_at = now(), updated_at = now()
-                 WHERE business_id = $1 AND provider = 'logto' AND provider_user_id = $2
+                 WHERE business_id = $1
+                   AND provider = 'logto'
+                   AND provider_user_id = $2
+                   AND delivery_generation = $3::uuid
+                   AND issuance_status = 'issued'
                  RETURNING id`,
-                [businessId, providerUserId],
+                [businessId, providerUserId, deliveryGeneration],
             );
-            if (result.rows.length !== 1) throw new Error("credential_account_not_found");
+            if (result.rows.length !== 1) throw new CredentialDeliveryError("invalid_state");
         },
 
         async markCredentialFailed(businessId, providerUserId, failureCode) {
