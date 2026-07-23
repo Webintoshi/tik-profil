@@ -84,7 +84,7 @@ Required additions:
 `business_import_candidates`
 
 - `id`
-- `import_batch_id`
+- `first_seen_batch_id`
 - `provider`
 - `provider_place_id`
 - `sector_key`
@@ -99,6 +99,14 @@ Required additions:
 - `reviewed_at`
 - `failure_code`
 - timestamps
+
+`business_import_batch_candidates`
+
+- `import_batch_id`
+- `candidate_id`
+- timestamps
+
+The candidate is globally unique by `provider + provider_place_id`. The join table records every batch in which it appeared, so later scans update the same candidate without losing per-batch counts or creating a duplicate profile.
 
 `business_source_facts`
 
