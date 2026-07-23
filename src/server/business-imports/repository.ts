@@ -98,6 +98,50 @@ export interface BusinessImportRepository {
     recordProvisioningStep(input: ProvisioningStepUpdate): Promise<void>;
 }
 
+export type ProvisioningClaim =
+    | {
+        outcome: "claimed";
+        attemptId: string;
+        candidate: Pick<ImportCandidate, "id" | "providerPlaceId" | "provisioningState">;
+        sourceFacts: SourceFactInput[];
+        accountIssuance?: { loginEmail: string; providerUserId: string | null };
+    }
+    | { outcome: "in_progress"; candidateId: string }
+    | { outcome: "already_published"; candidateId: string; businessId: string; businessName: string };
+
+export interface EnsureOwnerIdentityInput {
+    attemptId: string;
+    batchId: string;
+    businessId: string;
+    businessName: string;
+    candidateId: string;
+    providerPlaceId: string;
+    providerUserId: string;
+    loginEmail: string;
+    city: string;
+    district: string;
+    address: string;
+}
+
+export interface CredentialAccount {
+    businessId: string;
+    businessName: string;
+    loginEmail: string;
+    providerUserId: string;
+}
+
+export interface BusinessProvisioningRepository {
+    listProvisioningCandidateIds(batchId: string): Promise<string[]>;
+    claimCandidate(input: { batchId: string; candidateId: string; attemptId: string }): Promise<ProvisioningClaim>;
+    reserveAlias(candidateId: string, alias: string): Promise<boolean>;
+    recordStep(input: ProvisioningStepUpdate & { attemptId: string }): Promise<void>;
+    ensureOwnerIdentity(input: EnsureOwnerIdentityInput): Promise<{ appUserId: string; membershipId: string }>;
+    markPublished(input: { candidateId: string; attemptId: string; businessId: string }): Promise<void>;
+    markFailed(input: { candidateId: string; attemptId: string; failureCode: string }): Promise<void>;
+    getCredentialAccount(businessId: string): Promise<CredentialAccount | null>;
+    recordCredentialReset(businessId: string, providerUserId: string): Promise<void>;
+}
+
 type Row = Record<string, unknown>;
 
 const CANDIDATE_COLUMNS = `
@@ -446,4 +490,396 @@ const defaultTransactionRunner: QueryTransactionRunner = async (operation) => {
     return withTransaction(({ query }) => operation(query as QueryExecutor));
 };
 
+const REQUIRED_PROVISIONING_FACTS = ["name", "city", "district", "category"] as const;
+const CONTACT_PROVISIONING_FACTS = new Set(["address", "business_address", "phone", "whatsapp", "website", "website_uri"]);
+
+function normalizedFactKeys(facts: readonly SourceFactInput[]): Set<string> {
+    return new Set(facts.map((fact) => fact.fieldKey.trim().toLowerCase()));
+}
+
+function assertCompleteProvisioningFacts(facts: readonly SourceFactInput[]): void {
+    const keys = normalizedFactKeys(facts);
+    const hasName = keys.has("name") || keys.has("business_name");
+    const hasRequired = REQUIRED_PROVISIONING_FACTS.slice(1).every((key) => keys.has(key));
+    const hasContact = [...CONTACT_PROVISIONING_FACTS].some((key) => keys.has(key));
+    if (!hasName || !hasRequired || !hasContact) throw new ImportError("candidate_incomplete");
+}
+
+function provisioningStep(state: Record<string, unknown>, step: string): Record<string, unknown> {
+    return asObject(state[step]);
+}
+
+function assertAttempt(candidate: ImportCandidate, attemptId: string): void {
+    const lease = provisioningStep(candidate.provisioningState, "lease");
+    if (candidate.candidateStatus !== "provisioning" || lease.attemptId !== attemptId || lease.status !== "active") {
+        throw new Error("provisioning_lease_lost");
+    }
+}
+
+export function createBusinessProvisioningRepository(
+    execute: QueryExecutor = defaultExecutor,
+    runInTransaction: QueryTransactionRunner = defaultTransactionRunner,
+): BusinessProvisioningRepository {
+    return {
+        async listProvisioningCandidateIds(batchId) {
+            const result = await execute(
+                `SELECT candidates.id
+                 FROM business_import_batch_candidates batch_candidates
+                 INNER JOIN business_import_candidates candidates ON candidates.id = batch_candidates.candidate_id
+                 WHERE batch_candidates.import_batch_id = $1
+                   AND (
+                       candidates.candidate_status IN ('approved', 'provisioning', 'published')
+                       OR (
+                           candidates.candidate_status = 'failed'
+                           AND candidates.provisioning_state->'eligibility'->>'approved' = 'true'
+                       )
+                   )
+                 ORDER BY candidates.created_at ASC, candidates.id ASC`,
+                [batchId],
+            );
+            return result.rows.map((row) => asString(row.id));
+        },
+
+        async claimCandidate(input) {
+            return runInTransaction(async (transactionExecute) => {
+                const locked = await transactionExecute(
+                    `SELECT candidates.*
+                     FROM business_import_batch_candidates batch_candidates
+                     INNER JOIN business_import_candidates candidates ON candidates.id = batch_candidates.candidate_id
+                     WHERE batch_candidates.import_batch_id = $1
+                       AND candidates.id = $2
+                     FOR UPDATE OF candidates`,
+                    [input.batchId, input.candidateId],
+                );
+                const candidate = mapCandidate(requireRow(locked, "import candidate"));
+                const profile = provisioningStep(candidate.provisioningState, "profile_identity");
+                if (candidate.candidateStatus === "published") {
+                    return {
+                        outcome: "already_published" as const,
+                        candidateId: candidate.id,
+                        businessId: asString(profile.businessId || candidate.matchedBusinessId),
+                        businessName: asString(profile.businessName),
+                    };
+                }
+
+                const lease = provisioningStep(candidate.provisioningState, "lease");
+                const leaseExpiresAt = typeof lease.expiresAt === "string" ? Date.parse(lease.expiresAt) : Number.NaN;
+                if (
+                    candidate.candidateStatus === "provisioning"
+                    && lease.status === "active"
+                    && Number.isFinite(leaseExpiresAt)
+                    && leaseExpiresAt > Date.now()
+                ) {
+                    return { outcome: "in_progress" as const, candidateId: candidate.id };
+                }
+
+                const eligibility = provisioningStep(candidate.provisioningState, "eligibility");
+                const retryApprovedFailure = candidate.candidateStatus === "failed" && eligibility.approved === true;
+                if (candidate.candidateStatus !== "approved" && candidate.candidateStatus !== "provisioning" && !retryApprovedFailure) {
+                    throw new ImportError(candidate.candidateStatus === "duplicate" ? "duplicate_business" : "invalid_state");
+                }
+                if (candidate.matchedBusinessId || candidate.dedupeReason) throw new ImportError("duplicate_business");
+
+                const factsResult = await transactionExecute(
+                    `SELECT field_key, field_value, source_type, source_url
+                     FROM business_source_facts
+                     WHERE candidate_id = $1
+                     ORDER BY field_key ASC, source_type ASC`,
+                    [candidate.id],
+                );
+                const facts: SourceFactInput[] = factsResult.rows.map((row) => ({
+                    fieldKey: asString(row.field_key),
+                    fieldValue: asString(row.field_value),
+                    sourceType: asString(row.source_type) as SourceFactInput["sourceType"],
+                    ...(asNullableString(row.source_url) ? { sourceUrl: asNullableString(row.source_url) ?? undefined } : {}),
+                }));
+                assertCompleteProvisioningFacts(facts);
+
+                const issuanceResult = await transactionExecute(
+                    `SELECT login_alias, provider_user_id
+                     FROM business_account_issuances
+                     WHERE candidate_id = $1
+                     FOR UPDATE`,
+                    [candidate.id],
+                );
+                const issuance = issuanceResult.rows[0];
+
+                const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+                const updated = await transactionExecute(
+                    `UPDATE business_import_candidates
+                     SET candidate_status = 'provisioning',
+                         failure_code = NULL,
+                         provisioning_state = COALESCE(provisioning_state, '{}'::jsonb)
+                           || jsonb_build_object('eligibility', jsonb_build_object('approved', true))
+                           || jsonb_build_object('lease', jsonb_build_object(
+                                'attemptId', $2::text,
+                                'status', 'active',
+                                'expiresAt', $3::text
+                              )),
+                         updated_at = now()
+                     WHERE id = $1
+                     RETURNING *`,
+                    [candidate.id, input.attemptId, expiresAt],
+                );
+                const claimed = mapCandidate(requireRow(updated, "import candidate"));
+                return {
+                    outcome: "claimed" as const,
+                    attemptId: input.attemptId,
+                    candidate: {
+                        id: claimed.id,
+                        providerPlaceId: claimed.providerPlaceId,
+                        provisioningState: claimed.provisioningState,
+                    },
+                    sourceFacts: facts,
+                    ...(issuance ? {
+                        accountIssuance: {
+                            loginEmail: asString(issuance.login_alias),
+                            providerUserId: asNullableString(issuance.provider_user_id),
+                        },
+                    } : {}),
+                };
+            });
+        },
+
+        async reserveAlias(candidateId, alias) {
+            return runInTransaction(async (transactionExecute) => {
+                const candidate = await transactionExecute(
+                    "SELECT id FROM business_import_candidates WHERE id = $1 FOR UPDATE",
+                    [candidateId],
+                );
+                requireRow(candidate, "import candidate");
+                const inserted = await transactionExecute(
+                    `INSERT INTO business_account_issuances (candidate_id, login_alias)
+                     VALUES ($1, $2)
+                     ON CONFLICT DO NOTHING
+                     RETURNING candidate_id`,
+                    [candidateId, alias],
+                );
+                if (inserted.rows[0]) return true;
+                const existing = await transactionExecute(
+                    `SELECT candidate_id
+                     FROM business_account_issuances
+                     WHERE candidate_id = $1 AND login_alias = $2`,
+                    [candidateId, alias],
+                );
+                return Boolean(existing.rows[0]);
+            });
+        },
+
+        async recordStep(input) {
+            const result = await execute(
+                `UPDATE business_import_candidates
+                 SET provisioning_state = COALESCE(provisioning_state, '{}'::jsonb)
+                      || jsonb_build_object($3::text, $4::jsonb),
+                     updated_at = now()
+                 WHERE id = $1
+                   AND candidate_status = 'provisioning'
+                   AND provisioning_state->'lease'->>'attemptId' = $2
+                   AND provisioning_state->'lease'->>'status' = 'active'
+                 RETURNING id`,
+                [input.candidateId, input.attemptId, input.step, JSON.stringify(input.value)],
+            );
+            if (!result.rows[0]) throw new Error("provisioning_lease_lost");
+        },
+
+        async ensureOwnerIdentity(input) {
+            return runInTransaction(async (transactionExecute) => {
+                const locked = await transactionExecute(
+                    `SELECT * FROM business_import_candidates WHERE id = $1 FOR UPDATE`,
+                    [input.candidateId],
+                );
+                const candidate = mapCandidate(requireRow(locked, "import candidate"));
+                assertAttempt(candidate, input.attemptId);
+
+                const issuanceResult = await transactionExecute(
+                    `SELECT * FROM business_account_issuances WHERE candidate_id = $1 FOR UPDATE`,
+                    [input.candidateId],
+                );
+                const issuance = requireRow(issuanceResult, "account issuance");
+                if (asString(issuance.login_alias).toLowerCase() !== input.loginEmail.toLowerCase()) {
+                    throw new Error("provider_identity_conflict");
+                }
+                const issuanceProviderId = asNullableString(issuance.provider_user_id);
+                if (issuanceProviderId && issuanceProviderId !== input.providerUserId) {
+                    throw new Error("provider_identity_conflict");
+                }
+
+                await transactionExecute(
+                    `INSERT INTO app_users (email, display_name, status)
+                     VALUES ($1, $2, 'active')
+                     ON CONFLICT DO NOTHING`,
+                    [input.loginEmail, input.businessName],
+                );
+                const userResult = await transactionExecute(
+                    `SELECT id FROM app_users WHERE lower(email) = lower($1) LIMIT 2 FOR UPDATE`,
+                    [input.loginEmail],
+                );
+                if (userResult.rows.length !== 1) throw new Error("provider_identity_conflict");
+                const appUserId = asString(userResult.rows[0]?.id);
+
+                const existingLink = await transactionExecute(
+                    `SELECT id, app_user_id, provider_user_id
+                     FROM auth_provider_links
+                     WHERE provider = 'logto' AND provider_user_id = $1
+                     LIMIT 2 FOR UPDATE`,
+                    [input.providerUserId],
+                );
+                if (existingLink.rows.length > 1 || (existingLink.rows[0] && asString(existingLink.rows[0].app_user_id) !== appUserId)) {
+                    throw new Error("provider_identity_conflict");
+                }
+                if (!existingLink.rows[0]) {
+                    await transactionExecute(
+                        `INSERT INTO auth_provider_links (
+                            app_user_id, provider, provider_user_id, logto_user_id, provider_email, provider_metadata
+                         ) VALUES ($1, 'logto', $2, $2, $3, jsonb_build_object('source', 'business_import'))`,
+                        [appUserId, input.providerUserId, input.loginEmail],
+                    );
+                }
+
+                const roleResult = await transactionExecute(
+                    `INSERT INTO business_roles (business_id, role_key, display_name, description, is_system)
+                     VALUES ($1, 'owner', 'Owner', 'Imported business owner', true)
+                     ON CONFLICT (business_id, role_key) DO UPDATE SET
+                        display_name = EXCLUDED.display_name,
+                        is_system = true,
+                        updated_at = now()
+                     RETURNING id`,
+                    [input.businessId],
+                );
+                const roleId = asString(requireRow(roleResult, "business role").id);
+                const membershipResult = await transactionExecute(
+                    `INSERT INTO business_memberships (business_id, app_user_id, role_id, membership_status)
+                     VALUES ($1, $2, $3, 'active')
+                     ON CONFLICT (business_id, app_user_id) DO UPDATE SET
+                        role_id = EXCLUDED.role_id,
+                        membership_status = 'active',
+                        revoked_by_user_id = NULL,
+                        revoked_at = NULL,
+                        updated_at = now()
+                     RETURNING id`,
+                    [input.businessId, appUserId, roleId],
+                );
+                const membershipId = asString(requireRow(membershipResult, "business membership").id);
+
+                await transactionExecute(
+                    `UPDATE business_account_issuances
+                     SET business_id = $2,
+                         app_user_id = $3,
+                         provider_user_id = $4,
+                         issuance_status = 'issued',
+                         issued_at = COALESCE(issued_at, now()),
+                         updated_at = now()
+                     WHERE candidate_id = $1`,
+                    [input.candidateId, input.businessId, appUserId, input.providerUserId],
+                );
+                await transactionExecute(
+                    `INSERT INTO business_discovery_profiles (
+                        business_id, import_batch_id, source_type, source_ref, source_confidence,
+                        city, district, address, claim_state, discover_status, metadata
+                     ) VALUES ($1, $2, 'google_places', $3, 1, $4, $5, $6, 'claimed_verified', 'draft',
+                        jsonb_build_object('candidateId', $7::text, 'sectorKey', 'petshop'))
+                     ON CONFLICT (business_id) DO UPDATE SET
+                        import_batch_id = EXCLUDED.import_batch_id,
+                        source_type = EXCLUDED.source_type,
+                        source_ref = EXCLUDED.source_ref,
+                        source_confidence = EXCLUDED.source_confidence,
+                        city = EXCLUDED.city,
+                        district = EXCLUDED.district,
+                        address = EXCLUDED.address,
+                        claim_state = 'claimed_verified',
+                        metadata = EXCLUDED.metadata,
+                        updated_at = now()`,
+                    [input.businessId, input.batchId, input.providerPlaceId, input.city, input.district, input.address, input.candidateId],
+                );
+                await transactionExecute(
+                    `UPDATE business_import_candidates
+                     SET provisioning_state = provisioning_state || jsonb_build_object(
+                         'owner_identity', jsonb_build_object(
+                             'appUserId', $2::text,
+                             'membershipId', $3::text,
+                             'providerUserId', $4::text,
+                             'completed', true
+                         )
+                     ), updated_at = now()
+                     WHERE id = $1`,
+                    [input.candidateId, appUserId, membershipId, input.providerUserId],
+                );
+                return { appUserId, membershipId };
+            });
+        },
+
+        async markPublished(input) {
+            const result = await execute(
+                `UPDATE business_import_candidates
+                 SET candidate_status = 'published',
+                     matched_business_id = $3,
+                     failure_code = NULL,
+                     provisioning_state = provisioning_state
+                       || jsonb_build_object('publication', jsonb_build_object('completed', true, 'businessId', $3::text))
+                       || jsonb_build_object('lease', jsonb_build_object('attemptId', $2::text, 'status', 'completed')),
+                     updated_at = now()
+                 WHERE id = $1
+                   AND candidate_status = 'provisioning'
+                   AND provisioning_state->'lease'->>'attemptId' = $2
+                   AND provisioning_state->'lease'->>'status' = 'active'
+                 RETURNING id`,
+                [input.candidateId, input.attemptId, input.businessId],
+            );
+            if (!result.rows[0]) throw new Error("provisioning_lease_lost");
+        },
+
+        async markFailed(input) {
+            await execute(
+                `UPDATE business_import_candidates
+                 SET candidate_status = 'failed',
+                     failure_code = 'provisioning_failed',
+                     provisioning_state = provisioning_state
+                       || jsonb_build_object('last_failure', jsonb_build_object('code', $3::text))
+                       || jsonb_build_object('lease', jsonb_build_object('attemptId', $2::text, 'status', 'failed')),
+                     updated_at = now()
+                 WHERE id = $1
+                   AND candidate_status = 'provisioning'
+                   AND provisioning_state->'lease'->>'attemptId' = $2`,
+                [input.candidateId, input.attemptId, input.failureCode],
+            );
+        },
+
+        async getCredentialAccount(businessId) {
+            const result = await execute(
+                `SELECT issuance.business_id, business.name AS business_name,
+                        issuance.login_alias, issuance.provider_user_id
+                 FROM business_account_issuances issuance
+                 INNER JOIN businesses business ON business.id = issuance.business_id
+                 WHERE issuance.business_id = $1
+                   AND issuance.provider = 'logto'
+                   AND issuance.provider_user_id IS NOT NULL
+                 LIMIT 2`,
+                [businessId],
+            );
+            if (result.rows.length !== 1) return null;
+            const row = result.rows[0]!;
+            return {
+                businessId: asString(row.business_id),
+                businessName: asString(row.business_name),
+                loginEmail: asString(row.login_alias),
+                providerUserId: asString(row.provider_user_id),
+            };
+        },
+
+        async recordCredentialReset(businessId, providerUserId) {
+            const result = await execute(
+                `UPDATE business_account_issuances
+                 SET reset_at = now(), updated_at = now()
+                 WHERE business_id = $1
+                   AND provider = 'logto'
+                   AND provider_user_id = $2
+                 RETURNING id`,
+                [businessId, providerUserId],
+            );
+            if (!result.rows[0]) throw new Error("credential_account_not_found");
+        },
+    };
+}
+
 export const businessImportRepository = createBusinessImportRepository();
+export const businessProvisioningRepository = createBusinessProvisioningRepository();

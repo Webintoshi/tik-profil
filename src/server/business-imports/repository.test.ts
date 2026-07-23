@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createBusinessImportRepository, type QueryExecutor } from "./repository.ts";
+import {
+    createBusinessImportRepository,
+    createBusinessProvisioningRepository,
+    type QueryExecutor,
+} from "./repository.ts";
 
 interface QueryCall {
     text: string;
@@ -259,4 +263,103 @@ test("rejects terminal review before deleting existing source facts", async () =
 
     assert.equal(calls.length, 1);
     assert.match(calls[0]?.text ?? "", /FOR UPDATE/i);
+});
+
+test("provisioning alias reservation uses the injected transaction and remains idempotent", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        if (/SELECT id FROM business_import_candidates/i.test(text)) return { rowCount: 1, rows: [{ id: "candidate-1" }] };
+        if (/INSERT INTO business_account_issuances/i.test(text)) return { rowCount: 1, rows: [{ candidate_id: "candidate-1" }] };
+        return { rowCount: 0, rows: [] };
+    };
+    const repository = createBusinessProvisioningRepository(execute, async (operation) => operation(execute));
+
+    assert.equal(await repository.reserveAlias("candidate-1", "pati@tikprofil.com"), true);
+    assert.equal(calls.length, 2);
+    assert.match(calls[0]?.text ?? "", /FOR UPDATE/i);
+    assert.match(calls[1]?.text ?? "", /ON CONFLICT DO NOTHING/i);
+});
+
+test("claims only a complete approved candidate linked to the requested batch while holding its row lock", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        if (/FROM business_import_batch_candidates/i.test(text)) {
+            return { rowCount: 1, rows: [candidateRow({ candidate_status: "approved" })] };
+        }
+        if (/FROM business_source_facts/i.test(text)) {
+            return { rowCount: 5, rows: [
+                { field_key: "name", field_value: "Pati", source_type: "admin_verified", source_url: null },
+                { field_key: "city", field_value: "Ordu", source_type: "admin_verified", source_url: null },
+                { field_key: "district", field_value: "Altinordu", source_type: "admin_verified", source_url: null },
+                { field_key: "category", field_value: "Petshop", source_type: "admin_verified", source_url: null },
+                { field_key: "address", field_value: "Merkez", source_type: "admin_verified", source_url: null },
+            ] };
+        }
+        if (/FROM business_account_issuances/i.test(text)) return { rowCount: 0, rows: [] };
+        if (/UPDATE business_import_candidates/i.test(text)) {
+            return { rowCount: 1, rows: [candidateRow({
+                candidate_status: "provisioning",
+                provisioning_state: { lease: { attemptId: "attempt-1", status: "active" } },
+            })] };
+        }
+        return { rowCount: 0, rows: [] };
+    };
+    const repository = createBusinessProvisioningRepository(execute, async (operation) => operation(execute));
+
+    const claim = await repository.claimCandidate({ batchId: "batch-1", candidateId: "candidate-1", attemptId: "attempt-1" });
+
+    assert.equal(claim.outcome, "claimed");
+    assert.match(calls[0]?.text ?? "", /business_import_batch_candidates/i);
+    assert.match(calls[0]?.text ?? "", /FOR UPDATE OF candidates/i);
+    assert.deepEqual(calls[0]?.values, ["batch-1", "candidate-1"]);
+    assert.match(calls[3]?.text ?? "", /candidate_status = 'provisioning'/i);
+    assert.match(calls[3]?.text ?? "", /provisioning_state/i);
+});
+
+test("ensures canonical owner identity records transactionally without accepting password material", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        if (/FROM business_import_candidates WHERE/i.test(text)) {
+            return { rowCount: 1, rows: [candidateRow({
+                candidate_status: "provisioning",
+                provisioning_state: { lease: { attemptId: "attempt-1", status: "active" } },
+            })] };
+        }
+        if (/FROM business_account_issuances/i.test(text)) {
+            return { rowCount: 1, rows: [{ login_alias: "pati@tikprofil.com", provider_user_id: null }] };
+        }
+        if (/SELECT id FROM app_users/i.test(text)) return { rowCount: 1, rows: [{ id: "app-user-1" }] };
+        if (/FROM auth_provider_links/i.test(text)) return { rowCount: 0, rows: [] };
+        if (/INSERT INTO business_roles/i.test(text)) return { rowCount: 1, rows: [{ id: "role-1" }] };
+        if (/INSERT INTO business_memberships/i.test(text)) return { rowCount: 1, rows: [{ id: "membership-1" }] };
+        return { rowCount: 1, rows: [] };
+    };
+    const repository = createBusinessProvisioningRepository(execute, async (operation) => operation(execute));
+
+    const result = await repository.ensureOwnerIdentity({
+        attemptId: "attempt-1",
+        batchId: "batch-1",
+        businessId: "business-1",
+        businessName: "Pati",
+        candidateId: "candidate-1",
+        providerPlaceId: "place-1",
+        providerUserId: "logto-1",
+        loginEmail: "pati@tikprofil.com",
+        city: "Ordu",
+        district: "Altinordu",
+        address: "Merkez",
+    });
+
+    assert.deepEqual(result, { appUserId: "app-user-1", membershipId: "membership-1" });
+    const sql = calls.map((call) => call.text).join("\n");
+    assert.match(sql, /INSERT INTO app_users/i);
+    assert.match(sql, /INSERT INTO auth_provider_links/i);
+    assert.match(sql, /INSERT INTO business_roles/i);
+    assert.match(sql, /INSERT INTO business_memberships/i);
+    assert.match(sql, /UPDATE business_account_issuances/i);
+    assert.match(sql, /INSERT INTO business_discovery_profiles/i);
+    assert.doesNotMatch(sql, /plaintext_password|initial_password|password_hash/i);
 });
