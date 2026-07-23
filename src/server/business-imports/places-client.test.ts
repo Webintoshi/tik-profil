@@ -66,6 +66,35 @@ test("Places search retries rate-limited responses with bounded jitter", async (
     assert.deepEqual(delays, [12]);
 });
 
+test("retryable failures make the initial request plus three retries while non-retryable failures make one call", async () => {
+    for (const status of [429, 503]) {
+        let calls = 0;
+        const client = createPlacesClient({
+            apiKey: "server-key",
+            fetch: async () => {
+                calls += 1;
+                return jsonResponse({}, status);
+            },
+            sleep: async () => undefined,
+        });
+
+        await assert.rejects(client.searchText({ textQuery: "petshop Ordu", pageToken: null }));
+        assert.equal(calls, 4);
+    }
+
+    let calls = 0;
+    const client = createPlacesClient({
+        apiKey: "server-key",
+        fetch: async () => {
+            calls += 1;
+            return jsonResponse({}, 400);
+        },
+    });
+
+    await assert.rejects(client.searchText({ textQuery: "petshop Ordu", pageToken: null }));
+    assert.equal(calls, 1);
+});
+
 test("Places search rejects malformed responses and exhausted upstream failures without raw payloads", async () => {
     const malformedClient = createPlacesClient({
         apiKey: "server-key",
@@ -117,6 +146,30 @@ test("Places search times out and missing credentials fail before transport", as
         (error: unknown) => error instanceof PlacesClientError && error.code === "provider_not_configured",
     );
     assert.equal(called, false);
+});
+
+test("Places search keeps its timeout active while the response body is being read", async () => {
+    let bodyObservedAbort = false;
+    const client = createPlacesClient({
+        apiKey: "server-key",
+        timeoutMs: 5,
+        fetch: async (_input, init) => ({
+            ok: true,
+            json: async () => new Promise<unknown>((resolve) => {
+                init?.signal?.addEventListener("abort", () => {
+                    bodyObservedAbort = true;
+                    resolve({});
+                });
+                setTimeout(() => resolve({ places: [] }), 30);
+            }),
+        }) as Response,
+    });
+
+    await assert.rejects(
+        client.searchText({ textQuery: "petshop Ordu", pageToken: null }),
+        (error: unknown) => error instanceof PlacesClientError && error.code === "provider_unavailable",
+    );
+    assert.equal(bodyObservedAbort, true);
 });
 
 test("Places getPlace projects live admin fields without a storage dependency", async () => {
