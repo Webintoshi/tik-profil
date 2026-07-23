@@ -116,3 +116,40 @@ No physical Android camera was available in this workspace. The parser, gate, fl
 - `apps/mobile/src/qr/qr-scan-flow.ts`
 - `apps/mobile/src/qr/qr-scan-flow.test.mts`
 - `apps/mobile/src/qr/qr-screen-contract.test.mts`
+
+---
+
+# Task 6 Report: Ordu Petshop Secure Credentials and Logto Management Client
+
+Date: 2026-07-23
+Base HEAD: `f7c47e459cb2cee112d20c17bf6c6f577595798a`
+
+## Scope
+
+Implemented only the Ordu Petshop Places Import plan's Task 6 files:
+
+- `src/server/business-imports/credentials.ts`
+- `src/server/business-imports/credentials.test.ts`
+- `src/server/auth/logto/management-client.ts`
+- `src/server/auth/logto/management-client.test.ts`
+
+## RED Evidence
+
+`node --test src/server/business-imports/credentials.test.ts src/server/auth/logto/management-client.test.ts` exited 1 before production implementation. Both suites failed with `ERR_MODULE_NOT_FOUND` for `credentials.ts` and `management-client.ts`, establishing that the new tests could not pass without the requested modules.
+
+## Implementation Evidence
+
+- `generateInitialPassword()` returns exactly 16 characters, chooses at least one lowercase, uppercase, digit, and symbol with `node:crypto` `randomInt()`, fills from the combined alphabet, and performs a Fisher-Yates shuffle with unbiased `randomInt(index + 1)` selection.
+- `allocateLoginAlias()` uses the shared deterministic Turkish normalization, enforces the 64-character email local-part limit, and reserves aliases through `BusinessImportRepository.reserveAlias()` in base, district, then stable SHA-256-derived six-character candidate suffix order.
+- `LogtoManagementClient` exposes only exact primary-email lookup, user creation, password update, and user deletion.
+- The M2M client normalizes the tenant endpoint, requests `/oidc/token` for the normalized `/api` resource with scope `all`, and calls `/api/users` with encoded search values and user IDs.
+- Tokens are cached until 60 seconds before expiry. Concurrent cache misses share one in-flight token request.
+- Management credentials are loaded by the server factory through `src/server/business-imports/env.ts`; no public-prefixed secrets or direct management-secret environment reads were added.
+- Provider failures throw stable coded errors without reading failed response bodies or exposing transport messages, client secrets, access tokens, passwords, or request-body content. The implementation contains no logging or password persistence.
+
+## GREEN Evidence
+
+- Focused Task 6 tests: 10 passed, 0 failed.
+- All `src/server/business-imports` tests: 50 passed, 0 failed.
+- Root `npm run typecheck`: passed with exit code 0.
+- The test runner emitted the repository's existing `MODULE_TYPELESS_PACKAGE_JSON` warning; no test failures or application warnings were introduced.
