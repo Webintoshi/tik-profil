@@ -29,6 +29,7 @@ export class LogtoManagementClientError extends Error {
 }
 
 export interface CreateLogtoManagementClientOptions {
+    apiResource?: string;
     appId: string;
     appSecret: string;
     endpoint: string;
@@ -40,6 +41,8 @@ interface CachedToken {
     accessToken: string;
     expiresAt: number;
 }
+
+const DEFAULT_LOGTO_MANAGEMENT_API_RESOURCE = "https://default.logto.app/api";
 
 function normalizeEndpoint(endpoint: string): string {
     try {
@@ -64,16 +67,16 @@ function parseUser(value: unknown): LogtoUser {
     if (!isRecord(value) || typeof value.id !== "string" || !value.id.trim()) {
         throw new LogtoManagementClientError("logto_response_invalid");
     }
-    if (value.primaryEmail !== null && typeof value.primaryEmail !== "string") {
+    if (value.primaryEmail !== undefined && value.primaryEmail !== null && typeof value.primaryEmail !== "string") {
         throw new LogtoManagementClientError("logto_response_invalid");
     }
-    if (value.name !== null && typeof value.name !== "string") {
+    if (value.name !== undefined && value.name !== null && typeof value.name !== "string") {
         throw new LogtoManagementClientError("logto_response_invalid");
     }
     return {
         id: value.id,
-        primaryEmail: value.primaryEmail,
-        name: value.name,
+        primaryEmail: typeof value.primaryEmail === "string" ? value.primaryEmail : null,
+        name: typeof value.name === "string" ? value.name : null,
     };
 }
 
@@ -87,7 +90,8 @@ export function createLogtoManagementClient(
     }
 
     const endpoint = normalizeEndpoint(options.endpoint);
-    const resource = `${endpoint}/api`;
+    const apiBase = `${endpoint}/api`;
+    const apiResource = normalizeEndpoint(options.apiResource ?? DEFAULT_LOGTO_MANAGEMENT_API_RESOURCE);
     const fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
     const now = options.now ?? Date.now;
     let tokenCache: CachedToken | null = null;
@@ -101,7 +105,7 @@ export function createLogtoManagementClient(
                     client_id: appId,
                     client_secret: appSecret,
                     grant_type: "client_credentials",
-                    resource,
+                    resource: apiResource,
                     scope: "all",
                 }).toString(),
                 cache: "no-store",
@@ -125,16 +129,18 @@ export function createLogtoManagementClient(
         if (
             !isRecord(value)
             || typeof value.access_token !== "string"
-            || !value.access_token
+            || !value.access_token.trim()
             || typeof value.expires_in !== "number"
             || !Number.isFinite(value.expires_in)
             || value.expires_in <= 0
+            || typeof value.token_type !== "string"
+            || value.token_type.trim().toLowerCase() !== "bearer"
         ) {
             throw new LogtoManagementClientError("logto_token_failed");
         }
 
         const token = {
-            accessToken: value.access_token,
+            accessToken: value.access_token.trim(),
             expiresAt: now() + (value.expires_in * 1000),
         };
         tokenCache = token;
@@ -164,7 +170,7 @@ export function createLogtoManagementClient(
         const token = await getToken();
         let response: Response;
         try {
-            response = await fetchImpl(`${resource}${path}`, {
+            response = await fetchImpl(`${apiBase}${path}`, {
                 ...init,
                 cache: "no-store",
                 headers: {
@@ -194,7 +200,6 @@ export function createLogtoManagementClient(
                 "mode.primaryEmail": "exact",
             });
             const response = await request(`/users?${query.toString()}`, { method: "GET" });
-            if (response.status === 404) return null;
             if (!response.ok) throw new LogtoManagementClientError("logto_request_failed");
 
             const value = await readJson(response);
@@ -236,7 +241,7 @@ export function createLogtoManagementClient(
 export async function createServerLogtoManagementClient(
     options: Pick<CreateLogtoManagementClientOptions, "fetch" | "now"> = {},
 ): Promise<LogtoManagementClient> {
-    const [{ getLogtoManagementCredentials }, { getOptionalEnvValue }] = await Promise.all([
+    const [{ getLogtoManagementApiResource, getLogtoManagementCredentials }, { getOptionalEnvValue }] = await Promise.all([
         import("../../business-imports/env.ts"),
         import("../../../lib/env.ts"),
     ]);
@@ -245,5 +250,10 @@ export async function createServerLogtoManagementClient(
     if (!credentials || !endpoint) {
         throw new LogtoManagementClientError("logto_not_configured");
     }
-    return createLogtoManagementClient({ ...credentials, endpoint, ...options });
+    return createLogtoManagementClient({
+        ...credentials,
+        apiResource: getLogtoManagementApiResource(),
+        endpoint,
+        ...options,
+    });
 }
