@@ -52,7 +52,10 @@ function repositoryStub(overrides: Partial<BusinessImportRepository> = {}): Busi
         getBatch: async () => batch,
         upsertDiscoveredPlace: async () => candidate(),
         listCandidates: async () => [candidate()],
+        listSourceFacts: async () => [],
         replaceSourceFacts: async () => undefined,
+        completeBatch: async () => batch,
+        failBatch: async () => ({ ...batch, status: "failed", failureCode: "provider_unavailable" }),
         transitionCandidate: async (input) => candidate({
             candidateStatus: input.status,
             matchedBusinessId: input.matchedBusinessId ?? null,
@@ -66,12 +69,10 @@ function repositoryStub(overrides: Partial<BusinessImportRepository> = {}): Busi
 
 const actor = { username: "platform-admin", appUserId: "admin-1" };
 
-test("starts a batch then delegates discovery to the durable dispatch boundary", async () => {
-    const dispatched: unknown[] = [];
+test("starts a durable running batch without executing provider discovery in the request service", async () => {
     const service = createBusinessImportService({
         repository: repositoryStub(),
         places: {} as PlacesClient,
-        dispatchDiscovery: async (job) => { dispatched.push(job); },
     });
 
     const result = await service.startPetshopDiscovery({
@@ -81,11 +82,6 @@ test("starts a batch then delegates discovery to the durable dispatch boundary",
     }, actor);
 
     assert.equal(result.id, "batch-1");
-    assert.deepEqual(dispatched, [{
-        batchId: "batch-1",
-        city: "Ordu",
-        districts: ["Altınordu"],
-    }]);
 });
 
 test("returns local workflow state when the live Places projection is unavailable", async () => {
@@ -95,7 +91,6 @@ test("returns local workflow state when the live Places projection is unavailabl
             async searchText() { return { places: [], nextPageToken: null }; },
             async getPlace() { throw new Error("provider timeout"); },
         },
-        dispatchDiscovery: async () => undefined,
     });
 
     const [projection] = await service.listCandidates("batch-1");
@@ -109,7 +104,6 @@ test("rejects approval until independently sourced profile facts are supplied", 
     const service = createBusinessImportService({
         repository: repositoryStub(),
         places: {} as PlacesClient,
-        dispatchDiscovery: async () => undefined,
     });
 
     await assert.rejects(
@@ -128,7 +122,6 @@ test("records a rejection without requiring live provider display data", async (
             },
         }),
         places: {} as PlacesClient,
-        dispatchDiscovery: async () => undefined,
     });
 
     const result = await service.reviewCandidate({
@@ -139,4 +132,102 @@ test("records a rejection without requiring live provider display data", async (
 
     assert.equal(result.candidateStatus, "rejected");
     assert.deepEqual(transitions, [{ candidateId: "candidate-1", status: "rejected", actorId: "admin-1" }]);
+});
+
+test("runs discovery to completion and persists only transient place references", async () => {
+    const upserts: unknown[] = [];
+    const completed: unknown[] = [];
+    const service = createBusinessImportService({
+        repository: repositoryStub({
+            upsertDiscoveredPlace: async (input) => {
+                upserts.push(input);
+                return candidate({ firstSeenBatchId: "batch-1" });
+            },
+            completeBatch: async (input) => {
+                completed.push(input);
+                return { ...batch, status: "completed", importedCount: input.importedCount };
+            },
+        }),
+        places: {} as PlacesClient,
+        discoverPetshops: async () => [{
+            provider: "google_places",
+            placeId: "place-1",
+            districtScope: "Altınordu",
+            temporaryLocation: { latitude: 40.98, longitude: 37.88, expiresAt: new Date("2026-07-24T12:00:00.000Z") },
+        }],
+    });
+
+    const result = await service.runPetshopDiscoveryBatch("batch-1");
+
+    assert.equal(result.status, "completed");
+    assert.equal((upserts[0] as { batchId?: string }).batchId, "batch-1");
+    assert.deepEqual(completed, [{ batchId: "batch-1", importedCount: 1, matchedCount: 0, skippedCount: 0, failedCount: 0 }]);
+});
+
+test("terminally fails a batch when provider discovery fails", async () => {
+    const failures: unknown[] = [];
+    const service = createBusinessImportService({
+        repository: repositoryStub({
+            failBatch: async (input) => {
+                failures.push(input);
+                return { ...batch, status: "failed", failureCode: input.failureCode };
+            },
+        }),
+        places: {} as PlacesClient,
+        discoverPetshops: async () => { throw new Error("provider connection details"); },
+    });
+
+    const result = await service.runPetshopDiscoveryBatch("batch-1");
+
+    assert.equal(result.status, "failed");
+    assert.deepEqual(failures, [{
+        batchId: "batch-1", importedCount: 0, matchedCount: 0, skippedCount: 0, failedCount: 1, failureCode: "provider_unavailable",
+    }]);
+});
+
+test("approves using already stored facts and returns them with the local candidate projection", async () => {
+    const transitions: unknown[] = [];
+    const facts = [
+        { fieldKey: "name", fieldValue: "Pati Dukkani", sourceType: "admin_verified" as const },
+        { fieldKey: "address", fieldValue: "Ataturk Caddesi 1", sourceType: "admin_verified" as const },
+    ];
+    const service = createBusinessImportService({
+        repository: repositoryStub({
+            listSourceFacts: async () => facts,
+            transitionCandidate: async (input) => {
+                transitions.push(input);
+                return candidate({ candidateStatus: input.status });
+            },
+        }),
+        places: { async searchText() { return { places: [], nextPageToken: null }; }, async getPlace() { throw new Error("offline"); } },
+    });
+
+    const projection = await service.listCandidates("batch-1");
+    const approved = await service.reviewCandidate({ batchId: "batch-1", candidateId: "candidate-1", decision: "approved" }, actor);
+
+    assert.deepEqual(projection[0]?.sourceFacts, facts);
+    assert.equal(approved.candidateStatus, "approved");
+    assert.equal((transitions[0] as { actorId?: string }).actorId, "admin-1");
+});
+
+test("returns a stable not-found error for an unknown batch", async () => {
+    const service = createBusinessImportService({
+        repository: repositoryStub({ getBatch: async () => { throw new ImportError("import_not_found"); } }),
+        places: {} as PlacesClient,
+    });
+
+    await assert.rejects(service.listCandidates("missing-batch"), (error: unknown) => error instanceof ImportError && error.code === "import_not_found" && error.statusCode === 404);
+    await assert.rejects(service.getBatch("missing-batch"), (error: unknown) => error instanceof ImportError && error.code === "import_not_found" && error.statusCode === 404);
+});
+
+test("returns a stable not-found error when a candidate is absent from the requested batch", async () => {
+    const service = createBusinessImportService({
+        repository: repositoryStub({ listCandidates: async () => [] }),
+        places: {} as PlacesClient,
+    });
+
+    await assert.rejects(
+        service.reviewCandidate({ batchId: "batch-1", candidateId: "other-batch-candidate", decision: "rejected" }, actor),
+        (error: unknown) => error instanceof ImportError && error.code === "import_not_found" && error.statusCode === 404,
+    );
 });

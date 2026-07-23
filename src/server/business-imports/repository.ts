@@ -1,4 +1,4 @@
-import type { SourceFactInput } from "./contracts.ts";
+import { ImportError, type ImportErrorCode, type SourceFactInput } from "./contracts.ts";
 import type { DiscoveredPlaceRef } from "./petshop-discovery.ts";
 import type { ImportCandidateStatus } from "./contracts.ts";
 
@@ -14,7 +14,7 @@ export interface StartImportInput {
     city: "Ordu";
     districts: readonly string[];
     idempotencyKey: string;
-    actorId?: string;
+    actorId: string;
 }
 
 export interface ImportBatch {
@@ -28,6 +28,7 @@ export interface ImportBatch {
     matchedCount: number;
     skippedCount: number;
     failedCount: number;
+    failureCode?: string | null;
     createdByUserId: string | null;
     createdAt: string;
     updatedAt: string;
@@ -67,12 +68,27 @@ export interface ProvisioningStepUpdate {
     value: Record<string, unknown>;
 }
 
+export interface BatchCounters {
+    batchId: string;
+    importedCount: number;
+    matchedCount: number;
+    skippedCount: number;
+    failedCount: number;
+}
+
+export interface FailedBatchCounters extends BatchCounters {
+    failureCode: ImportErrorCode;
+}
+
 export interface BusinessImportRepository {
     createOrGetBatch(input: StartImportInput): Promise<ImportBatch>;
     upsertDiscoveredPlace(input: DiscoveredPlaceRef & { batchId: string }): Promise<ImportCandidate>;
     listCandidates(batchId: string): Promise<ImportCandidate[]>;
     getBatch(batchId: string): Promise<ImportBatch>;
-    replaceSourceFacts(candidateId: string, facts: SourceFactInput[], actorId?: string): Promise<void>;
+    listSourceFacts(candidateId: string): Promise<SourceFactInput[]>;
+    replaceSourceFacts(candidateId: string, facts: SourceFactInput[], actorId: string): Promise<void>;
+    completeBatch(input: BatchCounters): Promise<ImportBatch>;
+    failBatch(input: FailedBatchCounters): Promise<ImportBatch>;
     transitionCandidate(input: CandidateTransition): Promise<ImportCandidate>;
     reserveAlias(candidateId: string, alias: string): Promise<boolean>;
     recordProvisioningStep(input: ProvisioningStepUpdate): Promise<void>;
@@ -147,6 +163,7 @@ function mapBatch(row: Row): ImportBatch {
         matchedCount: asNullableNumber(row.matched_count) ?? 0,
         skippedCount: asNullableNumber(row.skipped_count) ?? 0,
         failedCount: asNullableNumber(row.failed_count) ?? 0,
+        failureCode: typeof metadata.failureCode === "string" ? metadata.failureCode : null,
         createdByUserId: asNullableString(row.created_by_user_id),
         createdAt: asString(row.created_at),
         updatedAt: asString(row.updated_at),
@@ -155,8 +172,24 @@ function mapBatch(row: Row): ImportBatch {
 
 function requireRow(result: QueryResult, entity: string): Row {
     const row = result.rows[0];
+    if (!row && entity === "import batch") throw new ImportError("import_not_found");
     if (!row) throw new Error(`${entity} not found`);
     return row;
+}
+
+function assertAllowedTransition(current: ImportCandidateStatus, next: ImportCandidateStatus): void {
+    const allowed: Record<ImportCandidateStatus, readonly ImportCandidateStatus[]> = {
+        discovered: ["approved", "rejected", "duplicate", "needs_data"],
+        needs_data: ["approved", "rejected", "duplicate", "needs_data"],
+        ready: ["approved", "rejected", "duplicate", "needs_data"],
+        failed: ["approved", "rejected", "duplicate", "needs_data"],
+        approved: [],
+        rejected: [],
+        duplicate: [],
+        provisioning: [],
+        published: [],
+    };
+    if (!allowed[current].includes(next)) throw new ImportError("invalid_state");
 }
 
 export function createBusinessImportRepository(
@@ -179,7 +212,7 @@ export function createBusinessImportRepository(
                         source_type, source_ref, city, import_status, metadata, created_by_user_id
                     ) VALUES ($1, $2, $3, $4, $5::jsonb, $6)
                     RETURNING *`,
-                    ["google_places_petshop", input.idempotencyKey, input.city, "running", JSON.stringify({ districts: input.districts }), input.actorId ?? null],
+                    ["google_places_petshop", input.idempotencyKey, input.city, "running", JSON.stringify({ districts: input.districts }), input.actorId],
                 );
                 return mapBatch(requireRow(created, "import batch"));
             });
@@ -189,6 +222,32 @@ export function createBusinessImportRepository(
             const result = await execute(
                 "SELECT * FROM business_import_batches WHERE id = $1 LIMIT 1",
                 [batchId],
+            );
+            return mapBatch(requireRow(result, "import batch"));
+        },
+
+        async completeBatch(input) {
+            const result = await execute(
+                `UPDATE business_import_batches
+                 SET import_status = 'completed', imported_count = $2, matched_count = $3,
+                     skipped_count = $4, failed_count = $5,
+                     metadata = COALESCE(metadata, '{}'::jsonb) - 'failureCode', updated_at = now()
+                 WHERE id = $1
+                 RETURNING *`,
+                [input.batchId, input.importedCount, input.matchedCount, input.skippedCount, input.failedCount],
+            );
+            return mapBatch(requireRow(result, "import batch"));
+        },
+
+        async failBatch(input) {
+            const result = await execute(
+                `UPDATE business_import_batches
+                 SET import_status = 'failed', imported_count = $2, matched_count = $3,
+                     skipped_count = $4, failed_count = $5,
+                     metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('failureCode', $6::text), updated_at = now()
+                 WHERE id = $1
+                 RETURNING *`,
+                [input.batchId, input.importedCount, input.matchedCount, input.skippedCount, input.failedCount, input.failureCode],
             );
             return mapBatch(requireRow(result, "import batch"));
         },
@@ -228,6 +287,22 @@ export function createBusinessImportRepository(
             return result.rows.map(mapCandidate);
         },
 
+        async listSourceFacts(candidateId) {
+            const result = await execute(
+                `SELECT field_key, field_value, source_type, source_url
+                 FROM business_source_facts
+                 WHERE candidate_id = $1
+                 ORDER BY field_key ASC, source_type ASC`,
+                [candidateId],
+            );
+            return result.rows.map((row) => ({
+                fieldKey: asString(row.field_key),
+                fieldValue: asString(row.field_value),
+                sourceType: asString(row.source_type) as SourceFactInput["sourceType"],
+                ...(asNullableString(row.source_url) ? { sourceUrl: asNullableString(row.source_url) ?? undefined } : {}),
+            }));
+        },
+
         async replaceSourceFacts(candidateId, facts, actorId) {
             await runInTransaction(async (transactionExecute) => {
                 const candidate = await transactionExecute(
@@ -256,7 +331,8 @@ export function createBusinessImportRepository(
                      FOR UPDATE`,
                     [input.candidateId],
                 );
-                requireRow(locked, "import candidate");
+                const current = mapCandidate(requireRow(locked, "import candidate"));
+                assertAllowedTransition(current.candidateStatus, input.status);
                 const updated = await transactionExecute(
                     `UPDATE business_import_candidates
                      SET candidate_status = $2,

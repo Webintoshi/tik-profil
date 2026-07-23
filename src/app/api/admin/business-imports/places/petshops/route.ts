@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server.js";
+import { after, NextResponse } from "next/server.js";
 
 import { StartPetshopImportSchema, ImportError } from "../../../../../../server/business-imports/contracts.ts";
 import { businessImportService, type BusinessImportService } from "../../../../../../server/business-imports/import-service.ts";
@@ -9,6 +9,7 @@ const noStoreHeaders = { "Cache-Control": "no-store" };
 interface StartRouteDependencies {
     requireAdmin: () => Promise<PlatformAdminContext>;
     service: BusinessImportService;
+    after: (callback: () => void | Promise<void>) => void;
 }
 
 function errorResponse(error: unknown): NextResponse {
@@ -41,6 +42,9 @@ export function createStartPetshopRoute(dependencies: StartRouteDependencies) {
                 return NextResponse.json({ error: "invalid_request" }, { status: 400, headers: noStoreHeaders });
             }
             const batch = await dependencies.service.startPetshopDiscovery(parsed.data, actor);
+            dependencies.after(async () => {
+                await dependencies.service.runPetshopDiscoveryBatch(batch.id);
+            });
             return NextResponse.json({ batchId: batch.id, status: "running" }, { status: 202, headers: noStoreHeaders });
         } catch (error) {
             return errorResponse(error);
@@ -49,5 +53,5 @@ export function createStartPetshopRoute(dependencies: StartRouteDependencies) {
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
-    return createStartPetshopRoute({ requireAdmin: () => requirePlatformAdmin(), service: businessImportService })(request);
+    return createStartPetshopRoute({ requireAdmin: () => requirePlatformAdmin(), service: businessImportService, after })(request);
 }

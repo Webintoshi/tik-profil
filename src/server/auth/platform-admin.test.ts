@@ -13,7 +13,7 @@ test("production platform admin guard has no caller-supplied session parameter",
 test("test-only platform admin guard rejects a business session", async () => {
     const requireAdmin = __testOnlyCreatePlatformAdminGuard({
         getSession: async () => ({ kind: "business" } as never),
-        isSessionActive: async () => true,
+        resolveAdmin: async () => "admin-1",
     });
 
     await assert.rejects(
@@ -30,7 +30,7 @@ test("test-only platform admin guard rejects a missing or inactive admin context
     for (const session of [null, { username: "inactive-admin", isActive: false }]) {
         const requireAdmin = __testOnlyCreatePlatformAdminGuard({
             getSession: async () => session as never,
-            isSessionActive: async () => true,
+            resolveAdmin: async () => "admin-1",
         });
 
         await assert.rejects(
@@ -43,23 +43,24 @@ test("test-only platform admin guard rejects a missing or inactive admin context
     }
 });
 
-test("test-only platform admin guard accepts an active legacy dashboard admin session", async () => {
+test("test-only platform admin guard resolves a legacy username to its canonical active app user", async () => {
     const requireAdmin = __testOnlyCreatePlatformAdminGuard({
-        getSession: async () => ({ username: "dashboard-admin" }),
-        isSessionActive: async () => true,
+        getSession: async () => ({ username: "legacy-dashboard-admin" }),
+        resolveAdmin: async (username) => username === "legacy-dashboard-admin" ? "a62a4191-4116-4c9d-9374-c60e8e21b2da" : null,
     });
     const session = await requireAdmin();
 
-    assert.equal(session.username, "dashboard-admin");
+    assert.equal(session.username, "legacy-dashboard-admin");
+    assert.equal(session.appUserId, "a62a4191-4116-4c9d-9374-c60e8e21b2da");
 });
 
-test("test-only platform admin guard resolves the legacy session and rejects a deactivated admin", async () => {
+test("test-only platform admin guard fails closed for an unmapped or inactive legacy admin", async () => {
     let resolvedUsername = "";
     const requireAdmin = __testOnlyCreatePlatformAdminGuard({
         getSession: async () => ({ username: "dashboard-admin" }),
-        isSessionActive: async (session) => {
-            resolvedUsername = session.username;
-            return false;
+        resolveAdmin: async (username) => {
+            resolvedUsername = username;
+            return null;
         },
     });
 
