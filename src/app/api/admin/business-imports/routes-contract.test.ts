@@ -17,6 +17,7 @@ function serviceStub(): BusinessImportService {
         getBatch: async () => ({ id: batchId, status: "running" } as never),
         listCandidates: async () => [],
         reviewCandidate: async (input) => ({ id: input.candidateId, candidateStatus: input.decision } as never),
+        runPetshopDiscoveryBatch: async () => ({ id: batchId, status: "completed" } as never),
     };
 }
 
@@ -24,6 +25,7 @@ test("start route rejects a business-owner authorization failure", async () => {
     const POST = createStartPetshopRoute({
         requireAdmin: async () => { throw new PlatformAdminAuthorizationError(403); },
         service: serviceStub(),
+        after: () => undefined,
     });
 
     const response = await POST(new Request("http://localhost/api/admin/business-imports/places/petshops", {
@@ -36,7 +38,11 @@ test("start route rejects a business-owner authorization failure", async () => {
 });
 
 test("start route accepts a valid admin request and returns an asynchronous batch response", async () => {
-    const POST = createStartPetshopRoute({ requireAdmin: async () => admin, service: serviceStub() });
+    const callbacks: Array<() => void | Promise<void>> = [];
+    const service = serviceStub();
+    let ranBatchId = "";
+    service.runPetshopDiscoveryBatch = async (requestedBatchId) => { ranBatchId = requestedBatchId; return { id: requestedBatchId, status: "completed" } as never; };
+    const POST = createStartPetshopRoute({ requireAdmin: async () => admin, service, after: (callback) => { callbacks.push(callback); } });
     const response = await POST(new Request("http://localhost/api/admin/business-imports/places/petshops", {
         method: "POST",
         body: JSON.stringify({ city: "Ordu", districts: ["Altınordu"], idempotencyKey: "06e6db6f-a739-4d84-a9a7-a7c1b0ec61a4" }),
@@ -45,6 +51,9 @@ test("start route accepts a valid admin request and returns an asynchronous batc
     assert.equal(response.status, 202);
     assert.deepEqual(await response.json(), { batchId, status: "running" });
     assert.equal(response.headers.get("Cache-Control"), "no-store");
+    assert.equal(callbacks.length, 1);
+    await callbacks[0]?.();
+    assert.equal(ranBatchId, batchId);
 });
 
 test("candidate list disables caching", async () => {

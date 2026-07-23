@@ -127,3 +127,13 @@ Browser flow: `/business/task5-fixture` -> open `Siparis Ver` -> add `Buyuk Kari
 ## Remaining Android Manual Gap
 
 An Android release APK was not launched in this workspace. Release QA still needs physical/emulator checks with gesture navigation and three-button navigation for safe-inset overlap, keyboard/form reachability, TalkBack names, sticky stability and last-product clearance. This is the only remaining Task 5 verification gap.
+
+## Import API Review Fixes (2026-07-23)
+
+- Replaced the no-op import discovery dispatcher with Next.js `after()`; the tracked callback runs `runPetshopDiscoveryBatch()` after the `202` response.
+- Discovery persists candidate/batch links, finalizes counts, completes successful batches, and terminally fails provider errors with a sanitized code.
+- Platform admin sessions now resolve to an active canonical PostgreSQL `appUserId`; unmapped or inactive legacy identities fail closed.
+- Persisted source facts are returned with candidates and reused by later approval. Candidate state transitions are locked and terminal states are rejected.
+- Missing batches and candidate/batch mismatches now return stable `import_not_found` 404 errors.
+
+Verification: focused review suite passed (26 tests), all `src/server/business-imports/*.test.ts` passed (42 tests), `npm run typecheck` passed, and `git diff --check` passed.

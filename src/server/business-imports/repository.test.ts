@@ -162,3 +162,39 @@ test("locks the candidate before reserving an alias and recording provisioning s
     assert.match(calls[3]?.text ?? "", /provisioning_state/i);
     assert.deepEqual(calls[3]?.values, ["candidate-1", "logto_user", JSON.stringify({ status: "created", providerUserId: "logto-1" })]);
 });
+
+test("reads persisted source facts and finalizes batches with explicit terminal counters", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        if (/FROM business_source_facts/i.test(text)) {
+            return { rowCount: 1, rows: [{ field_key: "name", field_value: "Pati Dukkani", source_type: "admin_verified", source_url: null }] };
+        }
+        return { rowCount: 1, rows: [{
+            id: "batch-1", source_type: "google_places_petshop", source_ref: "key", city: "Ordu", metadata: { districts: ["Altınordu"] },
+            import_status: /'failed'/i.test(text) ? "failed" : "completed", imported_count: 1, matched_count: 0, skipped_count: 0, failed_count: 1,
+            created_by_user_id: "admin-1", created_at: "2026-07-23T12:00:00.000Z", updated_at: "2026-07-23T12:01:00.000Z",
+        }] };
+    };
+    const repository = createBusinessImportRepository(execute, async (operation) => operation(execute));
+
+    assert.deepEqual(await repository.listSourceFacts("candidate-1"), [{ fieldKey: "name", fieldValue: "Pati Dukkani", sourceType: "admin_verified" }]);
+    assert.equal((await repository.completeBatch({ batchId: "batch-1", importedCount: 1, matchedCount: 0, skippedCount: 0, failedCount: 0 })).status, "completed");
+    assert.equal((await repository.failBatch({ batchId: "batch-1", importedCount: 1, matchedCount: 0, skippedCount: 0, failedCount: 1, failureCode: "provider_unavailable" })).status, "failed");
+
+    assert.match(calls[0]?.text ?? "", /FROM business_source_facts/i);
+    assert.match(calls[1]?.text ?? "", /import_status = 'completed'/i);
+    assert.match(calls[2]?.text ?? "", /import_status = 'failed'/i);
+    assert.doesNotMatch(calls[1]?.text ?? "", /latitude|longitude/i);
+    assert.deepEqual(calls[2]?.values, ["batch-1", 1, 0, 0, 1, "provider_unavailable"]);
+});
+
+test("rejects transitions from terminal candidates while holding the lock", async () => {
+    const execute: QueryExecutor = async () => ({ rowCount: 1, rows: [candidateRow({ candidate_status: "published" })] });
+    const repository = createBusinessImportRepository(execute, async (operation) => operation(execute));
+
+    await assert.rejects(
+        repository.transitionCandidate({ candidateId: "candidate-1", status: "approved", actorId: "admin-1" }),
+        (error: unknown) => error instanceof Error && error.message === "invalid_state",
+    );
+});

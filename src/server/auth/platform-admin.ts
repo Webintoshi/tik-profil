@@ -2,7 +2,7 @@ import type { SessionPayload } from "../../lib/auth.ts";
 
 export interface PlatformAdminContext extends SessionPayload {
     username: string;
-    isActive?: boolean;
+    appUserId: string;
 }
 
 export class PlatformAdminAuthorizationError extends Error {
@@ -19,10 +19,10 @@ export class PlatformAdminAuthorizationError extends Error {
 
 interface PlatformAdminGuardDependencies {
     getSession: () => Promise<SessionPayload | null>;
-    isSessionActive: (session: PlatformAdminContext) => Promise<boolean>;
+    resolveAdmin: (username: string) => Promise<string | null>;
 }
 
-function isPlatformAdminContext(value: unknown): value is PlatformAdminContext {
+function isPlatformAdminContext(value: unknown): value is SessionPayload & { username: string } {
     if (!value || typeof value !== "object") {
         return false;
     }
@@ -39,17 +39,22 @@ async function getLegacyPlatformAdminSession(): Promise<SessionPayload | null> {
     return getSession();
 }
 
-async function isLegacyPlatformAdminSessionActive(
-    session: PlatformAdminContext,
-): Promise<boolean> {
-    const { getSupabaseAdmin } = await import("../../lib/supabase.ts");
-    const { data, error } = await getSupabaseAdmin()
-        .from("admins")
-        .select("isActive")
-        .eq("username", session.username)
-        .maybeSingle();
-
-    return !error && data?.isActive === true;
+async function resolveLegacyPlatformAdmin(username: string): Promise<string | null> {
+    const { query } = await import("../db/query.ts");
+    const result = await query<{ app_user_id: string }>(
+        `SELECT credential.app_user_id
+         FROM legacy_auth_credentials credential
+         INNER JOIN platform_admins admin ON admin.app_user_id = credential.app_user_id
+         INNER JOIN app_users user_account ON user_account.id = admin.app_user_id
+         WHERE credential.subject_type = 'platform_admin'
+           AND lower(credential.login_identifier) = lower($1)
+           AND credential.is_active = true
+           AND admin.is_active = true
+           AND user_account.status = 'active'
+         LIMIT 2`,
+        [username],
+    );
+    return result.rows.length === 1 ? result.rows[0]?.app_user_id ?? null : null;
 }
 
 /** Test seam for the production session resolution and active-admin lookup. */
@@ -61,17 +66,18 @@ export function __testOnlyCreatePlatformAdminGuard(dependencies: PlatformAdminGu
             throw new PlatformAdminAuthorizationError(statusCode);
         }
 
-        if (!await dependencies.isSessionActive(resolvedSession)) {
+        const appUserId = await dependencies.resolveAdmin(resolvedSession.username);
+        if (!appUserId) {
             throw new PlatformAdminAuthorizationError(403);
         }
 
-        return resolvedSession;
+        return { ...resolvedSession, appUserId };
     };
 }
 
 const requireLegacyPlatformAdmin = __testOnlyCreatePlatformAdminGuard({
     getSession: getLegacyPlatformAdminSession,
-    isSessionActive: isLegacyPlatformAdminSessionActive,
+    resolveAdmin: resolveLegacyPlatformAdmin,
 });
 
 /**

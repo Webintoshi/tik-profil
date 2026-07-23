@@ -64,6 +64,8 @@ export type ReviewCandidateInput = z.infer<typeof ReviewCandidateSchema>;
 export const IMPORT_ERROR_CODES = [
     "provider_not_configured",
     "provider_rate_limited",
+    "provider_unavailable",
+    "import_not_found",
     "invalid_state",
     "candidate_incomplete",
     "duplicate_business",
@@ -75,6 +77,8 @@ export type ImportErrorCode = typeof IMPORT_ERROR_CODES[number];
 const IMPORT_ERROR_STATUS: Record<ImportErrorCode, number> = {
     provider_not_configured: 503,
     provider_rate_limited: 429,
+    provider_unavailable: 503,
+    import_not_found: 404,
     invalid_state: 409,
     candidate_incomplete: 422,
     duplicate_business: 409,
