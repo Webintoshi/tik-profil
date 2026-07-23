@@ -198,3 +198,65 @@ test("rejects transitions from terminal candidates while holding the lock", asyn
         (error: unknown) => error instanceof Error && error.message === "invalid_state",
     );
 });
+
+test("atomically claims only pending batches and keeps terminal updates conditional on running", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        return { rowCount: 0, rows: [] };
+    };
+    const repository = createBusinessImportRepository(execute, async (operation) => operation(execute));
+
+    assert.equal(await repository.claimBatch("batch-1"), null);
+    await assert.rejects(repository.completeBatch({ batchId: "batch-1", importedCount: 1, matchedCount: 0, skippedCount: 0, failedCount: 0 }));
+
+    assert.match(calls[0]?.text ?? "", /WHERE id = \$1 AND import_status = 'pending'/i);
+    assert.match(calls[1]?.text ?? "", /WHERE id = \$1 AND import_status = 'running'/i);
+});
+
+test("reviews candidate facts and state in one transaction so incomplete approval rolls back replacement", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        if (/FOR UPDATE/i.test(text)) return { rowCount: 1, rows: [candidateRow()] };
+        if (/SELECT field_key/i.test(text)) return { rowCount: 1, rows: [{ field_key: "name", field_value: "Replacement only", source_type: "admin_verified", source_url: null }] };
+        return { rowCount: 1, rows: [] };
+    };
+    let committed = false;
+    const repository = createBusinessImportRepository(execute, async (operation) => {
+        try {
+            const result = await operation(execute);
+            committed = true;
+            return result;
+        } finally {
+            // A throwing operation must leave this transaction uncommitted.
+        }
+    });
+
+    await assert.rejects(repository.reviewCandidate({
+        candidateId: "candidate-1", status: "approved", actorId: "admin-1",
+        sourceFacts: [{ fieldKey: "name", fieldValue: "Replacement only", sourceType: "admin_verified" }],
+    }), (error: unknown) => error instanceof Error && error.message === "invalid_state");
+
+    assert.equal(committed, false);
+    assert.match(calls[0]?.text ?? "", /FOR UPDATE/i);
+    assert.match(calls[1]?.text ?? "", /DELETE FROM business_source_facts/i);
+    assert.match(calls[3]?.text ?? "", /SELECT field_key/i);
+});
+
+test("rejects terminal review before deleting existing source facts", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        return { rowCount: 1, rows: [candidateRow({ candidate_status: "published" })] };
+    };
+    const repository = createBusinessImportRepository(execute, async (operation) => operation(execute));
+
+    await assert.rejects(repository.reviewCandidate({
+        candidateId: "candidate-1", status: "rejected", actorId: "admin-1",
+        sourceFacts: [{ fieldKey: "name", fieldValue: "Must remain unchanged", sourceType: "admin_verified" }],
+    }), (error: unknown) => error instanceof Error && error.message === "invalid_state");
+
+    assert.equal(calls.length, 1);
+    assert.match(calls[0]?.text ?? "", /FOR UPDATE/i);
+});

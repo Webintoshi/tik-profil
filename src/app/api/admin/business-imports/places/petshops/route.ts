@@ -41,11 +41,9 @@ export function createStartPetshopRoute(dependencies: StartRouteDependencies) {
             if (!parsed.success) {
                 return NextResponse.json({ error: "invalid_request" }, { status: 400, headers: noStoreHeaders });
             }
-            const batch = await dependencies.service.startPetshopDiscovery(parsed.data, actor);
-            dependencies.after(async () => {
-                await dependencies.service.runPetshopDiscoveryBatch(batch.id);
-            });
-            return NextResponse.json({ batchId: batch.id, status: "running" }, { status: 202, headers: noStoreHeaders });
+            const started = await dependencies.service.startPetshopDiscovery(parsed.data, actor);
+            if (started.created) dependencies.after(async () => { await dependencies.service.runPetshopDiscoveryBatch(started.batch.id); });
+            return NextResponse.json({ batchId: started.batch.id, status: started.batch.status }, { status: 202, headers: noStoreHeaders });
         } catch (error) {
             return errorResponse(error);
         }

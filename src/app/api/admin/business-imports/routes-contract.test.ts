@@ -13,7 +13,7 @@ const candidateId = "7b5c53c5-3648-4162-bc1d-081b9834d6a8";
 
 function serviceStub(): BusinessImportService {
     return {
-        startPetshopDiscovery: async () => ({ id: batchId, status: "running" } as never),
+        startPetshopDiscovery: async () => ({ batch: { id: batchId, status: "pending" }, created: true } as never),
         getBatch: async () => ({ id: batchId, status: "running" } as never),
         listCandidates: async () => [],
         reviewCandidate: async (input) => ({ id: input.candidateId, candidateStatus: input.decision } as never),
@@ -49,11 +49,27 @@ test("start route accepts a valid admin request and returns an asynchronous batc
     }));
 
     assert.equal(response.status, 202);
-    assert.deepEqual(await response.json(), { batchId, status: "running" });
+    assert.deepEqual(await response.json(), { batchId, status: "pending" });
     assert.equal(response.headers.get("Cache-Control"), "no-store");
     assert.equal(callbacks.length, 1);
     await callbacks[0]?.();
     assert.equal(ranBatchId, batchId);
+});
+
+test("start replay returns the existing terminal status without enqueueing discovery again", async () => {
+    const callbacks: Array<() => void | Promise<void>> = [];
+    const service = serviceStub();
+    service.startPetshopDiscovery = async () => ({ batch: { id: batchId, status: "completed" }, created: false } as never);
+    const POST = createStartPetshopRoute({ requireAdmin: async () => admin, service, after: (callback) => { callbacks.push(callback); } });
+
+    const response = await POST(new Request("http://localhost/api/admin/business-imports/places/petshops", {
+        method: "POST",
+        body: JSON.stringify({ city: "Ordu", districts: ["Altınordu"], idempotencyKey: "06e6db6f-a739-4d84-a9a7-a7c1b0ec61a4" }),
+    }));
+
+    assert.equal(response.status, 202);
+    assert.deepEqual(await response.json(), { batchId, status: "completed" });
+    assert.equal(callbacks.length, 0);
 });
 
 test("candidate list disables caching", async () => {

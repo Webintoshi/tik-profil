@@ -48,7 +48,8 @@ function candidate(overrides: Partial<ImportCandidate> = {}): ImportCandidate {
 
 function repositoryStub(overrides: Partial<BusinessImportRepository> = {}): BusinessImportRepository {
     return {
-        createOrGetBatch: async () => batch,
+        createOrGetBatch: async () => ({ batch, created: true }),
+        claimBatch: async () => batch,
         getBatch: async () => batch,
         upsertDiscoveredPlace: async () => candidate(),
         listCandidates: async () => [candidate()],
@@ -61,6 +62,10 @@ function repositoryStub(overrides: Partial<BusinessImportRepository> = {}): Busi
             matchedBusinessId: input.matchedBusinessId ?? null,
             dedupeReason: input.dedupeReason ?? null,
         }),
+        reviewCandidate: async (input) => {
+            if (input.status === "approved" && !input.sourceFacts) throw new ImportError("invalid_state");
+            return candidate({ candidateStatus: input.status });
+        },
         reserveAlias: async () => true,
         recordProvisioningStep: async () => undefined,
         ...overrides,
@@ -81,7 +86,7 @@ test("starts a durable running batch without executing provider discovery in the
         idempotencyKey: "06e6db6f-a739-4d84-a9a7-a7c1b0ec61a4",
     }, actor);
 
-    assert.equal(result.id, "batch-1");
+    assert.equal(result.batch.id, "batch-1");
 });
 
 test("returns local workflow state when the live Places projection is unavailable", async () => {
@@ -116,7 +121,7 @@ test("records a rejection without requiring live provider display data", async (
     const transitions: unknown[] = [];
     const service = createBusinessImportService({
         repository: repositoryStub({
-            transitionCandidate: async (input) => {
+            reviewCandidate: async (input) => {
                 transitions.push(input);
                 return candidate({ candidateStatus: input.status });
             },
@@ -194,7 +199,7 @@ test("approves using already stored facts and returns them with the local candid
     const service = createBusinessImportService({
         repository: repositoryStub({
             listSourceFacts: async () => facts,
-            transitionCandidate: async (input) => {
+            reviewCandidate: async (input) => {
                 transitions.push(input);
                 return candidate({ candidateStatus: input.status });
             },
@@ -230,4 +235,30 @@ test("returns a stable not-found error when a candidate is absent from the reque
         service.reviewCandidate({ batchId: "batch-1", candidateId: "other-batch-candidate", decision: "rejected" }, actor),
         (error: unknown) => error instanceof ImportError && error.code === "import_not_found" && error.statusCode === 404,
     );
+});
+
+test("concurrent runners claim a batch once and preserve an already completed terminal batch", async () => {
+    let claimed = false;
+    let discoveries = 0;
+    let finalStatus = "running";
+    const service = createBusinessImportService({
+        repository: repositoryStub({
+            claimBatch: async () => {
+                if (claimed) return null;
+                claimed = true;
+                return batch;
+            },
+            getBatch: async () => ({ ...batch, status: finalStatus }),
+            completeBatch: async () => { finalStatus = "completed"; return { ...batch, status: "completed" }; },
+        }),
+        places: {} as PlacesClient,
+        discoverPetshops: async () => { discoveries += 1; return []; },
+    });
+
+    const [first, second] = await Promise.all([service.runPetshopDiscoveryBatch("batch-1"), service.runPetshopDiscoveryBatch("batch-1")]);
+
+    assert.equal(discoveries, 1);
+    assert.equal(first.status, "completed");
+    assert.equal(second.status, "running");
+    assert.equal(finalStatus, "completed");
 });
