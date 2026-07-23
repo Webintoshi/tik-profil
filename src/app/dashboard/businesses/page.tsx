@@ -3,7 +3,8 @@
 import { PageHeader, Button } from "@/components/ui";
 import { BusinessTable } from "@/components/admin";
 import { BusinessWizard } from "@/components/dashboard";
-import { Plus } from "lucide-react";
+import { MapPinned, Plus } from "lucide-react";
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import type { Business } from "@/types";
 import { subscribeToBusinesses, deleteBusiness } from "@/lib/businessStore";
@@ -50,12 +51,21 @@ export default function BusinessesPage() {
                 title="İşletme Yönetimi"
                 description="Platformdaki tüm kayıtlı işletmeleri yönetin."
                 action={
-                    <Button
-                        leftIcon={<Plus className="h-4 w-4" />}
-                        onClick={() => setShowWizard(true)}
-                    >
-                        Yeni İşletme Ekle
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                            href="/dashboard/businesses/import"
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-dark-700 bg-dark-800 px-3 text-sm font-medium text-dark-200 transition-colors hover:border-amber-400/50 hover:text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        >
+                            <MapPinned className="h-4 w-4" aria-hidden="true" />
+                            İşletme İçe Aktar
+                        </Link>
+                        <Button
+                            leftIcon={<Plus className="h-4 w-4" />}
+                            onClick={() => setShowWizard(true)}
+                        >
+                            Yeni İşletme Ekle
+                        </Button>
+                    </div>
                 }
             />
 
