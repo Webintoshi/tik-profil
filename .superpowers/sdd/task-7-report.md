@@ -84,3 +84,62 @@ Task 7 and its review fixes are implemented at the post-Task-6 head. Mobile GETs
 ## External Android Release Benchmark Gap
 
 No physical Android release benchmark was run or claimed. Release QA must use the same physical 60 Hz device, release APK, fixture data, build SHA, and network state for baseline/reprofile. Record three cold runs and at least five warm/profile/menu runs, then report median/p95 cold launch, Home first content, cached profile reopen, menu readiness, frame time/missed deadlines, and PSS/Java/native/graphics memory. Acceptance remains cached profile reopen under 500 ms and menu scroll at 55+ FPS on that device.
+
+---
+
+# Task 7 Report: Idempotent Petshop Owner Provisioning
+
+Date: 2026-07-23
+Base HEAD: `c368484dde8335f1455924578d382c918807a9cb`
+
+## Scope
+
+Implemented Task 7 public-profile publication, durable owner provisioning, one-time credential reset, and the narrow business-import repository methods/tests required by the saga. Existing unrelated worktree changes were not modified.
+
+## RED Evidence
+
+1. `node --test src/server/business-imports/public-profile-writer.test.ts src/server/business-imports/provisioning.test.ts` exited 1 because the Task 7 writer, provisioning service, and admin routes did not exist.
+2. The injected-repository alias test failed because the first implementation incorrectly delegated alias reservation to the global repository and attempted to load the production database adapter.
+3. The PostgreSQL profile mirror test failed because the module row used singular `petshop`, which would make the PostgreSQL public `modules` projection disagree with the required legacy `modules: ["petshops"]` shape.
+
+## Implementation
+
+- `PublicProfileWriter` idempotently writes a pending legacy Supabase business and a PostgreSQL runtime business using only selected verified source facts. Prescribed fields are `active_module: "petshop"`, `modules: ["petshops"]`, `industry_label: "Petshop"`, verified state, and pending status.
+- The PostgreSQL mirror uses a `petshops` `business_modules` row while retaining singular `active_module: "petshop"`. Publication transactionally requires an active membership with the system owner role before activating the runtime business and publishing its discovery profile. Unrecoverable identity conflicts hide both profile copies.
+- Candidate claims join through `business_import_batch_candidates`, lock the candidate before transition, reject incomplete/duplicate/non-approved candidates, and maintain a durable expiring lease in `provisioning_state` for concurrency and crash recovery.
+- Durable steps record only IDs and non-secret completion metadata for profile identity, pending profile, module, login alias, Logto user, credential-set state, owner identity, and publication.
+- Logto lookup uses the exact synthetic primary email. A candidate-state or issuance `provider_user_id` mismatch fails before any password update and triggers profile compensation.
+- Every non-published retry generates and sets a fresh password before continuing, so a password that may have been set but not returned is invalidated. Published replays return `already_published` without password generation or mutation.
+- One transaction idempotently ensures `app_users`, `auth_provider_links`, owner `business_roles`, active `business_memberships`, `business_account_issuances`, and a `claimed_verified` draft discovery profile using canonical constraints. No test-owner provisioning production code is reused.
+- Batch provisioning catches failures per candidate so one candidate cannot suppress another candidate's immediate credential response. Two concurrent claims yield one provisioned response and one `in_progress` response.
+- Provision and reset routes require `requirePlatformAdmin()`. Credential responses use `Cache-Control: no-store, max-age=0`; provider and stack details are mapped to stable generic errors.
+- Reset generates a new password, updates Logto, records `reset_at`, and returns the new credential once. Old passwords are never read.
+
+## Security Evidence
+
+- Plaintext passwords exist only in local variables passed to Logto and the immediate response object.
+- No password, password hash, token, provider response body, stack, or secret is written to PostgreSQL, Supabase, logs, URLs, or durable provisioning state.
+- Repository SQL coverage asserts all canonical identity tables are used and rejects password-bearing columns.
+- Failure after password set is covered: retry overwrites the unknown password and returns only the fresh usable value.
+- Exact-email provider identity conflicts from either candidate state or issuance state are covered and occur before `setPassword()`.
+
+## GREEN Evidence
+
+- Focused Task 7 tests: 11 passed, 0 failed.
+- Repository tests: 13 passed, 0 failed.
+- All business-import tests: 64 passed, 0 failed.
+- Import migration, Task 6 Logto client, and existing admin import route contract tests: 21 passed, 0 failed.
+- Root `npm run typecheck`: passed.
+- `git diff --check`: passed with only the repository's line-ending conversion notices.
+
+## Changed Files
+
+- `.superpowers/sdd/task-7-report.md`
+- `src/server/business-imports/public-profile-writer.ts`
+- `src/server/business-imports/public-profile-writer.test.ts`
+- `src/server/business-imports/provisioning.ts`
+- `src/server/business-imports/provisioning.test.ts`
+- `src/server/business-imports/repository.ts`
+- `src/server/business-imports/repository.test.ts`
+- `src/app/api/admin/business-imports/[batchId]/provision/route.ts`
+- `src/app/api/admin/businesses/[id]/credentials/reset/route.ts`
