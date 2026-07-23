@@ -110,14 +110,15 @@ CREATE TABLE IF NOT EXISTS business_import_candidates (
   provider text NOT NULL CHECK (provider IN ('google_places')),
   provider_place_id text NOT NULL,
   sector_key text NOT NULL CHECK (sector_key IN ('petshop')),
-  city text NOT NULL,
+  city text NOT NULL CHECK (city = 'Ordu'),
   district_scope text,
   candidate_status text NOT NULL DEFAULT 'discovered' CHECK (candidate_status IN (
     'discovered','needs_data','ready','approved','rejected','duplicate','provisioning','published','failed'
   )),
   matched_business_id text,
   dedupe_reason text,
-  temporary_location jsonb,
+  temporary_latitude numeric(10, 7),
+  temporary_longitude numeric(10, 7),
   temporary_location_expires_at timestamptz,
   reviewed_by_user_id uuid REFERENCES app_users(id) ON DELETE SET NULL,
   reviewed_at timestamptz,
@@ -125,6 +126,18 @@ CREATE TABLE IF NOT EXISTS business_import_candidates (
   provisioning_state jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT business_import_candidates_temporary_latitude_range_check
+    CHECK (temporary_latitude IS NULL OR temporary_latitude BETWEEN -90 AND 90),
+  CONSTRAINT business_import_candidates_temporary_longitude_range_check
+    CHECK (temporary_longitude IS NULL OR temporary_longitude BETWEEN -180 AND 180),
+  CONSTRAINT business_import_candidates_temporary_coordinates_check CHECK (
+    (temporary_latitude IS NULL AND temporary_longitude IS NULL AND temporary_location_expires_at IS NULL)
+    OR (
+      temporary_latitude IS NOT NULL
+      AND temporary_longitude IS NOT NULL
+      AND temporary_location_expires_at IS NOT NULL
+    )
+  ),
   UNIQUE (provider, provider_place_id)
 );
 

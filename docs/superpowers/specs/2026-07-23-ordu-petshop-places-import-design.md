@@ -93,12 +93,15 @@ Required additions:
 - `candidate_status`: `discovered`, `needs_data`, `ready`, `approved`, `rejected`, `duplicate`, `provisioning`, `published`, `failed`
 - `matched_business_id`
 - `dedupe_reason`
-- `temporary_location`
+- `temporary_latitude` (`numeric(10, 7)`, constrained to `-90..90`)
+- `temporary_longitude` (`numeric(10, 7)`, constrained to `-180..180`)
 - `temporary_location_expires_at`
 - `reviewed_by_user_id`
 - `reviewed_at`
 - `failure_code`
 - timestamps
+
+Provider-derived location storage is limited to optional expiring coordinates: latitude, longitude, and expiry are either all present or all absent. Raw provider location payloads are not stored.
 
 `business_import_batch_candidates`
 
