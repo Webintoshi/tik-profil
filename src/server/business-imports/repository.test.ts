@@ -4,6 +4,7 @@ import test from "node:test";
 import {
     createBusinessImportRepository,
     createBusinessProvisioningRepository,
+    createProvisioningLockRunner,
     type QueryExecutor,
 } from "./repository.ts";
 
@@ -38,6 +39,9 @@ test("upserts a provider candidate without persisting transient Places coordinat
     const calls: QueryCall[] = [];
     const execute: QueryExecutor = async (text, values) => {
         calls.push({ text, values });
+        if (/FROM business_import_batches/i.test(text)) {
+            return { rowCount: 1, rows: [{ import_status: "completed" }] };
+        }
         if (/INSERT INTO business_import_candidates/i.test(text)) {
             return { rowCount: 1, rows: [candidateRow()] };
         }
@@ -285,6 +289,9 @@ test("claims only a complete approved candidate linked to the requested batch wh
     const calls: QueryCall[] = [];
     const execute: QueryExecutor = async (text, values) => {
         calls.push({ text, values });
+        if (/FROM business_import_batches/i.test(text)) {
+            return { rowCount: 1, rows: [{ import_status: "completed" }] };
+        }
         if (/FROM business_import_batch_candidates/i.test(text)) {
             return { rowCount: 1, rows: [candidateRow({ candidate_status: "approved" })] };
         }
@@ -301,7 +308,10 @@ test("claims only a complete approved candidate linked to the requested batch wh
         if (/UPDATE business_import_candidates/i.test(text)) {
             return { rowCount: 1, rows: [candidateRow({
                 candidate_status: "provisioning",
-                provisioning_state: { lease: { attemptId: "attempt-1", status: "active" } },
+                provisioning_state: {
+                    provisioning_attempt: { attemptId: "attempt-1", status: "active" },
+                    logto_user: { providerUserId: "logto-1", loginEmail: "pati@tikprofil.com" },
+                },
             })] };
         }
         return { rowCount: 0, rows: [] };
@@ -311,11 +321,14 @@ test("claims only a complete approved candidate linked to the requested batch wh
     const claim = await repository.claimCandidate({ batchId: "batch-1", candidateId: "candidate-1", attemptId: "attempt-1" });
 
     assert.equal(claim.outcome, "claimed");
-    assert.match(calls[0]?.text ?? "", /business_import_batch_candidates/i);
-    assert.match(calls[0]?.text ?? "", /FOR UPDATE OF candidates/i);
-    assert.deepEqual(calls[0]?.values, ["batch-1", "candidate-1"]);
-    assert.match(calls[3]?.text ?? "", /candidate_status = 'provisioning'/i);
-    assert.match(calls[3]?.text ?? "", /provisioning_state/i);
+    assert.match(calls[0]?.text ?? "", /business_import_batches/i);
+    assert.match(calls[0]?.text ?? "", /FOR SHARE/i);
+    assert.match(calls[1]?.text ?? "", /business_import_batch_candidates/i);
+    assert.match(calls[1]?.text ?? "", /FOR UPDATE OF candidates/i);
+    assert.deepEqual(calls[1]?.values, ["batch-1", "candidate-1"]);
+    assert.match(calls[4]?.text ?? "", /candidate_status = 'provisioning'/i);
+    assert.match(calls[4]?.text ?? "", /to_jsonb\(now\(\)\)/i);
+    assert.doesNotMatch(calls[4]?.text ?? "", /expiresAt/i);
 });
 
 test("ensures canonical owner identity records transactionally without accepting password material", async () => {
@@ -325,21 +338,25 @@ test("ensures canonical owner identity records transactionally without accepting
         if (/FROM business_import_candidates WHERE/i.test(text)) {
             return { rowCount: 1, rows: [candidateRow({
                 candidate_status: "provisioning",
-                provisioning_state: { lease: { attemptId: "attempt-1", status: "active" } },
+                provisioning_state: {
+                    provisioning_attempt: { attemptId: "attempt-1", status: "active" },
+                    logto_user: { providerUserId: "logto-1", loginEmail: "pati@tikprofil.com" },
+                },
             })] };
         }
         if (/FROM business_account_issuances/i.test(text)) {
             return { rowCount: 1, rows: [{ login_alias: "pati@tikprofil.com", provider_user_id: null }] };
         }
-        if (/SELECT id FROM app_users/i.test(text)) return { rowCount: 1, rows: [{ id: "app-user-1" }] };
+        if (/SELECT id, email FROM app_users/i.test(text)) return { rowCount: 1, rows: [{ id: "app-user-1", email: "pati@tikprofil.com" }] };
         if (/FROM auth_provider_links/i.test(text)) return { rowCount: 0, rows: [] };
         if (/INSERT INTO business_roles/i.test(text)) return { rowCount: 1, rows: [{ id: "role-1" }] };
         if (/INSERT INTO business_memberships/i.test(text)) return { rowCount: 1, rows: [{ id: "membership-1" }] };
+        if (/UPDATE business_account_issuances/i.test(text)) return { rowCount: 1, rows: [{ id: "issuance-1" }] };
         return { rowCount: 1, rows: [] };
     };
     const repository = createBusinessProvisioningRepository(execute, async (operation) => operation(execute));
 
-    const result = await repository.ensureOwnerIdentity({
+    const result = await repository.bindOwnerIdentity({
         attemptId: "attempt-1",
         batchId: "batch-1",
         businessId: "business-1",
@@ -362,4 +379,90 @@ test("ensures canonical owner identity records transactionally without accepting
     assert.match(sql, /UPDATE business_account_issuances/i);
     assert.match(sql, /INSERT INTO business_discovery_profiles/i);
     assert.doesNotMatch(sql, /plaintext_password|initial_password|password_hash/i);
+});
+
+test("rejects a candidate identity-state conflict before creating any canonical identity row", async () => {
+    const calls: string[] = [];
+    const execute: QueryExecutor = async (text) => {
+        calls.push(text);
+        return { rowCount: 1, rows: [candidateRow({
+            candidate_status: "provisioning",
+            provisioning_state: {
+                provisioning_attempt: { attemptId: "attempt-1", status: "active" },
+                logto_user: { providerUserId: "other-logto-user", loginEmail: "pati@tikprofil.com" },
+            },
+        })] };
+    };
+    const repository = createBusinessProvisioningRepository(execute, async (operation) => operation(execute));
+
+    await assert.rejects(repository.bindOwnerIdentity({
+        attemptId: "attempt-1",
+        batchId: "batch-1",
+        businessId: "business-1",
+        businessName: "Pati",
+        candidateId: "candidate-1",
+        providerPlaceId: "place-1",
+        providerUserId: "logto-1",
+        loginEmail: "pati@tikprofil.com",
+        city: "Ordu",
+        district: "Altinordu",
+        address: "Merkez",
+    }), /provider_identity_conflict/);
+
+    assert.equal(calls.some((text) => /INSERT INTO app_users/i.test(text)), false);
+});
+
+test("holds a session advisory lock on a dedicated client through external work and releases it in finally", async () => {
+    const calls: string[] = [];
+    const releases: Array<Error | undefined> = [];
+    let workObservedLock = false;
+    const withLock = createProvisioningLockRunner(async () => ({
+        async query(text) {
+            calls.push(text);
+            return { rowCount: 1, rows: [] };
+        },
+        release(error) { releases.push(error); },
+    }));
+
+    await assert.rejects(withLock("candidate-1", async () => {
+        workObservedLock = calls.some((text) => /pg_advisory_lock/i.test(text));
+        throw new Error("external_failure");
+    }), /external_failure/);
+
+    assert.equal(workObservedLock, true);
+    assert.match(calls[0] ?? "", /pg_advisory_lock\(hashtextextended/i);
+    assert.match(calls[1] ?? "", /pg_advisory_unlock\(hashtextextended/i);
+    assert.equal(releases.length, 1);
+    assert.equal(releases[0], undefined);
+});
+
+test("discards a dedicated lock connection when advisory unlock fails", async () => {
+    const releases: Array<Error | undefined> = [];
+    const withLock = createProvisioningLockRunner(async () => ({
+        async query(text) {
+            if (/pg_advisory_unlock/i.test(text)) throw new Error("connection_lost");
+            return { rowCount: 1, rows: [] };
+        },
+        release(error) { releases.push(error); },
+    }));
+
+    await assert.rejects(withLock("candidate-1", async () => "done"), /connection_lost/);
+    assert.equal(releases[0]?.message, "connection_lost");
+});
+
+test("listing validates that the batch exists and is completed before returning candidates", async () => {
+    for (const [rows, code] of [
+        [[], "import_not_found"],
+        [[{ import_status: "running" }], "invalid_state"],
+    ] as const) {
+        const calls: string[] = [];
+        const repository = createBusinessProvisioningRepository(async (text) => {
+            calls.push(text);
+            return { rowCount: rows.length, rows: [...rows] };
+        }, async (operation) => operation(async () => ({ rowCount: 0, rows: [] })));
+        await assert.rejects(repository.listProvisioningCandidateIds("batch-1"), (error: unknown) => (
+            error instanceof Error && error.message === code
+        ));
+        assert.equal(calls.length, 1);
+    }
 });

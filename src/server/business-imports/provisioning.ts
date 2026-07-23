@@ -3,8 +3,10 @@ import { randomUUID } from "node:crypto";
 import {
     createLogtoManagementClient,
     type LogtoManagementClient,
+    type LogtoUser,
 } from "../auth/logto/management-client.ts";
 import { allocateLoginAlias, generateInitialPassword } from "./credentials.ts";
+import { ImportError } from "./contracts.ts";
 import { createBusinessSlug } from "./normalization.ts";
 import {
     businessProvisioningRepository,
@@ -35,8 +37,7 @@ export type ProvisionCandidateResult =
     | {
         status: "already_published";
         business: { id: string; name: string; status: "active" };
-    }
-    | { status: "in_progress"; candidateId: string };
+    };
 
 export interface ProvisionBatchResult {
     batchId: string;
@@ -47,10 +48,16 @@ export interface ProvisionBatchResult {
     >;
 }
 
+export interface CredentialDeliveryResult {
+    businessId: string;
+    status: "delivered";
+}
+
 export interface BusinessProvisioningService {
     provisionApprovedBatch(batchId: string): Promise<ProvisionBatchResult>;
     provisionCandidate(batchId: string, candidateId: string): Promise<ProvisionCandidateResult>;
     resetBusinessCredential(businessId: string): Promise<ImmediateBusinessCredential>;
+    acknowledgeCredentialDelivery(businessId: string): Promise<CredentialDeliveryResult>;
 }
 
 interface ProvisioningDependencies {
@@ -100,13 +107,45 @@ function profileIdentity(
 
 function errorCode(error: unknown): string {
     const message = error instanceof Error ? error.message : "provisioning_failed";
-    if (message === "provider_identity_conflict") return message;
-    if (message === "provisioning_lease_lost") return message;
-    return "provisioning_failed";
+    return message === "provider_identity_conflict" ? message : "provisioning_failed";
 }
 
 function isUnrecoverable(error: unknown): boolean {
     return error instanceof Error && error.message === "provider_identity_conflict";
+}
+
+function isOwnedImportedUser(
+    user: LogtoUser,
+    input: { candidateId: string; loginEmail: string; recordedProviderUserId: string | null },
+): boolean {
+    return user.primaryEmail === input.loginEmail
+        && user.customData.tikProfilImportCandidateId === input.candidateId
+        && (!input.recordedProviderUserId || user.id === input.recordedProviderUserId);
+}
+
+async function resolveImportedUser(
+    logto: LogtoManagementClient,
+    input: {
+        candidateId: string;
+        businessName: string;
+        loginEmail: string;
+        recordedProviderUserId: string | null;
+    },
+): Promise<LogtoUser> {
+    const found = await logto.findUserByPrimaryEmail(input.loginEmail);
+    if (found) {
+        if (!isOwnedImportedUser(found, input)) throw new Error("provider_identity_conflict");
+        return found;
+    }
+    if (input.recordedProviderUserId) throw new Error("provider_identity_conflict");
+    const created = await logto.createUser({
+        primaryEmail: input.loginEmail,
+        name: input.businessName,
+        customData: { tikProfilImportCandidateId: input.candidateId },
+        isSuspended: true,
+    });
+    if (!isOwnedImportedUser(created, input)) throw new Error("provider_identity_conflict");
+    return created;
 }
 
 export function createBusinessProvisioningService(dependencies: ProvisioningDependencies): BusinessProvisioningService {
@@ -114,131 +153,132 @@ export function createBusinessProvisioningService(dependencies: ProvisioningDepe
     const createAttemptId = dependencies.createAttemptId ?? randomUUID;
 
     async function provisionCandidate(batchId: string, candidateId: string): Promise<ProvisionCandidateResult> {
-        const attemptId = createAttemptId();
-        const claim = await dependencies.repository.claimCandidate({ batchId, candidateId, attemptId });
-        if (claim.outcome === "in_progress") return { status: "in_progress", candidateId };
-        if (claim.outcome === "already_published") {
-            return {
-                status: "already_published",
-                business: { id: claim.businessId, name: claim.businessName, status: "active" },
-            };
-        }
-
-        const state = claim.candidate.provisioningState;
-        const identity = profileIdentity(claim);
-        const verifiedProfile: VerifiedBusinessProfile = {
-            businessId: identity.businessId,
-            slug: identity.slug,
-            sourceFacts: claim.sourceFacts,
-        };
-        const recordStep = async (step: string, value: Record<string, unknown>) => {
-            await dependencies.repository.recordStep({
-                candidateId,
-                attemptId,
-                step,
-                value,
-            });
-            state[step] = value;
-        };
-
-        try {
-            if (!stateStep(state, "profile_identity").completed) {
-                await recordStep("profile_identity", { ...identity, completed: true });
-            }
-            if (!stateStep(state, "public_profile").completed) {
-                await dependencies.profiles.createPending(verifiedProfile);
-                await recordStep("public_profile", { businessId: identity.businessId, completed: true, status: "pending" });
-            }
-            if (!stateStep(state, "petshop_module").completed) {
-                await dependencies.profiles.ensurePetshopModule(identity.businessId);
-                await recordStep("petshop_module", { businessId: identity.businessId, completed: true, moduleKey: "petshops" });
+        return dependencies.repository.withProvisioningLock(candidateId, async () => {
+            const attemptId = createAttemptId();
+            const claim = await dependencies.repository.claimCandidate({ batchId, candidateId, attemptId });
+            if (claim.outcome === "already_published") {
+                return {
+                    status: "already_published",
+                    business: { id: claim.businessId, name: claim.businessName, status: "active" },
+                };
             }
 
-            const recordedAlias = stateStep(state, "login_alias").loginEmail
-                ?? claim.accountIssuance?.loginEmail;
-            const loginEmail = typeof recordedAlias === "string" && recordedAlias
-                ? recordedAlias
-                : await allocateLoginAlias(dependencies.repository, {
-                    businessName: identity.businessName,
-                    candidateId,
-                    district: factValue(claim.sourceFacts, "district"),
-                });
-            if (!recordedAlias) await recordStep("login_alias", { completed: true, loginEmail });
-
-            const recordedProviderId = stateStep(state, "logto_user").providerUserId
-                ?? claim.accountIssuance?.providerUserId;
-            const foundUser = await dependencies.logto.findUserByPrimaryEmail(loginEmail);
-            if (foundUser && (foundUser.primaryEmail !== loginEmail || (recordedProviderId && foundUser.id !== recordedProviderId))) {
-                throw new Error("provider_identity_conflict");
-            }
-            if (!foundUser && typeof recordedProviderId === "string" && recordedProviderId) {
-                throw new Error("provider_identity_conflict");
-            }
-            const logtoUser = foundUser ?? await dependencies.logto.createUser({
-                primaryEmail: loginEmail,
-                name: identity.businessName,
-            });
-            if (logtoUser.primaryEmail !== loginEmail) throw new Error("provider_identity_conflict");
-            if (!recordedProviderId) {
-                await recordStep("logto_user", {
-                    completed: true,
-                    loginEmail,
-                    providerUserId: logtoUser.id,
-                });
-            }
-
-            // Every non-published attempt overwrites a potentially unknown prior password.
-            const initialPassword = generatePassword();
-            await dependencies.logto.setPassword(logtoUser.id, initialPassword);
-            await recordStep("credential_set", {
-                completed: true,
-                providerUserId: logtoUser.id,
-                responseStatus: "pending",
-            });
-            await dependencies.afterPasswordSet?.();
-
-            const owner = await dependencies.repository.ensureOwnerIdentity({
-                attemptId,
-                batchId,
+            const state = claim.candidate.provisioningState;
+            const identity = profileIdentity(claim);
+            const verifiedProfile: VerifiedBusinessProfile = {
                 businessId: identity.businessId,
-                businessName: identity.businessName,
-                candidateId,
-                providerPlaceId: claim.candidate.providerPlaceId,
-                providerUserId: logtoUser.id,
-                loginEmail,
-                city: factValue(claim.sourceFacts, "city"),
-                district: factValue(claim.sourceFacts, "district"),
-                address: factValue(claim.sourceFacts, "address", "business_address"),
-            });
-            state.owner_identity = { ...owner, completed: true, providerUserId: logtoUser.id };
+                slug: identity.slug,
+                sourceFacts: claim.sourceFacts,
+            };
+            const recordStep = async (step: string, value: Record<string, unknown>) => {
+                await dependencies.repository.recordStep({ candidateId, attemptId, step, value });
+                state[step] = value;
+            };
+            let passwordMutationStarted = false;
+            let publicationStarted = false;
+            let providerUserId: string | null = null;
 
-            await dependencies.profiles.publish(identity.businessId);
-            await dependencies.repository.markPublished({ candidateId, attemptId, businessId: identity.businessId });
-            return {
-                status: "provisioned",
-                business: { id: identity.businessId, name: identity.businessName, status: "active" },
-                credentials: {
+            try {
+                if (!stateStep(state, "profile_identity").completed) {
+                    await recordStep("profile_identity", { ...identity, completed: true });
+                }
+                if (!stateStep(state, "public_profile").completed) {
+                    await dependencies.profiles.createPending(verifiedProfile);
+                    await recordStep("public_profile", { businessId: identity.businessId, completed: true, status: "pending" });
+                }
+                if (!stateStep(state, "petshop_module").completed) {
+                    await dependencies.profiles.ensurePetshopModule(identity.businessId);
+                    await recordStep("petshop_module", { businessId: identity.businessId, completed: true, moduleKey: "petshops" });
+                }
+
+                const recordedAlias = stateStep(state, "login_alias").loginEmail ?? claim.accountIssuance?.loginEmail;
+                const loginEmail = typeof recordedAlias === "string" && recordedAlias
+                    ? recordedAlias
+                    : await allocateLoginAlias(dependencies.repository, {
+                        businessName: identity.businessName,
+                        candidateId,
+                        district: factValue(claim.sourceFacts, "district"),
+                    });
+                if (!recordedAlias) await recordStep("login_alias", { completed: true, loginEmail });
+
+                const recordedProviderId = stateStep(state, "logto_user").providerUserId
+                    ?? claim.accountIssuance?.providerUserId;
+                const logtoUser = await resolveImportedUser(dependencies.logto, {
+                    candidateId,
+                    businessName: identity.businessName,
+                    loginEmail,
+                    recordedProviderUserId: typeof recordedProviderId === "string" ? recordedProviderId : null,
+                });
+                providerUserId = logtoUser.id;
+                if (!recordedProviderId) {
+                    await recordStep("logto_user", { completed: true, loginEmail, providerUserId });
+                }
+
+                await dependencies.repository.bindOwnerIdentity({
+                    attemptId,
+                    batchId,
                     businessId: identity.businessId,
                     businessName: identity.businessName,
+                    candidateId,
+                    providerPlaceId: claim.candidate.providerPlaceId,
+                    providerUserId,
                     loginEmail,
-                    initialPassword,
-                },
-            };
-        } catch (error) {
-            if (isUnrecoverable(error)) {
-                try {
-                    await dependencies.profiles.hide(identity.businessId, errorCode(error));
-                } catch {
-                    // Pending profiles remain non-public; the same compensation is retried on the next attempt.
+                    city: factValue(claim.sourceFacts, "city"),
+                    district: factValue(claim.sourceFacts, "district"),
+                    address: factValue(claim.sourceFacts, "address", "business_address"),
+                });
+
+                await dependencies.logto.setSuspended(providerUserId, true);
+                const initialPassword = generatePassword();
+                passwordMutationStarted = true;
+                await dependencies.logto.setPassword(providerUserId, initialPassword);
+                await dependencies.afterPasswordSet?.();
+                await dependencies.repository.recordCredentialIssued({ candidateId, attemptId, providerUserId });
+                await recordStep("credential_set", {
+                    completed: true,
+                    providerUserId,
+                    responseStatus: "pending_delivery_acknowledgement",
+                });
+
+                publicationStarted = true;
+                await dependencies.profiles.publish(identity.businessId);
+                await dependencies.repository.markPublished({ candidateId, attemptId, businessId: identity.businessId });
+                return {
+                    status: "provisioned",
+                    business: { id: identity.businessId, name: identity.businessName, status: "active" },
+                    credentials: {
+                        businessId: identity.businessId,
+                        businessName: identity.businessName,
+                        loginEmail,
+                        initialPassword,
+                    },
+                };
+            } catch (error) {
+                if (passwordMutationStarted && providerUserId) {
+                    try { await dependencies.logto.setSuspended(providerUserId, true); } catch { /* best effort */ }
                 }
+                if (publicationStarted || isUnrecoverable(error)) {
+                    try { await dependencies.profiles.hide(identity.businessId, errorCode(error)); } catch { /* retried by an operator */ }
+                }
+                try {
+                    await dependencies.repository.markFailed({ candidateId, attemptId, failureCode: errorCode(error) });
+                } catch { /* preserve the original failure */ }
+                throw error;
             }
-            await dependencies.repository.markFailed({
-                candidateId,
-                attemptId,
-                failureCode: errorCode(error),
-            });
-            throw error;
-        }
+        });
+    }
+
+    async function resolveCredentialAccount(businessId: string) {
+        const account = await dependencies.repository.getCredentialAccount(businessId);
+        if (!account) throw new Error("credential_account_not_found");
+        const user = await dependencies.logto.findUserByPrimaryEmail(account.loginEmail);
+        if (!user || !isOwnedImportedUser(user, {
+            candidateId: account.candidateId,
+            loginEmail: account.loginEmail,
+            recordedProviderUserId: account.providerUserId,
+        })) throw new Error("provider_identity_conflict");
+        await dependencies.repository.verifyCredentialBinding(account);
+        return { account, user };
     }
 
     return {
@@ -251,7 +291,10 @@ export function createBusinessProvisioningService(dependencies: ProvisioningDepe
                     const result = await provisionCandidate(batchId, candidateId);
                     if (result.status === "provisioned") credentials.push(result.credentials);
                     results.push({ candidateId, status: result.status });
-                } catch {
+                } catch (error) {
+                    if (error instanceof ImportError && (error.code === "import_not_found" || error.code === "invalid_state")) {
+                        throw error;
+                    }
                     results.push({ candidateId, status: "failed", error: "provisioning_failed" });
                 }
             }
@@ -259,17 +302,47 @@ export function createBusinessProvisioningService(dependencies: ProvisioningDepe
         },
         provisionCandidate,
         async resetBusinessCredential(businessId) {
-            const account = await dependencies.repository.getCredentialAccount(businessId);
-            if (!account) throw new Error("credential_account_not_found");
-            const initialPassword = generatePassword();
-            await dependencies.logto.setPassword(account.providerUserId, initialPassword);
-            await dependencies.repository.recordCredentialReset(businessId, account.providerUserId);
-            return {
-                businessId: account.businessId,
-                businessName: account.businessName,
-                loginEmail: account.loginEmail,
-                initialPassword,
-            };
+            return dependencies.repository.withProvisioningLock(businessId, async () => {
+                const { account, user } = await resolveCredentialAccount(businessId);
+                let passwordMutationStarted = false;
+                try {
+                    await dependencies.logto.setSuspended(user.id, true);
+                    const initialPassword = generatePassword();
+                    passwordMutationStarted = true;
+                    await dependencies.logto.setPassword(user.id, initialPassword);
+                    await dependencies.repository.recordCredentialReset(businessId, user.id);
+                    return {
+                        businessId: account.businessId,
+                        businessName: account.businessName,
+                        loginEmail: account.loginEmail,
+                        initialPassword,
+                    };
+                } catch (error) {
+                    if (passwordMutationStarted) {
+                        try { await dependencies.logto.setSuspended(user.id, true); } catch { /* best effort */ }
+                        try { await dependencies.repository.markCredentialFailed(businessId, user.id, errorCode(error)); } catch { /* preserve original */ }
+                    }
+                    throw error;
+                }
+            });
+        },
+        async acknowledgeCredentialDelivery(businessId) {
+            return dependencies.repository.withProvisioningLock(businessId, async () => {
+                const { user } = await resolveCredentialAccount(businessId);
+                let unsuspended = false;
+                try {
+                    await dependencies.logto.setSuspended(user.id, false);
+                    unsuspended = true;
+                    await dependencies.repository.markCredentialDelivered(businessId, user.id);
+                    return { businessId, status: "delivered" as const };
+                } catch (error) {
+                    if (unsuspended) {
+                        try { await dependencies.logto.setSuspended(user.id, true); } catch { /* best effort */ }
+                        try { await dependencies.repository.markCredentialFailed(businessId, user.id, errorCode(error)); } catch { /* preserve original */ }
+                    }
+                    throw error;
+                }
+            });
         },
     };
 }
@@ -295,6 +368,7 @@ function createLazyLogtoManagementClient(): LogtoManagementClient {
     return {
         findUserByPrimaryEmail: async (email) => (await getClient()).findUserByPrimaryEmail(email),
         createUser: async (input) => (await getClient()).createUser(input),
+        setSuspended: async (userId, isSuspended) => (await getClient()).setSuspended(userId, isSuspended),
         setPassword: async (userId, password) => (await getClient()).setPassword(userId, password),
         deleteUser: async (userId) => (await getClient()).deleteUser(userId),
     };

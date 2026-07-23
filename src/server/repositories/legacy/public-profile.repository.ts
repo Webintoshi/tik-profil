@@ -12,6 +12,7 @@ export async function loadPublicProfileBySlug(slug: string): Promise<PublicProfi
             .from("businesses")
             .select("*")
             .ilike("slug", slug)
+            .eq("status", "active")
             .maybeSingle();
 
         if (error) {
@@ -38,6 +39,7 @@ export async function loadPublicProfileBySlug(slug: string): Promise<PublicProfi
             .from("businesses")
             .select("slug")
             .contains("previous_slugs", [slug.toLowerCase()])
+            .eq("status", "active")
             .maybeSingle();
 
         if (redirectError) {

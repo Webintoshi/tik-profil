@@ -1,12 +1,20 @@
 export interface LogtoUser {
+    customData: Record<string, unknown>;
     id: string;
+    isSuspended: boolean;
     name: string | null;
     primaryEmail: string | null;
 }
 
 export interface LogtoManagementClient {
     findUserByPrimaryEmail(email: string): Promise<LogtoUser | null>;
-    createUser(input: { primaryEmail: string; name: string }): Promise<LogtoUser>;
+    createUser(input: {
+        customData: Record<string, unknown>;
+        isSuspended: boolean;
+        primaryEmail: string;
+        name: string;
+    }): Promise<LogtoUser>;
+    setSuspended(userId: string, isSuspended: boolean): Promise<void>;
     setPassword(userId: string, password: string): Promise<void>;
     deleteUser(userId: string): Promise<void>;
 }
@@ -73,8 +81,16 @@ function parseUser(value: unknown): LogtoUser {
     if (value.name !== undefined && value.name !== null && typeof value.name !== "string") {
         throw new LogtoManagementClientError("logto_response_invalid");
     }
+    if (value.customData !== undefined && !isRecord(value.customData)) {
+        throw new LogtoManagementClientError("logto_response_invalid");
+    }
+    if (value.isSuspended !== undefined && typeof value.isSuspended !== "boolean") {
+        throw new LogtoManagementClientError("logto_response_invalid");
+    }
     return {
+        customData: isRecord(value.customData) ? value.customData : {},
         id: value.id,
+        isSuspended: typeof value.isSuspended === "boolean" ? value.isSuspended : false,
         primaryEmail: typeof value.primaryEmail === "string" ? value.primaryEmail : null,
         name: typeof value.name === "string" ? value.name : null,
     };
@@ -226,6 +242,14 @@ export function createLogtoManagementClient(
         async setPassword(userId, password) {
             const response = await request(`/users/${encodeURIComponent(userId)}/password`, {
                 body: JSON.stringify({ password }),
+                method: "PATCH",
+            });
+            if (!response.ok) throw new LogtoManagementClientError("logto_request_failed");
+        },
+
+        async setSuspended(userId, isSuspended) {
+            const response = await request(`/users/${encodeURIComponent(userId)}/is-suspended`, {
+                body: JSON.stringify({ isSuspended }),
                 method: "PATCH",
             });
             if (!response.ok) throw new LogtoManagementClientError("logto_request_failed");

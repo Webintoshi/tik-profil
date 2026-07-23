@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const migrationUrl = new URL("./0014_business_import_provisioning.sql", import.meta.url);
+const identityHardeningMigrationUrl = new URL("./0015_business_import_identity_hardening.sql", import.meta.url);
 
 function tableBlock(sql: string, table: string): string {
     const match = sql.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\s*\\([\\s\\S]*?\\n\\);`, "i"));
@@ -63,4 +64,12 @@ test("import migration keeps candidate workflow, facts, and account references d
     assert.match(recoveryContacts, /verification_expires_at\s+timestamptz\s+NOT NULL/i);
     assert.match(recoveryContacts, /verification_used_at\s+timestamptz/i);
     assert.match(recoveryContacts, /verification_token_hash\s*~\s*'\^\[a-f0-9\]\{64\}\$'/i);
+});
+
+test("identity hardening allows only one provider identity per app user", async () => {
+    const sql = await readFile(identityHardeningMigrationUrl, "utf8");
+
+    assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS\s+idx_auth_provider_links_app_user_provider_unique/i);
+    assert.match(sql, /ON auth_provider_links\s*\(app_user_id, provider\)/i);
+    assert.doesNotMatch(sql, /password|secret|token/i);
 });

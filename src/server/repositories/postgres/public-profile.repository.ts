@@ -40,6 +40,7 @@ async function getBusinessRowBySlug(slug: string): Promise<RuntimePublicProfileR
         `
             ${PUBLIC_PROFILE_SELECT}
             WHERE lower(slug) = lower($1)
+              AND lower(btrim(status)) = 'active'
             LIMIT 1
         `,
         [slug],
@@ -53,7 +54,8 @@ async function getRedirectTargetByPreviousSlug(slug: string): Promise<string | n
         `
             SELECT slug
             FROM businesses
-            WHERE EXISTS (
+            WHERE lower(btrim(status)) = 'active'
+              AND EXISTS (
                 SELECT 1
                 FROM unnest(previous_slugs) AS previous_slug
                 WHERE lower(previous_slug) = lower($1)

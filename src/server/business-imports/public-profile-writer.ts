@@ -113,8 +113,13 @@ export function createPublicProfileWriter(dependencies: {
         },
 
         async hide(businessId, reason) {
-            await dependencies.runtime.hide(businessId, reason);
-            await dependencies.legacy.hide(businessId, reason);
+            const outcomes = await Promise.allSettled([
+                dependencies.runtime.hide(businessId, reason),
+                dependencies.legacy.hide(businessId, reason),
+            ]);
+            if (outcomes.some((outcome) => outcome.status === "rejected")) {
+                throw new Error("profile_hide_failed");
+            }
         },
     };
 }
@@ -166,8 +171,8 @@ export function createRuntimePublicProfileStore(
             await execute(
                 `INSERT INTO businesses (
                     id, slug, name, phone, whatsapp, status, industry_id, industry_label,
-                    active_module, address, city, district, is_verified, source, created_at, updated_at
-                 ) VALUES ($1, $2, $3, $4, $5, 'pending', 'petshop', 'Petshop', 'petshop', $6, $7, $8, true, $9, now(), now())
+                    active_module, address, city, district, social_links, is_verified, source, created_at, updated_at
+                 ) VALUES ($1, $2, $3, $4, $5, 'pending', 'petshop', 'Petshop', 'petshop', $6, $7, $8, $9::jsonb, true, $10, now(), now())
                  ON CONFLICT (id) DO UPDATE SET
                     slug = EXCLUDED.slug,
                     name = EXCLUDED.name,
@@ -180,6 +185,7 @@ export function createRuntimePublicProfileStore(
                     address = EXCLUDED.address,
                     city = EXCLUDED.city,
                     district = EXCLUDED.district,
+                    social_links = EXCLUDED.social_links,
                     is_verified = true,
                     source = EXCLUDED.source,
                     updated_at = now()`,
@@ -192,6 +198,7 @@ export function createRuntimePublicProfileStore(
                     value.address || null,
                     value.city || null,
                     value.district || null,
+                    JSON.stringify(value.socialLinks ?? {}),
                     value.source,
                 ],
             );
@@ -207,6 +214,14 @@ export function createRuntimePublicProfileStore(
         },
         async publishIfOwned(businessId) {
             return runInTransaction(async (transactionQuery) => {
+                const discoveryProfiles = await transactionQuery(
+                    `SELECT id
+                     FROM business_discovery_profiles
+                     WHERE business_id = $1
+                     FOR UPDATE`,
+                    [businessId],
+                );
+                if (discoveryProfiles.rows.length !== 1) return false;
                 const updated = await transactionQuery(
                     `UPDATE businesses business
                      SET status = 'active', updated_at = now()
@@ -225,30 +240,34 @@ export function createRuntimePublicProfileStore(
                     [businessId],
                 );
                 if (!updated.rows[0]) return false;
-                await transactionQuery(
+                const discovery = await transactionQuery(
                     `UPDATE business_discovery_profiles
                      SET discover_status = 'published', updated_at = now()
-                     WHERE business_id = $1`,
-                    [businessId],
+                     WHERE id = $1
+                     RETURNING id`,
+                    [discoveryProfiles.rows[0]?.id],
                 );
+                if (discovery.rows.length !== 1) throw new Error("discovery_profile_publish_failed");
                 return true;
             });
         },
         async hide(businessId, reason) {
-            await execute(
-                `UPDATE businesses
-                 SET status = 'hidden', updated_at = now()
-                 WHERE id = $1`,
-                [businessId],
-            );
-            await execute(
-                `UPDATE business_discovery_profiles
-                 SET discover_status = 'hidden',
-                     metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('provisioningFailureCode', $2::text),
-                     updated_at = now()
-                 WHERE business_id = $1`,
-                [businessId, reason],
-            );
+            await runInTransaction(async (transactionQuery) => {
+                await transactionQuery(
+                    `UPDATE businesses
+                     SET status = 'hidden', updated_at = now()
+                     WHERE id = $1`,
+                    [businessId],
+                );
+                await transactionQuery(
+                    `UPDATE business_discovery_profiles
+                     SET discover_status = 'hidden',
+                         metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('provisioningFailureCode', $2::text),
+                         updated_at = now()
+                     WHERE business_id = $1`,
+                    [businessId, reason],
+                );
+            });
         },
     };
 }
