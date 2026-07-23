@@ -52,23 +52,16 @@ async function isLegacyPlatformAdminSessionActive(
     return !error && data?.isActive === true;
 }
 
-/**
- * Authorizes only the legacy dashboard admin session. Business owner/staff
- * cookies are deliberately not read or accepted at this boundary.
- */
-export function createPlatformAdminGuard(dependencies: PlatformAdminGuardDependencies) {
-    return async function requirePlatformAdmin(session?: unknown): Promise<PlatformAdminContext> {
-        const resolvedFromSession = arguments.length === 0;
-        const resolvedSession = resolvedFromSession
-            ? await dependencies.getSession()
-            : session;
-
+/** Test seam for the production session resolution and active-admin lookup. */
+export function __testOnlyCreatePlatformAdminGuard(dependencies: PlatformAdminGuardDependencies) {
+    return async function requirePlatformAdmin(): Promise<PlatformAdminContext> {
+        const resolvedSession = await dependencies.getSession();
         if (!isPlatformAdminContext(resolvedSession)) {
             const statusCode = resolvedSession === null || resolvedSession === undefined ? 401 : 403;
             throw new PlatformAdminAuthorizationError(statusCode);
         }
 
-        if (resolvedFromSession && !await dependencies.isSessionActive(resolvedSession)) {
+        if (!await dependencies.isSessionActive(resolvedSession)) {
             throw new PlatformAdminAuthorizationError(403);
         }
 
@@ -76,7 +69,15 @@ export function createPlatformAdminGuard(dependencies: PlatformAdminGuardDepende
     };
 }
 
-export const requirePlatformAdmin = createPlatformAdminGuard({
+const requireLegacyPlatformAdmin = __testOnlyCreatePlatformAdminGuard({
     getSession: getLegacyPlatformAdminSession,
     isSessionActive: isLegacyPlatformAdminSessionActive,
 });
+
+/**
+ * Authorizes only the legacy dashboard admin session. Business owner/staff
+ * cookies are deliberately not read or accepted at this boundary.
+ */
+export async function requirePlatformAdmin(): Promise<PlatformAdminContext> {
+    return requireLegacyPlatformAdmin();
+}

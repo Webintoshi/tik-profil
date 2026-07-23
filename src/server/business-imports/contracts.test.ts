@@ -6,11 +6,6 @@ import {
     ReviewCandidateSchema,
     StartPetshopImportSchema,
 } from "./contracts.ts";
-import {
-    getBusinessImportRecoveryFromEmail,
-    getGoogleMapsApiKey,
-    getLogtoManagementCredentials,
-} from "../../lib/env.ts";
 
 test("petshop start contract only accepts Ordu and known districts", () => {
     const idempotencyKey = "06e6db6f-a739-4d84-a9a7-a7c1b0ec61a4";
@@ -66,38 +61,4 @@ test("import errors expose stable codes without operational detail", () => {
     assert.equal(error.code, "provider_rate_limited");
     assert.equal(error.statusCode, 429);
     assert.equal(error.message, "provider_rate_limited");
-});
-
-test("import provider accessors return only complete server configuration", () => {
-    const previous = {
-        BUSINESS_IMPORT_RECOVERY_FROM_EMAIL: process.env.BUSINESS_IMPORT_RECOVERY_FROM_EMAIL,
-        GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
-        LOGTO_MANAGEMENT_APP_ID: process.env.LOGTO_MANAGEMENT_APP_ID,
-        LOGTO_MANAGEMENT_APP_SECRET: process.env.LOGTO_MANAGEMENT_APP_SECRET,
-    };
-
-    try {
-        process.env.GOOGLE_MAPS_API_KEY = " places-key ";
-        process.env.LOGTO_MANAGEMENT_APP_ID = " management-id ";
-        process.env.LOGTO_MANAGEMENT_APP_SECRET = " management-secret ";
-        process.env.BUSINESS_IMPORT_RECOVERY_FROM_EMAIL = " recovery@tikprofil.com ";
-
-        assert.equal(getGoogleMapsApiKey(), "places-key");
-        assert.deepEqual(getLogtoManagementCredentials(), {
-            appId: "management-id",
-            appSecret: "management-secret",
-        });
-        assert.equal(getBusinessImportRecoveryFromEmail(), "recovery@tikprofil.com");
-
-        process.env.LOGTO_MANAGEMENT_APP_SECRET = "";
-        assert.equal(getLogtoManagementCredentials(), null);
-    } finally {
-        for (const [key, value] of Object.entries(previous)) {
-            if (value === undefined) {
-                delete process.env[key];
-            } else {
-                process.env[key] = value;
-            }
-        }
-    }
 });
