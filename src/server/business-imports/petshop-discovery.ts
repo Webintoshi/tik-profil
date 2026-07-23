@@ -1,6 +1,7 @@
 import type { PlacesClient, PlacesSearchPlace } from "./places-client.ts";
 
 const DEFAULT_COORDINATE_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
+const MAX_COORDINATE_TTL_MS = 2_592_000_000;
 
 export interface DiscoveredPlaceRef {
     provider: "google_places";
@@ -33,6 +34,17 @@ function createSearchTasks(districts: readonly string[]): SearchTask[] {
     ]);
 }
 
+function validateCoordinateTtlMs(value: number | undefined): number {
+    const coordinateTtlMs = value ?? DEFAULT_COORDINATE_TTL_MS;
+    if (!Number.isFinite(coordinateTtlMs)
+        || !Number.isInteger(coordinateTtlMs)
+        || coordinateTtlMs <= 0
+        || coordinateTtlMs > MAX_COORDINATE_TTL_MS) {
+        throw new RangeError("coordinateTtlMs must be a finite positive integer no greater than 2592000000");
+    }
+    return coordinateTtlMs;
+}
+
 async function searchAllPages(client: PlacesClient, task: SearchTask): Promise<PlacesSearchPlace[]> {
     const places: PlacesSearchPlace[] = [];
     let pageToken: string | null = null;
@@ -45,6 +57,7 @@ async function searchAllPages(client: PlacesClient, task: SearchTask): Promise<P
 }
 
 export async function discoverOrduPetshops(input: DiscoverOrduPetshopsInput): Promise<DiscoveredPlaceRef[]> {
+    const coordinateTtlMs = validateCoordinateTtlMs(input.coordinateTtlMs);
     const tasks = createSearchTasks(input.districts);
     const results: Array<{ task: SearchTask; places: PlacesSearchPlace[] }> = new Array(tasks.length);
     const workerCount = Math.min(tasks.length, Math.max(1, Math.min(3, input.maxConcurrency ?? 3)));
@@ -62,7 +75,6 @@ export async function discoverOrduPetshops(input: DiscoverOrduPetshopsInput): Pr
     await Promise.all(Array.from({ length: workerCount }, worker));
 
     const now = input.now ?? (() => new Date());
-    const coordinateTtlMs = input.coordinateTtlMs ?? DEFAULT_COORDINATE_TTL_MS;
     const discoveredByPlaceId = new Map<string, DiscoveredPlaceRef>();
     for (const result of results) {
         for (const place of result.places) {

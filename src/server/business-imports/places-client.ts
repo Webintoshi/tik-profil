@@ -3,7 +3,7 @@ import type { ProviderCandidate } from "./contracts.ts";
 const PLACES_API_BASE_URL = "https://places.googleapis.com/v1";
 const SEARCH_FIELD_MASK = "places.id,places.location,nextPageToken";
 const PLACE_FIELD_MASK = "id,displayName,formattedAddress,nationalPhoneNumber,internationalPhoneNumber,websiteUri,location";
-const MAX_ATTEMPTS = 3;
+const MAX_RETRY_ATTEMPTS = 3;
 
 export type PlacesFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -165,7 +165,7 @@ export function createPlacesClient(options: CreatePlacesClientOptions): PlacesCl
             throw new PlacesClientError("provider_not_configured");
         }
 
-        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+        for (let attempt = 0; attempt <= MAX_RETRY_ATTEMPTS; attempt += 1) {
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), timeoutMs);
             let response: Response;
@@ -180,22 +180,18 @@ export function createPlacesClient(options: CreatePlacesClientOptions): PlacesCl
                     ...(requestOptions.body === undefined ? {} : { body: JSON.stringify(requestOptions.body) }),
                     signal: controller.signal,
                 });
+
+                if (response.ok) {
+                    return await response.json();
+                }
             } catch {
                 throw new PlacesClientError("provider_unavailable");
             } finally {
                 clearTimeout(timeout);
             }
 
-            if (response.ok) {
-                try {
-                    return await response.json();
-                } catch {
-                    throw new PlacesClientError("provider_unavailable");
-                }
-            }
-
             const retryable = response.status === 429 || response.status >= 500;
-            if (!retryable || attempt === MAX_ATTEMPTS - 1) {
+            if (!retryable || attempt === MAX_RETRY_ATTEMPTS) {
                 throw new PlacesClientError(response.status === 429 ? "provider_rate_limited" : "provider_unavailable");
             }
 

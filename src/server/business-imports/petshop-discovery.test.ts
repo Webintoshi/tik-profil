@@ -66,3 +66,41 @@ test("Ordu discovery searches both Turkish queries, follows pagination, deduplic
         { provider: "google_places", placeId: "fatsa", districtScope: "Fatsa" },
     ]);
 });
+
+test("Ordu discovery accepts the exact 30-day coordinate TTL and rejects invalid TTLs before provider calls", async () => {
+    const maximumTtlMs = 2_592_000_000;
+    let calls = 0;
+    const client: PlacesClient = {
+        async searchText() {
+            calls += 1;
+            return {
+                places: [{ placeId: "place-1", latitude: 40.98, longitude: 37.88 }],
+                nextPageToken: null,
+            };
+        },
+        async getPlace() {
+            throw new Error("discovery must not request live admin projections");
+        },
+    };
+    const now = new Date("2026-07-23T12:00:00.000Z");
+
+    const result = await discoverOrduPetshops({
+        client,
+        districts: ["Fatsa"],
+        coordinateTtlMs: maximumTtlMs,
+        now: () => now,
+    });
+
+    assert.equal(result[0]?.temporaryLocation?.expiresAt.getTime(), now.getTime() + maximumTtlMs);
+    assert.equal(calls, 2);
+
+    for (const coordinateTtlMs of [-1, 0, 0.5, Number.NaN, Number.POSITIVE_INFINITY, maximumTtlMs + 1]) {
+        calls = 0;
+        await assert.rejects(
+            discoverOrduPetshops({ client, districts: ["Fatsa"], coordinateTtlMs }),
+            (error: unknown) => error instanceof RangeError
+                && error.message === "coordinateTtlMs must be a finite positive integer no greater than 2592000000",
+        );
+        assert.equal(calls, 0);
+    }
+});
