@@ -146,3 +146,12 @@ Verification: focused review suite passed (26 tests), all `src/server/business-i
 - Candidate review now locks the candidate, validates state, replaces optional facts, reloads effective facts, validates approval completeness, and transitions in one transaction. Invalid terminal and incomplete reviews roll back fact changes.
 
 Verification: focused Task 5 suite passed (26 tests), all `src/server/business-imports/*.test.ts` passed, `npm run typecheck` passed, and `git diff --check` passed.
+
+## Import API Pending Dispatch Recovery (2026-07-23)
+
+- The public `startPetshopDiscovery()` contract again returns `Promise<ImportBatch>`; repository enqueue metadata remains internal.
+- The start endpoint reports accepted `pending` work as `{ batchId, status: "running" }` with `202` and `no-store`.
+- Every idempotent replay that still reads `pending` registers a tracked Next.js `after()` recovery callback. Running and terminal batches do not register callbacks.
+- Concurrent recovery callbacks remain safe because the runner atomically claims only `pending` batches before the first Places request.
+
+Verification: RED-first route and service contract tests passed; focused Task 5 suite passed (28 tests); all `src/server/business-imports/*.test.ts` passed (46 tests); `npm run typecheck` passed; and `git diff --check` passed.

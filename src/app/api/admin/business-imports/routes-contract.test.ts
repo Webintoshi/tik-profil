@@ -13,7 +13,7 @@ const candidateId = "7b5c53c5-3648-4162-bc1d-081b9834d6a8";
 
 function serviceStub(): BusinessImportService {
     return {
-        startPetshopDiscovery: async () => ({ batch: { id: batchId, status: "pending" }, created: true } as never),
+        startPetshopDiscovery: async () => ({ id: batchId, status: "pending" } as never),
         getBatch: async () => ({ id: batchId, status: "running" } as never),
         listCandidates: async () => [],
         reviewCandidate: async (input) => ({ id: input.candidateId, candidateStatus: input.decision } as never),
@@ -49,7 +49,7 @@ test("start route accepts a valid admin request and returns an asynchronous batc
     }));
 
     assert.equal(response.status, 202);
-    assert.deepEqual(await response.json(), { batchId, status: "pending" });
+    assert.deepEqual(await response.json(), { batchId, status: "running" });
     assert.equal(response.headers.get("Cache-Control"), "no-store");
     assert.equal(callbacks.length, 1);
     await callbacks[0]?.();
@@ -59,7 +59,7 @@ test("start route accepts a valid admin request and returns an asynchronous batc
 test("start replay returns the existing terminal status without enqueueing discovery again", async () => {
     const callbacks: Array<() => void | Promise<void>> = [];
     const service = serviceStub();
-    service.startPetshopDiscovery = async () => ({ batch: { id: batchId, status: "completed" }, created: false } as never);
+    service.startPetshopDiscovery = async () => ({ id: batchId, status: "completed" } as never);
     const POST = createStartPetshopRoute({ requireAdmin: async () => admin, service, after: (callback) => { callbacks.push(callback); } });
 
     const response = await POST(new Request("http://localhost/api/admin/business-imports/places/petshops", {
@@ -69,6 +69,42 @@ test("start replay returns the existing terminal status without enqueueing disco
 
     assert.equal(response.status, 202);
     assert.deepEqual(await response.json(), { batchId, status: "completed" });
+    assert.equal(callbacks.length, 0);
+});
+
+test("start replay reschedules a pending batch when the first after callback was dropped", async () => {
+    const callbacks: Array<() => void | Promise<void>> = [];
+    const service = serviceStub();
+    const POST = createStartPetshopRoute({ requireAdmin: async () => admin, service, after: (callback) => { callbacks.push(callback); } });
+    const request = () => new Request("http://localhost/api/admin/business-imports/places/petshops", {
+        method: "POST",
+        body: JSON.stringify({ city: "Ordu", districts: ["Fatsa"], idempotencyKey: "06e6db6f-a739-4d84-a9a7-a7c1b0ec61a4" }),
+    });
+
+    const first = await POST(request());
+    assert.equal(first.status, 202);
+    assert.deepEqual(await first.json(), { batchId, status: "running" });
+    assert.equal(callbacks.length, 1);
+
+    const replay = await POST(request());
+    assert.equal(replay.status, 202);
+    assert.deepEqual(await replay.json(), { batchId, status: "running" });
+    assert.equal(callbacks.length, 2);
+});
+
+test("start replay does not enqueue a running batch", async () => {
+    const callbacks: Array<() => void | Promise<void>> = [];
+    const service = serviceStub();
+    service.startPetshopDiscovery = async () => ({ id: batchId, status: "running" } as never);
+    const POST = createStartPetshopRoute({ requireAdmin: async () => admin, service, after: (callback) => { callbacks.push(callback); } });
+
+    const response = await POST(new Request("http://localhost/api/admin/business-imports/places/petshops", {
+        method: "POST",
+        body: JSON.stringify({ city: "Ordu", districts: ["Fatsa"], idempotencyKey: "06e6db6f-a739-4d84-a9a7-a7c1b0ec61a4" }),
+    }));
+
+    assert.equal(response.status, 202);
+    assert.deepEqual(await response.json(), { batchId, status: "running" });
     assert.equal(callbacks.length, 0);
 });
 

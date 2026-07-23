@@ -46,7 +46,7 @@ export interface ReviewCandidateRequest extends ReviewCandidateInput {
 }
 
 export interface BusinessImportService {
-    startPetshopDiscovery(input: Omit<StartImportInput, "actorId">, actor: PlatformAdminActor): Promise<{ batch: ImportBatch; created: boolean }>;
+    startPetshopDiscovery(input: Omit<StartImportInput, "actorId">, actor: PlatformAdminActor): Promise<ImportBatch>;
     getBatch(batchId: string): Promise<ImportBatchSummary>;
     listCandidates(batchId: string): Promise<AdminCandidateProjection[]>;
     reviewCandidate(input: ReviewCandidateRequest, actor: PlatformAdminActor): Promise<ImportCandidate>;
@@ -108,10 +108,11 @@ export function createBusinessImportService(options: CreateBusinessImportService
     const discoverPetshops = options.discoverPetshops ?? ((input) => discoverOrduPetshops(input));
     return {
         async startPetshopDiscovery(input, actor) {
-            return options.repository.createOrGetBatch({
+            const { batch } = await options.repository.createOrGetBatch({
                 ...input,
                 actorId: actor.appUserId,
             });
+            return batch;
         },
 
         async getBatch(batchId) {

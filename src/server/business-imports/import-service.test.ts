@@ -74,7 +74,7 @@ function repositoryStub(overrides: Partial<BusinessImportRepository> = {}): Busi
 
 const actor = { username: "platform-admin", appUserId: "admin-1" };
 
-test("starts a durable running batch without executing provider discovery in the request service", async () => {
+test("starts a durable batch without exposing repository enqueue metadata or executing provider discovery", async () => {
     const service = createBusinessImportService({
         repository: repositoryStub(),
         places: {} as PlacesClient,
@@ -86,7 +86,8 @@ test("starts a durable running batch without executing provider discovery in the
         idempotencyKey: "06e6db6f-a739-4d84-a9a7-a7c1b0ec61a4",
     }, actor);
 
-    assert.equal(result.batch.id, "batch-1");
+    assert.equal(result.id, "batch-1");
+    assert.equal(result.status, "running");
 });
 
 test("returns local workflow state when the live Places projection is unavailable", async () => {
