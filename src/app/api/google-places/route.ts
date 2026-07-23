@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import { getGoogleMapsApiKey } from "@/server/business-imports/env";
+import {
+    normalizeTurkishText,
+    phoneMatch,
+} from "@/server/business-imports/places-client";
 
 type Candidate = {
     id?: string;
@@ -8,40 +13,11 @@ type Candidate = {
     internationalPhoneNumber?: string;
 };
 
-function norm(s: string) {
-    return (s || "")
-        .toLowerCase()
-        .replaceAll("ı", "i")
-        .replaceAll("ğ", "g")
-        .replaceAll("ü", "u")
-        .replaceAll("ş", "s")
-        .replaceAll("ö", "o")
-        .replaceAll("ç", "c")
-        .replace(/[^a-z0-9\s]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-}
-
-function normalizePhone(phone: string): string {
-    // Remove all non-digits
-    return (phone || "").replace(/\D/g, "");
-}
-
-function phoneMatch(bizPhone: string, googlePhone: string): boolean {
-    const p1 = normalizePhone(bizPhone);
-    const p2 = normalizePhone(googlePhone);
-    if (!p1 || !p2) return false;
-    // Check if last 10 digits match (ignore country code)
-    const last10_1 = p1.slice(-10);
-    const last10_2 = p2.slice(-10);
-    return last10_1 === last10_2;
-}
-
 function scoreMatch(name: string, address: string, phone: string, c: Candidate): number {
-    const n1 = norm(name);
-    const a1 = norm(address);
-    const n2 = norm(c.displayName?.text || "");
-    const a2 = norm(c.formattedAddress || "");
+    const n1 = normalizeTurkishText(name);
+    const a1 = normalizeTurkishText(address);
+    const n2 = normalizeTurkishText(c.displayName?.text || "");
+    const a2 = normalizeTurkishText(c.formattedAddress || "");
 
     let score = 0;
 
@@ -69,8 +45,9 @@ function scoreMatch(name: string, address: string, phone: string, c: Candidate):
 export async function POST(req: Request) {
     try {
         const { businessName, address, phone, pageSize = 5 } = await req.json();
+        const apiKey = getGoogleMapsApiKey();
 
-        if (!process.env.GOOGLE_MAPS_API_KEY) {
+        if (!apiKey) {
             return NextResponse.json({ error: "Missing GOOGLE_MAPS_API_KEY" }, { status: 500 });
         }
         if (!businessName) {
@@ -85,7 +62,7 @@ export async function POST(req: Request) {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,
+                "X-Goog-Api-Key": apiKey,
                 "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber",
             },
             body: JSON.stringify({
@@ -108,7 +85,7 @@ export async function POST(req: Request) {
             return NextResponse.json({
                 ok: false,
                 reason: "no_results",
-                message: "Google'da işletme bulunamadı",
+                message: "Google'da i\u015Fletme bulunamad\u0131",
                 candidates: [],
             });
         }
@@ -128,7 +105,7 @@ export async function POST(req: Request) {
             return NextResponse.json({
                 ok: false,
                 reason: "no_place_id",
-                message: "Place ID bulunamadı",
+                message: "Place ID bulunamad\u0131",
                 candidates: [],
             });
         }
