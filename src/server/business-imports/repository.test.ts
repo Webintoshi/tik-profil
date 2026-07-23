@@ -20,9 +20,6 @@ function candidateRow(overrides: Record<string, unknown> = {}) {
         candidate_status: "discovered",
         matched_business_id: null,
         dedupe_reason: null,
-        temporary_latitude: "40.9800000",
-        temporary_longitude: "37.8800000",
-        temporary_location_expires_at: "2026-08-22T12:00:00.000Z",
         reviewed_by_user_id: null,
         reviewed_at: null,
         failure_code: null,
@@ -33,7 +30,7 @@ function candidateRow(overrides: Record<string, unknown> = {}) {
     };
 }
 
-test("upserts a provider candidate then idempotently links it to the batch with scalar coordinates", async () => {
+test("upserts a provider candidate without persisting transient Places coordinates", async () => {
     const calls: QueryCall[] = [];
     const execute: QueryExecutor = async (text, values) => {
         calls.push({ text, values });
@@ -56,53 +53,40 @@ test("upserts a provider candidate then idempotently links it to the batch with 
         },
     });
 
-    assert.equal(candidate.temporaryLatitude, 40.98);
-    assert.equal(candidate.temporaryLongitude, 37.88);
+    assert.equal("temporaryLatitude" in candidate, false);
+    assert.equal("temporaryLongitude" in candidate, false);
+    assert.equal("temporaryLocationExpiresAt" in candidate, false);
     assert.equal(calls.length, 2);
     assert.match(calls[0]?.text ?? "", /ON CONFLICT \(provider, provider_place_id\) DO UPDATE/i);
-    assert.match(calls[0]?.text ?? "", /temporary_latitude/i);
-    assert.doesNotMatch(calls[0]?.text ?? "", /temporary_location\s*jsonb/i);
+    assert.doesNotMatch(calls[0]?.text ?? "", /\b(temporary_|latitude|longitude)\b/i);
     assert.deepEqual(calls[0]?.values, [
         "batch-1", "google_places", "place-1", "petshop", "Ordu", "AltÄ±nordu",
-        40.98, 37.88, "2026-08-22T12:00:00.000Z",
     ]);
     assert.match(calls[1]?.text ?? "", /INSERT INTO business_import_batch_candidates/i);
     assert.match(calls[1]?.text ?? "", /ON CONFLICT DO NOTHING/i);
     assert.deepEqual(calls[1]?.values, ["batch-1", "candidate-1"]);
 });
 
-test("rejects incomplete, invalid, expired, and overlong temporary locations before SQL", async () => {
+test("ignores transient Places coordinates instead of validating or persisting them", async () => {
     const calls: QueryCall[] = [];
     const execute: QueryExecutor = async (text, values) => {
         calls.push({ text, values });
         return { rowCount: 1, rows: [candidateRow()] };
     };
-    const now = new Date("2026-07-23T12:00:00.000Z");
     const repository = createBusinessImportRepository(
         execute,
         async (operation) => operation(execute),
-        { now: () => now },
     );
-    const input = {
+    await repository.upsertDiscoveredPlace({
         batchId: "batch-1",
-        provider: "google_places" as const,
+        provider: "google_places",
         placeId: "place-1",
         districtScope: "Alt\u0131nordu",
-    };
+        temporaryLocation: { latitude: Infinity, longitude: -Infinity, expiresAt: new Date("invalid") },
+    });
 
-    for (const temporaryLocation of [
-        { latitude: 40.98, expiresAt: new Date("2026-07-24T12:00:00.000Z") },
-        { latitude: Infinity, longitude: 37.88, expiresAt: new Date("2026-07-24T12:00:00.000Z") },
-        { latitude: 40.98, longitude: 37.88, expiresAt: new Date("invalid") },
-        { latitude: 40.98, longitude: 37.88, expiresAt: now },
-        { latitude: 40.98, longitude: 37.88, expiresAt: new Date("2026-08-22T12:00:00.001Z") },
-    ]) {
-        await assert.rejects(
-            repository.upsertDiscoveredPlace({ ...input, temporaryLocation } as never),
-            (error: unknown) => error instanceof RangeError && error.message === "temporary location must include finite coordinates and a future expiry no more than 30 days away",
-        );
-    }
-    assert.deepEqual(calls, []);
+    assert.equal(calls.length, 2);
+    assert.deepEqual(calls[0]?.values, ["batch-1", "google_places", "place-1", "petshop", "Ordu", "Alt\u0131nordu"]);
 });
 
 test("replaces source facts transactionally using parameterized writes", async () => {

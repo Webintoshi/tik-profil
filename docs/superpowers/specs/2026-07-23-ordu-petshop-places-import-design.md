@@ -25,7 +25,8 @@ Google Places is used for discovery and identity matching under Google Maps Plat
 - Store `place_id` as the durable Google identifier.
 - Do not copy Google photos, reviews, opening hours, ratings, names, addresses, or phone numbers into permanent Tık Profil profile fields merely because Places returned them.
 - Render Places content for the admin from a live request with required Google attribution.
-- Do not persist raw Places responses. Latitude and longitude may only use the provider's documented temporary cache allowance and must carry an expiry timestamp.
+- Do not persist raw Places responses or provider-derived coordinates. Discovery coordinates may exist only transiently in process memory and are discarded before repository writes.
+- Admin review fetches Places display and location data live on demand with required Google attribution.
 - Populate permanent Tık Profil business fields from an independently permitted source: the business's own website, business-supplied data, an eligible public registry, or explicit admin verification.
 - Every permanent field records its source and verification state.
 
@@ -93,15 +94,12 @@ Required additions:
 - `candidate_status`: `discovered`, `needs_data`, `ready`, `approved`, `rejected`, `duplicate`, `provisioning`, `published`, `failed`
 - `matched_business_id`
 - `dedupe_reason`
-- `temporary_latitude` (`numeric(10, 7)`, constrained to `-90..90`)
-- `temporary_longitude` (`numeric(10, 7)`, constrained to `-180..180`)
-- `temporary_location_expires_at`
 - `reviewed_by_user_id`
 - `reviewed_at`
 - `failure_code`
 - timestamps
 
-Provider-derived location storage is limited to optional expiring coordinates: latitude, longitude, and expiry are either all present or all absent. Raw provider location payloads are not stored.
+Provider-derived coordinates are never stored. Live admin projections fetch provider data on demand; durable candidate state retains only workflow data and the provider place ID.
 
 `business_import_batch_candidates`
 

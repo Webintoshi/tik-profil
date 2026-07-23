@@ -117,27 +117,12 @@ CREATE TABLE IF NOT EXISTS business_import_candidates (
   )),
   matched_business_id text,
   dedupe_reason text,
-  temporary_latitude numeric(10, 7),
-  temporary_longitude numeric(10, 7),
-  temporary_location_expires_at timestamptz,
   reviewed_by_user_id uuid REFERENCES app_users(id) ON DELETE SET NULL,
   reviewed_at timestamptz,
   failure_code text,
   provisioning_state jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT business_import_candidates_temporary_latitude_range_check
-    CHECK (temporary_latitude IS NULL OR temporary_latitude BETWEEN -90 AND 90),
-  CONSTRAINT business_import_candidates_temporary_longitude_range_check
-    CHECK (temporary_longitude IS NULL OR temporary_longitude BETWEEN -180 AND 180),
-  CONSTRAINT business_import_candidates_temporary_coordinates_check CHECK (
-    (temporary_latitude IS NULL AND temporary_longitude IS NULL AND temporary_location_expires_at IS NULL)
-    OR (
-      temporary_latitude IS NOT NULL
-      AND temporary_longitude IS NOT NULL
-      AND temporary_location_expires_at IS NOT NULL
-    )
-  ),
   UNIQUE (provider, provider_place_id)
 );
 
@@ -155,7 +140,7 @@ Also create `business_source_facts`, `business_account_issuances`, and `business
 
 Run: `node --test db/migrations/business-import-provisioning.test.ts`
 
-Expected: PASS for table names, global provider identity, per-batch candidate links, check constraints, foreign keys, temporary-location expiry, and absence of password columns.
+Expected: PASS for table names, global provider identity, per-batch candidate links, workflow constraints, foreign keys, absence of provider-coordinate storage, and absence of password columns.
 
 - [ ] **Step 5: Commit**
 
@@ -251,7 +236,7 @@ git commit -m "feat(import): define guarded import contracts"
 
 **Interfaces:**
 - Produces: `PlacesClient.searchText(input): Promise<PlacesSearchPage>`, `PlacesClient.getPlace(placeId): Promise<ProviderCandidate>`, and `discoverOrduPetshops(input): Promise<DiscoveredPlaceRef[]>`.
-- `DiscoveredPlaceRef` contains only `provider`, `placeId`, `districtScope`, and optional expiring coordinates.
+- `DiscoveredPlaceRef` contains only `provider`, `placeId`, `districtScope`, and optional coordinates held transiently in memory. Repository writes discard those coordinates; live admin projections fetch provider data on demand.
 
 - [ ] **Step 1: Write provider transport tests with mocked fetch**
 

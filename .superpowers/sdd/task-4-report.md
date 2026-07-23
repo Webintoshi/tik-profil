@@ -102,3 +102,20 @@ All failures were observed before the corresponding production changes.
 - `src/server/fastfood/order-notification-outbox.test.mts`
 - `src/server/fastfood/order-notification-outbox.ts`
 - `src/server/fastfood/order-notification-repository.ts`
+
+---
+
+## Ordu Petshop Import Retention Follow-up
+
+Status: DONE
+
+- Replaced the temporary-coordinate policy with strict no persistence: PostgreSQL candidates contain no latitude, longitude, coordinate expiry, or provider-location payload fields.
+- `DiscoveredPlaceRef` remains compatible with transient in-memory Places coordinates; `upsertDiscoveredPlace()` discards them before SQL.
+- The schema contract now rejects coordinate storage, and the design and plan state that live admin projections fetch provider display and location data on demand with attribution.
+
+Verification:
+
+- `node --test db/migrations/business-import-provisioning.test.ts`: 2 passed, 0 failed.
+- `node --test src/server/business-imports/*.test.ts`: 31 passed, 0 failed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed, with existing CRLF notices only.

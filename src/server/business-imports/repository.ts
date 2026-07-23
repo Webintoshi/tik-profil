@@ -10,10 +10,6 @@ export interface QueryResult<Row extends Record<string, unknown> = Record<string
 export type QueryExecutor = (text: string, values?: readonly unknown[]) => Promise<QueryResult>;
 export type QueryTransactionRunner = <T>(operation: (execute: QueryExecutor) => Promise<T>) => Promise<T>;
 
-export interface BusinessImportRepositoryOptions {
-    now?: () => Date;
-}
-
 export interface StartImportInput {
     city: "Ordu";
     districts: readonly string[];
@@ -48,9 +44,6 @@ export interface ImportCandidate {
     candidateStatus: ImportCandidateStatus;
     matchedBusinessId: string | null;
     dedupeReason: string | null;
-    temporaryLatitude: number | null;
-    temporaryLongitude: number | null;
-    temporaryLocationExpiresAt: string | null;
     reviewedByUserId: string | null;
     reviewedAt: string | null;
     failureCode: string | null;
@@ -88,12 +81,9 @@ type Row = Record<string, unknown>;
 
 const CANDIDATE_COLUMNS = `
     id, first_seen_batch_id, provider, provider_place_id, sector_key, city, district_scope,
-    candidate_status, matched_business_id, dedupe_reason, temporary_latitude,
-    temporary_longitude, temporary_location_expires_at, reviewed_by_user_id, reviewed_at,
+    candidate_status, matched_business_id, dedupe_reason, reviewed_by_user_id, reviewed_at,
     failure_code, provisioning_state, created_at, updated_at
 `;
-const MAX_TEMPORARY_LOCATION_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
-const TEMPORARY_LOCATION_ERROR = "temporary location must include finite coordinates and a future expiry no more than 30 days away";
 
 function asString(value: unknown): string {
     return typeof value === "string" ? value : String(value ?? "");
@@ -134,9 +124,6 @@ function mapCandidate(row: Row): ImportCandidate {
         candidateStatus: asString(row.candidate_status) as ImportCandidateStatus,
         matchedBusinessId: asNullableString(row.matched_business_id),
         dedupeReason: asNullableString(row.dedupe_reason),
-        temporaryLatitude: asNullableNumber(row.temporary_latitude),
-        temporaryLongitude: asNullableNumber(row.temporary_longitude),
-        temporaryLocationExpiresAt: asNullableString(row.temporary_location_expires_at),
         reviewedByUserId: asNullableString(row.reviewed_by_user_id),
         reviewedAt: asNullableString(row.reviewed_at),
         failureCode: asNullableString(row.failure_code),
@@ -171,41 +158,10 @@ function requireRow(result: QueryResult, entity: string): Row {
     return row;
 }
 
-function validateTemporaryLocation(
-    location: DiscoveredPlaceRef["temporaryLocation"] | undefined,
-    now: Date,
-): { latitude: number | null; longitude: number | null; expiresAt: string | null } {
-    if (!location) return { latitude: null, longitude: null, expiresAt: null };
-
-    const hasLatitude = location.latitude !== undefined && location.latitude !== null;
-    const hasLongitude = location.longitude !== undefined && location.longitude !== null;
-    const hasExpiry = location.expiresAt !== undefined && location.expiresAt !== null;
-    if (!hasLatitude && !hasLongitude && !hasExpiry) {
-        return { latitude: null, longitude: null, expiresAt: null };
-    }
-    if (!hasLatitude || !hasLongitude || !hasExpiry
-        || !Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)
-        || location.latitude < -90 || location.latitude > 90
-        || location.longitude < -180 || location.longitude > 180
-        || !(location.expiresAt instanceof Date)) {
-        throw new RangeError(TEMPORARY_LOCATION_ERROR);
-    }
-
-    const nowTime = now.getTime();
-    const expiryTime = location.expiresAt.getTime();
-    if (!Number.isFinite(nowTime) || !Number.isFinite(expiryTime)
-        || expiryTime <= nowTime || expiryTime > nowTime + MAX_TEMPORARY_LOCATION_TTL_MS) {
-        throw new RangeError(TEMPORARY_LOCATION_ERROR);
-    }
-    return { latitude: location.latitude, longitude: location.longitude, expiresAt: location.expiresAt.toISOString() };
-}
-
 export function createBusinessImportRepository(
     execute: QueryExecutor = defaultExecutor,
     runInTransaction: QueryTransactionRunner = defaultTransactionRunner,
-    options: BusinessImportRepositoryOptions = {},
 ): BusinessImportRepository {
-    const now = options.now ?? (() => new Date());
     return {
         async createOrGetBatch(input) {
             return runInTransaction(async (transactionExecute) => {
@@ -229,22 +185,16 @@ export function createBusinessImportRepository(
         },
 
         async upsertDiscoveredPlace(input) {
-            const location = validateTemporaryLocation(input.temporaryLocation, now());
             const result = await execute(
                 `INSERT INTO business_import_candidates (
-                    first_seen_batch_id, provider, provider_place_id, sector_key, city, district_scope,
-                    temporary_latitude, temporary_longitude, temporary_location_expires_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    first_seen_batch_id, provider, provider_place_id, sector_key, city, district_scope
+                ) VALUES ($1, $2, $3, $4, $5, $6)
                 ON CONFLICT (provider, provider_place_id) DO UPDATE SET
                     district_scope = COALESCE(business_import_candidates.district_scope, EXCLUDED.district_scope),
-                    temporary_latitude = COALESCE(EXCLUDED.temporary_latitude, business_import_candidates.temporary_latitude),
-                    temporary_longitude = COALESCE(EXCLUDED.temporary_longitude, business_import_candidates.temporary_longitude),
-                    temporary_location_expires_at = COALESCE(EXCLUDED.temporary_location_expires_at, business_import_candidates.temporary_location_expires_at),
                     updated_at = now()
                 RETURNING ${CANDIDATE_COLUMNS}`,
                 [
                     input.batchId, input.provider, input.placeId, "petshop", "Ordu", input.districtScope,
-                    location.latitude, location.longitude, location.expiresAt,
                 ],
             );
             const candidate = mapCandidate(requireRow(result, "import candidate"));
