@@ -18,6 +18,10 @@ export function getLogtoManagementAppSecret(): string | undefined {
     return getTrimmedEnvValue("LOGTO_MANAGEMENT_APP_SECRET");
 }
 
+export function getLogtoManagementApiResource(): string | undefined {
+    return getTrimmedEnvValue("LOGTO_MANAGEMENT_API_RESOURCE");
+}
+
 export function getLogtoManagementCredentials(): { appId: string; appSecret: string } | null {
     const appId = getLogtoManagementAppId();
     const appSecret = getLogtoManagementAppSecret();

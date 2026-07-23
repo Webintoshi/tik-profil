@@ -153,3 +153,25 @@ Implemented only the Ordu Petshop Places Import plan's Task 6 files:
 - All `src/server/business-imports` tests: 50 passed, 0 failed.
 - Root `npm run typecheck`: passed with exit code 0.
 - The test runner emitted the repository's existing `MODULE_TYPELESS_PACKAGE_JSON` warning; no test failures or application warnings were introduced.
+
+## Review Fix: Logto Management Protocol Alignment
+
+Review base: `aa713d6687b31771cf3e18d5393e1ee9ab16003f`
+
+### RED
+
+`node --test src/server/auth/logto/management-client.test.ts src/server/business-imports/env.test.ts` exited 1 with 7 failures. The failures established that the client coupled the token resource to the tenant API URL, ignored an explicit resource, treated 404 as absence, rejected omitted nullable user fields, accepted token responses without a Bearer `token_type`, and lacked the server-only `LOGTO_MANAGEMENT_API_RESOURCE` accessor.
+
+### Fixes
+
+- Tenant requests remain rooted at normalized `${LOGTO_ENDPOINT}/api/users`; the independently normalized token resource defaults to `https://default.logto.app/api` and can be overridden with `LOGTO_MANAGEMENT_API_RESOURCE` through the server-only import env module.
+- Lookup absence is represented only by a successful `200 []`; every non-2xx status, including 404, throws `logto_request_failed` without reading the provider body.
+- Token parsing now requires a nonblank access token, positive finite expiry, and case-insensitive Bearer token type. Invalid JSON and malformed token responses throw only `logto_token_failed`.
+- Successful lookup payloads must be arrays of valid user objects. Missing or null `name` and `primaryEmail` map to `null`; wrong field types and malformed entries throw only `logto_response_invalid`.
+- Regression tests confirm custom-resource normalization does not alter API request URLs and malformed provider content is absent from thrown errors.
+
+### GREEN
+
+- Focused Task 6 and env tests: 17 passed, 0 failed.
+- All `src/server/business-imports` tests: 50 passed, 0 failed.
+- Root `npm run typecheck`: passed with exit code 0.

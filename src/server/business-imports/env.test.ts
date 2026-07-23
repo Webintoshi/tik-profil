@@ -11,8 +11,9 @@ test("import provider secrets are isolated behind a server-only module without p
     assert.match(source, /GOOGLE_MAPS_API_KEY/);
     assert.match(source, /LOGTO_MANAGEMENT_APP_ID/);
     assert.match(source, /LOGTO_MANAGEMENT_APP_SECRET/);
+    assert.match(source, /LOGTO_MANAGEMENT_API_RESOURCE/);
     assert.match(source, /BUSINESS_IMPORT_RECOVERY_FROM_EMAIL/);
-    assert.doesNotMatch(source, /NEXT_PUBLIC_(?:GOOGLE_MAPS_API_KEY|LOGTO_MANAGEMENT_APP_ID|LOGTO_MANAGEMENT_APP_SECRET|BUSINESS_IMPORT_RECOVERY_FROM_EMAIL)/);
+    assert.doesNotMatch(source, /(?:NEXT_PUBLIC|EXPO_PUBLIC)_(?:GOOGLE_MAPS_API_KEY|LOGTO_MANAGEMENT_APP_ID|LOGTO_MANAGEMENT_APP_SECRET|LOGTO_MANAGEMENT_API_RESOURCE|BUSINESS_IMPORT_RECOVERY_FROM_EMAIL)/);
 });
 
 test("general environment module does not export import provider secrets", async () => {
@@ -20,5 +21,6 @@ test("general environment module does not export import provider secrets", async
 
     assert.doesNotMatch(generalEnvSource, /getGoogleMapsApiKey/);
     assert.doesNotMatch(generalEnvSource, /getLogtoManagementCredentials/);
+    assert.doesNotMatch(generalEnvSource, /getLogtoManagementApiResource/);
     assert.doesNotMatch(generalEnvSource, /getBusinessImportRecoveryFromEmail/);
 });
