@@ -32,9 +32,15 @@ test("import migration keeps candidate workflow, facts, and account references d
     assert.match(candidates, /provider\s+text\s+NOT NULL\s+CHECK\s*\(provider\s+IN\s*\('google_places'\)\)/i);
     assert.match(candidates, /sector_key\s+text\s+NOT NULL\s+CHECK\s*\(sector_key\s+IN\s*\('petshop'\)\)/i);
     assert.match(candidates, /candidate_status\s+text\s+NOT NULL\s+DEFAULT\s+'discovered'\s+CHECK/i);
-    assert.match(candidates, /temporary_location\s+jsonb/i);
+    assert.match(candidates, /city\s+text\s+NOT NULL/i);
+    assert.match(candidates, /CONSTRAINT\s+business_import_candidates_city_pilot_check\s+CHECK\s*\(city\s*=\s*'Ordu'\)/i);
+    assert.match(candidates, /temporary_latitude\s+numeric\s*\(\s*10\s*,\s*7\s*\)/i);
+    assert.match(candidates, /temporary_longitude\s+numeric\s*\(\s*10\s*,\s*7\s*\)/i);
     assert.match(candidates, /temporary_location_expires_at\s+timestamptz/i);
-    assert.match(candidates, /temporary_location\s+IS NULL\s+OR\s+temporary_location_expires_at\s+IS NOT NULL/i);
+    assert.match(candidates, /CONSTRAINT\s+business_import_candidates_temporary_latitude_range_check\s+CHECK\s*\(temporary_latitude\s+IS NULL\s+OR\s+temporary_latitude\s+BETWEEN\s+-90\s+AND\s+90\)/i);
+    assert.match(candidates, /CONSTRAINT\s+business_import_candidates_temporary_longitude_range_check\s+CHECK\s*\(temporary_longitude\s+IS NULL\s+OR\s+temporary_longitude\s+BETWEEN\s+-180\s+AND\s+180\)/i);
+    assert.match(candidates, /CONSTRAINT\s+business_import_candidates_temporary_coordinates_check\s+CHECK\s*\(\s*\(temporary_latitude\s+IS NULL\s+AND\s+temporary_longitude\s+IS NULL\s+AND\s+temporary_location_expires_at\s+IS NULL\)\s+OR\s+\(\s*temporary_latitude\s+IS NOT NULL\s+AND\s+temporary_longitude\s+IS NOT NULL\s+AND\s+temporary_location_expires_at\s+IS NOT NULL\s*\)\s*\)/i);
+    assert.doesNotMatch(candidates, /temporary_location\s+jsonb/i);
     assert.match(candidates, /first_seen_batch_id\s+uuid\s+REFERENCES\s+business_import_batches\s*\(id\)\s+ON DELETE SET NULL/i);
     assert.match(candidates, /matched_business_id\s+text\s+REFERENCES\s+businesses\s*\(id\)\s+ON DELETE SET NULL/i);
     assert.match(candidates, /reviewed_by_user_id\s+uuid\s+REFERENCES\s+app_users\s*\(id\)\s+ON DELETE SET NULL/i);
