@@ -25,6 +25,9 @@ function errorResponse(error: unknown): NextResponse {
     if ((statusCode === 401 || statusCode === 403) && code === "platform_admin_required") {
         return NextResponse.json({ error: "platform_admin_required" }, { status: statusCode, headers: credentialHeaders });
     }
+    if ((statusCode === 404 && code === "import_not_found") || (statusCode === 409 && code === "invalid_state")) {
+        return NextResponse.json({ error: code }, { status: statusCode, headers: credentialHeaders });
+    }
     return NextResponse.json({ error: "provisioning_failed" }, { status: 502, headers: credentialHeaders });
 }
 

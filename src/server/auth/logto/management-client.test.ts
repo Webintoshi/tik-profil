@@ -26,7 +26,13 @@ test("uses normalized token and user endpoints with encoded lookup and user ids"
         if (url.endsWith("/oidc/token")) return tokenResponse("management-access-token");
         if (init?.method === "GET") return Response.json([]);
         if (init?.method === "POST") {
-            return Response.json({ id: "user-1", primaryEmail: "owner+ordu@example.com", name: "Pati Dünyası" });
+            return Response.json({
+                id: "user-1",
+                primaryEmail: "owner+ordu@example.com",
+                name: "Pati Dünyası",
+                customData: { tikProfilImportCandidateId: "candidate-1" },
+                isSuspended: true,
+            });
         }
         return new Response(null, { status: 204 });
     };
@@ -38,11 +44,19 @@ test("uses normalized token and user endpoints with encoded lookup and user ids"
     });
 
     assert.equal(await client.findUserByPrimaryEmail("owner+ordu@example.com"), null);
-    assert.deepEqual(await client.createUser({ primaryEmail: "owner+ordu@example.com", name: "Pati Dünyası" }), {
+    assert.deepEqual(await client.createUser({
+        primaryEmail: "owner+ordu@example.com",
+        name: "Pati Dünyası",
+        customData: { tikProfilImportCandidateId: "candidate-1" },
+        isSuspended: true,
+    }), {
         id: "user-1",
         primaryEmail: "owner+ordu@example.com",
         name: "Pati Dünyası",
+        customData: { tikProfilImportCandidateId: "candidate-1" },
+        isSuspended: true,
     });
+    await client.setSuspended("user/id ?", true);
     await client.setPassword("user/id ?", "Plaintext-password-1!");
     await client.deleteUser("user/id ?");
 
@@ -59,13 +73,18 @@ test("uses normalized token and user endpoints with encoded lookup and user ids"
     assert.deepEqual(JSON.parse(String(calls[2]?.init?.body)), {
         primaryEmail: "owner+ordu@example.com",
         name: "Pati Dünyası",
+        customData: { tikProfilImportCandidateId: "candidate-1" },
+        isSuspended: true,
     });
     assert.equal(calls[2]?.init?.method, "POST");
-    assert.equal(calls[3]?.url, "https://tenant.logto.app/base/api/users/user%2Fid%20%3F/password");
+    assert.equal(calls[3]?.url, "https://tenant.logto.app/base/api/users/user%2Fid%20%3F/is-suspended");
     assert.equal(calls[3]?.init?.method, "PATCH");
-    assert.deepEqual(JSON.parse(String(calls[3]?.init?.body)), { password: "Plaintext-password-1!" });
-    assert.equal(calls[4]?.url, "https://tenant.logto.app/base/api/users/user%2Fid%20%3F");
-    assert.equal(calls[4]?.init?.method, "DELETE");
+    assert.deepEqual(JSON.parse(String(calls[3]?.init?.body)), { isSuspended: true });
+    assert.equal(calls[4]?.url, "https://tenant.logto.app/base/api/users/user%2Fid%20%3F/password");
+    assert.equal(calls[4]?.init?.method, "PATCH");
+    assert.deepEqual(JSON.parse(String(calls[4]?.init?.body)), { password: "Plaintext-password-1!" });
+    assert.equal(calls[5]?.url, "https://tenant.logto.app/base/api/users/user%2Fid%20%3F");
+    assert.equal(calls[5]?.init?.method, "DELETE");
 
     assert.equal(calls.filter((call) => call.url.endsWith("/oidc/token")).length, 1);
     for (const call of calls.slice(1)) {
@@ -117,7 +136,9 @@ test("returns the exact primary-email user from a lookup response", async () => 
     });
 
     assert.deepEqual(await client.findUserByPrimaryEmail("owner@example.com"), {
+        customData: {},
         id: "match",
+        isSuspended: false,
         primaryEmail: "OWNER@example.com",
         name: null,
     });
@@ -134,7 +155,9 @@ test("maps omitted nullable user fields to null", async () => {
     });
 
     assert.deepEqual(await client.findUserByPrimaryEmail("owner@example.com"), {
+        customData: {},
         id: "user-1",
+        isSuspended: false,
         primaryEmail: "owner@example.com",
         name: null,
     });

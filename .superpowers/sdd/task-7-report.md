@@ -143,3 +143,38 @@ Implemented Task 7 public-profile publication, durable owner provisioning, one-t
 - `src/server/business-imports/repository.test.ts`
 - `src/app/api/admin/business-imports/[batchId]/provision/route.ts`
 - `src/app/api/admin/businesses/[id]/credentials/reset/route.ts`
+
+---
+
+# Task 7 Security Hardening Review
+
+Date: 2026-07-23
+Review-fix base: `e396ff8dbe04aba91909392aa4149980b1863f8f`
+
+## Critical and High Fixes
+
+- Replaced the expiring application-clock lease with a PostgreSQL session advisory lock held on a dedicated pool client for the complete candidate saga, including Logto calls. Provision, reset, and credential acknowledgement use the same candidate/business lock key; unlock and client release run in `finally`, and failed unlocks discard the connection.
+- Candidate claim remains row-locked and resumable after a terminated lock holder. Batch existence and `completed` status are validated before listing and again in the locked claim transaction using stable `404 import_not_found` and `409 invalid_state` responses.
+- Imported Logto users are created suspended with `customData.tikProfilImportCandidateId`. Exact-email users are accepted only when the marker and any durable provider user ID match. An unowned or mismatched account is never adopted.
+- Added migration `0015_business_import_identity_hardening.sql`, enforcing one Logto provider identity per app user through a unique `(app_user_id, provider)` index.
+- Identity binding now transactionally validates candidate state, issuance alias/provider ID, exact app-user email, and both directions of the Logto provider link before `setPassword`. Owner role, active membership, issuance binding, and the claimed-verified discovery row are idempotently created in that transaction.
+- Provision and reset suspend before password mutation and leave the user suspended after returning credentials. Plaintext exists only in memory and the immediate no-store response. Failures after password mutation best-effort re-suspend and durably mark credential/candidate failure state.
+- Added a platform-admin-only, no-store credential-delivery acknowledgement route. It re-resolves exact email, validates marker/provider/link state under the same lock, then unsuspends and records delivery. Reset and acknowledgement serialize against each other.
+- Public profile activation requires an active owner membership and exactly one discovery profile in the runtime transaction. Any failure after publication starts compensates both profile stores; compensation attempts each store independently.
+- Legacy and PostgreSQL direct-slug and previous-slug lookups now require `status = active`, so pending or hidden imports cannot resolve publicly.
+- PostgreSQL pending profile writes now persist verified website data in `social_links`; normalized legacy/PostgreSQL parity is covered for every imported public field.
+
+## Adversarial Coverage
+
+- Concurrent provision requests produce one identity set and one immediate credential response; the waiter returns `already_published` without generating a password.
+- Lock takeover after failure, Logto create-before-state recovery, unowned exact-email users, marker mismatch, recorded provider mismatch, pre-password binding conflict, post-password interruption, partial publication, concurrent reset, broken reset/ack links, and missing/incomplete batches are covered.
+- Logto management tests cover `customData`, `isSuspended`, and the official suspension PATCH endpoint.
+- Migration and repository tests cover the unique provider binding, dedicated advisory-lock lifecycle, DB-time attempt metadata, batch-state validation, exact identity binding, active-only public lookup contracts, and profile-store parity.
+
+## Verification
+
+- Focused Task 7, Task 6 Logto client, repository/profile visibility, and migration tests: passed.
+- All business-import and admin import route tests: passed.
+- Root `npm run typecheck`: passed.
+- `git diff --check`: passed with line-ending notices only.
+- Live PostgreSQL integration: not run because `DATABASE_URL` is unset. Applying migration `0015` and exercising lock takeover/publication against a real PostgreSQL instance remains an explicit deployment verification gate.

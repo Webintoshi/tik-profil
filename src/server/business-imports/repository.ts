@@ -106,7 +106,6 @@ export type ProvisioningClaim =
         sourceFacts: SourceFactInput[];
         accountIssuance?: { loginEmail: string; providerUserId: string | null };
     }
-    | { outcome: "in_progress"; candidateId: string }
     | { outcome: "already_published"; candidateId: string; businessId: string; businessName: string };
 
 export interface EnsureOwnerIdentityInput {
@@ -124,6 +123,7 @@ export interface EnsureOwnerIdentityInput {
 }
 
 export interface CredentialAccount {
+    candidateId: string;
     businessId: string;
     businessName: string;
     loginEmail: string;
@@ -131,16 +131,29 @@ export interface CredentialAccount {
 }
 
 export interface BusinessProvisioningRepository {
+    withProvisioningLock<T>(candidateOrBusinessId: string, operation: () => Promise<T>): Promise<T>;
     listProvisioningCandidateIds(batchId: string): Promise<string[]>;
     claimCandidate(input: { batchId: string; candidateId: string; attemptId: string }): Promise<ProvisioningClaim>;
     reserveAlias(candidateId: string, alias: string): Promise<boolean>;
     recordStep(input: ProvisioningStepUpdate & { attemptId: string }): Promise<void>;
-    ensureOwnerIdentity(input: EnsureOwnerIdentityInput): Promise<{ appUserId: string; membershipId: string }>;
+    bindOwnerIdentity(input: EnsureOwnerIdentityInput): Promise<{ appUserId: string; membershipId: string }>;
+    recordCredentialIssued(input: { candidateId: string; attemptId: string; providerUserId: string }): Promise<void>;
     markPublished(input: { candidateId: string; attemptId: string; businessId: string }): Promise<void>;
     markFailed(input: { candidateId: string; attemptId: string; failureCode: string }): Promise<void>;
     getCredentialAccount(businessId: string): Promise<CredentialAccount | null>;
+    verifyCredentialBinding(account: CredentialAccount): Promise<void>;
     recordCredentialReset(businessId: string, providerUserId: string): Promise<void>;
+    markCredentialDelivered(businessId: string, providerUserId: string): Promise<void>;
+    markCredentialFailed(businessId: string, providerUserId: string, failureCode: string): Promise<void>;
 }
+
+export interface ProvisioningLockClient {
+    query(text: string, values?: readonly unknown[]): Promise<QueryResult>;
+    release(error?: Error): void;
+}
+
+export type ProvisioningLockConnector = () => Promise<ProvisioningLockClient>;
+export type ProvisioningLockRunner = <T>(candidateOrBusinessId: string, operation: () => Promise<T>) => Promise<T>;
 
 type Row = Record<string, unknown>;
 
@@ -490,6 +503,46 @@ const defaultTransactionRunner: QueryTransactionRunner = async (operation) => {
     return withTransaction(({ query }) => operation(query as QueryExecutor));
 };
 
+const defaultProvisioningLockConnector: ProvisioningLockConnector = async () => {
+    const { getPostgresPool } = await import("../db/postgres.ts");
+    const client = await getPostgresPool().connect();
+    return {
+        query: (text, values) => client.query(text, values ? [...values] : undefined) as Promise<QueryResult>,
+        release: (error) => client.release(error),
+    };
+};
+
+export function createProvisioningLockRunner(
+    connect: ProvisioningLockConnector = defaultProvisioningLockConnector,
+): ProvisioningLockRunner {
+    return async function withProvisioningLock(candidateOrBusinessId, operation) {
+        const client = await connect();
+        const lockKey = `business-import-provisioning:${candidateOrBusinessId}`;
+        let locked = false;
+        let operationError: unknown;
+        try {
+            await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [lockKey]);
+            locked = true;
+            return await operation();
+        } catch (error) {
+            operationError = error;
+            throw error;
+        } finally {
+            if (locked) {
+                try {
+                    await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [lockKey]);
+                    client.release();
+                } catch (unlockError) {
+                    client.release(unlockError instanceof Error ? unlockError : new Error("provisioning_unlock_failed"));
+                    if (operationError === undefined) throw unlockError;
+                }
+            } else {
+                client.release(operationError instanceof Error ? operationError : undefined);
+            }
+        }
+    };
+}
+
 const REQUIRED_PROVISIONING_FACTS = ["name", "city", "district", "category"] as const;
 const CONTACT_PROVISIONING_FACTS = new Set(["address", "business_address", "phone", "whatsapp", "website", "website_uri"]);
 
@@ -510,18 +563,26 @@ function provisioningStep(state: Record<string, unknown>, step: string): Record<
 }
 
 function assertAttempt(candidate: ImportCandidate, attemptId: string): void {
-    const lease = provisioningStep(candidate.provisioningState, "lease");
-    if (candidate.candidateStatus !== "provisioning" || lease.attemptId !== attemptId || lease.status !== "active") {
-        throw new Error("provisioning_lease_lost");
+    const attempt = provisioningStep(candidate.provisioningState, "provisioning_attempt");
+    if (candidate.candidateStatus !== "provisioning" || attempt.attemptId !== attemptId || attempt.status !== "active") {
+        throw new Error("provisioning_attempt_lost");
     }
 }
 
 export function createBusinessProvisioningRepository(
     execute: QueryExecutor = defaultExecutor,
     runInTransaction: QueryTransactionRunner = defaultTransactionRunner,
+    withProvisioningLock: ProvisioningLockRunner = createProvisioningLockRunner(),
 ): BusinessProvisioningRepository {
     return {
+        withProvisioningLock,
         async listProvisioningCandidateIds(batchId) {
+            const batch = await execute(
+                "SELECT import_status FROM business_import_batches WHERE id = $1 LIMIT 1",
+                [batchId],
+            );
+            if (!batch.rows[0]) throw new ImportError("import_not_found");
+            if (asString(batch.rows[0].import_status) !== "completed") throw new ImportError("invalid_state");
             const result = await execute(
                 `SELECT candidates.id
                  FROM business_import_batch_candidates batch_candidates
@@ -542,6 +603,14 @@ export function createBusinessProvisioningRepository(
 
         async claimCandidate(input) {
             return runInTransaction(async (transactionExecute) => {
+                const batch = await transactionExecute(
+                    `SELECT import_status
+                     FROM business_import_batches
+                     WHERE id = $1
+                     FOR SHARE`,
+                    [input.batchId],
+                );
+                if (!batch.rows[0]) throw new ImportError("import_not_found");
                 const locked = await transactionExecute(
                     `SELECT candidates.*
                      FROM business_import_batch_candidates batch_candidates
@@ -552,6 +621,7 @@ export function createBusinessProvisioningRepository(
                     [input.batchId, input.candidateId],
                 );
                 const candidate = mapCandidate(requireRow(locked, "import candidate"));
+                if (asString(batch.rows[0].import_status) !== "completed") throw new ImportError("invalid_state");
                 const profile = provisioningStep(candidate.provisioningState, "profile_identity");
                 if (candidate.candidateStatus === "published") {
                     return {
@@ -560,17 +630,6 @@ export function createBusinessProvisioningRepository(
                         businessId: asString(profile.businessId || candidate.matchedBusinessId),
                         businessName: asString(profile.businessName),
                     };
-                }
-
-                const lease = provisioningStep(candidate.provisioningState, "lease");
-                const leaseExpiresAt = typeof lease.expiresAt === "string" ? Date.parse(lease.expiresAt) : Number.NaN;
-                if (
-                    candidate.candidateStatus === "provisioning"
-                    && lease.status === "active"
-                    && Number.isFinite(leaseExpiresAt)
-                    && leaseExpiresAt > Date.now()
-                ) {
-                    return { outcome: "in_progress" as const, candidateId: candidate.id };
                 }
 
                 const eligibility = provisioningStep(candidate.provisioningState, "eligibility");
@@ -604,22 +663,21 @@ export function createBusinessProvisioningRepository(
                 );
                 const issuance = issuanceResult.rows[0];
 
-                const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
                 const updated = await transactionExecute(
                     `UPDATE business_import_candidates
                      SET candidate_status = 'provisioning',
                          failure_code = NULL,
                          provisioning_state = COALESCE(provisioning_state, '{}'::jsonb)
                            || jsonb_build_object('eligibility', jsonb_build_object('approved', true))
-                           || jsonb_build_object('lease', jsonb_build_object(
+                           || jsonb_build_object('provisioning_attempt', jsonb_build_object(
                                 'attemptId', $2::text,
                                 'status', 'active',
-                                'expiresAt', $3::text
+                                'startedAt', to_jsonb(now())
                               )),
                          updated_at = now()
                      WHERE id = $1
                      RETURNING *`,
-                    [candidate.id, input.attemptId, expiresAt],
+                    [candidate.id, input.attemptId],
                 );
                 const claimed = mapCandidate(requireRow(updated, "import candidate"));
                 return {
@@ -674,15 +732,15 @@ export function createBusinessProvisioningRepository(
                      updated_at = now()
                  WHERE id = $1
                    AND candidate_status = 'provisioning'
-                   AND provisioning_state->'lease'->>'attemptId' = $2
-                   AND provisioning_state->'lease'->>'status' = 'active'
+                   AND provisioning_state->'provisioning_attempt'->>'attemptId' = $2
+                   AND provisioning_state->'provisioning_attempt'->>'status' = 'active'
                  RETURNING id`,
                 [input.candidateId, input.attemptId, input.step, JSON.stringify(input.value)],
             );
-            if (!result.rows[0]) throw new Error("provisioning_lease_lost");
+            if (!result.rows[0]) throw new Error("provisioning_attempt_lost");
         },
 
-        async ensureOwnerIdentity(input) {
+        async bindOwnerIdentity(input) {
             return runInTransaction(async (transactionExecute) => {
                 const locked = await transactionExecute(
                     `SELECT * FROM business_import_candidates WHERE id = $1 FOR UPDATE`,
@@ -690,13 +748,18 @@ export function createBusinessProvisioningRepository(
                 );
                 const candidate = mapCandidate(requireRow(locked, "import candidate"));
                 assertAttempt(candidate, input.attemptId);
+                const recordedLogtoUser = provisioningStep(candidate.provisioningState, "logto_user");
+                if (
+                    recordedLogtoUser.providerUserId !== input.providerUserId
+                    || recordedLogtoUser.loginEmail !== input.loginEmail
+                ) throw new Error("provider_identity_conflict");
 
                 const issuanceResult = await transactionExecute(
                     `SELECT * FROM business_account_issuances WHERE candidate_id = $1 FOR UPDATE`,
                     [input.candidateId],
                 );
                 const issuance = requireRow(issuanceResult, "account issuance");
-                if (asString(issuance.login_alias).toLowerCase() !== input.loginEmail.toLowerCase()) {
+                if (asString(issuance.login_alias) !== input.loginEmail) {
                     throw new Error("provider_identity_conflict");
                 }
                 const issuanceProviderId = asNullableString(issuance.provider_user_id);
@@ -711,23 +774,40 @@ export function createBusinessProvisioningRepository(
                     [input.loginEmail, input.businessName],
                 );
                 const userResult = await transactionExecute(
-                    `SELECT id FROM app_users WHERE lower(email) = lower($1) LIMIT 2 FOR UPDATE`,
+                    `SELECT id, email FROM app_users WHERE lower(email) = lower($1) LIMIT 2 FOR UPDATE`,
                     [input.loginEmail],
                 );
-                if (userResult.rows.length !== 1) throw new Error("provider_identity_conflict");
+                if (
+                    userResult.rows.length !== 1
+                    || asString(userResult.rows[0]?.email) !== input.loginEmail
+                ) throw new Error("provider_identity_conflict");
                 const appUserId = asString(userResult.rows[0]?.id);
 
-                const existingLink = await transactionExecute(
-                    `SELECT id, app_user_id, provider_user_id
+                const providerLink = await transactionExecute(
+                    `SELECT id, app_user_id, provider_user_id, provider_email
                      FROM auth_provider_links
                      WHERE provider = 'logto' AND provider_user_id = $1
                      LIMIT 2 FOR UPDATE`,
                     [input.providerUserId],
                 );
-                if (existingLink.rows.length > 1 || (existingLink.rows[0] && asString(existingLink.rows[0].app_user_id) !== appUserId)) {
+                const userLink = await transactionExecute(
+                    `SELECT id, app_user_id, provider_user_id, provider_email
+                     FROM auth_provider_links
+                     WHERE provider = 'logto' AND app_user_id = $1
+                     LIMIT 2 FOR UPDATE`,
+                    [appUserId],
+                );
+                if (
+                    providerLink.rows.length > 1
+                    || userLink.rows.length > 1
+                    || (providerLink.rows[0] && asString(providerLink.rows[0].app_user_id) !== appUserId)
+                    || (userLink.rows[0] && asString(userLink.rows[0].provider_user_id) !== input.providerUserId)
+                    || (providerLink.rows[0] && asString(providerLink.rows[0].provider_email) !== input.loginEmail)
+                    || (userLink.rows[0] && asString(userLink.rows[0].provider_email) !== input.loginEmail)
+                ) {
                     throw new Error("provider_identity_conflict");
                 }
-                if (!existingLink.rows[0]) {
+                if (!providerLink.rows[0] && !userLink.rows[0]) {
                     await transactionExecute(
                         `INSERT INTO auth_provider_links (
                             app_user_id, provider, provider_user_id, logto_user_id, provider_email, provider_metadata
@@ -761,17 +841,20 @@ export function createBusinessProvisioningRepository(
                 );
                 const membershipId = asString(requireRow(membershipResult, "business membership").id);
 
-                await transactionExecute(
+                const boundIssuance = await transactionExecute(
                     `UPDATE business_account_issuances
                      SET business_id = $2,
                          app_user_id = $3,
                          provider_user_id = $4,
-                         issuance_status = 'issued',
-                         issued_at = COALESCE(issued_at, now()),
+                         issuance_status = 'reserved',
                          updated_at = now()
-                     WHERE candidate_id = $1`,
-                    [input.candidateId, input.businessId, appUserId, input.providerUserId],
+                     WHERE candidate_id = $1
+                       AND login_alias = $5
+                       AND (provider_user_id IS NULL OR provider_user_id = $4)
+                     RETURNING id`,
+                    [input.candidateId, input.businessId, appUserId, input.providerUserId, input.loginEmail],
                 );
+                if (boundIssuance.rows.length !== 1) throw new Error("provider_identity_conflict");
                 await transactionExecute(
                     `INSERT INTO business_discovery_profiles (
                         business_id, import_batch_id, source_type, source_ref, source_confidence,
@@ -808,6 +891,26 @@ export function createBusinessProvisioningRepository(
             });
         },
 
+        async recordCredentialIssued(input) {
+            const result = await execute(
+                `UPDATE business_account_issuances issuance
+                 SET issuance_status = 'issued',
+                     issued_at = now(),
+                     delivered_at = NULL,
+                     updated_at = now()
+                 FROM business_import_candidates candidate
+                 WHERE issuance.candidate_id = $1
+                   AND issuance.provider_user_id = $3
+                   AND candidate.id = issuance.candidate_id
+                   AND candidate.candidate_status = 'provisioning'
+                   AND candidate.provisioning_state->'provisioning_attempt'->>'attemptId' = $2
+                   AND candidate.provisioning_state->'provisioning_attempt'->>'status' = 'active'
+                 RETURNING issuance.id`,
+                [input.candidateId, input.attemptId, input.providerUserId],
+            );
+            if (result.rows.length !== 1) throw new Error("provisioning_attempt_lost");
+        },
+
         async markPublished(input) {
             const result = await execute(
                 `UPDATE business_import_candidates
@@ -816,37 +919,49 @@ export function createBusinessProvisioningRepository(
                      failure_code = NULL,
                      provisioning_state = provisioning_state
                        || jsonb_build_object('publication', jsonb_build_object('completed', true, 'businessId', $3::text))
-                       || jsonb_build_object('lease', jsonb_build_object('attemptId', $2::text, 'status', 'completed')),
+                       || jsonb_build_object('provisioning_attempt', jsonb_build_object(
+                            'attemptId', $2::text, 'status', 'completed', 'completedAt', to_jsonb(now())
+                          )),
                      updated_at = now()
                  WHERE id = $1
                    AND candidate_status = 'provisioning'
-                   AND provisioning_state->'lease'->>'attemptId' = $2
-                   AND provisioning_state->'lease'->>'status' = 'active'
+                   AND provisioning_state->'provisioning_attempt'->>'attemptId' = $2
+                   AND provisioning_state->'provisioning_attempt'->>'status' = 'active'
                  RETURNING id`,
                 [input.candidateId, input.attemptId, input.businessId],
             );
-            if (!result.rows[0]) throw new Error("provisioning_lease_lost");
+            if (!result.rows[0]) throw new Error("provisioning_attempt_lost");
         },
 
         async markFailed(input) {
-            await execute(
-                `UPDATE business_import_candidates
-                 SET candidate_status = 'failed',
-                     failure_code = 'provisioning_failed',
-                     provisioning_state = provisioning_state
-                       || jsonb_build_object('last_failure', jsonb_build_object('code', $3::text))
-                       || jsonb_build_object('lease', jsonb_build_object('attemptId', $2::text, 'status', 'failed')),
-                     updated_at = now()
-                 WHERE id = $1
-                   AND candidate_status = 'provisioning'
-                   AND provisioning_state->'lease'->>'attemptId' = $2`,
-                [input.candidateId, input.attemptId, input.failureCode],
-            );
+            await runInTransaction(async (transactionExecute) => {
+                await transactionExecute(
+                    `UPDATE business_import_candidates
+                     SET candidate_status = 'failed',
+                         failure_code = 'provisioning_failed',
+                         provisioning_state = provisioning_state
+                           || jsonb_build_object('last_failure', jsonb_build_object('code', $3::text, 'at', to_jsonb(now())))
+                           || jsonb_build_object('provisioning_attempt', jsonb_build_object(
+                                'attemptId', $2::text, 'status', 'failed', 'failedAt', to_jsonb(now())
+                              )),
+                         updated_at = now()
+                     WHERE id = $1
+                       AND candidate_status = 'provisioning'
+                       AND provisioning_state->'provisioning_attempt'->>'attemptId' = $2`,
+                    [input.candidateId, input.attemptId, input.failureCode],
+                );
+                await transactionExecute(
+                    `UPDATE business_account_issuances
+                     SET issuance_status = 'failed', updated_at = now()
+                     WHERE candidate_id = $1 AND issuance_status <> 'delivered'`,
+                    [input.candidateId],
+                );
+            });
         },
 
         async getCredentialAccount(businessId) {
             const result = await execute(
-                `SELECT issuance.business_id, business.name AS business_name,
+                `SELECT issuance.candidate_id, issuance.business_id, business.name AS business_name,
                         issuance.login_alias, issuance.provider_user_id
                  FROM business_account_issuances issuance
                  INNER JOIN businesses business ON business.id = issuance.business_id
@@ -859,6 +974,7 @@ export function createBusinessProvisioningRepository(
             if (result.rows.length !== 1) return null;
             const row = result.rows[0]!;
             return {
+                candidateId: asString(row.candidate_id),
                 businessId: asString(row.business_id),
                 businessName: asString(row.business_name),
                 loginEmail: asString(row.login_alias),
@@ -866,10 +982,38 @@ export function createBusinessProvisioningRepository(
             };
         },
 
+        async verifyCredentialBinding(account) {
+            const result = await execute(
+                `SELECT issuance.candidate_id, issuance.business_id, issuance.login_alias,
+                        issuance.provider_user_id, app_user.email AS app_user_email,
+                        provider_link.provider_user_id AS linked_provider_user_id,
+                        provider_link.provider_email AS linked_provider_email
+                 FROM business_account_issuances issuance
+                 INNER JOIN business_import_candidates candidate ON candidate.id = issuance.candidate_id
+                 INNER JOIN app_users app_user ON app_user.id = issuance.app_user_id
+                 INNER JOIN auth_provider_links provider_link
+                    ON provider_link.app_user_id = app_user.id AND provider_link.provider = issuance.provider
+                 WHERE issuance.candidate_id = $1
+                   AND issuance.business_id = $2
+                   AND issuance.provider = 'logto'
+                 LIMIT 2`,
+                [account.candidateId, account.businessId],
+            );
+            const row = result.rows[0];
+            if (
+                result.rows.length !== 1
+                || asString(row?.login_alias) !== account.loginEmail
+                || asString(row?.app_user_email) !== account.loginEmail
+                || asString(row?.provider_user_id) !== account.providerUserId
+                || asString(row?.linked_provider_user_id) !== account.providerUserId
+                || asString(row?.linked_provider_email) !== account.loginEmail
+            ) throw new Error("provider_identity_conflict");
+        },
+
         async recordCredentialReset(businessId, providerUserId) {
             const result = await execute(
                 `UPDATE business_account_issuances
-                 SET reset_at = now(), updated_at = now()
+                 SET issuance_status = 'issued', reset_at = now(), delivered_at = NULL, updated_at = now()
                  WHERE business_id = $1
                    AND provider = 'logto'
                    AND provider_user_id = $2
@@ -877,6 +1021,40 @@ export function createBusinessProvisioningRepository(
                 [businessId, providerUserId],
             );
             if (!result.rows[0]) throw new Error("credential_account_not_found");
+        },
+
+        async markCredentialDelivered(businessId, providerUserId) {
+            const result = await execute(
+                `UPDATE business_account_issuances
+                 SET issuance_status = 'delivered', delivered_at = now(), updated_at = now()
+                 WHERE business_id = $1 AND provider = 'logto' AND provider_user_id = $2
+                 RETURNING id`,
+                [businessId, providerUserId],
+            );
+            if (result.rows.length !== 1) throw new Error("credential_account_not_found");
+        },
+
+        async markCredentialFailed(businessId, providerUserId, failureCode) {
+            await runInTransaction(async (transactionExecute) => {
+                const issuance = await transactionExecute(
+                    `UPDATE business_account_issuances
+                     SET issuance_status = 'failed', updated_at = now()
+                     WHERE business_id = $1 AND provider = 'logto' AND provider_user_id = $2
+                     RETURNING candidate_id`,
+                    [businessId, providerUserId],
+                );
+                if (!issuance.rows[0]) return;
+                await transactionExecute(
+                    `UPDATE business_import_candidates
+                     SET failure_code = 'provisioning_failed',
+                         provisioning_state = provisioning_state || jsonb_build_object(
+                            'credential_delivery', jsonb_build_object('status', 'failed', 'code', $2::text, 'at', to_jsonb(now()))
+                         ),
+                         updated_at = now()
+                     WHERE id = $1`,
+                    [asString(issuance.rows[0].candidate_id), failureCode],
+                );
+            });
         },
     };
 }
