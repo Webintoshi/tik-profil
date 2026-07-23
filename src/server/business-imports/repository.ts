@@ -10,6 +10,10 @@ export interface QueryResult<Row extends Record<string, unknown> = Record<string
 export type QueryExecutor = (text: string, values?: readonly unknown[]) => Promise<QueryResult>;
 export type QueryTransactionRunner = <T>(operation: (execute: QueryExecutor) => Promise<T>) => Promise<T>;
 
+export interface BusinessImportRepositoryOptions {
+    now?: () => Date;
+}
+
 export interface StartImportInput {
     city: "Ordu";
     districts: readonly string[];
@@ -88,6 +92,8 @@ const CANDIDATE_COLUMNS = `
     temporary_longitude, temporary_location_expires_at, reviewed_by_user_id, reviewed_at,
     failure_code, provisioning_state, created_at, updated_at
 `;
+const MAX_TEMPORARY_LOCATION_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
+const TEMPORARY_LOCATION_ERROR = "temporary location must include finite coordinates and a future expiry no more than 30 days away";
 
 function asString(value: unknown): string {
     return typeof value === "string" ? value : String(value ?? "");
@@ -165,10 +171,41 @@ function requireRow(result: QueryResult, entity: string): Row {
     return row;
 }
 
+function validateTemporaryLocation(
+    location: DiscoveredPlaceRef["temporaryLocation"] | undefined,
+    now: Date,
+): { latitude: number | null; longitude: number | null; expiresAt: string | null } {
+    if (!location) return { latitude: null, longitude: null, expiresAt: null };
+
+    const hasLatitude = location.latitude !== undefined && location.latitude !== null;
+    const hasLongitude = location.longitude !== undefined && location.longitude !== null;
+    const hasExpiry = location.expiresAt !== undefined && location.expiresAt !== null;
+    if (!hasLatitude && !hasLongitude && !hasExpiry) {
+        return { latitude: null, longitude: null, expiresAt: null };
+    }
+    if (!hasLatitude || !hasLongitude || !hasExpiry
+        || !Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)
+        || location.latitude < -90 || location.latitude > 90
+        || location.longitude < -180 || location.longitude > 180
+        || !(location.expiresAt instanceof Date)) {
+        throw new RangeError(TEMPORARY_LOCATION_ERROR);
+    }
+
+    const nowTime = now.getTime();
+    const expiryTime = location.expiresAt.getTime();
+    if (!Number.isFinite(nowTime) || !Number.isFinite(expiryTime)
+        || expiryTime <= nowTime || expiryTime > nowTime + MAX_TEMPORARY_LOCATION_TTL_MS) {
+        throw new RangeError(TEMPORARY_LOCATION_ERROR);
+    }
+    return { latitude: location.latitude, longitude: location.longitude, expiresAt: location.expiresAt.toISOString() };
+}
+
 export function createBusinessImportRepository(
     execute: QueryExecutor = defaultExecutor,
     runInTransaction: QueryTransactionRunner = defaultTransactionRunner,
+    options: BusinessImportRepositoryOptions = {},
 ): BusinessImportRepository {
+    const now = options.now ?? (() => new Date());
     return {
         async createOrGetBatch(input) {
             return runInTransaction(async (transactionExecute) => {
@@ -192,7 +229,7 @@ export function createBusinessImportRepository(
         },
 
         async upsertDiscoveredPlace(input) {
-            const location = input.temporaryLocation;
+            const location = validateTemporaryLocation(input.temporaryLocation, now());
             const result = await execute(
                 `INSERT INTO business_import_candidates (
                     first_seen_batch_id, provider, provider_place_id, sector_key, city, district_scope,
@@ -207,7 +244,7 @@ export function createBusinessImportRepository(
                 RETURNING ${CANDIDATE_COLUMNS}`,
                 [
                     input.batchId, input.provider, input.placeId, "petshop", "Ordu", input.districtScope,
-                    location?.latitude ?? null, location?.longitude ?? null, location?.expiresAt.toISOString() ?? null,
+                    location.latitude, location.longitude, location.expiresAt,
                 ],
             );
             const candidate = mapCandidate(requireRow(result, "import candidate"));
@@ -288,21 +325,28 @@ export function createBusinessImportRepository(
         },
 
         async reserveAlias(candidateId, alias) {
-            const inserted = await execute(
-                `INSERT INTO business_account_issuances (candidate_id, login_alias)
-                 VALUES ($1, $2)
-                 ON CONFLICT DO NOTHING
-                 RETURNING candidate_id`,
-                [candidateId, alias],
-            );
-            if (inserted.rows[0]) return true;
-            const existing = await execute(
-                `SELECT candidate_id
-                 FROM business_account_issuances
-                 WHERE candidate_id = $1 AND login_alias = $2`,
-                [candidateId, alias],
-            );
-            return Boolean(existing.rows[0]);
+            return runInTransaction(async (transactionExecute) => {
+                const candidate = await transactionExecute(
+                    "SELECT id FROM business_import_candidates WHERE id = $1 FOR UPDATE",
+                    [candidateId],
+                );
+                requireRow(candidate, "import candidate");
+                const inserted = await transactionExecute(
+                    `INSERT INTO business_account_issuances (candidate_id, login_alias)
+                     VALUES ($1, $2)
+                     ON CONFLICT DO NOTHING
+                     RETURNING candidate_id`,
+                    [candidateId, alias],
+                );
+                if (inserted.rows[0]) return true;
+                const existing = await transactionExecute(
+                    `SELECT candidate_id
+                     FROM business_account_issuances
+                     WHERE candidate_id = $1 AND login_alias = $2`,
+                    [candidateId, alias],
+                );
+                return Boolean(existing.rows[0]);
+            });
         },
 
         async recordProvisioningStep(input) {

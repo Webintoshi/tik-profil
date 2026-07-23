@@ -59,6 +59,7 @@ test("phone and domain matches use a stable priority and business ID tie break",
 
 test("conflicting verified weak signals require manual review", () => {
     const decision = decideDuplicate({
+        verifiedDistrict: "Alt\u0131nordu",
         sourceFacts: [
             { fieldKey: "name", fieldValue: "Pati Dukkani" },
             { fieldKey: "address", fieldValue: "Ataturk Caddesi 1, Ordu" },
@@ -66,10 +67,12 @@ test("conflicting verified weak signals require manual review", () => {
     }, [
         {
             businessId: "name-match",
+            verifiedDistrict: "Alt\u0131nordu",
             sourceFacts: [{ fieldKey: "name", fieldValue: "Pati Dukkani" }],
         },
         {
             businessId: "address-match",
+            verifiedDistrict: "Alt\u0131nordu",
             sourceFacts: [{ fieldKey: "address", fieldValue: "Ataturk Caddesi 1 Ordu" }],
         },
     ]);
@@ -78,6 +81,25 @@ test("conflicting verified weak signals require manual review", () => {
         kind: "manual_review",
         reason: "conflicting_name_address_matches",
     });
+});
+
+test("weak name and address facts do not dedupe businesses in different verified districts", () => {
+    const decision = decideDuplicate({
+        verifiedDistrict: "Alt\u0131nordu",
+        sourceFacts: [
+            { fieldKey: "name", fieldValue: "Pati Dukkani" },
+            { fieldKey: "address", fieldValue: "Ataturk Caddesi 1" },
+        ],
+    }, [{
+        businessId: "fatsa-pati",
+        verifiedDistrict: "Fatsa",
+        sourceFacts: [
+            { fieldKey: "name", fieldValue: "Pati Dukkani" },
+            { fieldKey: "address", fieldValue: "Ataturk Caddesi 1" },
+        ],
+    }]);
+
+    assert.deepEqual(decision, { kind: "new" });
 });
 
 test("does not use unverified live provider display fields", () => {

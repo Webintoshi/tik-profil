@@ -7,12 +7,14 @@ export interface VerifiedSourceFact {
 
 export interface DedupeCandidate {
     providerPlaceId?: string;
+    verifiedDistrict?: string;
     sourceFacts: readonly VerifiedSourceFact[];
 }
 
 export interface ExistingBusinessForDedupe {
     businessId: string;
     providerPlaceId?: string;
+    verifiedDistrict?: string;
     sourceFacts: readonly VerifiedSourceFact[];
 }
 
@@ -42,6 +44,21 @@ function matchingBusinessIds(
     if (candidateValues.size === 0) return [];
     return existing
         .filter((business) => intersects(candidateValues, factValues(business.sourceFacts, acceptedKeys, normalize)))
+        .map((business) => business.businessId)
+        .sort();
+}
+
+function matchingWeakBusinessIds(
+    candidateDistrict: string | undefined,
+    candidateValues: Set<string>,
+    existing: readonly ExistingBusinessForDedupe[],
+    acceptedKeys: readonly string[],
+): string[] {
+    const normalizedDistrict = normalizeTurkishText(candidateDistrict ?? "");
+    if (!normalizedDistrict || candidateValues.size === 0) return [];
+    return existing
+        .filter((business) => normalizeTurkishText(business.verifiedDistrict ?? "") === normalizedDistrict)
+        .filter((business) => intersects(candidateValues, factValues(business.sourceFacts, acceptedKeys, normalizeTurkishText)))
         .map((business) => business.businessId)
         .sort();
 }
@@ -82,17 +99,17 @@ export function decideDuplicate(
     if (phoneBusinessId) return { kind: "duplicate", businessId: phoneBusinessId, reason: "phone" };
     if (domainBusinessId) return { kind: "duplicate", businessId: domainBusinessId, reason: "domain" };
 
-    const nameMatches = matchingBusinessIds(
+    const nameMatches = matchingWeakBusinessIds(
+        candidate.verifiedDistrict,
         factValues(candidate.sourceFacts, ["name", "business_name"], normalizeTurkishText),
         existingBusinesses,
         ["name", "business_name"],
-        normalizeTurkishText,
     );
-    const addressMatches = matchingBusinessIds(
+    const addressMatches = matchingWeakBusinessIds(
+        candidate.verifiedDistrict,
         factValues(candidate.sourceFacts, ["address", "business_address"], normalizeTurkishText),
         existingBusinesses,
         ["address", "business_address"],
-        normalizeTurkishText,
     );
     const nameBusinessId = firstBusinessId(nameMatches);
     const addressBusinessId = firstBusinessId(addressMatches);

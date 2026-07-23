@@ -71,6 +71,40 @@ test("upserts a provider candidate then idempotently links it to the batch with 
     assert.deepEqual(calls[1]?.values, ["batch-1", "candidate-1"]);
 });
 
+test("rejects incomplete, invalid, expired, and overlong temporary locations before SQL", async () => {
+    const calls: QueryCall[] = [];
+    const execute: QueryExecutor = async (text, values) => {
+        calls.push({ text, values });
+        return { rowCount: 1, rows: [candidateRow()] };
+    };
+    const now = new Date("2026-07-23T12:00:00.000Z");
+    const repository = createBusinessImportRepository(
+        execute,
+        async (operation) => operation(execute),
+        { now: () => now },
+    );
+    const input = {
+        batchId: "batch-1",
+        provider: "google_places" as const,
+        placeId: "place-1",
+        districtScope: "Alt\u0131nordu",
+    };
+
+    for (const temporaryLocation of [
+        { latitude: 40.98, expiresAt: new Date("2026-07-24T12:00:00.000Z") },
+        { latitude: Infinity, longitude: 37.88, expiresAt: new Date("2026-07-24T12:00:00.000Z") },
+        { latitude: 40.98, longitude: 37.88, expiresAt: new Date("invalid") },
+        { latitude: 40.98, longitude: 37.88, expiresAt: now },
+        { latitude: 40.98, longitude: 37.88, expiresAt: new Date("2026-08-22T12:00:00.001Z") },
+    ]) {
+        await assert.rejects(
+            repository.upsertDiscoveredPlace({ ...input, temporaryLocation } as never),
+            (error: unknown) => error instanceof RangeError && error.message === "temporary location must include finite coordinates and a future expiry no more than 30 days away",
+        );
+    }
+    assert.deepEqual(calls, []);
+});
+
 test("replaces source facts transactionally using parameterized writes", async () => {
     const calls: QueryCall[] = [];
     const execute: QueryExecutor = async (text, values) => {
@@ -119,7 +153,7 @@ test("locks approval and provisioning transitions before updating candidate stat
     assert.deepEqual(calls[1]?.values, ["candidate-1", "approved", "admin-1", null, null, null]);
 });
 
-test("reserves an alias idempotently and records provisioning state under a lock", async () => {
+test("locks the candidate before reserving an alias and recording provisioning state", async () => {
     const calls: QueryCall[] = [];
     const execute: QueryExecutor = async (text, values) => {
         calls.push({ text, values });
@@ -136,9 +170,11 @@ test("reserves an alias idempotently and records provisioning state under a lock
         value: { status: "created", providerUserId: "logto-1" },
     });
 
-    assert.match(calls[0]?.text ?? "", /ON CONFLICT DO NOTHING/i);
-    assert.deepEqual(calls[0]?.values, ["candidate-1", "pati@tikprofil.com"]);
-    assert.match(calls[1]?.text ?? "", /FOR UPDATE/i);
-    assert.match(calls[2]?.text ?? "", /provisioning_state/i);
-    assert.deepEqual(calls[2]?.values, ["candidate-1", "logto_user", JSON.stringify({ status: "created", providerUserId: "logto-1" })]);
+    assert.match(calls[0]?.text ?? "", /SELECT id FROM business_import_candidates/i);
+    assert.match(calls[0]?.text ?? "", /FOR UPDATE/i);
+    assert.match(calls[1]?.text ?? "", /ON CONFLICT DO NOTHING/i);
+    assert.deepEqual(calls[1]?.values, ["candidate-1", "pati@tikprofil.com"]);
+    assert.match(calls[2]?.text ?? "", /FOR UPDATE/i);
+    assert.match(calls[3]?.text ?? "", /provisioning_state/i);
+    assert.deepEqual(calls[3]?.values, ["candidate-1", "logto_user", JSON.stringify({ status: "created", providerUserId: "logto-1" })]);
 });
