@@ -71,7 +71,8 @@ export interface BusinessImportRepository {
     createOrGetBatch(input: StartImportInput): Promise<ImportBatch>;
     upsertDiscoveredPlace(input: DiscoveredPlaceRef & { batchId: string }): Promise<ImportCandidate>;
     listCandidates(batchId: string): Promise<ImportCandidate[]>;
-    replaceSourceFacts(candidateId: string, facts: SourceFactInput[], actorId: string): Promise<void>;
+    getBatch(batchId: string): Promise<ImportBatch>;
+    replaceSourceFacts(candidateId: string, facts: SourceFactInput[], actorId?: string): Promise<void>;
     transitionCandidate(input: CandidateTransition): Promise<ImportCandidate>;
     reserveAlias(candidateId: string, alias: string): Promise<boolean>;
     recordProvisioningStep(input: ProvisioningStepUpdate): Promise<void>;
@@ -182,6 +183,14 @@ export function createBusinessImportRepository(
                 );
                 return mapBatch(requireRow(created, "import batch"));
             });
+        },
+
+        async getBatch(batchId) {
+            const result = await execute(
+                "SELECT * FROM business_import_batches WHERE id = $1 LIMIT 1",
+                [batchId],
+            );
+            return mapBatch(requireRow(result, "import batch"));
         },
 
         async upsertDiscoveredPlace(input) {
