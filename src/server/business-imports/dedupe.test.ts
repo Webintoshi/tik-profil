@@ -114,3 +114,28 @@ test("does not use unverified live provider display fields", () => {
 
     assert.deepEqual(decision, { kind: "new" });
 });
+
+test("distinct Google Place IDs remain separate branches even when contact facts are shared", () => {
+    const decision = decideDuplicate({
+        providerPlaceId: "branch-place-b",
+        verifiedDistrict: "Altınordu",
+        sourceFacts: [
+            { fieldKey: "name", fieldValue: "Klas Pet Shop" },
+            { fieldKey: "phone", fieldValue: "+90 452 222 11 00" },
+            { fieldKey: "website", fieldValue: "https://klaspet.example" },
+            { fieldKey: "address", fieldValue: "Bucak Mahallesi No:33" },
+        ],
+    }, [{
+        businessId: "branch-a",
+        providerPlaceId: "branch-place-a",
+        verifiedDistrict: "Altınordu",
+        sourceFacts: [
+            { fieldKey: "name", fieldValue: "Klas Pet Shop" },
+            { fieldKey: "phone", fieldValue: "+90 452 222 11 00" },
+            { fieldKey: "website", fieldValue: "https://klaspet.example" },
+            { fieldKey: "address", fieldValue: "Akyazı Mahallesi No:101" },
+        ],
+    }]);
+
+    assert.deepEqual(decision, { kind: "new" });
+});

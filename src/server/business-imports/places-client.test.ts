@@ -23,7 +23,13 @@ test("Places search uses the server key, minimum field mask, Turkish locale, and
     const fetch: PlacesFetch = async (input, init) => {
         request = new Request(input, init);
         return jsonResponse({
-            places: [{ id: "place-1", location: { latitude: 40.98, longitude: 37.88 } }],
+            places: [{
+                id: "place-1",
+                displayName: { text: "Ordu Pati" },
+                formattedAddress: "Akyazı, 52200 Altınordu/Ordu, Türkiye",
+                primaryType: "pet_store",
+                location: { latitude: 40.98, longitude: 37.88 },
+            }],
             nextPageToken: "next-page",
         });
     };
@@ -33,15 +39,29 @@ test("Places search uses the server key, minimum field mask, Turkish locale, and
 
     assert.equal(request?.url, "https://places.googleapis.com/v1/places:searchText");
     assert.equal(request?.headers.get("X-Goog-Api-Key"), "server-key");
-    assert.equal(request?.headers.get("X-Goog-FieldMask"), "places.id,places.location,nextPageToken");
+    assert.equal(request?.headers.get("X-Goog-FieldMask"), "places.id,places.displayName,places.formattedAddress,places.primaryType,places.location,nextPageToken");
     assert.deepEqual(await request?.json(), {
         textQuery: "petshop Altınordu Ordu",
         languageCode: "tr",
+        regionCode: "tr",
+        locationRestriction: {
+            rectangle: {
+                low: { latitude: 40.35, longitude: 36.7 },
+                high: { latitude: 41.25, longitude: 38.2 },
+            },
+        },
         pageToken: "page-1",
     });
     assert.equal(request?.headers.get("X-Goog-FieldMask")?.match(/photo|review|rating|openingHours/), null);
     assert.deepEqual(page, {
-        places: [{ placeId: "place-1", latitude: 40.98, longitude: 37.88 }],
+        places: [{
+            placeId: "place-1",
+            displayName: "Ordu Pati",
+            formattedAddress: "Akyazı, 52200 Altınordu/Ordu, Türkiye",
+            primaryType: "pet_store",
+            latitude: 40.98,
+            longitude: 37.88,
+        }],
         nextPageToken: "next-page",
     });
 });
@@ -64,6 +84,18 @@ test("Places search retries rate-limited responses with bounded jitter", async (
 
     assert.equal(calls, 2);
     assert.deepEqual(delays, [12]);
+});
+
+test("Places search treats Google's empty object response as an empty result page", async () => {
+    const client = createPlacesClient({
+        apiKey: "server-key",
+        fetch: async () => jsonResponse({}),
+    });
+
+    assert.deepEqual(
+        await client.searchText({ textQuery: "petshop Akkuş Ordu", pageToken: null }),
+        { places: [], nextPageToken: null },
+    );
 });
 
 test("retryable failures make the initial request plus three retries while non-retryable failures make one call", async () => {
@@ -183,7 +215,14 @@ test("Places getPlace projects live admin fields without a storage dependency", 
                 displayName: { text: "Pati Market" },
                 formattedAddress: "Altınordu, Ordu",
                 nationalPhoneNumber: "0452 000 00 00",
+                internationalPhoneNumber: "+90 452 000 00 00",
                 websiteUri: "https://example.com",
+                googleMapsUri: "https://maps.google.com/?cid=123",
+                rating: 4.6,
+                userRatingCount: 87,
+                regularOpeningHours: {
+                    weekdayDescriptions: ["Pazartesi: 09:00-19:00", "Salı: 09:00-19:00"],
+                },
                 location: { latitude: 40.98, longitude: 37.88 },
             });
         },
@@ -192,14 +231,19 @@ test("Places getPlace projects live admin fields without a storage dependency", 
     const place = await client.getPlace("place-1");
 
     assert.equal(request?.url, "https://places.googleapis.com/v1/places/place-1");
-    assert.equal(request?.headers.get("X-Goog-FieldMask"), "id,displayName,formattedAddress,nationalPhoneNumber,internationalPhoneNumber,websiteUri,location");
+    assert.equal(request?.headers.get("X-Goog-FieldMask"), "id,displayName,formattedAddress,nationalPhoneNumber,internationalPhoneNumber,websiteUri,googleMapsUri,location,rating,userRatingCount,regularOpeningHours");
     assert.deepEqual(place, {
         provider: "google_places",
         placeId: "place-1",
         displayName: "Pati Market",
         formattedAddress: "Altınordu, Ordu",
         nationalPhoneNumber: "0452 000 00 00",
+        internationalPhoneNumber: "+90 452 000 00 00",
         websiteUri: "https://example.com",
+        googleMapsUri: "https://maps.google.com/?cid=123",
+        rating: 4.6,
+        userRatingCount: 87,
+        weekdayDescriptions: ["Pazartesi: 09:00-19:00", "Salı: 09:00-19:00"],
         latitude: 40.98,
         longitude: 37.88,
     });

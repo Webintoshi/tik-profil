@@ -1,14 +1,23 @@
 import type { ProviderCandidate } from "./contracts.ts";
 
 const PLACES_API_BASE_URL = "https://places.googleapis.com/v1";
-const SEARCH_FIELD_MASK = "places.id,places.location,nextPageToken";
-const PLACE_FIELD_MASK = "id,displayName,formattedAddress,nationalPhoneNumber,internationalPhoneNumber,websiteUri,location";
+const SEARCH_FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.primaryType,places.location,nextPageToken";
+const PLACE_FIELD_MASK = "id,displayName,formattedAddress,nationalPhoneNumber,internationalPhoneNumber,websiteUri,googleMapsUri,location,rating,userRatingCount,regularOpeningHours";
 const MAX_RETRY_ATTEMPTS = 3;
+const ORDU_LOCATION_RESTRICTION = {
+    rectangle: {
+        low: { latitude: 40.35, longitude: 36.7 },
+        high: { latitude: 41.25, longitude: 38.2 },
+    },
+} as const;
 
 export type PlacesFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export interface PlacesSearchPlace {
     placeId: string;
+    displayName?: string;
+    formattedAddress?: string;
+    primaryType?: string;
     latitude?: number;
     longitude?: number;
 }
@@ -108,16 +117,25 @@ function parseLocation(value: unknown): { latitude: number; longitude: number } 
 }
 
 function parseSearchPage(value: unknown): PlacesSearchPage {
-    if (!isRecord(value) || !Array.isArray(value.places)) {
+    if (!isRecord(value) || (value.places !== undefined && !Array.isArray(value.places))) {
         throw new PlacesClientError("provider_unavailable");
     }
 
-    const places = value.places.map((place): PlacesSearchPlace => {
+    const places = (value.places ?? []).map((place): PlacesSearchPlace => {
         if (!isRecord(place) || typeof place.id !== "string" || !place.id.trim()) {
             throw new PlacesClientError("provider_unavailable");
         }
         const location = parseLocation(place.location);
-        return location ? { placeId: place.id, ...location } : { placeId: place.id };
+        const displayName = isRecord(place.displayName) ? optionalString(place.displayName.text) : undefined;
+        const formattedAddress = optionalString(place.formattedAddress);
+        const primaryType = optionalString(place.primaryType);
+        return {
+            placeId: place.id,
+            ...(displayName ? { displayName } : {}),
+            ...(formattedAddress ? { formattedAddress } : {}),
+            ...(primaryType ? { primaryType } : {}),
+            ...(location ?? {}),
+        };
     });
     const nextPageToken = typeof value.nextPageToken === "string" && value.nextPageToken.trim()
         ? value.nextPageToken
@@ -127,6 +145,18 @@ function parseSearchPage(value: unknown): PlacesSearchPage {
 
 function optionalString(value: unknown): string | undefined {
     return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function optionalFiniteNumber(value: unknown): number | undefined {
+    return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function parseWeekdayDescriptions(value: unknown): string[] | undefined {
+    if (!isRecord(value) || !Array.isArray(value.weekdayDescriptions)) return undefined;
+    const descriptions = value.weekdayDescriptions.filter(
+        (description): description is string => typeof description === "string" && Boolean(description.trim()),
+    );
+    return descriptions.length ? descriptions : undefined;
 }
 
 function parsePlace(value: unknown, requestedPlaceId: string): ProviderCandidate {
@@ -139,6 +169,10 @@ function parsePlace(value: unknown, requestedPlaceId: string): ProviderCandidate
     const nationalPhoneNumber = optionalString(value.nationalPhoneNumber);
     const internationalPhoneNumber = optionalString(value.internationalPhoneNumber);
     const websiteUri = optionalString(value.websiteUri);
+    const googleMapsUri = optionalString(value.googleMapsUri);
+    const rating = optionalFiniteNumber(value.rating);
+    const userRatingCount = optionalFiniteNumber(value.userRatingCount);
+    const weekdayDescriptions = parseWeekdayDescriptions(value.regularOpeningHours);
     const location = parseLocation(value.location);
     return {
         provider: "google_places",
@@ -148,6 +182,10 @@ function parsePlace(value: unknown, requestedPlaceId: string): ProviderCandidate
         ...(nationalPhoneNumber ? { nationalPhoneNumber } : {}),
         ...(internationalPhoneNumber ? { internationalPhoneNumber } : {}),
         ...(websiteUri ? { websiteUri } : {}),
+        ...(googleMapsUri ? { googleMapsUri } : {}),
+        ...(rating !== undefined ? { rating } : {}),
+        ...(userRatingCount !== undefined ? { userRatingCount } : {}),
+        ...(weekdayDescriptions ? { weekdayDescriptions } : {}),
         ...(location ?? {}),
     };
 }
@@ -182,7 +220,11 @@ export function createPlacesClient(options: CreatePlacesClientOptions): PlacesCl
                 });
 
                 if (response.ok) {
-                    return await response.json();
+                    const value = await response.json();
+                    if (controller.signal.aborted) {
+                        throw new PlacesClientError("provider_unavailable");
+                    }
+                    return value;
                 }
             } catch {
                 throw new PlacesClientError("provider_unavailable");
@@ -212,6 +254,8 @@ export function createPlacesClient(options: CreatePlacesClientOptions): PlacesCl
                 body: {
                     textQuery: input.textQuery,
                     languageCode: "tr",
+                    regionCode: "tr",
+                    locationRestriction: ORDU_LOCATION_RESTRICTION,
                     ...(input.pageToken ? { pageToken: input.pageToken } : {}),
                 },
             });

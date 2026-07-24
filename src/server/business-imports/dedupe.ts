@@ -81,15 +81,19 @@ export function decideDuplicate(
         if (businessId) return { kind: "duplicate", businessId, reason: "place_id" };
     }
 
+    const fallbackBusinesses = placeId
+        ? existingBusinesses.filter((business) => !business.providerPlaceId?.trim())
+        : existingBusinesses;
+
     const phoneMatches = matchingBusinessIds(
         factValues(candidate.sourceFacts, ["phone", "phone_number"], normalizePhone),
-        existingBusinesses,
+        fallbackBusinesses,
         ["phone", "phone_number"],
         normalizePhone,
     );
     const domainMatches = matchingBusinessIds(
         factValues(candidate.sourceFacts, ["domain", "website", "website_url"], normalizeDomain),
-        existingBusinesses,
+        fallbackBusinesses,
         ["domain", "website", "website_url"],
         normalizeDomain,
     );
@@ -102,13 +106,13 @@ export function decideDuplicate(
     const nameMatches = matchingWeakBusinessIds(
         candidate.verifiedDistrict,
         factValues(candidate.sourceFacts, ["name", "business_name"], normalizeTurkishText),
-        existingBusinesses,
+        fallbackBusinesses,
         ["name", "business_name"],
     );
     const addressMatches = matchingWeakBusinessIds(
         candidate.verifiedDistrict,
         factValues(candidate.sourceFacts, ["address", "business_address"], normalizeTurkishText),
-        existingBusinesses,
+        fallbackBusinesses,
         ["address", "business_address"],
     );
     const nameBusinessId = firstBusinessId(nameMatches);
