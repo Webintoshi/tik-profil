@@ -70,24 +70,31 @@ async function websiteSocialLinks(website) {
     }
 }
 
-async function findPlace(apiKey, business) {
+export async function findPlace(apiKey, business, timeoutMs = 12_000) {
     const branchHint = business.slug.split("-").slice(-2).join(" ");
-    const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "X-Goog-Api-Key": apiKey,
-            "X-Goog-FieldMask": PLACE_FIELDS,
-        },
-        body: JSON.stringify({
-            textQuery: [business.name, branchHint, business.district, "Ordu"].filter(Boolean).join(" "),
-            languageCode: "tr",
-            pageSize: 5,
-        }),
-    });
-    if (!response.ok) throw new Error(`places_http_${response.status}`);
-    const payload = await response.json();
-    return (payload.places ?? []).find((place) => isConfidentMatch(business, place)) ?? null;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": apiKey,
+                "X-Goog-FieldMask": PLACE_FIELDS,
+            },
+            body: JSON.stringify({
+                textQuery: [business.name, branchHint, business.district, "Ordu"].filter(Boolean).join(" "),
+                languageCode: "tr",
+                pageSize: 5,
+            }),
+            signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`places_http_${response.status}`);
+        const payload = await response.json();
+        return (payload.places ?? []).find((place) => isConfidentMatch(business, place)) ?? null;
+    } finally {
+        clearTimeout(timeout);
+    }
 }
 
 export function parseArgs(argv) {
