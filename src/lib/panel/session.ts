@@ -11,12 +11,15 @@ const OWNER_COOKIE = "tikprofil_owner_session";
 const STAFF_COOKIE = "tikprofil_staff_session";
 
 export interface PanelSessionData {
+    appUserId?: string;
+    authProvider?: "legacy" | "logto";
     businessId: string;
     businessName: string;
     businessSlug: string;
     email: string;
     enabledModules: string[];
     isStaff: boolean;
+    logtoSub?: string;
     staffId?: string;
     role: StaffRole;
     permissions: string[];
@@ -36,12 +39,15 @@ async function getOwnerSession(): Promise<PanelSessionData | null> {
         const { payload } = await jwtVerify(token, getJwtSecret());
 
         return {
+            appUserId: typeof payload.appUserId === "string" ? payload.appUserId : undefined,
+            authProvider: payload.authProvider === "logto" ? "logto" : "legacy",
             businessId: (payload.businessId as string) || "",
             businessName: (payload.businessName as string) || "",
             businessSlug: (payload.businessSlug as string) || "",
             email: (payload.email as string) || "",
             enabledModules: [],
             isStaff: false,
+            logtoSub: typeof payload.logtoSub === "string" ? payload.logtoSub : undefined,
             role: "owner",
             permissions: [],
         };
@@ -63,12 +69,15 @@ async function getStaffSession(): Promise<PanelSessionData | null> {
         const { payload } = await jwtVerify(token, getJwtSecret());
 
         return {
+            appUserId: typeof payload.appUserId === "string" ? payload.appUserId : undefined,
+            authProvider: payload.authProvider === "logto" ? "logto" : "legacy",
             businessId: (payload.businessId as string) || "",
             businessName: (payload.businessName as string) || "",
             businessSlug: (payload.businessSlug as string) || "",
             email: (payload.email as string) || "",
             enabledModules: (payload.enabledModules as string[]) || [],
             isStaff: true,
+            logtoSub: typeof payload.logtoSub === "string" ? payload.logtoSub : undefined,
             staffId: payload.staffId as string | undefined,
             role: (payload.role as StaffRole) || "staff",
             permissions: (payload.permissions as string[]) || [],

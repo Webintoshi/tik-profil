@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createProvisionBatchRoute } from "../../app/api/admin/business-imports/[batchId]/provision/route.ts";
-import { createCredentialAcknowledgeRoute } from "../../app/api/admin/businesses/[id]/credentials/acknowledge/route.ts";
-import { createCredentialResetRoute } from "../../app/api/admin/businesses/[id]/credentials/reset/route.ts";
+import { createProvisionBatchRoute } from "./admin-import-route-handlers.ts";
+import { createCredentialAcknowledgeRoute, createCredentialResetRoute } from "./admin-credential-route-handlers.ts";
 import type { LogtoManagementClient, LogtoUser } from "../auth/logto/management-client.ts";
 import { PlatformAdminAuthorizationError } from "../auth/platform-admin.ts";
 import { ImportError, type SourceFactInput } from "./contracts.ts";
@@ -206,6 +205,9 @@ class FakeLogto implements LogtoManagementClient {
     failPasswordOnce = false;
     passwordGate: Promise<void> | null = null;
 
+    async getUser(userId: string): Promise<LogtoUser | null> {
+        return [...this.users.values()].find((user) => user.id === userId) ?? null;
+    }
     async findUserByPrimaryEmail(email: string): Promise<LogtoUser | null> { this.lookupCalls += 1; return this.users.get(email) ?? null; }
     async createUser(input: { primaryEmail: string; name: string; customData: Record<string, unknown>; isSuspended: boolean }): Promise<LogtoUser> {
         this.createCalls += 1;

@@ -388,6 +388,7 @@ function createLazyLogtoManagementClient(): LogtoManagementClient {
         return clientPromise;
     };
     return {
+        getUser: async (userId) => (await getClient()).getUser(userId),
         findUserByPrimaryEmail: async (email) => (await getClient()).findUserByPrimaryEmail(email),
         createUser: async (input) => (await getClient()).createUser(input),
         setSuspended: async (userId, isSuspended) => (await getClient()).setSuspended(userId, isSuspended),

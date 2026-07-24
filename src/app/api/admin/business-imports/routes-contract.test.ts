@@ -3,9 +3,11 @@ import test from "node:test";
 
 import { PlatformAdminAuthorizationError, type PlatformAdminContext } from "../../../../server/auth/platform-admin.ts";
 import type { BusinessImportService } from "../../../../server/business-imports/import-service.ts";
-import { createStartPetshopRoute } from "./places/petshops/route.ts";
-import { createCandidateListRoute } from "./[batchId]/candidates/route.ts";
-import { createCandidateReviewRoute } from "./[batchId]/candidates/[candidateId]/route.ts";
+import {
+    createCandidateListRoute,
+    createCandidateReviewRoute,
+    createStartPetshopRoute,
+} from "../../../../server/business-imports/admin-import-route-handlers.ts";
 
 const admin: PlatformAdminContext = { username: "platform-admin", appUserId: "admin-1" };
 const batchId = "3d572eff-2a15-4491-a1f6-f3b6570e81c1";
