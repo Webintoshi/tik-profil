@@ -95,8 +95,8 @@ export function createBatchPoller<T extends { status: string }>(options: BatchPo
                 });
                 return;
             }
-            stopped = true;
             await options.loadCandidates();
+            stopped = true;
         } catch (error) {
             if (!stopped) options.onError(error);
         }
