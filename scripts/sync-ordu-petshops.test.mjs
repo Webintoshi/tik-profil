@@ -57,6 +57,17 @@ test("branch assignment never maps two Google places onto one business", () => {
     assert.equal(result.assignments.get("place-1")?.id, "business-1");
 });
 
+test("matches the verified Turkish Google name of the existing Water World business", () => {
+    const result = assignPlacesToExisting([
+        { id: "place-water-world", displayName: "Su Dünyası Akvaryum", formattedAddress: "Altınordu/Ordu" },
+    ], [
+        { id: "business-water-world", slug: "water-world", name: "Water World", sourceRef: null },
+    ]);
+
+    assert.equal(result.assignments.get("place-water-world")?.id, "business-water-world");
+    assert.deepEqual(result.unmatchedExisting, []);
+});
+
 test("sync is dry-run by default and rejects unknown options", () => {
     assert.deepEqual(parseArgs([]), { apply: false });
     assert.deepEqual(parseArgs(["--apply"]), { apply: true });

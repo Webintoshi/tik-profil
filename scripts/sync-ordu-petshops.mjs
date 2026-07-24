@@ -76,11 +76,17 @@ function identityValues(business) {
     return [business.sourceRef, business.googlePlaceId].filter(Boolean);
 }
 
+function canonicalBusinessName(value) {
+    const normalized = normalizeText(value);
+    if (normalized.includes("water world") || normalized.includes("su dunyasi")) return "water world";
+    return normalized;
+}
+
 function matchScore(place, business) {
     let score = 0;
     if (identityValues(business).includes(place.id)) score += 1_000;
-    const placeName = normalizeText(place.displayName);
-    const businessName = normalizeText(business.name);
+    const placeName = canonicalBusinessName(place.displayName);
+    const businessName = canonicalBusinessName(business.name);
     if (placeName && placeName === businessName) score += 200;
     else if (placeName && businessName && (placeName.includes(businessName) || businessName.includes(placeName))) score += 100;
     const area = neighborhood(place.formattedAddress);
