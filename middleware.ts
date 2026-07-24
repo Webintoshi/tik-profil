@@ -6,7 +6,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
-import { getSessionSecretBytes } from "@/lib/env";
+import { getAppUrl, getSessionSecretBytes } from "@/lib/env";
+import { createPanelForwardHeaders } from "@/lib/panel/request-path";
+import { isTrustedRequestOrigin } from "@/lib/security/request-origin";
 
 // Protected routes
 const STEALTH_ADMIN_PATH = "/webintoshi";
@@ -21,10 +23,11 @@ const OWNER_COOKIE = "tikprofil_owner_session";
 const STAFF_COOKIE = "tikprofil_staff_session";
 
 // Allowed origins for API requests
-const ALLOWED_ORIGINS = [
+const DEVELOPMENT_ORIGINS = [
     "https://tikprofil-v2.vercel.app",
     "http://localhost:3000",
     "http://localhost:3001",
+    "http://localhost:8082",
 ];
 
 // JWT secret (must match auth routes - CRITICAL: trim to remove CRLF)
@@ -55,23 +58,7 @@ function getClientIP(request: NextRequest): string {
  * Check if origin is allowed
  */
 function isAllowedOrigin(request: NextRequest): boolean {
-    const origin = request.headers.get("origin");
-    const referer = request.headers.get("referer");
-
-    // No origin = server-side request, allow
-    if (!origin && !referer) return true;
-
-    // Check origin
-    if (origin && ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed))) {
-        return true;
-    }
-
-    // Check referer
-    if (referer && ALLOWED_ORIGINS.some(allowed => referer.startsWith(allowed))) {
-        return true;
-    }
-
-    return false;
+    return isTrustedRequestOrigin(request.headers, getAppUrl(), DEVELOPMENT_ORIGINS);
 }
 
 /**
@@ -94,6 +81,12 @@ function buildRedirect(request: NextRequest, targetPath: string, callbackPath?: 
 
 function buildPanelLoginUrl(request: NextRequest, callbackPath?: string): URL {
     return buildRedirect(request, "/giris-yap", callbackPath);
+}
+
+function continuePanelRequest(request: NextRequest, pathname: string): NextResponse {
+    return NextResponse.next({
+        request: { headers: createPanelForwardHeaders(request.headers, pathname) },
+    });
 }
 
 export async function middleware(request: NextRequest) {
@@ -207,7 +200,7 @@ export async function middleware(request: NextRequest) {
             if (!valid) {
                 cookiesToClear.push(ADMIN_COOKIE);
             } else {
-                return NextResponse.next();
+                return continuePanelRequest(request, pathname);
             }
         }
 
@@ -216,7 +209,7 @@ export async function middleware(request: NextRequest) {
             if (!valid) {
                 cookiesToClear.push(OWNER_COOKIE);
             } else if (payload?.role === "owner") {
-                return NextResponse.next();
+                return continuePanelRequest(request, pathname);
             } else {
                 cookiesToClear.push(OWNER_COOKIE);
             }
@@ -227,7 +220,7 @@ export async function middleware(request: NextRequest) {
             if (!valid) {
                 cookiesToClear.push(STAFF_COOKIE);
             } else if (payload?.isStaff === true && typeof payload.businessId === "string" && payload.businessId) {
-                return NextResponse.next();
+                return continuePanelRequest(request, pathname);
             } else {
                 cookiesToClear.push(STAFF_COOKIE);
             }
