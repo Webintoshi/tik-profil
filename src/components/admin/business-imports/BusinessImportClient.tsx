@@ -20,6 +20,7 @@ import type { ImmediateBusinessCredential } from "@/server/business-imports/prov
 
 import { CandidateReviewRow } from "./CandidateReviewRow";
 import { OneTimeCredentialsDialog } from "./OneTimeCredentialsDialog";
+import { createBatchPoller, removeCredentialGeneration } from "./business-import-ui-state";
 
 interface BusinessImportClientProps {
     districts: readonly string[];
@@ -96,6 +97,8 @@ export function BusinessImportClient({ districts }: BusinessImportClientProps) {
     const [pollVersion, setPollVersion] = useState(0);
     const [notice, setNotice] = useState<OperatorNotice | null>(null);
     const [credentials, setCredentials] = useState<ImmediateBusinessCredential[]>([]);
+    const [credentialDialogOpen, setCredentialDialogOpen] = useState(false);
+    const [credentialNotice, setCredentialNotice] = useState<string | null>(null);
     const credentialsRef = useRef<ImmediateBusinessCredential[]>([]);
     const startRequestRef = useRef<{ districts: string[]; idempotencyKey: string } | null>(null);
 
@@ -107,7 +110,15 @@ export function BusinessImportClient({ districts }: BusinessImportClientProps) {
     const clearCredentials = useCallback(() => {
         credentialsRef.current = [];
         setCredentials([]);
+        setCredentialNotice(null);
+        setCredentialDialogOpen(false);
     }, []);
+
+    const removeCredential = useCallback((deliveryGeneration: string, nextNotice: string) => {
+        const next = removeCredentialGeneration(credentialsRef.current, deliveryGeneration);
+        replaceCredentials(next);
+        setCredentialNotice(nextNotice);
+    }, [replaceCredentials]);
 
     useEffect(() => {
         const clearSensitiveMemory = () => clearCredentials();
@@ -131,35 +142,34 @@ export function BusinessImportClient({ districts }: BusinessImportClientProps) {
     useEffect(() => {
         if (!batchId) return;
         const controller = new AbortController();
-        let timer: number | undefined;
-
-        const poll = async () => {
-            try {
-                const summary = await requestJson<ImportBatchSummary>(
-                    `/api/admin/business-imports/${batchId}`,
-                    { signal: controller.signal },
-                );
+        const poller = createBatchPoller<ImportBatchSummary>({
+            loadBatch: () => requestJson<ImportBatchSummary>(
+                `/api/admin/business-imports/${batchId}`,
+                { signal: controller.signal },
+            ),
+            loadCandidates: () => fetchCandidates(batchId, controller.signal),
+            onBatch: (summary) => {
                 setBatch(summary);
                 setNotice(null);
-                if (summary.status === "pending" || summary.status === "running") {
-                    timer = window.setTimeout(() => void poll(), 2000);
-                } else {
-                    await fetchCandidates(batchId, controller.signal);
-                }
-            } catch (error) {
+            },
+            onError: (error) => {
                 if (controller.signal.aborted) return;
                 setNotice({
                     message: error instanceof Error ? error.message : "İçe aktarma durumu alınamadı.",
                     retryLabel: "Yeniden dene",
                     retry: () => setPollVersion((current) => current + 1),
                 });
-            }
-        };
+            },
+            schedule: (callback) => {
+                const timer = window.setTimeout(callback, 2000);
+                return () => window.clearTimeout(timer);
+            },
+        });
 
-        void poll();
+        void poller.pollNow();
         return () => {
             controller.abort();
-            if (timer) window.clearTimeout(timer);
+            poller.stop();
         };
     }, [batchId, fetchCandidates, pollVersion]);
 
@@ -241,6 +251,8 @@ export function BusinessImportClient({ districts }: BusinessImportClientProps) {
                 method: "POST",
             });
             replaceCredentials(result.credentials);
+            setCredentialNotice(null);
+            setCredentialDialogOpen(result.credentials.length > 0);
             await fetchCandidates(batchId);
         } catch (error) {
             setNotice({
@@ -394,13 +406,11 @@ export function BusinessImportClient({ districts }: BusinessImportClientProps) {
                 )}
             </section>
 
-            {credentials.length > 0 && (
+            {credentialDialogOpen && (
                 <OneTimeCredentialsDialog
                     credentials={credentials}
-                    onAcknowledged={(deliveryGeneration) => {
-                        const next = credentialsRef.current.filter((credential) => credential.deliveryGeneration !== deliveryGeneration);
-                        replaceCredentials(next);
-                    }}
+                    notice={credentialNotice}
+                    onCredentialRemoved={removeCredential}
                     onClose={clearCredentials}
                 />
             )}

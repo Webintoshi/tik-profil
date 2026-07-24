@@ -254,6 +254,49 @@ test("reviews candidate facts and state in one transaction so incomplete approva
     assert.match(calls[3]?.text ?? "", /SELECT field_key/i);
 });
 
+test("candidate review accepts permitted sourced phone or website as the only contact fact", async () => {
+    for (const contact of [
+        { fieldKey: "phone", fieldValue: "04525551234", sourceType: "business_submitted" as const },
+        { fieldKey: "website", fieldValue: "https://pati.example", sourceType: "business_website" as const },
+    ]) {
+        const sourceFacts = [
+            { fieldKey: "name", fieldValue: "Pati Dünyası", sourceType: "admin_verified" as const },
+            { fieldKey: "city", fieldValue: "Ordu", sourceType: "public_registry" as const },
+            { fieldKey: "district", fieldValue: "Altınordu", sourceType: "business_submitted" as const },
+            { fieldKey: "category", fieldValue: "Petshop", sourceType: "business_website" as const },
+            contact,
+        ];
+        const execute: QueryExecutor = async (text) => {
+            if (/FOR UPDATE/i.test(text)) return { rowCount: 1, rows: [candidateRow()] };
+            if (/SELECT field_key/i.test(text)) {
+                return {
+                    rowCount: sourceFacts.length,
+                    rows: sourceFacts.map((fact) => ({
+                        field_key: fact.fieldKey,
+                        field_value: fact.fieldValue,
+                        source_type: fact.sourceType,
+                        source_url: null,
+                    })),
+                };
+            }
+            if (/UPDATE business_import_candidates/i.test(text)) {
+                return { rowCount: 1, rows: [candidateRow({ candidate_status: "approved" })] };
+            }
+            return { rowCount: 1, rows: [] };
+        };
+        const repository = createBusinessImportRepository(execute, async (operation) => operation(execute));
+
+        const approved = await repository.reviewCandidate({
+            candidateId: "candidate-1",
+            status: "approved",
+            actorId: "admin-1",
+            sourceFacts,
+        });
+
+        assert.equal(approved.candidateStatus, "approved");
+    }
+});
+
 test("rejects terminal review before deleting existing source facts", async () => {
     const calls: QueryCall[] = [];
     const execute: QueryExecutor = async (text, values) => {

@@ -15,14 +15,18 @@ import { useEffect, useMemo, useState } from "react";
 import type { AdminCandidateProjection } from "@/server/business-imports/import-service";
 import type { ReviewCandidateInput, SourceFactInput } from "@/server/business-imports/contracts";
 
-type SourceType = SourceFactInput["sourceType"];
-type FieldKey = "name" | "city" | "district" | "category" | "address" | "phone" | "website";
+import {
+    buildCandidateApproval,
+    toSourceFacts,
+    type CandidateFactDraft,
+    type CandidateFactFieldKey,
+} from "./business-import-ui-state";
 
-interface FactDraft {
-    fieldKey: FieldKey;
+type SourceType = SourceFactInput["sourceType"];
+type FieldKey = CandidateFactFieldKey;
+
+interface FactDraft extends CandidateFactDraft {
     label: string;
-    value: string;
-    sourceType: SourceType | "";
 }
 
 interface CandidateReviewRowProps {
@@ -80,48 +84,6 @@ function initialDrafts(candidate: AdminCandidateProjection): FactDraft[] {
     });
 }
 
-function isValidWebsite(value: string): boolean {
-    if (!value.trim()) return false;
-    try {
-        const parsed = new URL(value);
-        return parsed.protocol === "https:" || parsed.protocol === "http:";
-    } catch {
-        return false;
-    }
-}
-
-function buildApproval(drafts: readonly FactDraft[], districts: readonly string[]) {
-    const byKey = new Map(drafts.map((draft) => [draft.fieldKey, draft]));
-    const missing: string[] = [];
-    const sourced = (fieldKey: FieldKey) => Boolean(byKey.get(fieldKey)?.sourceType);
-    const value = (fieldKey: FieldKey) => byKey.get(fieldKey)?.value.trim() ?? "";
-
-    if (value("name").length < 2 || !sourced("name")) missing.push("geçerli ve kaynaklı işletme adı");
-    if (value("city") !== "Ordu" || !sourced("city")) missing.push("Ordu şehir bilgisi ve kaynağı");
-    if (!districts.includes(value("district")) || !sourced("district")) missing.push("geçerli ilçe ve kaynağı");
-    if (value("category").length < 2 || !sourced("category")) missing.push("kategori ve kaynağı");
-
-    const hasAddress = value("address").length >= 5 && sourced("address");
-    if (!hasAddress) missing.push("kaynaklı geçerli adres");
-
-    const phone = value("phone");
-    if (phone && (phone.replace(/\D/g, "").length < 10 || !sourced("phone"))) {
-        missing.push("girilen telefon için geçerli değer ve kaynak");
-    }
-    const website = value("website");
-    if (website && (!isValidWebsite(website) || !sourced("website"))) {
-        missing.push("girilen web sitesi için geçerli adres ve kaynak");
-    }
-
-    return { complete: missing.length === 0, reason: missing.join("; ") };
-}
-
-function toSourceFacts(drafts: readonly FactDraft[]): SourceFactInput[] {
-    return drafts.flatMap((draft) => draft.value.trim() && draft.sourceType
-        ? [{ fieldKey: draft.fieldKey, fieldValue: draft.value.trim(), sourceType: draft.sourceType }]
-        : []);
-}
-
 function PreviewValue({ label, value }: { label: string; value?: string }) {
     return (
         <div className="min-w-0">
@@ -143,7 +105,7 @@ export function CandidateReviewRow({ candidate, districts, onReview }: Candidate
         setDrafts(initialDrafts(candidate));
     }, [candidate]);
 
-    const approval = useMemo(() => buildApproval(drafts, districts), [drafts, districts]);
+    const approval = useMemo(() => buildCandidateApproval(drafts, districts), [drafts, districts]);
     const sourceFacts = useMemo(() => toSourceFacts(drafts), [drafts]);
     const reviewable = !["approved", "rejected", "duplicate", "published", "provisioning"].includes(candidate.candidateStatus);
 
