@@ -1,13 +1,20 @@
 "use client";
 
 import { Check, Clipboard, KeyRound, LoaderCircle, ShieldAlert, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { ImmediateBusinessCredential } from "@/server/business-imports/provisioning";
 
+import {
+    CredentialDeliveryHttpError,
+    createCredentialDeliveryAction,
+    selectPostRemovalFocusTarget,
+} from "./business-import-ui-state";
+
 interface OneTimeCredentialsDialogProps {
     credentials: readonly ImmediateBusinessCredential[];
-    onAcknowledged: (deliveryGeneration: string) => void;
+    notice: string | null;
+    onCredentialRemoved: (deliveryGeneration: string, notice: string) => void;
     onClose: () => void;
 }
 
@@ -15,17 +22,58 @@ const CREDENTIAL_ERROR_MESSAGES: Record<number, string> = {
     401: "Oturumunuz sona erdi. Yeniden giriş yapın.",
     403: "Bu işlem için platform yöneticisi yetkisi gerekiyor.",
     404: "İşletme hesabı bulunamadı.",
-    409: "Bu teslimat daha önce işlendi veya bilgiler yenilendi.",
     429: "Çok fazla istek gönderildi. Kısa süre sonra yeniden deneyin.",
     502: "Hesap hizmeti geçici olarak yanıt vermiyor.",
 };
 
-export function OneTimeCredentialsDialog({ credentials, onAcknowledged, onClose }: OneTimeCredentialsDialogProps) {
+export function OneTimeCredentialsDialog({ credentials, notice, onCredentialRemoved, onClose }: OneTimeCredentialsDialogProps) {
     const dialogRef = useRef<HTMLDivElement>(null);
     const closeButtonRef = useRef<HTMLButtonElement>(null);
+    const onCloseRef = useRef(onClose);
+    const deliveryButtonRefs = useRef(new Map<string, HTMLButtonElement>());
+    const previousGenerationsRef = useRef(credentials.map((credential) => credential.deliveryGeneration));
+    const pendingRemovedGenerationRef = useRef<string | null>(null);
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
     const [acknowledging, setAcknowledging] = useState<string | null>(null);
     const [errorByGeneration, setErrorByGeneration] = useState<Record<string, string>>({});
+
+    onCloseRef.current = onClose;
+
+    const deliverCredential = useMemo(() => createCredentialDeliveryAction<ImmediateBusinessCredential>({
+        request: async (credential) => {
+            const response = await fetch(
+                `/api/admin/businesses/${encodeURIComponent(credential.businessId)}/credentials/acknowledge`,
+                {
+                    method: "POST",
+                    cache: "no-store",
+                    credentials: "same-origin",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ deliveryGeneration: credential.deliveryGeneration }),
+                },
+            );
+            return response.status;
+        },
+        onRemove: (deliveryGeneration, nextNotice) => {
+            pendingRemovedGenerationRef.current = deliveryGeneration;
+            onCredentialRemoved(deliveryGeneration, nextNotice);
+        },
+    }), [onCredentialRemoved]);
+
+    useLayoutEffect(() => {
+        const previous = previousGenerationsRef.current;
+        const current = credentials.map((credential) => credential.deliveryGeneration);
+        const removed = pendingRemovedGenerationRef.current;
+        previousGenerationsRef.current = current;
+
+        if (!removed || current.includes(removed)) return;
+        pendingRemovedGenerationRef.current = null;
+        deliveryButtonRefs.current.delete(removed);
+        const targetGeneration = selectPostRemovalFocusTarget(previous, current, removed);
+        const target = targetGeneration
+            ? deliveryButtonRefs.current.get(targetGeneration)
+            : closeButtonRef.current;
+        (target ?? closeButtonRef.current)?.focus();
+    }, [credentials]);
 
     useEffect(() => {
         const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -34,7 +82,7 @@ export function OneTimeCredentialsDialog({ credentials, onAcknowledged, onClose 
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === "Escape") {
                 event.preventDefault();
-                onClose();
+                onCloseRef.current();
                 return;
             }
             if (event.key === "Tab") {
@@ -59,7 +107,7 @@ export function OneTimeCredentialsDialog({ credentials, onAcknowledged, onClose 
             document.removeEventListener("keydown", handleKeyDown);
             if (previouslyFocused) previouslyFocused.focus();
         };
-    }, [onClose]);
+    }, []);
 
     const copyValue = async (key: string, value: string) => {
         try {
@@ -75,24 +123,14 @@ export function OneTimeCredentialsDialog({ credentials, onAcknowledged, onClose 
         setAcknowledging(credential.deliveryGeneration);
         setErrorByGeneration((current) => ({ ...current, [credential.deliveryGeneration]: "" }));
         try {
-            const response = await fetch(
-                `/api/admin/businesses/${encodeURIComponent(credential.businessId)}/credentials/acknowledge`,
-                {
-                    method: "POST",
-                    cache: "no-store",
-                    credentials: "same-origin",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ deliveryGeneration: credential.deliveryGeneration }),
-                },
-            );
-            if (!response.ok) {
-                throw new Error(CREDENTIAL_ERROR_MESSAGES[response.status] ?? "Teslimat onayı tamamlanamadı.");
-            }
-            onAcknowledged(credential.deliveryGeneration);
+            await deliverCredential(credential);
         } catch (error) {
+            const message = error instanceof CredentialDeliveryHttpError
+                ? CREDENTIAL_ERROR_MESSAGES[error.status] ?? "Teslimat onayı tamamlanamadı."
+                : "Teslimat onayı tamamlanamadı.";
             setErrorByGeneration((current) => ({
                 ...current,
-                [credential.deliveryGeneration]: error instanceof Error ? error.message : "Teslimat onayı tamamlanamadı.",
+                [credential.deliveryGeneration]: message,
             }));
         } finally {
             setAcknowledging(null);
@@ -133,6 +171,12 @@ export function OneTimeCredentialsDialog({ credentials, onAcknowledged, onClose 
                         <span><strong>Logto hesabı teslimat onaylanana kadar askıda kalır.</strong> Yalnızca bilgileri gerçekten teslim ettikten sonra ilgili satırda “Teslim edildi” seçin.</span>
                     </p>
                 </div>
+
+                {notice && (
+                    <p className="border-b border-white/10 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200 sm:px-5" role="status" aria-live="polite">
+                        {notice}
+                    </p>
+                )}
 
                 <div className="divide-y divide-white/10" aria-live="polite">
                     {credentials.map((credential) => {
@@ -175,9 +219,14 @@ export function OneTimeCredentialsDialog({ credentials, onAcknowledged, onClose 
 
                                 <div className="mt-4 flex justify-end">
                                     <button
+                                        ref={(element) => {
+                                            if (element) deliveryButtonRefs.current.set(credential.deliveryGeneration, element);
+                                            else deliveryButtonRefs.current.delete(credential.deliveryGeneration);
+                                        }}
                                         type="button"
                                         disabled={isAcknowledging}
                                         onClick={() => void acknowledgeCredential(credential)}
+                                        aria-label={`${credential.businessName} giriş bilgilerini teslim edildi olarak işaretle`}
                                         className="inline-flex h-9 items-center gap-2 rounded-sm bg-amber-400 px-3 text-xs font-bold text-zinc-950 outline-none hover:bg-amber-300 focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-zinc-950 disabled:opacity-50"
                                     >
                                         {isAcknowledging ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Check className="h-4 w-4" aria-hidden="true" />}
@@ -187,6 +236,11 @@ export function OneTimeCredentialsDialog({ credentials, onAcknowledged, onClose 
                             </section>
                         );
                     })}
+                    {credentials.length === 0 && (
+                        <p className="px-4 py-8 text-center text-sm text-zinc-400 sm:px-5">
+                            Gösterilecek aktif giriş bilgisi kalmadı.
+                        </p>
+                    )}
                 </div>
 
                 <footer className="sticky bottom-0 flex justify-end border-t border-white/10 bg-zinc-950/95 px-4 py-3 backdrop-blur sm:px-5">

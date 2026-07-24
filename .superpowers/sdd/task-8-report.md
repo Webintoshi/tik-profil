@@ -41,3 +41,17 @@ Implemented the platform-admin-only Ordu petshop dry-run, candidate review, publ
 - Browser smoke used a temporary unguarded local render route that was removed before staging. At `1440x900` and `390x844`, the component rendered without console errors, framework overlay, clipping, or horizontal overflow. Turkish district labels were correct. Clearing district scope changed `19/19` to `0/19` and disabled the dry-run action.
 - The real `/dashboard/businesses/import` route redirected the unauthenticated local browser to `/webintoshi`, confirming the server guard; a live authenticated API/provider smoke was not run.
 - `git diff --check`: passed with repository line-ending notices only.
+
+## Review Fixes (2026-07-24)
+
+- A stale or already processed credential acknowledgement (`409`) now removes that delivery generation from parent React state immediately. The dialog retains only a non-sensitive Turkish status notice for the removed row; no login or password remains visible.
+- Candidate approval now accepts a permitted, sourced, trimmed address, phone, or HTTP(S) website as its contact fact alongside name, Ordu city, canonical district, and category. Repository approval/provisioning completeness uses the same contact-fact rule.
+- Credential removal moves focus to the next surviving row's delivery action, the preceding surviving action when removing the final row in a list, or the close button when no rows remain. The modal trap lifecycle remains mount-scoped and restores the original opener on normal close.
+- Added executable behavioral coverage for polling in-flight deduplication and terminal stop, phone-only and website-only approval, blank/unpermitted provenance, explicit-only acknowledgement, stale `409` scrubbing, and deterministic post-removal focus target selection. Source tests remain supplemental.
+
+### Review Verification
+
+- Behavioral and UI source tests: 14 passed, 0 failed.
+- Import repository, service, admin route, and provisioning tests: 59 passed, 0 failed (73 focused tests including UI behavior/source contracts).
+- Root `npm run typecheck`: passed.
+- Chromium smoke used a temporary route removed before staging and intercepted two acknowledgement responses as `409`. At `1440x900`, removing the first row scrubbed its plaintext and focused the next `Teslim edildi` action. Removing the last row left only the safe notice/empty state and focused the close button. A `390x844` screenshot confirmed the empty-state dialog remained responsive. The only console errors were the two intentional `409 Conflict` resource entries.

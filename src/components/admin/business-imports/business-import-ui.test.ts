@@ -86,13 +86,14 @@ test("operator errors cover stable statuses with retry affordances", async () =>
 test("one-time credentials stay in memory and acknowledge only explicit delivery", async () => {
     const client = await source("src/components/admin/business-imports/BusinessImportClient.tsx");
     const dialog = await source("src/components/admin/business-imports/OneTimeCredentialsDialog.tsx");
-    const combined = `${client}\n${dialog}`;
+    const state = await source("src/components/admin/business-imports/business-import-ui-state.ts");
+    const combined = `${client}\n${dialog}\n${state}`;
 
     assert.match(client, /useState<ImmediateBusinessCredential\[\]>/);
     assert.match(client, /pagehide/);
     assert.match(client, /beforeunload/);
     assert.match(client, /setCredentials\(\[\]\)/);
-    assert.match(client, /filter\(\(credential\) => credential\.deliveryGeneration !== deliveryGeneration\)/);
+    assert.match(client, /removeCredentialGeneration\(credentialsRef\.current, deliveryGeneration\)/);
 
     assert.match(dialog, /Tek kullanımlık işletme giriş bilgileri/);
     assert.match(dialog, /Logto hesabı teslimat onaylanana kadar askıda kalır/);
@@ -101,8 +102,11 @@ test("one-time credentials stay in memory and acknowledge only explicit delivery
     assert.match(dialog, /Teslim edildi/);
     assert.match(dialog, /\/api\/admin\/businesses\/\$\{encodeURIComponent\(credential\.businessId\)\}\/credentials\/acknowledge/);
     assert.match(dialog, /deliveryGeneration:\s*credential\.deliveryGeneration/);
-    assert.equal((dialog.match(/acknowledgeCredential\(/g) ?? []).length, 2);
-    assert.match(dialog, /if \(!response\.ok\)[\s\S]*onAcknowledged\(credential\.deliveryGeneration\)/);
+    assert.match(dialog, /createCredentialDeliveryAction/);
+    assert.match(dialog, /onCredentialRemoved\(deliveryGeneration, nextNotice\)/);
+    assert.doesNotMatch(dialog, /onAcknowledged/);
+    assert.match(state, /if \(status === 409\)[\s\S]*onRemove\(credential\.deliveryGeneration, STALE_CREDENTIAL_NOTICE\)/);
+    assert.match(state, /return async function deliverCredential/);
 
     assert.doesNotMatch(combined, /localStorage|sessionStorage|URLSearchParams|history\.pushState|history\.replaceState/);
     assert.doesNotMatch(combined, /console\.(?:log|info|debug)\s*\([^)]*credential/i);
@@ -117,6 +121,10 @@ test("credential dialog is modal, keyboard trapped, and restores focus", async (
     assert.match(dialog, /event\.key === "Escape"/);
     assert.match(dialog, /event\.key === "Tab"/);
     assert.match(dialog, /previouslyFocused\.focus\(\)/);
+    assert.match(dialog, /useLayoutEffect/);
+    assert.match(dialog, /selectPostRemovalFocusTarget/);
+    assert.match(dialog, /deliveryButtonRefs/);
+    assert.match(dialog, /closeButtonRef\.current\)\?\.focus\(\)/);
     assert.match(dialog, /aria-live="polite"/);
 });
 

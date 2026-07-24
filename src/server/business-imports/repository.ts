@@ -456,8 +456,9 @@ export function createBusinessImportRepository(
                 }
                 const facts = await transactionExecute("SELECT field_key, field_value, source_type, source_url FROM business_source_facts WHERE candidate_id = $1 ORDER BY field_key ASC, source_type ASC", [input.candidateId]);
                 const effectiveFacts = facts.rows.map((row) => ({ fieldKey: asString(row.field_key), fieldValue: asString(row.field_value), sourceType: asString(row.source_type) as SourceFactInput["sourceType"], ...(asNullableString(row.source_url) ? { sourceUrl: asNullableString(row.source_url) ?? undefined } : {}) }));
-                if (input.status === "approved" && !((new Set(effectiveFacts.map((fact) => fact.fieldKey))).has("name") || (new Set(effectiveFacts.map((fact) => fact.fieldKey))).has("business_name")) ) throw new ImportError("invalid_state");
-                if (input.status === "approved" && !((new Set(effectiveFacts.map((fact) => fact.fieldKey))).has("address") || (new Set(effectiveFacts.map((fact) => fact.fieldKey))).has("business_address")) ) throw new ImportError("invalid_state");
+                if (input.status === "approved" && !hasCompleteProvisioningFacts(effectiveFacts)) {
+                    throw new ImportError("invalid_state");
+                }
                 const updated = await transactionExecute(`UPDATE business_import_candidates SET candidate_status = $2, reviewed_by_user_id = $3::uuid, reviewed_at = now(), matched_business_id = $4, dedupe_reason = $5, failure_code = $6, updated_at = now() WHERE id = $1 RETURNING ${CANDIDATE_COLUMNS}`, [input.candidateId, input.status, input.actorId, input.matchedBusinessId ?? null, input.dedupeReason ?? null, input.failureCode ?? null]);
                 return mapCandidate(requireRow(updated, "import candidate"));
             });
@@ -572,17 +573,26 @@ export function createProvisioningLockRunner(
 
 const REQUIRED_PROVISIONING_FACTS = ["name", "city", "district", "category"] as const;
 const CONTACT_PROVISIONING_FACTS = new Set(["address", "business_address", "phone", "whatsapp", "website", "website_uri"]);
+const PERMITTED_FACT_SOURCES = new Set<SourceFactInput["sourceType"]>([
+    "business_website", "business_submitted", "public_registry", "admin_verified",
+]);
 
 function normalizedFactKeys(facts: readonly SourceFactInput[]): Set<string> {
-    return new Set(facts.map((fact) => fact.fieldKey.trim().toLowerCase()));
+    return new Set(facts
+        .filter((fact) => fact.fieldValue.trim() && PERMITTED_FACT_SOURCES.has(fact.sourceType))
+        .map((fact) => fact.fieldKey.trim().toLowerCase()));
 }
 
-function assertCompleteProvisioningFacts(facts: readonly SourceFactInput[]): void {
+function hasCompleteProvisioningFacts(facts: readonly SourceFactInput[]): boolean {
     const keys = normalizedFactKeys(facts);
     const hasName = keys.has("name") || keys.has("business_name");
     const hasRequired = REQUIRED_PROVISIONING_FACTS.slice(1).every((key) => keys.has(key));
     const hasContact = [...CONTACT_PROVISIONING_FACTS].some((key) => keys.has(key));
-    if (!hasName || !hasRequired || !hasContact) throw new ImportError("candidate_incomplete");
+    return hasName && hasRequired && hasContact;
+}
+
+function assertCompleteProvisioningFacts(facts: readonly SourceFactInput[]): void {
+    if (!hasCompleteProvisioningFacts(facts)) throw new ImportError("candidate_incomplete");
 }
 
 function provisioningStep(state: Record<string, unknown>, step: string): Record<string, unknown> {
