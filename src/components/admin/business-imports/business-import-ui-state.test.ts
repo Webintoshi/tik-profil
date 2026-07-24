@@ -73,6 +73,65 @@ test("batch polling deduplicates in-flight calls and terminates after a terminal
     assert.equal(loadCalls, 2);
 });
 
+test("terminal candidate fetch failures surface an error and remain retryable until stopped", async () => {
+    const { createBatchPoller } = await loadHelpers();
+    const candidateError = new Error("candidate_fetch_failed");
+    const errors: unknown[] = [];
+    let batchLoads = 0;
+    let candidateLoads = 0;
+
+    const poller = createBatchPoller({
+        loadBatch: async () => {
+            batchLoads += 1;
+            return { status: "completed" };
+        },
+        loadCandidates: async () => {
+            candidateLoads += 1;
+            if (candidateLoads === 1) throw candidateError;
+        },
+        onBatch: () => undefined,
+        onError: (error) => { errors.push(error); },
+        schedule: () => () => undefined,
+    });
+
+    await poller.pollNow();
+    assert.deepEqual(errors, [candidateError]);
+    assert.equal(batchLoads, 1);
+    assert.equal(candidateLoads, 1);
+
+    await poller.pollNow();
+    assert.equal(batchLoads, 2);
+    assert.equal(candidateLoads, 2);
+
+    poller.stop();
+    await poller.pollNow();
+    assert.equal(batchLoads, 2);
+
+    let rejectAfterStop!: (error: Error) => void;
+    const pendingCandidates = new Promise<void>((_resolve, reject) => { rejectAfterStop = reject; });
+    const stoppedErrors: unknown[] = [];
+    let stoppedBatchLoads = 0;
+    const stoppedPoller = createBatchPoller({
+        loadBatch: async () => {
+            stoppedBatchLoads += 1;
+            return { status: "completed" };
+        },
+        loadCandidates: () => pendingCandidates,
+        onBatch: () => undefined,
+        onError: (error) => { stoppedErrors.push(error); },
+        schedule: () => () => undefined,
+    });
+
+    const stoppedPoll = stoppedPoller.pollNow();
+    await Promise.resolve();
+    stoppedPoller.stop();
+    rejectAfterStop(new Error("aborted_candidate_fetch"));
+    await stoppedPoll;
+    await stoppedPoller.pollNow();
+    assert.deepEqual(stoppedErrors, []);
+    assert.equal(stoppedBatchLoads, 1);
+});
+
 test("candidate approval accepts a sourced valid phone as the only contact", async () => {
     const { buildCandidateApproval } = await loadHelpers();
     const result = buildCandidateApproval([

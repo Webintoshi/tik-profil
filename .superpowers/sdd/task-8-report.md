@@ -55,3 +55,15 @@ Implemented the platform-admin-only Ordu petshop dry-run, candidate review, publ
 - Import repository, service, admin route, and provisioning tests: 59 passed, 0 failed (73 focused tests including UI behavior/source contracts).
 - Root `npm run typecheck`: passed.
 - Chromium smoke used a temporary route removed before staging and intercepted two acknowledgement responses as `409`. At `1440x900`, removing the first row scrubbed its plaintext and focused the next `Teslim edildi` action. Removing the last row left only the safe notice/empty state and focused the close button. A `390x844` screenshot confirmed the empty-state dialog remained responsive. The only console errors were the two intentional `409 Conflict` resource entries.
+
+## Re-review Fixes (2026-07-24)
+
+- Terminal polling now marks the poller stopped only after the terminal candidate list loads successfully. A candidate fetch failure reaches `onError` and leaves `pollNow()` retryable; an explicit stop during an in-flight fetch still suppresses its later rejection and all subsequent polling.
+- Added a mounted React DOM test using the dev-only `happy-dom` and `tsx` harness. It acknowledges/removes a middle credential and asserts focus moves to the next delivery button, removes the remaining rows, asserts the final removal focuses close, and verifies focus never leaves the dialog or exposes the removed final password.
+
+### Re-review Verification
+
+- Focused UI/import tests: 74 passed, 0 failed.
+- Mounted credential dialog DOM test: 1 passed, 0 failed.
+- Root `npm run typecheck`: passed.
+- Browser smoke was not repeated because neither residual changes rendered UI; the prior desktop/mobile Chromium smoke remains recorded above, while the rejected focus behavior is now exercised directly in the mounted DOM test.
