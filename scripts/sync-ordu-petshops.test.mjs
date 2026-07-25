@@ -3,10 +3,62 @@ import test from "node:test";
 
 import {
     assignPlacesToExisting,
+    buildGooglePhotoLegacyFields,
+    hasRequiredContactAndLocation,
     isPetshopSearchResult,
     parseArgs,
+    removeInvalidImportedBusinesses,
     titleCaseBusinessName,
 } from "./sync-ordu-petshops.mjs";
+
+test("scraper accepts only businesses with both a valid phone and coordinates", () => {
+    const complete = {
+        internationalPhoneNumber: "+90 452 123 45 67",
+        location: { latitude: 40.9862, longitude: 37.8797 },
+    };
+
+    assert.equal(hasRequiredContactAndLocation(complete), true);
+    assert.equal(hasRequiredContactAndLocation({ ...complete, internationalPhoneNumber: null }), false);
+    assert.equal(hasRequiredContactAndLocation({ ...complete, location: null }), false);
+    assert.equal(hasRequiredContactAndLocation({ ...complete, location: { latitude: 120, longitude: 37.8 } }), false);
+    assert.equal(hasRequiredContactAndLocation({ ...complete, internationalPhoneNumber: "123" }), false);
+});
+
+test("cleanup deletes only unclaimed unowned Google imports missing phone or coordinates", async () => {
+    const calls = [];
+    const client = {
+        async query(text, params) {
+            calls.push({ text, params });
+            if (/WITH invalid_imports/i.test(text)) return { rowCount: 2, rows: [{ id: "gpl_1" }, { id: "gpl_2" }] };
+            throw new Error(`unexpected_query:${text}`);
+        },
+    };
+
+    const removed = await removeInvalidImportedBusinesses(client);
+
+    assert.equal(removed, 2);
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].text, /source\s*=\s*'google_places_verified_import'/i);
+    assert.match(calls[0].text, /claim_state\s*=\s*'unclaimed'/i);
+    assert.match(calls[0].text, /NOT EXISTS\s*\([\s\S]*business_memberships/i);
+    assert.match(calls[0].text, /NULLIF\(regexp_replace\(COALESCE\(business\.phone/i);
+    assert.match(calls[0].text, /business\.lat IS NULL[\s\S]*business\.lng IS NULL/i);
+    assert.match(calls[0].text, /DELETE FROM business_discovery_profiles/i);
+    assert.match(calls[0].text, /DELETE FROM businesses/i);
+});
+
+test("Google photo import persists only availability and never temporary photo identifiers", () => {
+    const fields = buildGooglePhotoLegacyFields({
+        photos: [{
+            name: "places/place-1/photos/temporary-resource",
+            googleMapsUri: "https://maps.google.com/photo",
+        }],
+    });
+
+    assert.deepEqual(fields, { googlePlacePhotoAvailable: true });
+    assert.equal(JSON.stringify(fields).includes("temporary-resource"), false);
+    assert.deepEqual(buildGooglePhotoLegacyFields({ photos: [] }), { googlePlacePhotoAvailable: false });
+});
 
 test("titleCaseBusinessName normalizes inconsistent Google casing with Turkish letters", () => {
     assert.equal(titleCaseBusinessName("ORDU KUŞ DİYARI PETSHOP"), "Ordu Kuş Diyarı Petshop");

@@ -14,7 +14,7 @@ const SEARCH_FIELDS = "places.id,places.displayName,places.formattedAddress,plac
 const DETAIL_FIELDS = [
     "id", "displayName", "formattedAddress", "primaryType", "nationalPhoneNumber",
     "internationalPhoneNumber", "websiteUri", "googleMapsUri", "location", "rating",
-    "userRatingCount", "regularOpeningHours",
+    "userRatingCount", "regularOpeningHours", "photos",
 ].join(",");
 const ORDU_RECTANGLE = {
     rectangle: {
@@ -46,6 +46,66 @@ export function normalizeText(value) {
 export function titleCaseBusinessName(value) {
     return String(value ?? "").trim().toLocaleLowerCase("tr-TR")
         .replace(/(^|[\s/()&+.'-])(\p{L})/gu, (_match, prefix, letter) => `${prefix}${letter.toLocaleUpperCase("tr-TR")}`);
+}
+
+export function buildGooglePhotoLegacyFields(place) {
+    return { googlePlacePhotoAvailable: Array.isArray(place?.photos) && place.photos.length > 0 };
+}
+
+export function hasRequiredContactAndLocation(place) {
+    const phone = place?.internationalPhoneNumber ?? place?.nationalPhoneNumber ?? "";
+    const phoneDigits = String(phone).replace(/\D/g, "");
+    const latitude = place?.location?.latitude;
+    const longitude = place?.location?.longitude;
+    return phoneDigits.length >= 10
+        && phoneDigits.length <= 15
+        && Number.isFinite(latitude)
+        && latitude >= -90
+        && latitude <= 90
+        && Number.isFinite(longitude)
+        && longitude >= -180
+        && longitude <= 180;
+}
+
+export async function removeInvalidImportedBusinesses(client) {
+    const result = await client.query(`
+        WITH invalid_imports AS MATERIALIZED (
+            SELECT business.id
+            FROM businesses business
+            INNER JOIN business_discovery_profiles discovery
+                    ON discovery.business_id = business.id
+            WHERE business.source = 'google_places_verified_import'
+              AND discovery.source_type = 'google_places'
+              AND discovery.claim_state = 'unclaimed'
+              AND business.package_id IS NULL
+              AND business.plan_id IS NULL
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM business_memberships membership
+                    WHERE membership.business_id = business.id
+              )
+              AND (
+                    NULLIF(regexp_replace(COALESCE(business.phone, ''), '\\D', '', 'g'), '') IS NULL
+                    OR char_length(regexp_replace(COALESCE(business.phone, ''), '\\D', '', 'g')) NOT BETWEEN 10 AND 15
+                    OR business.lat IS NULL
+                    OR business.lat NOT BETWEEN -90 AND 90
+                    OR business.lng IS NULL
+                    OR business.lng NOT BETWEEN -180 AND 180
+              )
+        ), deleted_discovery AS (
+            DELETE FROM business_discovery_profiles discovery
+            USING invalid_imports invalid
+            WHERE discovery.business_id = invalid.id
+            RETURNING discovery.business_id
+        ), deleted_businesses AS (
+            DELETE FROM businesses business
+            USING invalid_imports invalid
+            WHERE business.id = invalid.id
+            RETURNING business.id
+        )
+        SELECT id FROM deleted_businesses
+    `);
+    return result.rowCount ?? result.rows.length;
 }
 
 export function isPetshopSearchResult(place) {
@@ -200,12 +260,13 @@ async function getPlaceDetails(apiKey, ref) {
     })) return null;
     const district = resolveDistrict(formattedAddress);
     if (!district) return null;
-    return {
+    const normalizedPlace = {
         ...place,
         district,
         displayName,
         formattedAddress,
     };
+    return hasRequiredContactAndLocation(normalizedPlace) ? normalizedPlace : null;
 }
 
 function socialField(url) {
@@ -296,6 +357,7 @@ async function upsertPlace(client, place, business, usedSlugs) {
     };
     const legacy = {
         googlePlaceId: place.id,
+        ...buildGooglePhotoLegacyFields(place),
         address: place.formattedAddress ?? null,
         phone,
         mapsUrl: place.googleMapsUri ?? null,
@@ -381,16 +443,20 @@ async function main() {
     }
     const db = new pg.Client({ connectionString });
     await db.connect();
+    if (apply) await db.query("BEGIN");
     try {
+        const removedInvalid = apply ? await removeInvalidImportedBusinesses(db) : 0;
         const existing = await loadExisting(db);
         const { assignments, unmatchedExisting } = assignPlacesToExisting(places, existing);
         const summary = {
             mode: apply ? "apply" : "dry-run",
             searchedDistricts: ORDU_DISTRICTS.length,
             discovered: places.length,
+            photoAvailable: places.filter((place) => buildGooglePhotoLegacyFields(place).googlePlacePhotoAvailable).length,
             existing: existing.length,
             matched: assignments.size,
             newBusinesses: places.length - assignments.size,
+            removedInvalid,
             unmatchedExisting: unmatchedExisting.map(({ id, slug, name }) => ({ id, slug, name })),
         };
         if (!apply) {
@@ -398,31 +464,28 @@ async function main() {
             return;
         }
 
-        await db.query("BEGIN");
-        try {
-            const usedSlugs = new Set(existing.map(({ slug }) => slug));
-            const updates = [];
-            for (const place of places) {
-                updates.push(await upsertPlace(db, place, assignments.get(place.id), usedSlugs));
-            }
-            const duplicates = await db.query(`
+        const usedSlugs = new Set(existing.map(({ slug }) => slug));
+        const updates = [];
+        for (const place of places) {
+            updates.push(await upsertPlace(db, place, assignments.get(place.id), usedSlugs));
+        }
+        const duplicates = await db.query(`
                 SELECT source_ref, count(*)::int AS count
                 FROM business_discovery_profiles
                 WHERE source_type = 'google_places' AND source_ref IS NOT NULL
                 GROUP BY source_ref HAVING count(*) > 1
-            `);
-            if (duplicates.rows.length) throw new Error("duplicate_google_place_identity_after_sync");
-            await db.query(`
+        `);
+        if (duplicates.rows.length) throw new Error("duplicate_google_place_identity_after_sync");
+        await db.query(`
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_business_discovery_profiles_google_place_unique
                 ON business_discovery_profiles (source_ref)
                 WHERE source_type = 'google_places' AND source_ref IS NOT NULL
-            `);
-            await db.query("COMMIT");
-            console.log(JSON.stringify({ ...summary, updated: updates.filter((entry) => entry.existed).length, inserted: updates.filter((entry) => !entry.existed).length }));
-        } catch (error) {
-            await db.query("ROLLBACK");
-            throw error;
-        }
+        `);
+        await db.query("COMMIT");
+        console.log(JSON.stringify({ ...summary, updated: updates.filter((entry) => entry.existed).length, inserted: updates.filter((entry) => !entry.existed).length }));
+    } catch (error) {
+        if (apply) await db.query("ROLLBACK");
+        throw error;
     } finally {
         await db.end();
     }
