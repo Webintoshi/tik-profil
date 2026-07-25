@@ -9,6 +9,7 @@ import {
     isPetshopSearchResult,
     parseArgs,
     removeInvalidImportedBusinesses,
+    removeReplaceableImportedPetshops,
     titleCaseBusinessName,
     upsertPlace,
 } from "./sync-ordu-petshops.mjs";
@@ -45,6 +46,34 @@ test("cleanup deletes only unclaimed unowned Google imports missing phone or coo
     assert.match(calls[0].text, /NOT EXISTS\s*\([\s\S]*business_memberships/i);
     assert.match(calls[0].text, /NULLIF\(regexp_replace\(COALESCE\(business\.phone/i);
     assert.match(calls[0].text, /business\.lat IS NULL[\s\S]*business\.lng IS NULL/i);
+    assert.match(calls[0].text, /DELETE FROM business_discovery_profiles/i);
+    assert.match(calls[0].text, /DELETE FROM businesses/i);
+});
+
+test("replacement deletes only unclaimed unowned Google petshop imports in Ordu", async () => {
+    const calls = [];
+    const client = {
+        async query(text, params) {
+            calls.push({ text, params });
+            if (/WITH replaceable_imports/i.test(text)) {
+                return { rowCount: 3, rows: [{ id: "gpl_1" }, { id: "gpl_2" }, { id: "gpl_3" }] };
+            }
+            throw new Error(`unexpected_query:${text}`);
+        },
+    };
+
+    const removed = await removeReplaceableImportedPetshops(client);
+
+    assert.equal(removed, 3);
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].text, /source\s*=\s*'google_places_verified_import'/i);
+    assert.match(calls[0].text, /industry_id[^\n]*=\s*'petshop'/i);
+    assert.match(calls[0].text, /lower\(COALESCE\(business\.city, ''\)\)\s*=\s*'ordu'/i);
+    assert.match(calls[0].text, /source_type\s*=\s*'google_places'/i);
+    assert.match(calls[0].text, /claim_state\s*=\s*'unclaimed'/i);
+    assert.match(calls[0].text, /package_id IS NULL/i);
+    assert.match(calls[0].text, /plan_id IS NULL/i);
+    assert.match(calls[0].text, /NOT EXISTS\s*\([\s\S]*business_memberships/i);
     assert.match(calls[0].text, /DELETE FROM business_discovery_profiles/i);
     assert.match(calls[0].text, /DELETE FROM businesses/i);
 });
@@ -161,7 +190,9 @@ test("matches the verified Turkish Google name of the existing Water World busin
 });
 
 test("sync is dry-run by default and rejects unknown options", () => {
-    assert.deepEqual(parseArgs([]), { apply: false });
-    assert.deepEqual(parseArgs(["--apply"]), { apply: true });
+    assert.deepEqual(parseArgs([]), { apply: false, replaceUnclaimed: false });
+    assert.deepEqual(parseArgs(["--apply"]), { apply: true, replaceUnclaimed: false });
+    assert.deepEqual(parseArgs(["--apply", "--replace-unclaimed"]), { apply: true, replaceUnclaimed: true });
+    assert.throws(() => parseArgs(["--replace-unclaimed"]), /replace_requires_apply/);
     assert.throws(() => parseArgs(["--publish"]), /unknown_option/);
 });

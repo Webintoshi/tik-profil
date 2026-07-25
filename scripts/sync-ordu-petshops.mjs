@@ -119,6 +119,41 @@ export async function removeInvalidImportedBusinesses(client) {
     return result.rowCount ?? result.rows.length;
 }
 
+export async function removeReplaceableImportedPetshops(client) {
+    const result = await client.query(`
+        WITH replaceable_imports AS MATERIALIZED (
+            SELECT business.id
+            FROM businesses business
+            INNER JOIN business_discovery_profiles discovery
+                    ON discovery.business_id = business.id
+            WHERE business.source = 'google_places_verified_import'
+              AND lower(COALESCE(business.industry_id, '')) = 'petshop'
+              AND lower(COALESCE(business.city, '')) = 'ordu'
+              AND discovery.source_type = 'google_places'
+              AND discovery.claim_state = 'unclaimed'
+              AND business.package_id IS NULL
+              AND business.plan_id IS NULL
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM business_memberships membership
+                    WHERE membership.business_id = business.id
+              )
+        ), deleted_discovery AS (
+            DELETE FROM business_discovery_profiles discovery
+            USING replaceable_imports replaceable
+            WHERE discovery.business_id = replaceable.id
+            RETURNING discovery.business_id
+        ), deleted_businesses AS (
+            DELETE FROM businesses business
+            USING replaceable_imports replaceable
+            WHERE business.id = replaceable.id
+            RETURNING business.id
+        )
+        SELECT id FROM deleted_businesses
+    `);
+    return result.rowCount ?? result.rows.length;
+}
+
 export function isPetshopSearchResult(place) {
     const name = place?.displayName?.text ?? "";
     if (!name || (place.primaryType && !ACCEPTED_TYPES.has(place.primaryType))) return false;
@@ -190,8 +225,12 @@ export function assignPlacesToExisting(places, existingBusinesses) {
 }
 
 export function parseArgs(argv) {
-    for (const option of argv) if (option !== "--apply") throw new Error(`unknown_option:${option}`);
-    return { apply: argv.includes("--apply") };
+    const knownOptions = new Set(["--apply", "--replace-unclaimed"]);
+    for (const option of argv) if (!knownOptions.has(option)) throw new Error(`unknown_option:${option}`);
+    const apply = argv.includes("--apply");
+    const replaceUnclaimed = argv.includes("--replace-unclaimed");
+    if (replaceUnclaimed && !apply) throw new Error("replace_requires_apply");
+    return { apply, replaceUnclaimed };
 }
 
 async function googleRequest(apiKey, path, fieldMask, init = {}) {
@@ -447,7 +486,7 @@ export async function upsertPlace(client, place, business, usedSlugs) {
 }
 
 async function main() {
-    const { apply } = parseArgs(process.argv.slice(2));
+    const { apply, replaceUnclaimed } = parseArgs(process.argv.slice(2));
     const apiKey = process.env.GOOGLE_MAPS_API_KEY?.trim();
     const connectionString = process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim();
     if (!apiKey) throw new Error("GOOGLE_MAPS_API_KEY_required");
@@ -463,18 +502,25 @@ async function main() {
     await db.connect();
     if (apply) await db.query("BEGIN");
     try {
+        const removedForReplacement = replaceUnclaimed
+            ? await removeReplaceableImportedPetshops(db)
+            : 0;
         const removedInvalid = apply ? await removeInvalidImportedBusinesses(db) : 0;
         const existing = await loadExisting(db);
         const { assignments, unmatchedExisting } = assignPlacesToExisting(places, existing);
+        const photoAvailable = places.filter((place) => buildGooglePhotoLegacyFields(place).googlePlacePhotoAvailable).length;
         const summary = {
             mode: apply ? "apply" : "dry-run",
             searchedDistricts: ORDU_DISTRICTS.length,
-            discovered: places.length,
-            photoAvailable: places.filter((place) => buildGooglePhotoLegacyFields(place).googlePlacePhotoAvailable).length,
+            candidateRefs: refs.length,
+            eligibleBusinesses: places.length,
+            photoAvailable,
+            photoCoveragePercent: places.length ? Math.round((photoAvailable / places.length) * 10_000) / 100 : 0,
             existing: existing.length,
             matched: assignments.size,
             newBusinesses: places.length - assignments.size,
             removedInvalid,
+            removedForReplacement,
             unmatchedExisting: unmatchedExisting.map(({ id, slug, name }) => ({ id, slug, name })),
         };
         if (!apply) {
