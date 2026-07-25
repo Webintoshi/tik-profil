@@ -4,11 +4,13 @@ import test from "node:test";
 import {
     assignPlacesToExisting,
     buildGooglePhotoLegacyFields,
+    buildGooglePhotoProfileFields,
     hasRequiredContactAndLocation,
     isPetshopSearchResult,
     parseArgs,
     removeInvalidImportedBusinesses,
     titleCaseBusinessName,
+    upsertPlace,
 } from "./sync-ordu-petshops.mjs";
 
 test("scraper accepts only businesses with both a valid phone and coordinates", () => {
@@ -58,6 +60,44 @@ test("Google photo import persists only availability and never temporary photo i
     assert.deepEqual(fields, { googlePlacePhotoAvailable: true });
     assert.equal(JSON.stringify(fields).includes("temporary-resource"), false);
     assert.deepEqual(buildGooglePhotoLegacyFields({ photos: [] }), { googlePlacePhotoAvailable: false });
+});
+
+test("Google photo import assigns the live Tık Profil photo endpoint as the business logo", () => {
+    const fields = buildGooglePhotoProfileFields({
+        id: "ChIJvalidPlace123",
+        photos: [{ name: "places/ChIJvalidPlace123/photos/temporary-resource" }],
+    });
+
+    assert.deepEqual(fields, {
+        googlePlacePhotoAvailable: true,
+        logo: "/api/google-places/photo/ChIJvalidPlace123",
+    });
+    assert.equal(JSON.stringify(fields).includes("temporary-resource"), false);
+    assert.deepEqual(buildGooglePhotoProfileFields({ id: "ChIJvalidPlace123", photos: [] }), {
+        googlePlacePhotoAvailable: false,
+        logo: null,
+    });
+});
+
+test("scraper writes the live Google photo endpoint into the business logo column", async () => {
+    const calls = [];
+    const client = { query: async (text, params) => { calls.push({ text, params }); return { rows: [], rowCount: 1 }; } };
+    const place = {
+        id: "ChIJvalidPlace123",
+        displayName: "Pati Petshop",
+        formattedAddress: "Altınordu/Ordu",
+        internationalPhoneNumber: "+90 452 123 45 67",
+        googleMapsUri: "https://maps.google.com/place",
+        location: { latitude: 40.98, longitude: 37.88 },
+        district: "Altınordu",
+        photos: [{ name: "places/ChIJvalidPlace123/photos/temporary-resource" }],
+    };
+
+    await upsertPlace(client, place, null, new Set());
+
+    assert.match(calls[0].text, /\blogo\b/i);
+    assert.match(calls[0].text, /businesses\.logo NOT LIKE '\/api\/google-places\/photo\/%'/i);
+    assert.equal(calls[0].params.includes("/api/google-places/photo/ChIJvalidPlace123"), true);
 });
 
 test("titleCaseBusinessName normalizes inconsistent Google casing with Turkish letters", () => {

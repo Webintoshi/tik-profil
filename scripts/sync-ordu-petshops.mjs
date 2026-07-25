@@ -52,6 +52,17 @@ export function buildGooglePhotoLegacyFields(place) {
     return { googlePlacePhotoAvailable: Array.isArray(place?.photos) && place.photos.length > 0 };
 }
 
+export function buildGooglePhotoProfileFields(place) {
+    const { googlePlacePhotoAvailable } = buildGooglePhotoLegacyFields(place);
+    const placeId = typeof place?.id === "string" ? place.id.trim() : "";
+    return {
+        googlePlacePhotoAvailable,
+        logo: googlePlacePhotoAvailable && placeId
+            ? `/api/google-places/photo/${encodeURIComponent(placeId)}`
+            : null,
+    };
+}
+
 export function hasRequiredContactAndLocation(place) {
     const phone = place?.internationalPhoneNumber ?? place?.nationalPhoneNumber ?? "";
     const phoneDigits = String(phone).replace(/\D/g, "");
@@ -344,12 +355,13 @@ async function loadExisting(client) {
     return result.rows;
 }
 
-async function upsertPlace(client, place, business, usedSlugs) {
+export async function upsertPlace(client, place, business, usedSlugs) {
     const businessId = business?.id ?? stableBusinessId(place.id);
     const slug = business?.slug ?? uniqueSlug(place, usedSlugs);
     const name = titleCaseBusinessName(place.displayName);
     const phone = place.internationalPhoneNumber ?? place.nationalPhoneNumber ?? null;
     const hours = place.regularOpeningHours?.weekdayDescriptions ?? [];
+    const photoFields = buildGooglePhotoProfileFields(place);
     const socialLinks = {
         ...(place.websiteUri ? { website: place.websiteUri } : {}),
         ...(place.googleMapsUri ? { google: place.googleMapsUri } : {}),
@@ -357,7 +369,7 @@ async function upsertPlace(client, place, business, usedSlugs) {
     };
     const legacy = {
         googlePlaceId: place.id,
-        ...buildGooglePhotoLegacyFields(place),
+        googlePlacePhotoAvailable: photoFields.googlePlacePhotoAvailable,
         address: place.formattedAddress ?? null,
         phone,
         mapsUrl: place.googleMapsUri ?? null,
@@ -372,11 +384,11 @@ async function upsertPlace(client, place, business, usedSlugs) {
         INSERT INTO businesses (
             id, slug, name, phone, whatsapp, status, industry_id, industry_label, active_module,
             address, maps_url, social_links, show_hours, working_hours, city, district, lat, lng,
-            rating, review_count, is_verified, source, legacy_source, created_at, updated_at
+            rating, review_count, is_verified, source, legacy_source, logo, created_at, updated_at
         ) VALUES (
             $1, $2, $3, $4, $4, 'active', 'petshop', 'Petshop', NULL,
             $5, $6, $7::jsonb, $8, $9::jsonb, 'Ordu', $10, $11, $12,
-            $13, $14, true, 'google_places_verified_import', $15::jsonb, now(), now()
+            $13, $14, true, 'google_places_verified_import', $15::jsonb, $16, now(), now()
         )
         ON CONFLICT (id) DO UPDATE SET
             name = EXCLUDED.name,
@@ -395,12 +407,18 @@ async function upsertPlace(client, place, business, usedSlugs) {
             rating = EXCLUDED.rating, review_count = EXCLUDED.review_count,
             is_verified = true, source = EXCLUDED.source,
             legacy_source = COALESCE(businesses.legacy_source, '{}'::jsonb) || EXCLUDED.legacy_source,
+            logo = CASE
+                WHEN NULLIF(BTRIM(businesses.logo), '') IS NOT NULL
+                 AND businesses.logo NOT LIKE '/api/google-places/photo/%'
+                THEN businesses.logo
+                ELSE EXCLUDED.logo
+            END,
             updated_at = now()
     `, [
         businessId, slug, name, phone, place.formattedAddress ?? null, place.googleMapsUri ?? null,
         JSON.stringify(socialLinks), hours.length > 0, JSON.stringify(hours), place.district,
         place.location?.latitude ?? null, place.location?.longitude ?? null,
-        place.rating ?? null, place.userRatingCount ?? 0, JSON.stringify(legacy),
+        place.rating ?? null, place.userRatingCount ?? 0, JSON.stringify(legacy), photoFields.logo,
     ]);
     await client.query(`
         INSERT INTO business_modules (business_id, module_key, is_enabled, source)
