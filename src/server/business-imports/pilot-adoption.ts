@@ -48,6 +48,7 @@ export type PilotAdoptionErrorCode =
     | "location_required"
     | "mobile_phone_required"
     | "phone_required"
+    | "pilot_not_prepared"
     | "provider_identity_conflict"
     | "provider_place_id_required"
     | "rollback_binding_not_found";
@@ -63,6 +64,7 @@ export class PilotAdoptionError extends Error {
 }
 
 export interface PilotAdoptionService {
+    acknowledge(input: { deliveryGeneration: string; slug: string }): ReturnType<BusinessProvisioningService["acknowledgeCredentialDelivery"]>;
     preflight(slug: string): Promise<{
         businessId: string;
         district: string;
@@ -72,6 +74,7 @@ export interface PilotAdoptionService {
         status: "eligible";
     }>;
     provision(input: { actorId: string; slug: string }): Promise<ProvisionCandidateResult>;
+    reset(slug: string): ReturnType<BusinessProvisioningService["resetBusinessCredential"]>;
     rollback(slug: string): Promise<{ businessId: string; status: "rolled_back" }>;
 }
 
@@ -119,7 +122,24 @@ export function createPilotAdoptionService(dependencies: {
         return business;
     }
 
+    async function loadPreparedBusiness(slug: string): Promise<PilotBusiness> {
+        const rows = await dependencies.repository.findBusinessesBySlug(slug.trim());
+        if (rows.length === 0) throw new PilotAdoptionError("business_not_found");
+        if (rows.length !== 1) throw new PilotAdoptionError("ambiguous_business");
+        if (!await dependencies.repository.findPreparedAdoption(slug.trim())) {
+            throw new PilotAdoptionError("pilot_not_prepared");
+        }
+        return rows[0]!;
+    }
+
     return {
+        async acknowledge(input) {
+            const business = await loadPreparedBusiness(input.slug);
+            return dependencies.provisioning.acknowledgeCredentialDelivery(
+                business.businessId,
+                input.deliveryGeneration,
+            );
+        },
         async preflight(slug) {
             const business = await loadEligibleBusiness(slug);
             return {
@@ -148,6 +168,11 @@ export function createPilotAdoptionService(dependencies: {
                 business,
             });
             return dependencies.provisioning.provisionCandidate(adoption.batchId, adoption.candidateId);
+        },
+
+        async reset(slug) {
+            const business = await loadPreparedBusiness(slug);
+            return dependencies.provisioning.resetBusinessCredential(business.businessId);
         },
 
         async rollback(slug) {

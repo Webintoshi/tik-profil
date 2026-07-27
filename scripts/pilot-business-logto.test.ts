@@ -33,6 +33,25 @@ test("provision requires an actor and a one-time credential destination", () => 
     assert.throws(() => parsePilotCommand(["--provision", "--slug", "petshop-1"]), /valid_actor_id_required/);
 });
 
+test("acknowledge and reset modes require their exact delivery inputs", () => {
+    assert.deepEqual(parsePilotCommand([
+        "--acknowledge", "--slug", "petshop-1", "--delivery-generation", actorId,
+    ]), {
+        deliveryGeneration: actorId,
+        mode: "acknowledge",
+        slug: "petshop-1",
+    });
+    assert.deepEqual(parsePilotCommand([
+        "--reset", "--slug", "petshop-1", "--credential-file", "reset.json",
+    ]), {
+        credentialFile: "reset.json",
+        mode: "reset",
+        slug: "petshop-1",
+    });
+    assert.throws(() => parsePilotCommand(["--acknowledge", "--slug", "petshop-1"]), /valid_delivery_generation_required/);
+    assert.throws(() => parsePilotCommand(["--reset", "--slug", "petshop-1"]), /credential_file_required/);
+});
+
 test("credentials are written once and never included in public command output", async () => {
     const directory = await mkdtemp(join(tmpdir(), "tikprofil-pilot-"));
     const path = join(directory, "credential.json");

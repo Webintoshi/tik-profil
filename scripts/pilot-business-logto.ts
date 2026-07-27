@@ -43,6 +43,23 @@ async function main(): Promise<void> {
         console.log(JSON.stringify(await service.rollback(command.slug)));
         return;
     }
+    if (command.mode === "acknowledge") {
+        console.log(JSON.stringify(await service.acknowledge({
+            deliveryGeneration: command.deliveryGeneration,
+            slug: command.slug,
+        })));
+        return;
+    }
+    if (command.mode === "reset") {
+        const credential = await service.reset(command.slug);
+        await writeCredentialOnce(command.credentialFile, credential);
+        console.log(JSON.stringify(publicProvisionResult({
+            business: { id: credential.businessId, name: credential.businessName, status: "active" },
+            credentials: credential,
+            status: "reset",
+        })));
+        return;
+    }
 
     const result = await service.provision({ actorId: command.actorId, slug: command.slug });
     if (result.status === "provisioned") {

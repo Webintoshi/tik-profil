@@ -192,6 +192,37 @@ test("provision replays only the exact prepared pilot and returns the provisioni
     assert.deepEqual(calls, ["provision:batch-1:candidate-1"]);
 });
 
+test("acknowledge and reset resolve the exact prepared business before credential mutation", async () => {
+    const calls: string[] = [];
+    const provisioning = createProvisioning();
+    provisioning.acknowledgeCredentialDelivery = async (businessId, generation) => {
+        calls.push(`ack:${businessId}:${generation}`);
+        return { businessId, status: "delivered" };
+    };
+    provisioning.resetBusinessCredential = async (businessId) => {
+        calls.push(`reset:${businessId}`);
+        return {
+            businessId,
+            businessName: business.name,
+            deliveryGeneration: "delivery-2",
+            initialPassword: "Another-Secret-123",
+            loginEmail: "akbulut@tikprofil.com",
+        };
+    };
+    const service = createPilotAdoptionService({
+        logto: createLogto(),
+        provisioning,
+        repository: createRepository({ findPreparedAdoption: async () => ({ batchId: "batch-1", candidateId: "candidate-1" }) }),
+    });
+
+    assert.deepEqual(await service.acknowledge({ deliveryGeneration: "delivery-1", slug: business.slug }), {
+        businessId: business.businessId,
+        status: "delivered",
+    });
+    assert.equal((await service.reset(business.slug)).deliveryGeneration, "delivery-2");
+    assert.deepEqual(calls, ["ack:business-1:delivery-1", "reset:business-1"]);
+});
+
 test("rollback verifies the exact Logto ownership marker before changing either store", async () => {
     let localMutation = false;
     const service = createPilotAdoptionService({
