@@ -29,6 +29,7 @@ const business: PilotBusiness = {
 function createRepository(overrides: Partial<PilotAdoptionRepository> = {}): PilotAdoptionRepository {
     return {
         findBusinessesBySlug: async () => [business],
+        findPreparedAdoption: async () => null,
         prepareAdoption: async () => ({ batchId: "batch-1", candidateId: "candidate-1" }),
         loadRollbackBinding: async () => ({
             appUserId: "app-user-1",
@@ -163,6 +164,32 @@ test("provision adopts one exact profile and delegates to the guarded provisioni
 
     assert.equal(result.status, "already_published");
     assert.deepEqual(calls, ["prepare:business-1:admin-1", "provision:batch-1:candidate-1"]);
+});
+
+test("provision replays only the exact prepared pilot and returns the provisioning idempotency result", async () => {
+    const calls: string[] = [];
+    const provisioning = createProvisioning();
+    provisioning.provisionCandidate = async (batchId, candidateId) => {
+        calls.push(`provision:${batchId}:${candidateId}`);
+        return {
+            status: "already_published",
+            business: { id: business.businessId, name: business.name, status: "active" },
+        };
+    };
+    const service = createPilotAdoptionService({
+        logto: createLogto(),
+        provisioning,
+        repository: createRepository({
+            findBusinessesBySlug: async () => [{ ...business, hasAccountBinding: true, hasOwner: true }],
+            findPreparedAdoption: async () => ({ batchId: "batch-1", candidateId: "candidate-1" }),
+            prepareAdoption: async () => { throw new Error("must_not_prepare_again"); },
+        }),
+    });
+
+    const result = await service.provision({ actorId: "admin-1", slug: business.slug });
+
+    assert.equal(result.status, "already_published");
+    assert.deepEqual(calls, ["provision:batch-1:candidate-1"]);
 });
 
 test("rollback verifies the exact Logto ownership marker before changing either store", async () => {

@@ -33,6 +33,7 @@ export interface PilotRollbackBinding {
 
 export interface PilotAdoptionRepository {
     findBusinessesBySlug(slug: string): Promise<PilotBusiness[]>;
+    findPreparedAdoption(slug: string): Promise<PilotAdoptionRecord | null>;
     prepareAdoption(input: { actorId: string; business: PilotBusiness }): Promise<PilotAdoptionRecord>;
     loadRollbackBinding(slug: string): Promise<PilotRollbackBinding | null>;
     beginRollback(binding: PilotRollbackBinding): Promise<void>;
@@ -132,7 +133,16 @@ export function createPilotAdoptionService(dependencies: {
         },
 
         async provision(input) {
-            const business = await loadEligibleBusiness(input.slug);
+            const rows = await dependencies.repository.findBusinessesBySlug(input.slug.trim());
+            if (rows.length === 0) throw new PilotAdoptionError("business_not_found");
+            if (rows.length !== 1) throw new PilotAdoptionError("ambiguous_business");
+            const business = rows[0]!;
+            if (business.hasOwner || business.hasAccountBinding) {
+                const prepared = await dependencies.repository.findPreparedAdoption(input.slug.trim());
+                if (!prepared) validateBusiness(business);
+                return dependencies.provisioning.provisionCandidate(prepared!.batchId, prepared!.candidateId);
+            }
+            validateBusiness(business);
             const adoption = await dependencies.repository.prepareAdoption({
                 actorId: input.actorId,
                 business,

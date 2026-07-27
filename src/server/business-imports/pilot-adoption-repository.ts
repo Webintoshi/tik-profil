@@ -129,6 +129,31 @@ export function createPilotAdoptionRepository(
             return result.rows.map(mapBusiness);
         },
 
+        async findPreparedAdoption(slug) {
+            const result = await execute(
+                `SELECT candidate.id AS candidate_id, batch_candidate.import_batch_id AS batch_id
+                 FROM businesses business
+                 INNER JOIN business_import_candidates candidate
+                    ON candidate.provisioning_state->'pilot_adoption'->>'businessId' = business.id
+                 INNER JOIN business_import_batch_candidates batch_candidate
+                    ON batch_candidate.candidate_id = candidate.id
+                 INNER JOIN business_account_issuances issuance
+                    ON issuance.candidate_id = candidate.id
+                   AND issuance.business_id = business.id
+                   AND issuance.provider = 'logto'
+                 WHERE lower(business.slug) = lower($1)
+                 ORDER BY candidate.updated_at DESC
+                 LIMIT 2`,
+                [slug],
+            );
+            if (result.rows.length === 0) return null;
+            const row = requireSingleRow(result.rows, "prepared_pilot_adoption");
+            return {
+                batchId: stringValue(row.batch_id),
+                candidateId: stringValue(row.candidate_id),
+            };
+        },
+
         async prepareAdoption(input) {
             return runInTransaction(async (transactionQuery): Promise<PilotAdoptionRecord> => {
                 const lockedBusiness = await transactionQuery(

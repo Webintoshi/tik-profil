@@ -65,6 +65,23 @@ test("findBusinessesBySlug performs exact case-insensitive selection and maps ow
     assert.deepEqual(calls[0]!.values, [business.slug]);
 });
 
+test("findPreparedAdoption resolves only a candidate carrying the exact pilot business marker", async () => {
+    const calls: Array<{ text: string; values: readonly unknown[] }> = [];
+    const execute: QueryExecutor = async (text, values = []) => {
+        calls.push({ text, values });
+        return { rowCount: 1, rows: [{ batch_id: "batch-1", candidate_id: "candidate-1" }] };
+    };
+    const repository = createPilotAdoptionRepository(execute, async (operation) => operation(execute));
+
+    assert.deepEqual(await repository.findPreparedAdoption(business.slug), {
+        batchId: "batch-1",
+        candidateId: "candidate-1",
+    });
+    assert.match(calls[0]!.text, /pilot_adoption/i);
+    assert.match(calls[0]!.text, /issuance\.business_id = business\.id/i);
+    assert.deepEqual(calls[0]!.values, [business.slug]);
+});
+
 test("prepareAdoption snapshots the existing profile and marks public profile steps complete", async () => {
     const calls: Array<{ text: string; values: readonly unknown[] }> = [];
     const transaction: QueryExecutor = async (text, values = []) => {
