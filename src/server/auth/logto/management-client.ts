@@ -7,6 +7,7 @@ export interface LogtoUser {
 }
 
 export interface LogtoManagementClient {
+    getUser(userId: string): Promise<LogtoUser | null>;
     findUserByPrimaryEmail(email: string): Promise<LogtoUser | null>;
     createUser(input: {
         customData: Record<string, unknown>;
@@ -210,6 +211,13 @@ export function createLogtoManagementClient(
     }
 
     return {
+        async getUser(userId) {
+            const response = await request(`/users/${encodeURIComponent(userId)}`, { method: "GET" });
+            if (response.status === 404) return null;
+            if (!response.ok) throw new LogtoManagementClientError("logto_request_failed");
+            return parseUser(await readJson(response));
+        },
+
         async findUserByPrimaryEmail(email) {
             const query = new URLSearchParams({
                 "search.primaryEmail": email,

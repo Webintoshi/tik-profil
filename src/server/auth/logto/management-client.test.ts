@@ -144,6 +144,37 @@ test("returns the exact primary-email user from a lookup response", async () => 
     });
 });
 
+test("loads the exact user by encoded Logto id without mutating the primary email", async () => {
+    const calls: FetchCall[] = [];
+    const client = createLogtoManagementClient({
+        appId: "app",
+        appSecret: "secret",
+        endpoint: "https://tenant.logto.app",
+        fetch: async (input, init) => {
+            calls.push({ url: String(input), init });
+            return String(input).endsWith("/oidc/token")
+                ? tokenResponse("token")
+                : Response.json({
+                    customData: { tikProfilImportCandidateId: "candidate-1" },
+                    id: "user/id ?",
+                    isSuspended: false,
+                    primaryEmail: "ordu-pati@tikprofil.com",
+                });
+        },
+    });
+
+    assert.deepEqual(await client.getUser("user/id ?"), {
+        customData: { tikProfilImportCandidateId: "candidate-1" },
+        id: "user/id ?",
+        isSuspended: false,
+        name: null,
+        primaryEmail: "ordu-pati@tikprofil.com",
+    });
+    assert.equal(calls[1]?.url, "https://tenant.logto.app/api/users/user%2Fid%20%3F");
+    assert.equal(calls[1]?.init?.method, "GET");
+    assert.equal(calls[1]?.init?.body, undefined);
+});
+
 test("maps omitted nullable user fields to null", async () => {
     const client = createLogtoManagementClient({
         appId: "app",

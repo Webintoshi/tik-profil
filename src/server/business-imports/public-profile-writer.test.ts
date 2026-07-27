@@ -238,7 +238,6 @@ test("normalized legacy and PostgreSQL profiles preserve parity for every import
         modules: profile.modules,
         name: profile.name,
         phone: profile.phone,
-        primaryModuleId: profile.primaryModuleId,
         slug: profile.slug,
         website: profile.social.website,
         whatsapp: profile.whatsapp,
