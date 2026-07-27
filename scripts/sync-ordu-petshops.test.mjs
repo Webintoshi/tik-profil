@@ -10,9 +10,40 @@ import {
     parseArgs,
     removeInvalidImportedBusinesses,
     removeReplaceableImportedPetshops,
+    retryTransientOperation,
     titleCaseBusinessName,
     upsertPlace,
 } from "./sync-ordu-petshops.mjs";
+
+test("Google Places requests retry transient failures and preserve permanent failures", async () => {
+    let attempts = 0;
+    const waits = [];
+    const result = await retryTransientOperation(async () => {
+        attempts += 1;
+        if (attempts < 3) {
+            const error = new Error("places_http_503");
+            error.status = 503;
+            throw error;
+        }
+        return "ok";
+    }, {
+        sleep: async (delay) => waits.push(delay),
+        baseDelayMs: 100,
+    });
+
+    assert.equal(result, "ok");
+    assert.equal(attempts, 3);
+    assert.deepEqual(waits, [100, 200]);
+
+    let permanentAttempts = 0;
+    await assert.rejects(() => retryTransientOperation(async () => {
+        permanentAttempts += 1;
+        const error = new Error("places_http_400");
+        error.status = 400;
+        throw error;
+    }, { sleep: async () => {} }), /places_http_400/);
+    assert.equal(permanentAttempts, 1);
+});
 
 test("scraper accepts only businesses with both a valid phone and coordinates", () => {
     const complete = {

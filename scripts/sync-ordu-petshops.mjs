@@ -233,25 +233,51 @@ export function parseArgs(argv) {
     return { apply, replaceUnclaimed };
 }
 
-async function googleRequest(apiKey, path, fieldMask, init = {}) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
-    try {
-        const response = await fetch(`https://places.googleapis.com/v1${path}`, {
-            ...init,
-            headers: {
-                "Content-Type": "application/json",
-                "X-Goog-Api-Key": apiKey,
-                "X-Goog-FieldMask": fieldMask,
-                ...(init.headers ?? {}),
-            },
-            signal: controller.signal,
-        });
-        if (!response.ok) throw new Error(`places_http_${response.status}`);
-        return await response.json();
-    } finally {
-        clearTimeout(timeout);
+export async function retryTransientOperation(operation, options = {}) {
+    const maxAttempts = options.maxAttempts ?? 5;
+    const baseDelayMs = options.baseDelayMs ?? 1_000;
+    const sleep = options.sleep ?? ((delay) => new Promise((resolve) => setTimeout(resolve, delay)));
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+            return await operation();
+        } catch (error) {
+            const status = Number(error?.status);
+            const isTransient = error?.name === "AbortError"
+                || error instanceof TypeError
+                || status === 429
+                || (status >= 500 && status <= 599);
+            if (!isTransient || attempt === maxAttempts) throw error;
+            await sleep(baseDelayMs * (2 ** (attempt - 1)));
+        }
     }
+    throw new Error("retry_attempts_exhausted");
+}
+
+async function googleRequest(apiKey, path, fieldMask, init = {}) {
+    return retryTransientOperation(async () => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15_000);
+        try {
+            const response = await fetch(`https://places.googleapis.com/v1${path}`, {
+                ...init,
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": apiKey,
+                    "X-Goog-FieldMask": fieldMask,
+                    ...(init.headers ?? {}),
+                },
+                signal: controller.signal,
+            });
+            if (!response.ok) {
+                const error = new Error(`places_http_${response.status}`);
+                error.status = response.status;
+                throw error;
+            }
+            return await response.json();
+        } finally {
+            clearTimeout(timeout);
+        }
+    });
 }
 
 async function searchTask(apiKey, district, term) {
