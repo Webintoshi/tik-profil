@@ -81,6 +81,7 @@ function sourceFacts(business: PilotBusiness): Array<[string, string]> {
         ["name", business.name],
         ["city", business.city],
         ["district", business.district],
+        ["category", "Petshop"],
         ["address", business.address],
         ["phone", business.phone],
     ].filter((entry): entry is [string, string] => Boolean(entry[1].trim()));

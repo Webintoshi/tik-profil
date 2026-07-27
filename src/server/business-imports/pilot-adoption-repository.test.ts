@@ -96,7 +96,7 @@ test("prepareAdoption snapshots the existing profile and marks public profile st
         discover_status: "published",
     });
     const factCalls = calls.filter((call) => /INSERT INTO business_source_facts/i.test(call.text));
-    assert.deepEqual(factCalls.map((call) => call.values[1]), ["name", "city", "district", "address", "phone"]);
+    assert.deepEqual(factCalls.map((call) => call.values[1]), ["name", "city", "district", "category", "address", "phone"]);
 });
 
 test("prepareAdoption fails under the row lock if ownership changed after preflight", async () => {
