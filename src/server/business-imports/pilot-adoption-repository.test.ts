@@ -140,6 +140,7 @@ test("rollback SQL uses exact owner/provider identity and preserves a resumable 
     assert.match(sql, /DELETE FROM auth_provider_links[\s\S]*provider_user_id = \$2[\s\S]*provider_email = \$3/i);
     assert.match(sql, /originalDiscoveryProfile/i);
     assert.match(sql, /pending_provider_cleanup/i);
+    assert.match(sql, /business_id = NULL/i);
     assert.match(sql, /provider_user_id = NULL/i);
     assert.match(sql, /candidate_status = 'approved'/i);
     assert.match(sql, /- 'logto_user'/i);

@@ -398,6 +398,7 @@ export function createPilotAdoptionRepository(
                 const updatedIssuance = await transactionQuery(
                     `UPDATE business_account_issuances issuance
                      SET app_user_id = NULL,
+                         business_id = NULL,
                          provider_user_id = NULL,
                          issuance_status = 'reserved',
                          delivery_generation = NULL,
