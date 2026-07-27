@@ -248,7 +248,13 @@ export function createBusinessProvisioningService(dependencies: ProvisioningDepe
                 });
 
                 publicationStarted = true;
-                await dependencies.profiles.publish(identity.businessId);
+                const adoptedExistingProfile = stateStep(state, "pilot_adoption").businessId === identity.businessId
+                    && stateStep(state, "public_profile").completed === true;
+                if (adoptedExistingProfile && dependencies.profiles.publishExisting) {
+                    await dependencies.profiles.publishExisting(identity.businessId);
+                } else {
+                    await dependencies.profiles.publish(identity.businessId);
+                }
                 await dependencies.repository.markPublished({ candidateId, attemptId, businessId: identity.businessId });
                 return {
                     status: "provisioned",

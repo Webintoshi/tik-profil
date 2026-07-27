@@ -181,6 +181,8 @@ class FakeProfiles implements PublicProfileWriter {
     status: "missing" | "pending" | "active" | "hidden" = "missing";
     createCount = 0;
     hideCount = 0;
+    publishCount = 0;
+    publishExistingCount = 0;
     failAfterPublish = false;
 
     async createPending(input: VerifiedBusinessProfile): Promise<{ businessId: string }> {
@@ -190,6 +192,12 @@ class FakeProfiles implements PublicProfileWriter {
     }
     async ensurePetshopModule(): Promise<void> {}
     async publish(): Promise<void> {
+        this.publishCount += 1;
+        this.status = "active";
+        if (this.failAfterPublish) throw new Error("partial_publication");
+    }
+    async publishExisting(): Promise<void> {
+        this.publishExistingCount += 1;
         this.status = "active";
         if (this.failAfterPublish) throw new Error("partial_publication");
     }
@@ -261,6 +269,24 @@ function ownedUser(overrides: Partial<LogtoUser> = {}): LogtoUser {
         ...overrides,
     };
 }
+
+test("an adopted scraper profile publishes only the existing PostgreSQL profile", async () => {
+    const fake = setup();
+    fake.repository.state = {
+        eligibility: { approved: true },
+        petshop_module: { completed: true },
+        pilot_adoption: { businessId },
+        profile_identity: { businessId, businessName: "Ordu Pati", completed: true, slug: "ordu-pati" },
+        public_profile: { businessId, completed: true, status: "active" },
+    };
+
+    const result = await fake.service.provisionCandidate(batchId, candidateId);
+
+    assert.equal(result.status, "provisioned");
+    assert.equal(fake.profiles.createCount, 0);
+    assert.equal(fake.profiles.publishCount, 0);
+    assert.equal(fake.profiles.publishExistingCount, 1);
+});
 
 test("two provision requests serialize through one saga and only one returns credentials", async () => {
     const fake = setup();

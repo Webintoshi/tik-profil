@@ -11,6 +11,7 @@ export interface PublicProfileWriter {
     createPending(input: VerifiedBusinessProfile): Promise<{ businessId: string }>;
     ensurePetshopModule(businessId: string): Promise<void>;
     publish(businessId: string): Promise<void>;
+    publishExisting?(businessId: string): Promise<void>;
     hide(businessId: string, reason: string): Promise<void>;
 }
 
@@ -110,6 +111,12 @@ export function createPublicProfileWriter(dependencies: {
                 throw new Error("active_owner_required");
             }
             await dependencies.legacy.publish(businessId);
+        },
+
+        async publishExisting(businessId) {
+            if (!await dependencies.runtime.publishIfOwned(businessId)) {
+                throw new Error("active_owner_required");
+            }
         },
 
         async hide(businessId, reason) {
