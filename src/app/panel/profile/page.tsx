@@ -212,12 +212,8 @@ export default function ProfilePage() {
             const result = await uploadLogo(businessId, file);
 
             if (result.success && result.url) {
-                // Update local state
                 setProfile(prev => ({ ...prev, logo: result.url }));
-
-                // Save to document store immediately
-                const { updateDocumentREST } = await import('@/lib/documentStore');
-                await updateDocumentREST('businesses', businessId, { logo: result.url });
+                setHasChanges(true);
 
                 toast.success('Logo başarıyla yüklendi');
             } else {
@@ -244,12 +240,8 @@ export default function ProfilePage() {
             const result = await uploadCover(businessId, file);
 
             if (result.success && result.url) {
-                // Update local state
                 setProfile(prev => ({ ...prev, cover: result.url }));
-
-                // Save to document store immediately
-                const { updateDocumentREST } = await import('@/lib/documentStore');
-                await updateDocumentREST('businesses', businessId, { cover: result.url });
+                setHasChanges(true);
 
                 toast.success('Kapak fotoğrafı başarıyla yüklendi');
             } else {
@@ -370,6 +362,8 @@ export default function ProfilePage() {
                     socialLinks: profile.socialLinks,
                     showHours: profile.showHours,
                     workingHours: profile.workingHours,
+                    logo: profile.logo || null,
+                    cover: profile.cover || null,
                 }),
             });
 

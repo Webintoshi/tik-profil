@@ -126,6 +126,16 @@ function isOwnedImportedUser(
         && (!input.recordedProviderUserId || user.id === input.recordedProviderUserId);
 }
 
+function logtoUsername(loginEmail: string): string {
+    const localPart = loginEmail.split("@", 1)[0]?.toLowerCase() ?? "";
+    const normalized = localPart
+        .replace(/[^a-z0-9_]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 128);
+    if (normalized.length < 3) throw new Error("provider_identity_conflict");
+    return normalized;
+}
+
 async function resolveImportedUser(
     logto: LogtoManagementClient,
     input: {
@@ -135,9 +145,15 @@ async function resolveImportedUser(
         recordedProviderUserId: string | null;
     },
 ): Promise<LogtoUser> {
+    const username = logtoUsername(input.loginEmail);
     const found = await logto.findUserByPrimaryEmail(input.loginEmail);
     if (found) {
         if (!isOwnedImportedUser(found, input)) throw new Error("provider_identity_conflict");
+        if (found.username && found.username !== username) throw new Error("provider_identity_conflict");
+        if (!found.username) {
+            await logto.setUsername(found.id, username);
+            return { ...found, username };
+        }
         return found;
     }
     if (input.recordedProviderUserId) throw new Error("provider_identity_conflict");
@@ -146,6 +162,7 @@ async function resolveImportedUser(
         name: input.businessName,
         customData: { tikProfilImportCandidateId: input.candidateId },
         isSuspended: true,
+        username,
     });
     if (!isOwnedImportedUser(created, input)) throw new Error("provider_identity_conflict");
     return created;
@@ -397,6 +414,7 @@ function createLazyLogtoManagementClient(): LogtoManagementClient {
         getUser: async (userId) => (await getClient()).getUser(userId),
         findUserByPrimaryEmail: async (email) => (await getClient()).findUserByPrimaryEmail(email),
         createUser: async (input) => (await getClient()).createUser(input),
+        setUsername: async (userId, username) => (await getClient()).setUsername(userId, username),
         setSuspended: async (userId, isSuspended) => (await getClient()).setSuspended(userId, isSuspended),
         setPassword: async (userId, password) => (await getClient()).setPassword(userId, password),
         deleteUser: async (userId) => (await getClient()).deleteUser(userId),

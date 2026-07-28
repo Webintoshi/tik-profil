@@ -210,6 +210,7 @@ class FakeLogto implements LogtoManagementClient {
     lookupCalls = 0;
     passwordCalls: Array<{ userId: string; password: string }> = [];
     suspensionCalls: Array<{ userId: string; isSuspended: boolean }> = [];
+    usernameCalls: Array<{ userId: string; username: string }> = [];
     failPasswordOnce = false;
     passwordGate: Promise<void> | null = null;
 
@@ -217,11 +218,16 @@ class FakeLogto implements LogtoManagementClient {
         return [...this.users.values()].find((user) => user.id === userId) ?? null;
     }
     async findUserByPrimaryEmail(email: string): Promise<LogtoUser | null> { this.lookupCalls += 1; return this.users.get(email) ?? null; }
-    async createUser(input: { primaryEmail: string; name: string; customData: Record<string, unknown>; isSuspended: boolean }): Promise<LogtoUser> {
+    async createUser(input: { primaryEmail: string; name: string; username: string; customData: Record<string, unknown>; isSuspended: boolean }): Promise<LogtoUser> {
         this.createCalls += 1;
-        const user = { id: "logto-1", name: input.name, primaryEmail: input.primaryEmail, customData: input.customData, isSuspended: input.isSuspended };
+        const user = { id: "logto-1", name: input.name, primaryEmail: input.primaryEmail, username: input.username, customData: input.customData, isSuspended: input.isSuspended };
         this.users.set(input.primaryEmail, user);
         return user;
+    }
+    async setUsername(userId: string, username: string): Promise<void> {
+        this.usernameCalls.push({ userId, username });
+        const entry = [...this.users.entries()].find(([, user]) => user.id === userId);
+        if (entry) this.users.set(entry[0], { ...entry[1], username });
     }
     async setSuspended(userId: string, isSuspended: boolean): Promise<void> {
         this.suspensionCalls.push({ userId, isSuspended });
@@ -337,8 +343,20 @@ test("a create-before-state crash recovers only through the candidate ownership 
 
     assert.equal(result.status, "provisioned");
     assert.equal(fake.logto.createCalls, 0);
+    assert.deepEqual(fake.logto.usernameCalls, [{ userId: "logto-1", username: "ordu_pati" }]);
     assert.equal(fake.repository.providerUserId, "logto-1");
     assert.equal((fake.repository.state.logto_user as { providerUserId?: string }).providerUserId, "logto-1");
+});
+
+test("new imported users receive a deterministic Logto username while retaining email sign-in", async () => {
+    const fake = setup();
+
+    const result = await fake.service.provisionCandidate(batchId, candidateId);
+
+    assert.equal(result.status, "provisioned");
+    assert.equal(fake.logto.users.get(loginEmail)?.primaryEmail, loginEmail);
+    assert.equal(fake.logto.users.get(loginEmail)?.username, "ordu_pati");
+    assert.equal(fake.logto.usernameCalls.length, 0);
 });
 
 test("unowned or marker-mismatched exact-email Logto users fail before password mutation", async () => {

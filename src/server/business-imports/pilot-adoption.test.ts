@@ -75,6 +75,7 @@ function createLogto(overrides: Partial<LogtoManagementClient> = {}): LogtoManag
         getUser: async () => user,
         findUserByPrimaryEmail: async () => user,
         createUser: async () => user,
+        setUsername: async () => undefined,
         setSuspended: async () => undefined,
         setPassword: async () => undefined,
         deleteUser: async () => undefined,

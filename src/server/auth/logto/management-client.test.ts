@@ -29,6 +29,7 @@ test("uses normalized token and user endpoints with encoded lookup and user ids"
             return Response.json({
                 id: "user-1",
                 primaryEmail: "owner+ordu@example.com",
+                username: "owner_ordu",
                 name: "Pati Dünyası",
                 customData: { tikProfilImportCandidateId: "candidate-1" },
                 isSuspended: true,
@@ -46,18 +47,21 @@ test("uses normalized token and user endpoints with encoded lookup and user ids"
     assert.equal(await client.findUserByPrimaryEmail("owner+ordu@example.com"), null);
     assert.deepEqual(await client.createUser({
         primaryEmail: "owner+ordu@example.com",
+        username: "owner_ordu",
         name: "Pati Dünyası",
         customData: { tikProfilImportCandidateId: "candidate-1" },
         isSuspended: true,
     }), {
         id: "user-1",
         primaryEmail: "owner+ordu@example.com",
+        username: "owner_ordu",
         name: "Pati Dünyası",
         customData: { tikProfilImportCandidateId: "candidate-1" },
         isSuspended: true,
     });
     await client.setSuspended("user/id ?", true);
     await client.setPassword("user/id ?", "Plaintext-password-1!");
+    await client.setUsername("user/id ?", "owner_ordu");
     await client.deleteUser("user/id ?");
 
     assert.equal(calls[0]?.url, "https://tenant.logto.app/base/oidc/token");
@@ -72,6 +76,7 @@ test("uses normalized token and user endpoints with encoded lookup and user ids"
     assert.equal(calls[1]?.init?.method, "GET");
     assert.deepEqual(JSON.parse(String(calls[2]?.init?.body)), {
         primaryEmail: "owner+ordu@example.com",
+        username: "owner_ordu",
         name: "Pati Dünyası",
         customData: { tikProfilImportCandidateId: "candidate-1" },
         isSuspended: true,
@@ -84,7 +89,10 @@ test("uses normalized token and user endpoints with encoded lookup and user ids"
     assert.equal(calls[4]?.init?.method, "PATCH");
     assert.deepEqual(JSON.parse(String(calls[4]?.init?.body)), { password: "Plaintext-password-1!" });
     assert.equal(calls[5]?.url, "https://tenant.logto.app/base/api/users/user%2Fid%20%3F");
-    assert.equal(calls[5]?.init?.method, "DELETE");
+    assert.equal(calls[5]?.init?.method, "PATCH");
+    assert.deepEqual(JSON.parse(String(calls[5]?.init?.body)), { username: "owner_ordu" });
+    assert.equal(calls[6]?.url, "https://tenant.logto.app/base/api/users/user%2Fid%20%3F");
+    assert.equal(calls[6]?.init?.method, "DELETE");
 
     assert.equal(calls.filter((call) => call.url.endsWith("/oidc/token")).length, 1);
     for (const call of calls.slice(1)) {
@@ -141,6 +149,7 @@ test("returns the exact primary-email user from a lookup response", async () => 
         isSuspended: false,
         primaryEmail: "OWNER@example.com",
         name: null,
+        username: null,
     });
 });
 
@@ -169,6 +178,7 @@ test("loads the exact user by encoded Logto id without mutating the primary emai
         isSuspended: false,
         name: null,
         primaryEmail: "ordu-pati@tikprofil.com",
+        username: null,
     });
     assert.equal(calls[1]?.url, "https://tenant.logto.app/api/users/user%2Fid%20%3F");
     assert.equal(calls[1]?.init?.method, "GET");
@@ -191,6 +201,7 @@ test("maps omitted nullable user fields to null", async () => {
         isSuspended: false,
         primaryEmail: "owner@example.com",
         name: null,
+        username: null,
     });
 });
 

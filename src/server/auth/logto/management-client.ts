@@ -4,6 +4,7 @@ export interface LogtoUser {
     isSuspended: boolean;
     name: string | null;
     primaryEmail: string | null;
+    username?: string | null;
 }
 
 export interface LogtoManagementClient {
@@ -14,7 +15,9 @@ export interface LogtoManagementClient {
         isSuspended: boolean;
         primaryEmail: string;
         name: string;
+        username: string;
     }): Promise<LogtoUser>;
+    setUsername(userId: string, username: string): Promise<void>;
     setSuspended(userId: string, isSuspended: boolean): Promise<void>;
     setPassword(userId: string, password: string): Promise<void>;
     deleteUser(userId: string): Promise<void>;
@@ -88,12 +91,16 @@ function parseUser(value: unknown): LogtoUser {
     if (value.isSuspended !== undefined && typeof value.isSuspended !== "boolean") {
         throw new LogtoManagementClientError("logto_response_invalid");
     }
+    if (value.username !== undefined && value.username !== null && typeof value.username !== "string") {
+        throw new LogtoManagementClientError("logto_response_invalid");
+    }
     return {
         customData: isRecord(value.customData) ? value.customData : {},
         id: value.id,
         isSuspended: typeof value.isSuspended === "boolean" ? value.isSuspended : false,
         primaryEmail: typeof value.primaryEmail === "string" ? value.primaryEmail : null,
         name: typeof value.name === "string" ? value.name : null,
+        username: typeof value.username === "string" ? value.username : null,
     };
 }
 
@@ -250,6 +257,14 @@ export function createLogtoManagementClient(
         async setPassword(userId, password) {
             const response = await request(`/users/${encodeURIComponent(userId)}/password`, {
                 body: JSON.stringify({ password }),
+                method: "PATCH",
+            });
+            if (!response.ok) throw new LogtoManagementClientError("logto_request_failed");
+        },
+
+        async setUsername(userId, username) {
+            const response = await request(`/users/${encodeURIComponent(userId)}`, {
+                body: JSON.stringify({ username }),
                 method: "PATCH",
             });
             if (!response.ok) throw new LogtoManagementClientError("logto_request_failed");

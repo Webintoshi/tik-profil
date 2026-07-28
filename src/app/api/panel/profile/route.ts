@@ -4,6 +4,10 @@ import { jwtVerify } from 'jose';
 import { logActivity } from '@/lib/services/auditService';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getSessionSecretBytes } from '@/lib/env';
+import {
+    getPanelBusinessProfile,
+    updatePanelBusinessProfile,
+} from '@/server/repositories/postgres/panel-profile.repository';
 
 const getJwtSecret = () => getSessionSecretBytes();
 
@@ -47,6 +51,45 @@ export async function PUT(request: Request) {
                 { success: false, error: 'Slogan en fazla 60 karakter olabilir' },
                 { status: 400 }
             );
+        }
+
+        const runtimeProfile = await getPanelBusinessProfile(businessId);
+        if (runtimeProfile) {
+            const nextProfile = {
+                about: body.about || null,
+                address: body.address || null,
+                cover: typeof body.cover === 'string' ? body.cover || null : runtimeProfile.cover || null,
+                logo: typeof body.logo === 'string' ? body.logo || null : runtimeProfile.logo || null,
+                mapsUrl: body.mapsUrl || null,
+                name: body.name.trim(),
+                phone: body.phone || null,
+                showHours: body.showHours ?? runtimeProfile.showHours,
+                slogan: body.slogan || null,
+                socialLinks: body.socialLinks && typeof body.socialLinks === 'object'
+                    ? body.socialLinks
+                    : runtimeProfile.socialLinks,
+                workingHours: body.workingHours ?? runtimeProfile.workingHours,
+            };
+            const updated = await updatePanelBusinessProfile(businessId, nextProfile);
+            if (!updated) {
+                return NextResponse.json(
+                    { success: false, error: 'Isletme bulunamadi' },
+                    { status: 404 },
+                );
+            }
+
+            await logActivity({
+                actor_id: businessId,
+                actor_name: updated.name,
+                action_type: 'PROFILE_UPDATE',
+                metadata: { source: 'postgres_runtime' },
+            });
+
+            return NextResponse.json({
+                success: true,
+                message: 'Profil basariyla guncellendi',
+                profile: updated,
+            });
         }
 
         const supabase = getSupabaseAdmin();
@@ -160,6 +203,11 @@ export async function GET() {
                 { success: false, error: 'Oturum bulunamadı' },
                 { status: 401 }
             );
+        }
+
+        const runtimeProfile = await getPanelBusinessProfile(businessId);
+        if (runtimeProfile) {
+            return NextResponse.json({ success: true, profile: runtimeProfile });
         }
 
         const supabase = getSupabaseAdmin();

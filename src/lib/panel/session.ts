@@ -6,6 +6,8 @@ import { getSession } from "@/lib/auth";
 import { getBusiness } from "@/lib/businessStore";
 import { getSessionSecretBytes } from "@/lib/env";
 import type { StaffRole } from "@/lib/permissions";
+import { getBusinessRowById } from "@/server/repositories/postgres/businesses.repository";
+import { getBusinessModules } from "@/server/repositories/postgres/business-modules.repository";
 
 const OWNER_COOKIE = "tikprofil_owner_session";
 const STAFF_COOKIE = "tikprofil_staff_session";
@@ -91,6 +93,17 @@ async function getStaffSession(): Promise<PanelSessionData | null> {
 async function getImpersonateId(): Promise<string | null> {
     const cookieStore = await cookies();
     return cookieStore.get("tikprofil_impersonate")?.value || null;
+}
+
+async function applyRuntimeBusinessFallback(session: PanelSessionData): Promise<PanelSessionData> {
+    const business = await getBusinessRowById(session.businessId);
+    if (!business) return session;
+    return {
+        ...session,
+        businessName: business.name,
+        businessSlug: business.slug,
+        enabledModules: await getBusinessModules(business.id),
+    };
 }
 
 async function resolveBusinessModules(
@@ -189,11 +202,16 @@ export const loadPanelSession = cache(async (): Promise<PanelSessionData | null>
                 sessionData.businessSlug = business.slug || "";
                 sessionData.enabledModules = await resolveBusinessModules(ownerSession.businessId, business);
             } else {
-                sessionData.businessName = ownerSession.email?.split("@")[0] || "Isletmem";
+                sessionData = await applyRuntimeBusinessFallback(sessionData);
             }
         } catch (error) {
             console.error("[Panel Session] Failed to load owner business:", error);
-            sessionData.businessName = ownerSession.email?.split("@")[0] || "Isletmem";
+            try {
+                sessionData = await applyRuntimeBusinessFallback(sessionData);
+            } catch (runtimeError) {
+                console.error("[Panel Session] Runtime business fallback failed:", runtimeError);
+                sessionData.businessName = ownerSession.email?.split("@")[0] || "Isletmem";
+            }
         }
 
         return sessionData;
@@ -209,6 +227,8 @@ export const loadPanelSession = cache(async (): Promise<PanelSessionData | null>
                 sessionData.businessName = business.name;
                 sessionData.businessSlug = business.slug || "";
                 sessionData.enabledModules = await resolveBusinessModules(staffSession.businessId, business);
+            } else {
+                sessionData = await applyRuntimeBusinessFallback(sessionData);
             }
         } catch (error) {
             console.error("[Panel Session] Failed to load staff business:", error);
