@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -123,13 +122,13 @@ export function LogtoSignInCard({
                             </motion.div>
                         ) : null}
 
-                        <Link
+                        <a
                             href={signInHref}
                             className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-sky-600 to-indigo-600 px-5 py-4 text-base font-semibold text-white shadow-lg shadow-sky-500/25 transition-transform hover:scale-[1.01]"
                         >
                             <Sparkles className="h-5 w-5" />
                             Logto ile devam et
-                        </Link>
+                        </a>
 
                         <div className="rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
                             Bu akista rol ve isletme uyeligi PostgreSQL tablolari uzerinden cozulur.
