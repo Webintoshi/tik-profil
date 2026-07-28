@@ -55,7 +55,7 @@ function getDefaultCallbackPath(actorHint: "auto" | "platform_admin" | "business
         return "/kesfet";
     }
 
-    return "/panel";
+    return "/panel/profile";
 }
 
 function buildAuthErrorRedirect(baseUrl: string, loginPath: string, errorCode: string): NextResponse {

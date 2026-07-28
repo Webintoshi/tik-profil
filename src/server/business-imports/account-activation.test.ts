@@ -360,20 +360,18 @@ test("panel session retains authenticated Logto identity while legacy and impers
     assert.match(source, /payload\.logtoSub/);
 });
 
-test("activation is structurally outside the panel layout and cannot self-redirect", async () => {
-    const [layout, activationPage, middleware] = await Promise.all([
+test("business panel skips activation and legacy activation URLs open the profile editor", async () => {
+    const [layout, activationPage, legacyActivationPage, middleware] = await Promise.all([
         readFile(new URL("../../app/panel/layout.tsx", import.meta.url), "utf8"),
         readFile(new URL("../../app/hesap-aktivasyonu/page.tsx", import.meta.url), "utf8"),
+        readFile(new URL("../../app/panel/hesap-aktivasyonu/page.tsx", import.meta.url), "utf8"),
         readFile(new URL("../../../middleware.ts", import.meta.url), "utf8"),
     ]);
     assert.doesNotMatch(middleware, /createPanelForwardHeaders/);
     assert.match(middleware, /\/panel\/:path\*/);
-    assert.match(layout, /getPanelActivationRedirect/);
-    assert.match(layout, /getBusinessAccountActivation/);
-    assert.doesNotMatch(layout, /readPanelForwardedPathname|headers\(\)/);
-    assert.doesNotMatch(layout, /pathname === [^\n]*hesap-aktivasyonu/);
-    assert.match(activationPage, /AccountActivationClient/);
-    assert.match(activationPage, /loadPanelSession/);
+    assert.doesNotMatch(layout, /getPanelActivationRedirect|getBusinessAccountActivation|hesap-aktivasyonu/);
+    assert.match(activationPage, /redirect\("\/panel\/profile"\)/);
+    assert.match(legacyActivationPage, /redirect\("\/panel\/profile"\)/);
 });
 
 test("activation API derives identity from owner session and applies strict same-origin no-store handling", async () => {
@@ -400,23 +398,6 @@ test("verification route immediately delegates token hashing then 303 redirects 
     assert.match(source, /cache-control[^\n]*no-store/i);
     assert.doesNotMatch(source, /request\.headers\.get\(["']host["']\)/i);
     assert.doesNotMatch(source, /console\.(?:log|error|warn)/);
-});
-
-test("compact activation UI has confirmation, accessible visibility toggles, progress, and sent/verification states", async () => {
-    const [page, client] = await Promise.all([
-        readFile(new URL("../../app/hesap-aktivasyonu/page.tsx", import.meta.url), "utf8"),
-        readFile(new URL("../../components/panel/AccountActivationClient.tsx", import.meta.url), "utf8"),
-    ]);
-    assert.match(page, /Jost/);
-    assert.match(client, /type=\{visible \? "text" : "password"\}/);
-    assert.match(client, /confirmPassword/);
-    assert.match(client, /aria-pressed/);
-    assert.match(client, /aria-live/);
-    assert.match(client, /password_changed/);
-    assert.match(client, /verification/);
-    assert.match(client, /LoaderCircle/);
-    assert.match(client, /maxLength=\{128\}/);
-    assert.doesNotMatch(client, /BusinessSidebar|BottomNav|PanelClientLayout/);
 });
 
 test("PostgreSQL activation repository uses exact joins, row locks, DB throttling, and hash-only challenge values", async () => {

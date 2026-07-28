@@ -10,7 +10,7 @@ export default function GirisYapPage() {
                 <LogtoSignInCard
                     actorHint="business"
                     brand="Tik Profil"
-                    defaultCallbackPath="/panel"
+                    defaultCallbackPath="/panel/profile"
                     loginPath="/giris-yap"
                     subtitle="Isletme Paneli"
                     title="Logto ile giris yapin"
