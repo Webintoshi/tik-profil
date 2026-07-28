@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
     BarChart3,
@@ -97,7 +97,6 @@ export function BusinessSidebar({
     userPermissions = [],
 }: BusinessSidebarProps) {
     const pathname = usePathname();
-    const router = useRouter();
     const { isDark } = useTheme();
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -122,8 +121,10 @@ export function BusinessSidebar({
         setIsLoggingOut(true);
 
         try {
-            await fetch("/api/auth/logout", { method: "POST" });
-            router.push("/giris-yap");
+            const response = await fetch("/api/auth/logout", { method: "POST" });
+            if (!response.ok) throw new Error("logout_failed");
+            const result = await response.json() as { redirectUrl?: string | null };
+            window.location.assign(result.redirectUrl || "/giris-yap");
         } catch (error) {
             console.error("Logout error:", error);
             setIsLoggingOut(false);
