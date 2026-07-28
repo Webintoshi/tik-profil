@@ -94,7 +94,7 @@ type QueryExecutor = (text: string, values?: readonly unknown[]) => Promise<Quer
 type TransactionRunner = <T>(operation: (execute: QueryExecutor) => Promise<T>) => Promise<T>;
 type ProvisioningLockRunner = <T>(businessId: string, operation: () => Promise<T>) => Promise<T>;
 
-const ACTIVATION_PATH = "/panel/hesap-aktivasyonu";
+const ACTIVATION_PATH = "/hesap-aktivasyonu";
 const CHALLENGE_LIFETIME_MS = 30 * 60 * 1000;
 const COMMON_PASSWORDS = new Set([
     "123456789012",

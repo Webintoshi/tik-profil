@@ -191,11 +191,11 @@ test("password policy enforces length, character classes, controls, common value
 
 test("panel gate redirects only imported Logto owners and avoids activation loops", () => {
     const owner = { authProvider: "logto" as const, appUserId: identity.appUserId, businessId: identity.businessId, isStaff: false, logtoSub: identity.logtoSub, role: "owner" as const };
-    assert.equal(getPanelActivationRedirect("/panel/profile", owner, "issued"), "/panel/hesap-aktivasyonu");
-    assert.equal(getPanelActivationRedirect("/panel/hesap-aktivasyonu", owner, "issued"), null);
-    assert.equal(getPanelActivationRedirect("/panel/orders", owner, "password_changed"), "/panel/hesap-aktivasyonu");
+    assert.equal(getPanelActivationRedirect("/panel/profile", owner, "issued"), "/hesap-aktivasyonu");
+    assert.equal(getPanelActivationRedirect("/hesap-aktivasyonu", owner, "issued"), null);
+    assert.equal(getPanelActivationRedirect("/panel/orders", owner, "password_changed"), "/hesap-aktivasyonu");
     assert.equal(getPanelActivationRedirect("/panel/profile", owner, "active"), null);
-    assert.equal(getPanelActivationRedirect("/panel/hesap-aktivasyonu", owner, "active"), "/panel");
+    assert.equal(getPanelActivationRedirect("/hesap-aktivasyonu", owner, "active"), "/panel");
     assert.equal(getPanelActivationRedirect("/panel/profile", { ...owner, isStaff: true }, "issued"), null);
     assert.equal(getPanelActivationRedirect("/panel/profile", { ...owner, authProvider: "legacy" }, "issued"), null);
     assert.equal(getPanelActivationRedirect("/panel/profile", { ...owner, appUserId: undefined, logtoSub: undefined }, "issued"), null);
@@ -343,7 +343,7 @@ test("verification fails closed for wrong, expired, reused, and concurrent token
 test("token hashing and configured result URLs never depend on a request Host header", () => {
     assert.equal(hashActivationToken("secret-token"), createHash("sha256").update("secret-token").digest("hex"));
     const resultUrl = buildActivationVerificationResultUrl("https://app.tikprofil.test/base", "invalid");
-    assert.equal(resultUrl, "https://app.tikprofil.test/panel/hesap-aktivasyonu?verification=invalid");
+    assert.equal(resultUrl, "https://app.tikprofil.test/hesap-aktivasyonu?verification=invalid");
     assert.equal(resultUrl.includes("secret-token"), false);
     assert.equal(isSameOriginActivationRequest(new Headers({ origin: "https://app.tikprofil.test" }), "https://app.tikprofil.test"), true);
     assert.equal(isSameOriginActivationRequest(new Headers({ origin: "https://evil.example" }), "https://app.tikprofil.test"), false);
@@ -360,18 +360,20 @@ test("panel session retains authenticated Logto identity while legacy and impers
     assert.match(source, /payload\.logtoSub/);
 });
 
-test("panel layout uses a middleware-owned pathname and renders activation without panel chrome", async () => {
-    const [layout, middleware] = await Promise.all([
+test("activation is structurally outside the panel layout and cannot self-redirect", async () => {
+    const [layout, activationPage, middleware] = await Promise.all([
         readFile(new URL("../../app/panel/layout.tsx", import.meta.url), "utf8"),
+        readFile(new URL("../../app/hesap-aktivasyonu/page.tsx", import.meta.url), "utf8"),
         readFile(new URL("../../../middleware.ts", import.meta.url), "utf8"),
     ]);
-    assert.match(middleware, /createPanelForwardHeaders/);
-    assert.match(middleware, /continuePanelRequest\(request, pathname\)/);
+    assert.doesNotMatch(middleware, /createPanelForwardHeaders/);
     assert.match(middleware, /\/panel\/:path\*/);
     assert.match(layout, /getPanelActivationRedirect/);
     assert.match(layout, /getBusinessAccountActivation/);
-    assert.match(layout, /pathname === [^\n]*hesap-aktivasyonu/);
-    assert.match(layout, /return <>{children}<\/>/);
+    assert.doesNotMatch(layout, /readPanelForwardedPathname|headers\(\)/);
+    assert.doesNotMatch(layout, /pathname === [^\n]*hesap-aktivasyonu/);
+    assert.match(activationPage, /AccountActivationClient/);
+    assert.match(activationPage, /loadPanelSession/);
 });
 
 test("activation API derives identity from owner session and applies strict same-origin no-store handling", async () => {
@@ -402,7 +404,7 @@ test("verification route immediately delegates token hashing then 303 redirects 
 
 test("compact activation UI has confirmation, accessible visibility toggles, progress, and sent/verification states", async () => {
     const [page, client] = await Promise.all([
-        readFile(new URL("../../app/panel/hesap-aktivasyonu/page.tsx", import.meta.url), "utf8"),
+        readFile(new URL("../../app/hesap-aktivasyonu/page.tsx", import.meta.url), "utf8"),
         readFile(new URL("../../components/panel/AccountActivationClient.tsx", import.meta.url), "utf8"),
     ]);
     assert.match(page, /Jost/);

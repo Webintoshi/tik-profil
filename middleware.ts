@@ -7,7 +7,6 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import { getAppUrl, getSessionSecretBytes } from "@/lib/env";
-import { createPanelForwardHeaders } from "@/lib/panel/request-path";
 import { isTrustedRequestOrigin } from "@/lib/security/request-origin";
 
 // Protected routes
@@ -81,12 +80,6 @@ function buildRedirect(request: NextRequest, targetPath: string, callbackPath?: 
 
 function buildPanelLoginUrl(request: NextRequest, callbackPath?: string): URL {
     return buildRedirect(request, "/giris-yap", callbackPath);
-}
-
-function continuePanelRequest(request: NextRequest, pathname: string): NextResponse {
-    return NextResponse.next({
-        request: { headers: createPanelForwardHeaders(request.headers, pathname) },
-    });
 }
 
 export async function middleware(request: NextRequest) {
@@ -200,7 +193,7 @@ export async function middleware(request: NextRequest) {
             if (!valid) {
                 cookiesToClear.push(ADMIN_COOKIE);
             } else {
-                return continuePanelRequest(request, pathname);
+                return NextResponse.next();
             }
         }
 
@@ -209,7 +202,7 @@ export async function middleware(request: NextRequest) {
             if (!valid) {
                 cookiesToClear.push(OWNER_COOKIE);
             } else if (payload?.role === "owner") {
-                return continuePanelRequest(request, pathname);
+                return NextResponse.next();
             } else {
                 cookiesToClear.push(OWNER_COOKIE);
             }
@@ -220,7 +213,7 @@ export async function middleware(request: NextRequest) {
             if (!valid) {
                 cookiesToClear.push(STAFF_COOKIE);
             } else if (payload?.isStaff === true && typeof payload.businessId === "string" && payload.businessId) {
-                return continuePanelRequest(request, pathname);
+                return NextResponse.next();
             } else {
                 cookiesToClear.push(STAFF_COOKIE);
             }
