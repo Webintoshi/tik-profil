@@ -18,6 +18,7 @@
     "mobile:test": "npm --prefix apps/mobile run test",
     "mobile:typecheck": "npm --prefix apps/mobile run typecheck",
     "business:pilot": "node --import tsx scripts/pilot-business-logto.ts",
+    "logto:business-branding": "node --import tsx scripts/configure-business-logto-branding.ts",
     "db:migrate": "node scripts/db/run-migrations.mjs",
     "migration:export:p0": "node scripts/migration/export-p0-legacy.mjs",
     "migration:import:p0-staging": "node scripts/migration/import-p0-staging.mjs",

@@ -1,0 +1,6 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title">
+  <title id="title">Tık Profil</title>
+  <rect width="48" height="48" rx="8" fill="#FFB347"/>
+  <path d="M24 9C16.5 9 11 14.8 11 21.7C11 30 18.7 39 24 39C29.3 39 37 30 37 21.7C37 14.8 31.5 9 24 9ZM24 27C20.7 27 18 24.3 18 21C18 17.7 20.7 15 24 15C27.3 15 30 17.7 30 21C30 24.3 27.3 27 24 27Z" fill="#211A12"/>
+  <circle cx="24" cy="21" r="2.5" fill="#FFB347"/>
+</svg>
