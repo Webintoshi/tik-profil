@@ -52,7 +52,7 @@ test("default fallback preserves authentication unless explicitly supplied", () 
     assert.equal(payload.customCss, branding.customCss);
 });
 
-test("default fallback applies explicit phone, email and password registration", () => {
+test("default fallback applies verified email, profile phone and password registration", () => {
     const current = { signIn: { methods: [] }, signUp: null };
     const branding = buildBusinessBrandingPayload("https://tikprofil.com");
     const authentication = buildBusinessAuthenticationPayload();

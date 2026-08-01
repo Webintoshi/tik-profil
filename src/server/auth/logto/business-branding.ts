@@ -182,7 +182,7 @@ export interface BusinessBrandingPayload {
 export interface BusinessAuthenticationPayload {
     signIn: {
         methods: Array<{
-            identifier: "email" | "phone";
+            identifier: "email";
             isPasswordPrimary: true;
             password: true;
             verificationCode: false;
@@ -190,11 +190,11 @@ export interface BusinessAuthenticationPayload {
     };
     signInMode: "SignInAndRegister";
     signUp: {
-        identifiers: ["phone"];
+        identifiers: ["email"];
         password: true;
         secondaryIdentifiers: [{
-            identifier: "email";
-            verify: true;
+            identifier: "phone";
+            verify: false;
         }];
         verify: true;
     };
@@ -210,19 +210,13 @@ export function buildBusinessAuthenticationPayload(): BusinessAuthenticationPayl
                     password: true,
                     verificationCode: false,
                 },
-                {
-                    identifier: "phone",
-                    isPasswordPrimary: true,
-                    password: true,
-                    verificationCode: false,
-                },
             ],
         },
         signInMode: "SignInAndRegister",
         signUp: {
-            identifiers: ["phone"],
+            identifiers: ["email"],
             password: true,
-            secondaryIdentifiers: [{ identifier: "email", verify: true }],
+            secondaryIdentifiers: [{ identifier: "phone", verify: false }],
             verify: true,
         },
     };

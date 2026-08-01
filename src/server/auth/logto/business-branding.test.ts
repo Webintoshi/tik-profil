@@ -7,17 +7,16 @@ import {
     summarizeBrandingConfiguration,
 } from "./business-branding";
 
-test("requires verified phone, verified email and password without exposing username", () => {
+test("requires verified email, password and an unverified profile phone without username", () => {
     const payload = buildBusinessAuthenticationPayload();
 
     assert.deepEqual(payload.signIn.methods, [
         { identifier: "email", isPasswordPrimary: true, password: true, verificationCode: false },
-        { identifier: "phone", isPasswordPrimary: true, password: true, verificationCode: false },
     ]);
     assert.deepEqual(payload.signUp, {
-        identifiers: ["phone"],
+        identifiers: ["email"],
         password: true,
-        secondaryIdentifiers: [{ identifier: "email", verify: true }],
+        secondaryIdentifiers: [{ identifier: "phone", verify: false }],
         verify: true,
     });
     assert.equal(payload.signInMode, "SignInAndRegister");
