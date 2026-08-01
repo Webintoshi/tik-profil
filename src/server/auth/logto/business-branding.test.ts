@@ -15,7 +15,7 @@ test("builds the amber Tik Profil application branding payload", () => {
         primaryColor: "#FFB347",
     });
     assert.equal(payload.displayName, "Tık Profil İşletme");
-    assert.equal(payload.branding.logoUrl, "https://tikprofil.com/brand/tik-business-wordmark.svg");
+    assert.equal(payload.branding.logoUrl, "https://tikprofil.com/brand/tik-business-wordmark.png");
     assert.equal(payload.branding.favicon, "https://tikprofil.com/brand/tik-business-favicon.svg");
     assert.equal(payload.privacyPolicyUrl, "https://tikprofil.com/gizlilik-politikasi");
     assert.equal(payload.termsOfUseUrl, "https://tikprofil.com/kullanim-sartlari");

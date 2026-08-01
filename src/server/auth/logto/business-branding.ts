@@ -167,7 +167,7 @@ function normalizeBaseUrl(baseUrl: string): string {
 
 export function buildBusinessBrandingPayload(baseUrl: string): BusinessBrandingPayload {
     const origin = normalizeBaseUrl(baseUrl);
-    const logoUrl = `${origin}/brand/tik-business-wordmark.svg`;
+    const logoUrl = `${origin}/brand/tik-business-wordmark.png`;
     const favicon = `${origin}/brand/tik-business-favicon.svg`;
 
     return {
