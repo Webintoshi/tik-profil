@@ -29,6 +29,7 @@ test("custom CSS styles the Logto form and removes consumer actions", () => {
     assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /focus-visible/);
     assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /a\[href\^=["']\\?\/register/);
     assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /button:has\(img\[alt\*=["']google/i);
+    assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /div\[class\*=["']divider/);
     assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /logto\.io/i);
     assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /@media \(max-width: 480px\)/);
 });

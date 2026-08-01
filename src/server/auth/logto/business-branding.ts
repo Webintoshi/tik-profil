@@ -120,7 +120,7 @@ body {
 #app main div:has(> a[href^="?/register"]),
 #app main button:has(img[alt*="google" i]),
 #app main div:has(> button img[alt*="google" i]),
-#app main i[class*="divider"],
+#app main div[class*="divider"],
 #app main a[href*="logto.io"] {
   display: none !important;
 }
