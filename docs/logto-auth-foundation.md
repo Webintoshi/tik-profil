@@ -216,8 +216,28 @@ No schema rollback is required for this branch because:
 - it does not delete legacy auth data
 - it only reuses existing PostgreSQL identity tables
 
+## Business Sign-In Branding
+
+`/giris-yap` starts the business Logto authorization flow directly and returns successful sessions to `/panel/profile`. Query parameters such as `authError` and `logout=success` keep the user on the local recovery screen so failures are explained without starting a redirect loop.
+
+The hosted Logto experience is configured by the repeatable CLI below. It applies the Tik Profil amber palette, the public wordmark and favicon, and focused form CSS to the `Tik Profil Web` application without changing the tenant-wide default experience.
+
+```bash
+npm run logto:business-branding -- --inspect
+npm run logto:business-branding -- --apply --backup /tmp/tikprofil-logto-branding-before.json
+npm run logto:business-branding -- --restore /tmp/tikprofil-logto-branding-before.json
+```
+
+Operational rules:
+
+- Run `--inspect` before and after every branding change.
+- Keep the generated backup outside the disposable application container with mode `0600`.
+- Do not use `--allow-default-fallback` unless the Logto application-level endpoint is unavailable and a tenant-wide change has been explicitly approved.
+- The production pre-change backup from 2026-08-01 is stored at `/root/tikprofil-backups/business-logto-before-20260801.json` on the application host.
+- The business login intentionally exposes only identifier/password sign-in. Consumer registration and social actions are hidden from this owner/staff entrypoint.
+
 ## Exact Next Step
 
 The next operational step is:
 
-- merge the Logto foundation branch into `master` only after explicit approval, deploy a canary build, switch only that canary runtime to `AUTH_PROVIDER=logto`, then test `/api/auth/logto/me`, `/panel`, and `/dashboard`
+- verify a staged business account through `/giris-yap`, confirm the `/panel/profile` landing and logout return path, then keep that pilot account suspended until its credentials are deliberately delivered
