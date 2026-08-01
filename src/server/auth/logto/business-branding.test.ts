@@ -2,9 +2,27 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
     BUSINESS_LOGTO_CUSTOM_CSS,
+    buildBusinessAuthenticationPayload,
     buildBusinessBrandingPayload,
     summarizeBrandingConfiguration,
 } from "./business-branding";
+
+test("requires verified phone, verified email and password without exposing username", () => {
+    const payload = buildBusinessAuthenticationPayload();
+
+    assert.deepEqual(payload.signIn.methods, [
+        { identifier: "email", isPasswordPrimary: true, password: true, verificationCode: false },
+        { identifier: "phone", isPasswordPrimary: true, password: true, verificationCode: false },
+    ]);
+    assert.deepEqual(payload.signUp, {
+        identifiers: ["phone"],
+        password: true,
+        secondaryIdentifiers: [{ identifier: "email", verify: true }],
+        verify: true,
+    });
+    assert.equal(payload.signInMode, "SignInAndRegister");
+    assert.doesNotMatch(JSON.stringify(payload), /username/);
+});
 
 test("builds the amber Tik Profil application branding payload", () => {
     const payload = buildBusinessBrandingPayload("https://tikprofil.com/");

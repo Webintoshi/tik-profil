@@ -179,6 +179,55 @@ export interface BusinessBrandingPayload {
     termsOfUseUrl: string;
 }
 
+export interface BusinessAuthenticationPayload {
+    signIn: {
+        methods: Array<{
+            identifier: "email" | "phone";
+            isPasswordPrimary: true;
+            password: true;
+            verificationCode: false;
+        }>;
+    };
+    signInMode: "SignInAndRegister";
+    signUp: {
+        identifiers: ["phone"];
+        password: true;
+        secondaryIdentifiers: [{
+            identifier: "email";
+            verify: true;
+        }];
+        verify: true;
+    };
+}
+
+export function buildBusinessAuthenticationPayload(): BusinessAuthenticationPayload {
+    return {
+        signIn: {
+            methods: [
+                {
+                    identifier: "email",
+                    isPasswordPrimary: true,
+                    password: true,
+                    verificationCode: false,
+                },
+                {
+                    identifier: "phone",
+                    isPasswordPrimary: true,
+                    password: true,
+                    verificationCode: false,
+                },
+            ],
+        },
+        signInMode: "SignInAndRegister",
+        signUp: {
+            identifiers: ["phone"],
+            password: true,
+            secondaryIdentifiers: [{ identifier: "email", verify: true }],
+            verify: true,
+        },
+    };
+}
+
 function normalizeBaseUrl(baseUrl: string): string {
     return new URL(baseUrl).origin;
 }

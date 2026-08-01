@@ -3,8 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
+    buildBusinessAuthenticationPayload,
     buildBusinessBrandingPayload,
     summarizeBrandingConfiguration,
+    type BusinessAuthenticationPayload,
     type BusinessBrandingPayload,
 } from "../src/server/auth/logto/business-branding";
 
@@ -12,6 +14,7 @@ type JsonRecord = Record<string, unknown>;
 
 export interface BrandingCliOptions {
     allowDefaultFallback: boolean;
+    applyAuthentication: boolean;
     backupPath: string | null;
     mode: "apply" | "inspect" | "restore";
     restorePath: string | null;
@@ -20,6 +23,7 @@ export interface BrandingCliOptions {
 export function parseBrandingCliArgs(args: string[]): BrandingCliOptions {
     const options: BrandingCliOptions = {
         allowDefaultFallback: false,
+        applyAuthentication: false,
         backupPath: null,
         mode: "inspect",
         restorePath: null,
@@ -29,6 +33,9 @@ export function parseBrandingCliArgs(args: string[]): BrandingCliOptions {
         const value = args[index];
 
         if (value === "--apply") {
+            options.mode = "apply";
+        } else if (value === "--apply-authentication") {
+            options.applyAuthentication = true;
             options.mode = "apply";
         } else if (value === "--inspect") {
             options.mode = "inspect";
@@ -56,6 +63,7 @@ export function parseBrandingCliArgs(args: string[]): BrandingCliOptions {
 export function buildDefaultFallbackPayload(
     current: JsonRecord,
     branding: BusinessBrandingPayload,
+    authentication?: BusinessAuthenticationPayload,
 ): JsonRecord {
     return {
         branding: branding.branding,
@@ -63,8 +71,9 @@ export function buildDefaultFallbackPayload(
         customCss: branding.customCss,
         hideLogtoBranding: true,
         privacyPolicyUrl: branding.privacyPolicyUrl,
-        signIn: current.signIn,
-        signInMode: "SignInAndRegister",
+        signIn: authentication?.signIn ?? current.signIn,
+        signInMode: authentication?.signInMode ?? branding.signInMode,
+        signUp: authentication?.signUp ?? current.signUp,
         socialSignInConnectorTargets: [],
         termsOfUseUrl: branding.termsOfUseUrl,
     };
@@ -197,21 +206,47 @@ async function apply(
         { body: JSON.stringify(branding), method: "PUT" },
     );
 
-    if (appLevelResult.status >= 200 && appLevelResult.status < 300) {
+    const appLevelSucceeded = appLevelResult.status >= 200 && appLevelResult.status < 300;
+    if (!appLevelSucceeded && !options.allowDefaultFallback) {
+        throw new Error(`application_branding_unsupported:${appLevelResult.status}`);
+    }
+
+    let authenticationSummary = null;
+    const authentication = options.applyAuthentication
+        ? buildBusinessAuthenticationPayload()
+        : undefined;
+    if (options.applyAuthentication) {
+        const authenticationResult = await requestJson(config, accessToken, "/api/sign-in-exp", {
+            body: JSON.stringify(authentication),
+            method: "PATCH",
+        });
+        if (authenticationResult.status < 200 || authenticationResult.status >= 300) {
+            const providerCode = typeof authenticationResult.body?.code === "string"
+                ? authenticationResult.body.code
+                : "unknown";
+            throw new Error(`business_authentication_failed:${authenticationResult.status}:${providerCode}`);
+        }
+        authenticationSummary = summarizeBrandingConfiguration(authenticationResult.body);
+    }
+
+    if (appLevelSucceeded) {
         console.log(JSON.stringify({
             backupPath,
             mode: "apply",
             target: "application",
-            result: summarizeBrandingConfiguration(appLevelResult.body),
+            result: {
+                authentication: authenticationSummary,
+                branding: summarizeBrandingConfiguration(appLevelResult.body),
+            },
         }, null, 2));
         return;
     }
 
-    if (!options.allowDefaultFallback) {
-        throw new Error(`application_branding_unsupported:${appLevelResult.status}`);
-    }
-
-    const fallbackPayload = buildDefaultFallbackPayload(current.defaultExperience, branding);
+    const fallbackPayload = buildDefaultFallbackPayload(
+        current.defaultExperience,
+        branding,
+        authentication,
+    );
     const fallbackResult = await requestJson(config, accessToken, "/api/sign-in-exp", {
         body: JSON.stringify(fallbackPayload),
         method: "PATCH",
