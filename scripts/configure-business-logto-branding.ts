@@ -75,6 +75,7 @@ export function buildDefaultFallbackPayload(
         signIn: authentication?.signIn ?? current.signIn,
         signInMode: authentication?.signInMode ?? branding.signInMode,
         signUp: authentication?.signUp ?? current.signUp,
+        signUpProfileFields: authentication?.signUpProfileFields ?? current.signUpProfileFields,
         socialSignInConnectorTargets: [],
         termsOfUseUrl: branding.termsOfUseUrl,
     };
@@ -343,6 +344,7 @@ async function restore(
         privacyPolicyUrl: backup.defaultExperience.privacyPolicyUrl ?? null,
         signIn: backup.defaultExperience.signIn,
         signInMode: backup.defaultExperience.signInMode,
+        signUpProfileFields: backup.defaultExperience.signUpProfileFields ?? null,
         socialSignInConnectorTargets: backup.defaultExperience.socialSignInConnectorTargets,
         termsOfUseUrl: backup.defaultExperience.termsOfUseUrl ?? null,
     };

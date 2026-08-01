@@ -64,6 +64,7 @@ test("default fallback applies verified email, profile phone and password regist
 
     assert.deepEqual(payload.signIn, authentication.signIn);
     assert.deepEqual(payload.signUp, authentication.signUp);
+    assert.deepEqual(payload.signUpProfileFields, authentication.signUpProfileFields);
     assert.doesNotMatch(JSON.stringify(payload), /username/);
 });
 

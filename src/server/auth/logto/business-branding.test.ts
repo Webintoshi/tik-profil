@@ -20,6 +20,7 @@ test("requires verified email and password without username or phone sign-in", (
         secondaryIdentifiers: [],
         verify: true,
     });
+    assert.deepEqual(payload.signUpProfileFields, [{ name: "businessPhone" }]);
     assert.equal(payload.signInMode, "SignInAndRegister");
     assert.doesNotMatch(JSON.stringify(payload), /username/);
 });

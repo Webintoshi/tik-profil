@@ -195,6 +195,7 @@ export interface BusinessAuthenticationPayload {
         secondaryIdentifiers: [];
         verify: true;
     };
+    signUpProfileFields: [{ name: "businessPhone" }];
 }
 
 export interface BusinessPhoneProfileField {
@@ -228,6 +229,7 @@ export function buildBusinessAuthenticationPayload(): BusinessAuthenticationPayl
             secondaryIdentifiers: [],
             verify: true,
         },
+        signUpProfileFields: [{ name: "businessPhone" }],
     };
 }
 
