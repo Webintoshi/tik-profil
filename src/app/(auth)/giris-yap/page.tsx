@@ -1,7 +1,6 @@
-import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getAuthProvider } from "@/lib/env";
-import { LogtoSignInCard, LogtoSignInFallback } from "@/components/auth/LogtoSignInCard";
+import { BusinessLogtoRecovery } from "@/components/auth/BusinessLogtoRecovery";
 import { resolveBusinessLogtoEntry } from "@/server/auth/logto/business-entry";
 import LegacyLoginForm from "./LegacyLoginForm";
 
@@ -27,16 +26,11 @@ export default async function GirisYapPage({ searchParams }: GirisYapPageProps) 
         }
 
         return (
-            <Suspense fallback={<LogtoSignInFallback />}>
-                <LogtoSignInCard
-                    actorHint="business"
-                    brand="Tik Profil"
-                    defaultCallbackPath="/panel/profile"
-                    loginPath="/giris-yap"
-                    subtitle="Isletme Paneli"
-                    title="Logto ile giris yapin"
-                />
-            </Suspense>
+            <BusinessLogtoRecovery
+                authError={entry.authError}
+                loggedOut={entry.loggedOut}
+                retryHref={entry.retryHref}
+            />
         );
     }
 
