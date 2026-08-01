@@ -34,6 +34,13 @@ test("custom CSS styles the Logto form and removes consumer actions", () => {
     assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /@media \(max-width: 480px\)/);
 });
 
+test("focused Logto inputs do not float their placeholder over the border", () => {
+    assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /\[class\*=["']_active["']\]:has\(input\) label/);
+    assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /opacity:\s*0\s*!important/);
+    assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /fieldset legend/);
+    assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /max-width:\s*0\s*!important/);
+});
+
 test("inspection summaries do not serialize credentials", () => {
     const summary = summarizeBrandingConfiguration({
         access_token: "secret-token",

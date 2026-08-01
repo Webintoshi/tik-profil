@@ -82,6 +82,27 @@ body {
   box-shadow: none !important;
 }
 
+#app [class*="_container"]:has(input) label {
+  transition: opacity 120ms ease !important;
+}
+
+#app [class*="_active"]:has(input) label {
+  top: 50% !important;
+  font-size: 14px !important;
+  opacity: 0 !important;
+  transform: translateY(-50%) !important;
+}
+
+#app [class*="_active"]:has(input) fieldset legend {
+  width: 0 !important;
+  max-width: 0 !important;
+  padding: 0 !important;
+}
+
+#app [class*="_active"]:has(input) fieldset legend > span {
+  display: none !important;
+}
+
 #app button[type="submit"] {
   min-height: 50px !important;
   border: 1px solid #FFB347 !important;
