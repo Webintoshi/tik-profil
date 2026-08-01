@@ -135,10 +135,6 @@ body {
   color: #C93D36 !important;
 }
 
-#app main a[href^="/register"],
-#app main a[href^="?/register"],
-#app main div:has(> a[href^="/register"]),
-#app main div:has(> a[href^="?/register"]),
 #app main button:has(img[alt*="google" i]),
 #app main div:has(> button img[alt*="google" i]),
 #app main div[class*="divider"],
@@ -179,6 +175,7 @@ export interface BusinessBrandingPayload {
     customCss: string;
     displayName: string;
     privacyPolicyUrl: string;
+    signInMode: "SignInAndRegister";
     termsOfUseUrl: string;
 }
 
@@ -206,6 +203,7 @@ export function buildBusinessBrandingPayload(baseUrl: string): BusinessBrandingP
         customCss: BUSINESS_LOGTO_CUSTOM_CSS,
         displayName: "Tık Profil İşletme",
         privacyPolicyUrl: `${origin}/gizlilik-politikasi`,
+        signInMode: "SignInAndRegister",
         termsOfUseUrl: `${origin}/kullanim-sartlari`,
     };
 }

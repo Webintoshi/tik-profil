@@ -8,6 +8,7 @@ export const ADMIN_SESSION_COOKIE = "tikprofil_session";
 export const OWNER_SESSION_COOKIE = "tikprofil_owner_session";
 export const STAFF_SESSION_COOKIE = "tikprofil_staff_session";
 export const IMPERSONATE_COOKIE = "tikprofil_impersonate";
+export const BUSINESS_ONBOARDING_COOKIE = "tikprofil_business_onboarding";
 export const SESSION_DURATION_SECONDS = 7 * 24 * 60 * 60;
 
 const SESSION_COOKIES = [
@@ -16,6 +17,7 @@ const SESSION_COOKIES = [
     STAFF_SESSION_COOKIE,
     CUSTOMER_SESSION_COOKIE,
     IMPERSONATE_COOKIE,
+    BUSINESS_ONBOARDING_COOKIE,
 ] as const;
 
 interface PendingLogtoAuthState {
@@ -54,6 +56,13 @@ interface LogtoBusinessSessionClaims extends BaseLocalLogtoSessionClaims {
 interface LogtoCustomerSessionClaims extends BaseLocalLogtoSessionClaims {
     displayName?: string;
     role: "customer";
+}
+
+export interface LogtoBusinessOnboardingClaims {
+    appUserId: string;
+    displayName?: string;
+    email?: string;
+    logtoSub: string;
 }
 
 function createCookieSecretBytes(cookieSecret: string): Uint8Array {
@@ -137,6 +146,36 @@ export async function createLogtoCustomerSessionToken(
     return signPayload(payload, getSessionSecretBytes(), "7d");
 }
 
+export async function createLogtoBusinessOnboardingToken(
+    payload: LogtoBusinessOnboardingClaims,
+    secret: Uint8Array = getSessionSecretBytes(),
+): Promise<string> {
+    return signPayload(payload, secret, "30m");
+}
+
+export async function verifyLogtoBusinessOnboardingToken(
+    token: string | null | undefined,
+    secret: Uint8Array = getSessionSecretBytes(),
+): Promise<LogtoBusinessOnboardingClaims | null> {
+    if (!token) return null;
+
+    try {
+        const { payload } = await jwtVerify(token, secret);
+        const appUserId = typeof payload.appUserId === "string" ? payload.appUserId : "";
+        const logtoSub = typeof payload.logtoSub === "string" ? payload.logtoSub : "";
+        if (!appUserId || !logtoSub) return null;
+
+        return {
+            appUserId,
+            displayName: typeof payload.displayName === "string" ? payload.displayName : undefined,
+            email: typeof payload.email === "string" ? payload.email : undefined,
+            logtoSub,
+        };
+    } catch {
+        return null;
+    }
+}
+
 export function clearAllLocalSessionCookies(response: {
     cookies: {
         delete(name: string): void;
@@ -153,6 +192,14 @@ export function clearPendingLogtoAuthStateCookie(response: {
     };
 }) {
     response.cookies.delete(LOGTO_AUTH_STATE_COOKIE);
+}
+
+export function clearBusinessOnboardingCookie(response: {
+    cookies: {
+        delete(name: string): void;
+    };
+}) {
+    response.cookies.delete(BUSINESS_ONBOARDING_COOKIE);
 }
 
 export function setPendingLogtoAuthStateCookie(
@@ -208,4 +255,15 @@ export function setCustomerSessionCookie(
     token: string,
 ) {
     response.cookies.set(CUSTOMER_SESSION_COOKIE, token, buildSessionCookieOptions(SESSION_DURATION_SECONDS));
+}
+
+export function setBusinessOnboardingCookie(
+    response: {
+        cookies: {
+            set(name: string, value: string, options: ReturnType<typeof buildEphemeralCookieOptions>): void;
+        };
+    },
+    token: string,
+) {
+    response.cookies.set(BUSINESS_ONBOARDING_COOKIE, token, buildEphemeralCookieOptions(30 * 60));
 }

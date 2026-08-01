@@ -64,7 +64,7 @@ export function buildDefaultFallbackPayload(
         hideLogtoBranding: true,
         privacyPolicyUrl: branding.privacyPolicyUrl,
         signIn: current.signIn,
-        signInMode: "SignIn",
+        signInMode: "SignInAndRegister",
         socialSignInConnectorTargets: [],
         termsOfUseUrl: branding.termsOfUseUrl,
     };

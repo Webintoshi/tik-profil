@@ -44,6 +44,7 @@ export interface LogtoCustomerProvisioningInput {
     email?: null | string;
     logtoSub: string;
     name?: null | string;
+    provisioningSource?: string;
     username?: null | string;
 }
 
@@ -107,12 +108,13 @@ function isEquivalentJson(left: Record<string, unknown>, right: Record<string, u
 function buildProviderMetadata(input: {
     email: null | string;
     name: null | string;
+    provisioningSource: string;
     username: null | string;
 }): Record<string, unknown> {
     return {
         email: input.email,
         name: input.name,
-        provisionedBy: "logto_customer_auth",
+        provisionedBy: input.provisioningSource,
         username: input.username,
     };
 }
@@ -137,6 +139,7 @@ export function createLogtoCustomerProvisioningService(input: {
                 email: trimToNull(rawInput.email)?.toLowerCase() ?? null,
                 logtoSub: trimToNull(rawInput.logtoSub),
                 name: trimToNull(rawInput.name),
+                provisioningSource: trimToNull(rawInput.provisioningSource) ?? "logto_customer_auth",
                 username: trimToNull(rawInput.username),
             };
 

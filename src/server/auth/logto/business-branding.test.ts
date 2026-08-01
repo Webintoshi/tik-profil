@@ -14,6 +14,7 @@ test("builds the amber Tik Profil application branding payload", () => {
         isDarkModeEnabled: false,
         primaryColor: "#FFB347",
     });
+    assert.equal(payload.signInMode, "SignInAndRegister");
     assert.equal(payload.displayName, "Tık Profil İşletme");
     assert.equal(payload.branding.logoUrl, "https://tikprofil.com/brand/tik-business-wordmark.png");
     assert.equal(payload.branding.favicon, "https://tikprofil.com/brand/tik-business-favicon.svg");
@@ -27,7 +28,7 @@ test("custom CSS styles the Logto form and removes consumer actions", () => {
     }
 
     assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /focus-visible/);
-    assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /a\[href\^=["']\\?\/register/);
+    assert.doesNotMatch(BUSINESS_LOGTO_CUSTOM_CSS, /a\[href\^=["']\\?\/register/);
     assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /button:has\(img\[alt\*=["']google/i);
     assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /div\[class\*=["']divider/);
     assert.match(BUSINESS_LOGTO_CUSTOM_CSS, /logto\.io/i);

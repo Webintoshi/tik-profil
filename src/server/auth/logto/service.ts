@@ -9,11 +9,13 @@ import { resolveLogtoIdentity } from "./repository";
 import {
     clearAllLocalSessionCookies,
     clearPendingLogtoAuthStateCookie,
+    createLogtoBusinessOnboardingToken,
     createLogtoBusinessSessionToken,
     createLogtoCustomerSessionToken,
     createLogtoPlatformAdminSessionToken,
     createPendingLogtoAuthStateToken,
     setBusinessOwnerSessionCookie,
+    setBusinessOnboardingCookie,
     setBusinessStaffSessionCookie,
     setCustomerSessionCookie,
     setPendingLogtoAuthStateCookie,
@@ -221,7 +223,7 @@ export async function completeLogtoSignIn(request: NextRequest): Promise<NextRes
             return response;
         }
 
-        const resolvedIdentity = await resolveLogtoIdentity({
+        let resolvedIdentity = await resolveLogtoIdentity({
             email,
             logtoRoles,
             logtoSub,
@@ -229,9 +231,48 @@ export async function completeLogtoSignIn(request: NextRequest): Promise<NextRes
             username,
         });
 
+        if (!resolvedIdentity && pendingState.actorHint === "business") {
+            const provisioningService = createLogtoCustomerProvisioningService({
+                repository: createQueryBackedLogtoCustomerProvisioningRepository(),
+            });
+            await provisioningService.provision({
+                email,
+                logtoSub,
+                name,
+                provisioningSource: "logto_business_self_registration",
+                username,
+            });
+            resolvedIdentity = await resolveLogtoIdentity({
+                email,
+                logtoRoles,
+                logtoSub,
+                name,
+                username,
+            });
+        }
+
         if (!resolvedIdentity) {
             const response = buildAuthErrorRedirect(config.baseUrl, pendingState.returnToLoginPath, "logto_mapping_not_found");
             clearPendingLogtoAuthStateCookie(response);
+            return response;
+        }
+
+        if (
+            pendingState.actorHint === "business"
+            && resolvedIdentity.memberships.length === 0
+            && !resolvedIdentity.platformAdmin
+        ) {
+            const response = NextResponse.redirect(createAbsoluteUrl(config.baseUrl, "/isletme-kaydi"));
+            const onboardingToken = await createLogtoBusinessOnboardingToken({
+                appUserId: resolvedIdentity.appUserId,
+                displayName: resolvedIdentity.displayName ?? name ?? undefined,
+                email: resolvedIdentity.email ?? email ?? undefined,
+                logtoSub,
+            });
+
+            clearPendingLogtoAuthStateCookie(response);
+            clearAllLocalSessionCookies(response);
+            setBusinessOnboardingCookie(response, onboardingToken);
             return response;
         }
 

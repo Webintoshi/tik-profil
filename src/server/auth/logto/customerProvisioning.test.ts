@@ -190,3 +190,21 @@ test("rejects conflicting subject and email mappings", async () => {
         /already linked to a different app user/i,
     );
 });
+
+test("records the caller supplied provisioning source", async () => {
+    const { fakeState, repository } = createFakeRepository();
+    const service = createLogtoCustomerProvisioningService({ repository });
+
+    const result = await service.provision({
+        email: "owner@example.com",
+        logtoSub: "logto|business-owner",
+        name: "Example Owner",
+        provisioningSource: "logto_business_self_registration",
+    });
+
+    assert.equal(result.authProviderLink.status, "created");
+    assert.equal(
+        fakeState.authProviderLinks[0]?.providerMetadata.provisionedBy,
+        "logto_business_self_registration",
+    );
+});

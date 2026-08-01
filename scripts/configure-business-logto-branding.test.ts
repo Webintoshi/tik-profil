@@ -16,7 +16,7 @@ test("CLI requires a path for restore mode", () => {
     assert.throws(() => parseBrandingCliArgs(["--restore"]), /restore_path_required/);
 });
 
-test("default fallback keeps identifier methods while removing registration and social actions", () => {
+test("default fallback keeps identifier methods and enables hybrid registration", () => {
     const current = {
         signIn: {
             methods: [
@@ -31,7 +31,7 @@ test("default fallback keeps identifier methods while removing registration and 
     const payload = buildDefaultFallbackPayload(current, branding);
 
     assert.deepEqual(payload.signIn, current.signIn);
-    assert.equal(payload.signInMode, "SignIn");
+    assert.equal(payload.signInMode, "SignInAndRegister");
     assert.deepEqual(payload.socialSignInConnectorTargets, []);
     assert.equal(payload.hideLogtoBranding, true);
     assert.equal(payload.customCss, branding.customCss);
