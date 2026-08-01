@@ -4,10 +4,11 @@ import {
     BUSINESS_LOGTO_CUSTOM_CSS,
     buildBusinessAuthenticationPayload,
     buildBusinessBrandingPayload,
+    buildBusinessPhoneProfileField,
     summarizeBrandingConfiguration,
 } from "./business-branding";
 
-test("requires verified email, password and an unverified profile phone without username", () => {
+test("requires verified email and password without username or phone sign-in", () => {
     const payload = buildBusinessAuthenticationPayload();
 
     assert.deepEqual(payload.signIn.methods, [
@@ -16,11 +17,25 @@ test("requires verified email, password and an unverified profile phone without 
     assert.deepEqual(payload.signUp, {
         identifiers: ["email"],
         password: true,
-        secondaryIdentifiers: [{ identifier: "phone", verify: false }],
+        secondaryIdentifiers: [],
         verify: true,
     });
     assert.equal(payload.signInMode, "SignInAndRegister");
     assert.doesNotMatch(JSON.stringify(payload), /username/);
+});
+
+test("collects phone as a required non-identifier profile field", () => {
+    assert.deepEqual(buildBusinessPhoneProfileField(), {
+        config: {
+            format: "^(?:\\+90|0)?5[0-9]{9}$",
+            placeholder: "5XX XXX XX XX",
+        },
+        description: "İşletme hesabınız için iletişim numarası",
+        label: "Telefon numarası",
+        name: "businessPhone",
+        required: true,
+        type: "Regex",
+    });
 });
 
 test("builds the amber Tik Profil application branding payload", () => {

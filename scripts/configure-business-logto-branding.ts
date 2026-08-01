@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import {
     buildBusinessAuthenticationPayload,
     buildBusinessBrandingPayload,
+    buildBusinessPhoneProfileField,
     summarizeBrandingConfiguration,
     type BusinessAuthenticationPayload,
     type BusinessBrandingPayload,
@@ -77,6 +78,28 @@ export function buildDefaultFallbackPayload(
         socialSignInConnectorTargets: [],
         termsOfUseUrl: branding.termsOfUseUrl,
     };
+}
+
+export function buildPhoneProfileFieldUpsert(existingStatus: number): {
+    body: JsonRecord;
+    method: "POST" | "PUT";
+    path: string;
+} {
+    const field = buildBusinessPhoneProfileField();
+
+    if (existingStatus === 404) {
+        return { body: field, method: "POST", path: "/api/custom-profile-fields" };
+    }
+    if (existingStatus === 200) {
+        const { name: _name, ...body } = field;
+        return {
+            body,
+            method: "PUT",
+            path: `/api/custom-profile-fields/${field.name}`,
+        };
+    }
+
+    throw new Error(`business_phone_profile_read_failed:${existingStatus}`);
 }
 
 interface RuntimeConfig {
@@ -216,6 +239,39 @@ async function apply(
         ? buildBusinessAuthenticationPayload()
         : undefined;
     if (options.applyAuthentication) {
+        const phoneField = buildBusinessPhoneProfileField();
+        const currentPhoneField = await requestJson(
+            config,
+            accessToken,
+            `/api/custom-profile-fields/${phoneField.name}`,
+        );
+        const phoneFieldRequest = buildPhoneProfileFieldUpsert(currentPhoneField.status);
+        const phoneFieldResult = await requestJson(
+            config,
+            accessToken,
+            phoneFieldRequest.path,
+            { body: JSON.stringify(phoneFieldRequest.body), method: phoneFieldRequest.method },
+        );
+        if (phoneFieldResult.status < 200 || phoneFieldResult.status >= 300) {
+            const providerCode = typeof phoneFieldResult.body?.code === "string"
+                ? phoneFieldResult.body.code
+                : "unknown";
+            throw new Error(`business_phone_profile_failed:${phoneFieldResult.status}:${providerCode}`);
+        }
+
+        const profileOrderResult = await requestJson(
+            config,
+            accessToken,
+            "/api/custom-profile-fields/properties/sie-order",
+            {
+                body: JSON.stringify({ order: [{ name: phoneField.name, sieOrder: 1 }] }),
+                method: "POST",
+            },
+        );
+        if (profileOrderResult.status < 200 || profileOrderResult.status >= 300) {
+            throw new Error(`business_phone_profile_order_failed:${profileOrderResult.status}`);
+        }
+
         const authenticationResult = await requestJson(config, accessToken, "/api/sign-in-exp", {
             body: JSON.stringify(authentication),
             method: "PATCH",

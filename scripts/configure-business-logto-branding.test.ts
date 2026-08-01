@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildDefaultFallbackPayload, parseBrandingCliArgs } from "./configure-business-logto-branding";
+import {
+    buildDefaultFallbackPayload,
+    buildPhoneProfileFieldUpsert,
+    parseBrandingCliArgs,
+} from "./configure-business-logto-branding";
 import {
     buildBusinessAuthenticationPayload,
     buildBusinessBrandingPayload,
@@ -61,4 +65,20 @@ test("default fallback applies verified email, profile phone and password regist
     assert.deepEqual(payload.signIn, authentication.signIn);
     assert.deepEqual(payload.signUp, authentication.signUp);
     assert.doesNotMatch(JSON.stringify(payload), /username/);
+});
+
+test("creates the business phone profile field when it does not exist", () => {
+    const request = buildPhoneProfileFieldUpsert(404);
+
+    assert.equal(request.method, "POST");
+    assert.equal(request.path, "/api/custom-profile-fields");
+    assert.equal(request.body.name, "businessPhone");
+});
+
+test("updates the business phone profile field without changing its key", () => {
+    const request = buildPhoneProfileFieldUpsert(200);
+
+    assert.equal(request.method, "PUT");
+    assert.equal(request.path, "/api/custom-profile-fields/businessPhone");
+    assert.equal("name" in request.body, false);
 });

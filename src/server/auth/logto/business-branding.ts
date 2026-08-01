@@ -192,12 +192,21 @@ export interface BusinessAuthenticationPayload {
     signUp: {
         identifiers: ["email"];
         password: true;
-        secondaryIdentifiers: [{
-            identifier: "phone";
-            verify: false;
-        }];
+        secondaryIdentifiers: [];
         verify: true;
     };
+}
+
+export interface BusinessPhoneProfileField {
+    config: {
+        format: string;
+        placeholder: string;
+    };
+    description: string;
+    label: string;
+    name: "businessPhone";
+    required: true;
+    type: "Regex";
 }
 
 export function buildBusinessAuthenticationPayload(): BusinessAuthenticationPayload {
@@ -216,9 +225,23 @@ export function buildBusinessAuthenticationPayload(): BusinessAuthenticationPayl
         signUp: {
             identifiers: ["email"],
             password: true,
-            secondaryIdentifiers: [{ identifier: "phone", verify: false }],
+            secondaryIdentifiers: [],
             verify: true,
         },
+    };
+}
+
+export function buildBusinessPhoneProfileField(): BusinessPhoneProfileField {
+    return {
+        config: {
+            format: "^(?:\\+90|0)?5[0-9]{9}$",
+            placeholder: "5XX XXX XX XX",
+        },
+        description: "İşletme hesabınız için iletişim numarası",
+        label: "Telefon numarası",
+        name: "businessPhone",
+        required: true,
+        type: "Regex",
     };
 }
 
