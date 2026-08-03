@@ -130,9 +130,10 @@ export function mapLegacyBusinessSourceToDocument(source: unknown): JsonRecord |
         document.data = source.data;
     }
 
-    if ("review_count" in source || "review_count" in data || "reviewCount" in data) {
+    if ("review_count" in source || "reviewCount" in source || "review_count" in data || "reviewCount" in data) {
         document.reviewCount =
             asNumber(source.review_count) ??
+            asNumber(source.reviewCount) ??
             asNumber(data.review_count) ??
             asNumber(data.reviewCount);
     }
