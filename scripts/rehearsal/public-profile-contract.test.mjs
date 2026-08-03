@@ -122,6 +122,39 @@ test("normalizes postgres rows into the same public profile contract without exp
     assert.equal("legacy_source" in profile, false);
 });
 
+test("keeps imported auto dealers module-free and disables ordering by default", () => {
+    const profile = normalizePostgresPublicProfileRow({
+        row: {
+            id: "dealer-id",
+            slug: "ordu-otomotiv",
+            previous_slugs: [],
+            name: "Ordu Otomotiv",
+            phone: "+90 452 000 00 00",
+            whatsapp: null,
+            status: "active",
+            industry_id: "oto_galeri",
+            industry_label: "Oto Galeri",
+            active_module: null,
+            logo: "/api/google-places/photo/dealer",
+            cover: null,
+            about: null,
+            address: "Altinordu / Ordu",
+            maps_url: "https://maps.example/dealer",
+            social_links: {},
+            show_hours: false,
+            working_hours: [],
+            is_verified: false,
+            legacy_source: {},
+        },
+        moduleKeys: [],
+    });
+
+    assert.equal(profile.industry, "oto_galeri");
+    assert.equal(profile.industryLabel, "Oto Galeri");
+    assert.deepEqual(profile.modules, []);
+    assert.equal(profile.cartEnabled, false);
+});
+
 test("summarizes dual-read profile diffs with booleans instead of raw phone or social values", () => {
     const legacy = {
         profile: normalizeLegacyPublicProfileSource({

@@ -176,6 +176,10 @@ export function derivePublicProfileIndustry(
         return "vehicle-rental";
     }
 
+    if (["otogaleri", "autodealer", "cardealer"].includes(normalizedLabel)) {
+        return "oto_galeri";
+    }
+
     return normalizedLabel || "default";
 }
 
@@ -285,7 +289,7 @@ export function normalizeLegacyPublicProfileSource({
         showHours: asBoolean(fields.showHours) ?? false,
         workingHours: normalizeWorkingHours(fields.workingHours ?? fields.working_hours),
         modules,
-        cartEnabled: asBoolean(fields.cartEnabled) ?? true,
+        cartEnabled: asBoolean(fields.cartEnabled) ?? modules.length > 0,
         social,
     });
 }
@@ -341,7 +345,7 @@ export function normalizePostgresPublicProfileRow({
         showHours: asBoolean(legacyFields.showHours) ?? row.show_hours ?? false,
         workingHours: normalizeWorkingHours(legacyFields.workingHours ?? legacyFields.working_hours ?? row.working_hours),
         modules,
-        cartEnabled: asBoolean(legacyFields.cartEnabled) ?? true,
+        cartEnabled: asBoolean(legacyFields.cartEnabled) ?? modules.length > 0,
         social,
     });
 }
