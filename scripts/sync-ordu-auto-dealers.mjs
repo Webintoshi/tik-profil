@@ -312,7 +312,7 @@ async function searchTask(apiKey, district, term) {
     return places;
 }
 
-async function discoverPlaces(apiKey) {
+export async function discoverPlaces(apiKey) {
     const tasks = ORDU_DISTRICTS.flatMap((district) => QUERY_TERMS.map((term) => ({ district, term })));
     const discovered = new Map();
     let cursor = 0;
@@ -333,7 +333,7 @@ async function discoverPlaces(apiKey) {
     return [...discovered.values()];
 }
 
-async function getPlaceDetails(apiKey, ref) {
+export async function getPlaceDetails(apiKey, ref) {
     const place = await googleRequest(
         apiKey,
         `/places/${encodeURIComponent(ref.id)}?languageCode=tr&regionCode=tr`,
