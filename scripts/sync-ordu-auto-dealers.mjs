@@ -517,10 +517,13 @@ export async function upsertPlace(client, place, business, usedSlugs) {
     return { businessId, slug, name, district: place.district, placeId: place.id, existed: Boolean(business) };
 }
 
-async function main() {
-    const { apply, replaceUnclaimed } = parseArgs(process.argv.slice(2));
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY?.trim();
-    const connectionString = process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim();
+export async function runAutoDealerSync(options = {}) {
+    const apply = options.apply ?? false;
+    const replaceUnclaimed = options.replaceUnclaimed ?? false;
+    const apiKey = options.apiKey?.trim() || process.env.GOOGLE_MAPS_API_KEY?.trim();
+    const connectionString = options.connectionString?.trim()
+        || process.env.DATABASE_URL?.trim()
+        || process.env.POSTGRES_URL?.trim();
     if (!apiKey) throw new Error("GOOGLE_MAPS_API_KEY_required");
     if (!connectionString) throw new Error("DATABASE_URL_or_POSTGRES_URL_required");
 
@@ -560,8 +563,7 @@ async function main() {
             unmatchedExisting: unmatchedExisting.map(({ id, slug, name }) => ({ id, slug, name })),
         };
         if (!apply) {
-            console.log(JSON.stringify(summary));
-            return;
+            return summary;
         }
 
         const usedSlugs = new Set(existing.map(({ slug }) => slug));
@@ -582,13 +584,23 @@ async function main() {
                 WHERE source_type = 'google_places' AND source_ref IS NOT NULL
         `);
         await db.query("COMMIT");
-        console.log(JSON.stringify({ ...summary, updated: updates.filter((entry) => entry.existed).length, inserted: updates.filter((entry) => !entry.existed).length }));
+        return {
+            ...summary,
+            updated: updates.filter((entry) => entry.existed).length,
+            inserted: updates.filter((entry) => !entry.existed).length,
+        };
     } catch (error) {
         if (apply) await db.query("ROLLBACK");
         throw error;
     } finally {
         await db.end();
     }
+}
+
+async function main() {
+    const command = parseArgs(process.argv.slice(2));
+    const summary = await runAutoDealerSync(command);
+    console.log(JSON.stringify(summary));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
