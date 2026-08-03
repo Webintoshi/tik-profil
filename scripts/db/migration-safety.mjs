@@ -5,8 +5,15 @@ function stripSqlComments(sql) {
 }
 
 function removeAllowedConstraintReplacement(sql, filename) {
-    if (filename !== "0016_business_import_sector_expansion.sql") return sql;
-    const restored = /alter\s+table\s+business_import_candidates\s+add\s+constraint\s+business_import_candidates_sector_key_check\s+check\s*\(\s*sector_key\s+in\s*\(\s*'petshop'\s*,\s*'veteriner'\s*,\s*'fastfood'\s*\)\s*\)/i.test(sql);
+    const allowedValues = new Map([
+        ["0016_business_import_sector_expansion.sql", "'petshop'\\s*,\\s*'veteriner'\\s*,\\s*'fastfood'"],
+        ["0017_business_import_auto_dealer_sector.sql", "'petshop'\\s*,\\s*'veteriner'\\s*,\\s*'fastfood'\\s*,\\s*'oto_galeri'"],
+    ]).get(filename);
+    if (!allowedValues) return sql;
+    const restored = new RegExp(
+        `alter\\s+table\\s+business_import_candidates\\s+add\\s+constraint\\s+business_import_candidates_sector_key_check\\s+check\\s*\\(\\s*sector_key\\s+in\\s*\\(\\s*${allowedValues}\\s*\\)\\s*\\)`,
+        "i",
+    ).test(sql);
     if (!restored) return sql;
     return sql.replace(
         /alter\s+table\s+business_import_candidates\s+drop\s+constraint\s+if\s+exists\s+business_import_candidates_sector_key_check\s*;/gi,

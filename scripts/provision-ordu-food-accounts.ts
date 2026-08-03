@@ -22,8 +22,10 @@ const UUID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3
 export interface BulkProvisionCommand {
     actorId: string | null;
     apply: boolean;
+    categoryLabel: string;
     concurrency: number;
     credentialDir: string | null;
+    industryId: string;
     limit: number | null;
 }
 
@@ -48,7 +50,8 @@ function positiveInteger(value: string | null, errorCode: string): number | null
 
 export function parseBulkProvisionCommand(args: readonly string[]): BulkProvisionCommand {
     const knownOptions = new Set([
-        "--actor-id", "--apply", "--concurrency", "--credential-dir", "--limit",
+        "--actor-id", "--apply", "--category-label", "--concurrency", "--credential-dir",
+        "--industry-id", "--limit",
     ]);
     for (let index = 0; index < args.length; index += 1) {
         const argument = args[index];
@@ -63,14 +66,18 @@ export function parseBulkProvisionCommand(args: readonly string[]): BulkProvisio
 
     const apply = args.includes("--apply");
     const actorId = optionValue(args, "--actor-id");
+    const categoryLabel = optionValue(args, "--category-label") ?? "Fast Food";
     const credentialDir = optionValue(args, "--credential-dir");
+    const industryId = optionValue(args, "--industry-id") ?? "fastfood";
     const concurrency = positiveInteger(optionValue(args, "--concurrency"), "concurrency_invalid") ?? 2;
     const limit = positiveInteger(optionValue(args, "--limit"), "limit_invalid");
 
     if (concurrency > 4) throw new Error("concurrency_out_of_range");
+    if (!/^[a-z0-9_]+$/.test(industryId)) throw new Error("industry_id_invalid");
+    if (categoryLabel.length > 80) throw new Error("category_label_invalid");
     if (apply && (!actorId || !UUID_PATTERN.test(actorId))) throw new Error("actor_id_required");
     if (apply && !credentialDir) throw new Error("credential_dir_required");
-    return { actorId, apply, concurrency, credentialDir, limit };
+    return { actorId, apply, categoryLabel, concurrency, credentialDir, industryId, limit };
 }
 
 export function credentialFilename(slug: string): string {
@@ -104,12 +111,12 @@ function requiredEnv(name: string): string {
 
 export const ELIGIBLE_BUSINESSES_SQL = `
     SELECT business.slug, business.name, business.district,
-           COALESCE(business.industry_label, 'Fast Food') AS category
+           COALESCE(business.industry_label, $3) AS category
     FROM businesses business
     INNER JOIN business_discovery_profiles discovery ON discovery.business_id = business.id
     WHERE business.source = 'google_places_verified_import'
       AND lower(COALESCE(business.city, '')) = 'ordu'
-      AND lower(COALESCE(business.industry_id, '')) = 'fastfood'
+      AND lower(COALESCE(business.industry_id, '')) = $2
       AND discovery.source_type = 'google_places'
       AND discovery.claim_state = 'unclaimed'
       AND business.package_id IS NULL
@@ -129,11 +136,18 @@ export const ELIGIBLE_BUSINESSES_SQL = `
     LIMIT $1
 `;
 
-async function listEligibleBusinesses(limit: number | null): Promise<EligibleBusiness[]> {
+async function listEligibleBusinesses(
+    limit: number | null,
+    industryId: string,
+    categoryLabel: string,
+): Promise<EligibleBusiness[]> {
     const client = new pg.Client({ connectionString: requiredEnv("DATABASE_URL") });
     await client.connect();
     try {
-        const result = await client.query<EligibleBusiness>(ELIGIBLE_BUSINESSES_SQL, [limit ?? 100_000]);
+        const result = await client.query<EligibleBusiness>(
+            ELIGIBLE_BUSINESSES_SQL,
+            [limit ?? 100_000, industryId, categoryLabel],
+        );
         return result.rows;
     } finally {
         await client.end();
@@ -149,7 +163,11 @@ function categoryCounts(businesses: readonly EligibleBusiness[]): Record<string,
 
 async function main(): Promise<void> {
     const command = parseBulkProvisionCommand(process.argv.slice(2));
-    const businesses = await listEligibleBusinesses(command.limit);
+    const businesses = await listEligibleBusinesses(
+        command.limit,
+        command.industryId,
+        command.categoryLabel,
+    );
     if (!command.apply) {
         console.log(JSON.stringify({
             mode: "dry-run",

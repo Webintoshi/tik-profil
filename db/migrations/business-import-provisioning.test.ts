@@ -5,6 +5,7 @@ import test from "node:test";
 const migrationUrl = new URL("./0014_business_import_provisioning.sql", import.meta.url);
 const identityHardeningMigrationUrl = new URL("./0015_business_import_identity_hardening.sql", import.meta.url);
 const sectorExpansionMigrationUrl = new URL("./0016_business_import_sector_expansion.sql", import.meta.url);
+const autoDealerSectorMigrationUrl = new URL("./0017_business_import_auto_dealer_sector.sql", import.meta.url);
 
 function tableBlock(sql: string, table: string): string {
     const match = sql.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\s*\\([\\s\\S]*?\\n\\);`, "i"));
@@ -82,4 +83,12 @@ test("sector expansion allows food businesses without weakening the existing can
     assert.match(sql, /DROP CONSTRAINT IF EXISTS business_import_candidates_sector_key_check/i);
     assert.match(sql, /ADD CONSTRAINT business_import_candidates_sector_key_check/i);
     assert.match(sql, /sector_key IN \('petshop', 'veteriner', 'fastfood'\)/i);
+});
+
+test("auto dealer sector expansion preserves existing sectors", async () => {
+    const sql = await readFile(autoDealerSectorMigrationUrl, "utf8");
+
+    assert.match(sql, /DROP CONSTRAINT IF EXISTS business_import_candidates_sector_key_check/i);
+    assert.match(sql, /ADD CONSTRAINT business_import_candidates_sector_key_check/i);
+    assert.match(sql, /sector_key IN \('petshop', 'veteriner', 'fastfood', 'oto_galeri'\)/i);
 });

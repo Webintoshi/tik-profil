@@ -16,6 +16,8 @@ test("bulk account provisioning is dry-run by default", () => {
         apply: false,
         concurrency: 2,
         credentialDir: null,
+        industryId: "fastfood",
+        categoryLabel: "Fast Food",
         limit: null,
     });
 });
@@ -26,12 +28,16 @@ test("apply requires an actor, credential directory, and bounded concurrency", (
         "--actor-id", ACTOR_ID,
         "--credential-dir", "/credentials",
         "--concurrency", "3",
+        "--industry-id", "oto_galeri",
+        "--category-label", "Oto Galeri",
         "--limit", "20",
     ]), {
         actorId: ACTOR_ID,
         apply: true,
         concurrency: 3,
         credentialDir: "/credentials",
+        industryId: "oto_galeri",
+        categoryLabel: "Oto Galeri",
         limit: 20,
     });
     assert.throws(() => parseBulkProvisionCommand(["--apply"]), /actor_id_required/);
@@ -49,6 +55,7 @@ test("credential filenames accept only normalized business slugs", () => {
 
 test("eligible account query excludes existing issuances through the production table", () => {
     assert.match(ELIGIBLE_BUSINESSES_SQL, /NOT EXISTS[\s\S]*business_account_issuances/i);
+    assert.match(ELIGIBLE_BUSINESSES_SQL, /industry_id[^\n]*=\s*\$2/i);
     assert.doesNotMatch(ELIGIBLE_BUSINESSES_SQL, /business_account_bindings/i);
 });
 

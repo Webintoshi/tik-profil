@@ -135,6 +135,9 @@ export function getPublicProfileIndustryLabel(industryId: string): string {
         "spa": "SPA",
         "gym": "Spor Salonu",
         "vehicle-rental": "Arac Kiralama",
+        "oto_galeri": "Oto Galeri",
+        "auto-dealer": "Oto Galeri",
+        "car-dealer": "Oto Galeri",
         "default": "Isletme",
     };
     const normalizedId = industryId?.toLowerCase().trim() || "default";
