@@ -9,6 +9,8 @@ export interface PilotBusiness {
     hasAccountBinding: boolean;
     hasLogo?: boolean;
     hasOwner: boolean;
+    industryId: string;
+    industryLabel: string;
     latitude: number | null;
     longitude: number | null;
     name: string;
@@ -46,7 +48,7 @@ export type PilotAdoptionErrorCode =
     | "business_already_owned"
     | "business_not_found"
     | "location_required"
-    | "mobile_phone_required"
+    | "phone_invalid"
     | "phone_required"
     | "pilot_not_prepared"
     | "provider_identity_conflict"
@@ -82,14 +84,14 @@ function phoneDigits(value: string): string {
     return value.replace(/\D/g, "");
 }
 
-function isTurkishMobilePhone(value: string): boolean {
+function isValidBusinessPhone(value: string): boolean {
     const digits = phoneDigits(value);
-    return /^(?:90|0)?5\d{9}$/.test(digits);
+    return digits.length >= 10 && digits.length <= 15;
 }
 
 function validateBusiness(business: PilotBusiness): void {
     if (!business.phone.trim()) throw new PilotAdoptionError("phone_required");
-    if (!isTurkishMobilePhone(business.phone)) throw new PilotAdoptionError("mobile_phone_required");
+    if (!isValidBusinessPhone(business.phone)) throw new PilotAdoptionError("phone_invalid");
     if (!Number.isFinite(business.latitude) || !Number.isFinite(business.longitude)) {
         throw new PilotAdoptionError("location_required");
     }

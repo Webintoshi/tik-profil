@@ -48,6 +48,8 @@ function mapBusiness(row: Row): PilotBusiness {
         hasAccountBinding: booleanValue(row.has_account_binding),
         hasLogo: booleanValue(row.has_logo),
         hasOwner: booleanValue(row.has_owner),
+        industryId: stringValue(row.industry_id),
+        industryLabel: stringValue(row.industry_label),
         latitude: nullableNumber(row.latitude),
         longitude: nullableNumber(row.longitude),
         name: stringValue(row.name),
@@ -81,7 +83,7 @@ function sourceFacts(business: PilotBusiness): Array<[string, string]> {
         ["name", business.name],
         ["city", business.city],
         ["district", business.district],
-        ["category", "Petshop"],
+        ["category", business.industryLabel || business.industryId],
         ["address", business.address],
         ["phone", business.phone],
     ].filter((entry): entry is [string, string] => Boolean(entry[1].trim()));
@@ -97,6 +99,8 @@ export function createPilotAdoptionRepository(
                 `SELECT business.id AS business_id, business.slug, business.name, business.phone,
                         business.city, business.district, business.address, business.lat AS latitude,
                         business.lng AS longitude, COALESCE(business.status, '') AS status,
+                        COALESCE(business.industry_id, '') AS industry_id,
+                        COALESCE(business.industry_label, '') AS industry_label,
                         NULLIF(BTRIM(business.logo), '') IS NOT NULL AS has_logo,
                         COALESCE(
                             NULLIF(BTRIM(business.legacy_source->>'googlePlaceId'), ''),
@@ -118,10 +122,8 @@ export function createPilotAdoptionRepository(
                         ) AS has_account_binding
                  FROM businesses business
                  WHERE lower(business.slug) = lower($1)
-                   AND (
-                       lower(COALESCE(business.industry_id, '')) = 'petshop'
-                       OR lower(COALESCE(business.industry_label, '')) LIKE '%petshop%'
-                   )
+                   AND lower(COALESCE(business.city, '')) = 'ordu'
+                   AND business.source = 'google_places_verified_import'
                  ORDER BY business.id
                  LIMIT 2`,
                 [slug],
@@ -192,7 +194,12 @@ export function createPilotAdoptionRepository(
                 );
                 const adoptionState = {
                     eligibility: { approved: true },
-                    petshop_module: { businessId: input.business.businessId, completed: true, moduleKey: "petshops" },
+                    petshop_module: {
+                        businessId: input.business.businessId,
+                        completed: true,
+                        moduleKey: input.business.industryId === "petshop" ? "petshops" : null,
+                        skipped: input.business.industryId !== "petshop",
+                    },
                     pilot_adoption: {
                         businessId: input.business.businessId,
                         originalBusinessStatus: input.business.status,
@@ -234,7 +241,7 @@ export function createPilotAdoptionRepository(
                     `INSERT INTO business_import_candidates (
                         id, first_seen_batch_id, provider, provider_place_id, sector_key, city,
                         district_scope, candidate_status, provisioning_state, reviewed_by_user_id, reviewed_at
-                     ) VALUES ($1, $2, 'google_places', $3, 'petshop', 'Ordu', $4, 'approved', $5::jsonb, $6::uuid, now())
+                     ) VALUES ($1, $2, 'google_places', $3, $4, 'Ordu', $5, 'approved', $6::jsonb, $7::uuid, now())
                      ON CONFLICT (id) DO UPDATE SET
                         first_seen_batch_id = EXCLUDED.first_seen_batch_id,
                         district_scope = EXCLUDED.district_scope,
@@ -250,6 +257,7 @@ export function createPilotAdoptionRepository(
                         candidateId,
                         batchId,
                         input.business.providerPlaceId,
+                        input.business.industryId,
                         input.business.district,
                         JSON.stringify(adoptionState),
                         input.actorId,

@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config as loadEnv } from "dotenv";
 import { Client } from "pg";
+import { assertNonDestructive } from "./migration-safety.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..", "..");
@@ -44,27 +45,6 @@ function maskDatabaseTarget(databaseUrl) {
 
 function sha256(input) {
     return createHash("sha256").update(input).digest("hex");
-}
-
-function stripSqlComments(sql) {
-    return sql
-        .replace(/\/\*[\s\S]*?\*\//g, " ")
-        .replace(/--.*$/gm, " ");
-}
-
-function assertNonDestructive(sql, filename) {
-    const normalized = stripSqlComments(sql).toLowerCase();
-    const destructivePatterns = [
-        /\bdrop\s+(table|schema|database|extension|index|view|materialized\s+view|type)\b/,
-        /\btruncate\s+(table\s+)?\b/,
-        /\balter\s+table\b[\s\S]*?\bdrop\s+(column|constraint)\b/,
-    ];
-
-    for (const pattern of destructivePatterns) {
-        if (pattern.test(normalized)) {
-            throw new Error(`Refusing to apply destructive SQL in ${filename}.`);
-        }
-    }
 }
 
 async function getMigrationFiles() {

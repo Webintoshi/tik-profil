@@ -17,6 +17,8 @@ const business: PilotBusiness = {
     district: "Unye",
     hasAccountBinding: false,
     hasOwner: false,
+    industryId: "petshop",
+    industryLabel: "Petshop",
     latitude: 41.12,
     longitude: 37.28,
     name: "Akbulut Akvaryum Ve Av Bayii",
@@ -83,7 +85,7 @@ function createLogto(overrides: Partial<LogtoManagementClient> = {}): LogtoManag
     };
 }
 
-test("preflight accepts exactly one unowned Ordu petshop with mobile phone and verified location", async () => {
+test("preflight accepts exactly one unowned imported Ordu business with phone and verified location", async () => {
     const service = createPilotAdoptionService({
         logto: createLogto(),
         provisioning: createProvisioning(),
@@ -102,10 +104,19 @@ test("preflight accepts exactly one unowned Ordu petshop with mobile phone and v
     });
 });
 
-test("preflight rejects missing or fixed-line phones, missing location, ownership, and account bindings", async () => {
+test("preflight accepts fixed-line business phones and rejects missing phone, location, ownership, and bindings", async () => {
+    const fixedLineService = createPilotAdoptionService({
+        logto: createLogto(),
+        provisioning: createProvisioning(),
+        repository: createRepository({
+            findBusinessesBySlug: async () => [{ ...business, phone: "0452 111 22 33" }],
+        }),
+    });
+    assert.equal((await fixedLineService.preflight(business.slug)).status, "eligible");
+
     const cases: Array<[Partial<PilotBusiness>, string]> = [
         [{ phone: "" }, "phone_required"],
-        [{ phone: "0452 111 22 33" }, "mobile_phone_required"],
+        [{ phone: "123" }, "phone_invalid"],
         [{ latitude: null }, "location_required"],
         [{ longitude: null }, "location_required"],
         [{ providerPlaceId: "" }, "provider_place_id_required"],

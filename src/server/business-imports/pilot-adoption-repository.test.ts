@@ -16,6 +16,8 @@ const business: PilotBusiness = {
     hasAccountBinding: false,
     hasLogo: true,
     hasOwner: false,
+    industryId: "fastfood",
+    industryLabel: "Pizza",
     latitude: 41.12,
     longitude: 37.28,
     name: "Akbulut Akvaryum Ve Av Bayii",
@@ -46,6 +48,8 @@ test("findBusinessesBySlug performs exact case-insensitive selection and maps ow
                 has_account_binding: false,
                 has_logo: true,
                 has_owner: false,
+                industry_id: business.industryId,
+                industry_label: business.industryLabel,
                 latitude: business.latitude,
                 longitude: business.longitude,
                 name: business.name,
@@ -62,6 +66,7 @@ test("findBusinessesBySlug performs exact case-insensitive selection and maps ow
     assert.match(calls[0]!.text, /lower\(business\.slug\) = lower\(\$1\)/i);
     assert.match(calls[0]!.text, /role\.role_key = 'owner'/i);
     assert.match(calls[0]!.text, /business_account_issuances/i);
+    assert.doesNotMatch(calls[0]!.text, /industry_id[^\n]*=\s*'petshop'/i);
     assert.deepEqual(calls[0]!.values, [business.slug]);
 });
 
@@ -104,16 +109,20 @@ test("prepareAdoption snapshots the existing profile and marks public profile st
     assert.equal(record.candidateId, deterministicPilotUuid("candidate", business.providerPlaceId));
     const candidateInsert = calls.find((call) => /INSERT INTO business_import_candidates/i.test(call.text));
     assert.ok(candidateInsert);
-    const state = JSON.parse(String(candidateInsert.values[4])) as Record<string, Record<string, unknown>>;
+    const state = JSON.parse(String(candidateInsert.values[5])) as Record<string, Record<string, unknown>>;
     assert.equal(state.profile_identity?.businessId, business.businessId);
     assert.equal(state.public_profile?.completed, true);
     assert.equal(state.petshop_module?.completed, true);
+    assert.equal(state.petshop_module?.skipped, true);
     assert.deepEqual(state.pilot_adoption?.originalDiscoveryProfile, {
         claim_state: "unclaimed",
         discover_status: "published",
     });
     const factCalls = calls.filter((call) => /INSERT INTO business_source_facts/i.test(call.text));
     assert.deepEqual(factCalls.map((call) => call.values[1]), ["name", "city", "district", "category", "address", "phone"]);
+    assert.equal(factCalls.find((call) => call.values[1] === "category")?.values[2], "Pizza");
+    assert.match(candidateInsert.text, /\$4,\s*'Ordu'/i);
+    assert.equal(candidateInsert.values[3], "fastfood");
 });
 
 test("prepareAdoption fails under the row lock if ownership changed after preflight", async () => {

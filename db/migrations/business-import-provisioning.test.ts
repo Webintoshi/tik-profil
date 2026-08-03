@@ -4,6 +4,7 @@ import test from "node:test";
 
 const migrationUrl = new URL("./0014_business_import_provisioning.sql", import.meta.url);
 const identityHardeningMigrationUrl = new URL("./0015_business_import_identity_hardening.sql", import.meta.url);
+const sectorExpansionMigrationUrl = new URL("./0016_business_import_sector_expansion.sql", import.meta.url);
 
 function tableBlock(sql: string, table: string): string {
     const match = sql.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\s*\\([\\s\\S]*?\\n\\);`, "i"));
@@ -73,4 +74,12 @@ test("identity hardening allows only one provider identity per app user", async 
     assert.match(sql, /ON auth_provider_links\s*\(app_user_id, provider\)/i);
     assert.match(sql, /ALTER TABLE business_account_issuances[\s\S]*ADD COLUMN IF NOT EXISTS delivery_generation uuid/i);
     assert.doesNotMatch(sql, /password|secret|token/i);
+});
+
+test("sector expansion allows food businesses without weakening the existing candidate constraint", async () => {
+    const sql = await readFile(sectorExpansionMigrationUrl, "utf8");
+
+    assert.match(sql, /DROP CONSTRAINT IF EXISTS business_import_candidates_sector_key_check/i);
+    assert.match(sql, /ADD CONSTRAINT business_import_candidates_sector_key_check/i);
+    assert.match(sql, /sector_key IN \('petshop', 'veteriner', 'fastfood'\)/i);
 });
