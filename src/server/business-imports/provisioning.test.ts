@@ -359,6 +359,18 @@ test("new imported users receive a deterministic Logto username while retaining 
     assert.equal(fake.logto.usernameCalls.length, 0);
 });
 
+test("numeric business aliases receive a Logto-compatible username prefix", async () => {
+    const fake = setup();
+    const numericAlias = "52-zirve-doner@tikprofil.com";
+    fake.repository.alias = numericAlias;
+
+    const result = await fake.service.provisionCandidate(batchId, candidateId);
+
+    assert.equal(result.status, "provisioned");
+    assert.equal(fake.logto.users.get(numericAlias)?.primaryEmail, numericAlias);
+    assert.equal(fake.logto.users.get(numericAlias)?.username, "business_52_zirve_doner");
+});
+
 test("unowned or marker-mismatched exact-email Logto users fail before password mutation", async () => {
     for (const user of [
         ownedUser({ customData: {} }),

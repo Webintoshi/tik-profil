@@ -128,10 +128,11 @@ function isOwnedImportedUser(
 
 function logtoUsername(loginEmail: string): string {
     const localPart = loginEmail.split("@", 1)[0]?.toLowerCase() ?? "";
-    const normalized = localPart
+    let normalized = localPart
         .replace(/[^a-z0-9_]+/g, "_")
         .replace(/^_+|_+$/g, "")
         .slice(0, 128);
+    if (/^[0-9]/.test(normalized)) normalized = `business_${normalized}`.slice(0, 128);
     if (normalized.length < 3) throw new Error("provider_identity_conflict");
     return normalized;
 }
