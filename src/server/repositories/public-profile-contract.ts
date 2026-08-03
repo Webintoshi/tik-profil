@@ -200,6 +200,7 @@ function buildPublicProfile({
     showHours,
     workingHours,
     modules,
+    primaryModuleId,
     cartEnabled,
     social,
 }: {
@@ -219,6 +220,7 @@ function buildPublicProfile({
     showHours: boolean;
     workingHours: unknown;
     modules: string[];
+    primaryModuleId?: string;
     cartEnabled: boolean;
     social: PublicProfileSocialLinks;
 }): PublicProfile {
@@ -239,6 +241,7 @@ function buildPublicProfile({
         showHours,
         workingHours,
         modules,
+        primaryModuleId: primaryModuleId || modules[0] || null,
         hasRestaurantModule: modules.includes("restaurant"),
         cartEnabled,
         social,
@@ -267,6 +270,10 @@ export function normalizeLegacyPublicProfileSource({
     const social = buildSocialLinks(fields);
     const socialLinks = isRecord(fields.socialLinks) ? fields.socialLinks : {};
     const industry = derivePublicProfileIndustry(modules, rawLabel);
+    const configuredPrimaryModule =
+        asString(record.active_module) ||
+        asString(fields.active_module) ||
+        asString(fields.activeModule);
 
     return buildPublicProfile({
         id: asString(record.id) || asString(fields.id) || "",
@@ -289,6 +296,9 @@ export function normalizeLegacyPublicProfileSource({
         showHours: asBoolean(fields.showHours) ?? false,
         workingHours: normalizeWorkingHours(fields.workingHours ?? fields.working_hours),
         modules,
+        primaryModuleId: configuredPrimaryModule && modules.includes(configuredPrimaryModule)
+            ? configuredPrimaryModule
+            : modules[0] || undefined,
         cartEnabled: asBoolean(fields.cartEnabled) ?? modules.length > 0,
         social,
     });
@@ -315,6 +325,7 @@ export function normalizePostgresPublicProfileRow({
         "";
     const social = buildSocialLinks(legacyFields, rowSocialLinks);
     const legacySocialLinks = isRecord(legacyFields.socialLinks) ? legacyFields.socialLinks : {};
+    const configuredPrimaryModule = asString(row.active_module);
     const industry = derivePublicProfileIndustry(
         modules.length > 0 ? modules : (row.active_module ? [row.active_module] : []),
         rawLabel,
@@ -345,6 +356,9 @@ export function normalizePostgresPublicProfileRow({
         showHours: asBoolean(legacyFields.showHours) ?? row.show_hours ?? false,
         workingHours: normalizeWorkingHours(legacyFields.workingHours ?? legacyFields.working_hours ?? row.working_hours),
         modules,
+        primaryModuleId: configuredPrimaryModule && modules.includes(configuredPrimaryModule)
+            ? configuredPrimaryModule
+            : modules[0] || undefined,
         cartEnabled: asBoolean(legacyFields.cartEnabled) ?? modules.length > 0,
         social,
     });

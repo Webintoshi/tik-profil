@@ -26,6 +26,7 @@ export interface PublicProfile {
     showHours: boolean;
     workingHours: unknown;
     modules: string[];
+    primaryModuleId: string | null;
     hasRestaurantModule: boolean;
     cartEnabled: boolean;
     social: PublicProfileSocialLinks;

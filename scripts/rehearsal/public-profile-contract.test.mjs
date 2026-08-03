@@ -46,6 +46,7 @@ test("normalizes the current legacy public profile shape from top-level and nest
     assert.equal(profile.address, "Istanbul");
     assert.equal(profile.mapsUrl, "https://maps.example/derycraft");
     assert.deepEqual(profile.modules, ["ecommerce"]);
+    assert.equal(profile.primaryModuleId, "ecommerce");
     assert.equal(profile.showHours, true);
     assert.deepEqual(profile.workingHours, [{ day: "monday", isOpen: true }]);
     assert.equal(profile.cartEnabled, false);
@@ -116,6 +117,7 @@ test("normalizes postgres rows into the same public profile contract without exp
     assert.equal(profile.address, "Akyazi");
     assert.equal(profile.mapsUrl, "https://maps.example/bebek");
     assert.deepEqual(profile.modules, ["fastfood"]);
+    assert.equal(profile.primaryModuleId, "fastfood");
     assert.equal(profile.showHours, true);
     assert.deepEqual(profile.workingHours, [{ day: "friday", isOpen: true }]);
     assert.equal(profile.social.instagram, "bebekburger");
@@ -152,6 +154,7 @@ test("keeps imported auto dealers module-free and disables ordering by default",
     assert.equal(profile.industry, "oto_galeri");
     assert.equal(profile.industryLabel, "Oto Galeri");
     assert.deepEqual(profile.modules, []);
+    assert.equal(profile.primaryModuleId, null);
     assert.equal(profile.cartEnabled, false);
 });
 
