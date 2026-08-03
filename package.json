@@ -18,6 +18,7 @@
     "mobile:test": "npm --prefix apps/mobile run test",
     "mobile:typecheck": "npm --prefix apps/mobile run typecheck",
     "business:pilot": "node --import tsx scripts/pilot-business-logto.ts",
+    "business:provision:ordu-food": "node --import tsx scripts/provision-ordu-food-accounts.ts",
     "business:sync:ordu-food": "node scripts/sync-ordu-food-businesses.mjs",
     "business:audit:ordu-food": "node scripts/audit-ordu-food-businesses.mjs",
     "logto:business-branding": "node --import tsx scripts/configure-business-logto-branding.ts",
