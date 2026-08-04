@@ -22,7 +22,7 @@ test("text search requests all fields needed to avoid per-place detail calls", (
     for (const field of [
         "places.nationalPhoneNumber", "places.internationalPhoneNumber", "places.websiteUri",
         "places.googleMapsUri", "places.rating", "places.userRatingCount",
-        "places.regularOpeningHours", "places.photos",
+        "places.regularOpeningHours", "places.photos", "places.businessStatus",
     ]) assert.match(SEARCH_FIELDS, new RegExp(field.replaceAll(".", "\\.")));
 });
 
@@ -246,6 +246,16 @@ test("sector eligibility requires both a usable phone and coordinates", () => {
     assert.equal(hasRequiredContactAndLocation(complete), true);
     assert.equal(hasRequiredContactAndLocation({ ...complete, internationalPhoneNumber: undefined }), false);
     assert.equal(hasRequiredContactAndLocation({ ...complete, location: undefined }), false);
+});
+
+test("sector eligibility rejects temporarily and permanently closed businesses", () => {
+    const complete = {
+        internationalPhoneNumber: "+90 452 123 45 67",
+        location: { latitude: 40.98, longitude: 37.88 },
+    };
+    assert.equal(hasRequiredContactAndLocation({ ...complete, businessStatus: "OPERATIONAL" }), true);
+    assert.equal(hasRequiredContactAndLocation({ ...complete, businessStatus: "CLOSED_TEMPORARILY" }), false);
+    assert.equal(hasRequiredContactAndLocation({ ...complete, businessStatus: "CLOSED_PERMANENTLY" }), false);
 });
 
 test("already published Google Place IDs from another sector are skipped", () => {

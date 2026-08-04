@@ -335,13 +335,14 @@ export const SECTOR_ALIASES = Object.freeze({
 
 export const SEARCH_FIELDS = [
     "places.id", "places.displayName", "places.formattedAddress", "places.primaryType", "places.location",
-    "places.nationalPhoneNumber", "places.internationalPhoneNumber", "places.websiteUri", "places.googleMapsUri",
-    "places.rating", "places.userRatingCount", "places.regularOpeningHours", "places.photos", "nextPageToken",
+      "places.nationalPhoneNumber", "places.internationalPhoneNumber", "places.websiteUri", "places.googleMapsUri",
+      "places.rating", "places.userRatingCount", "places.regularOpeningHours", "places.photos",
+      "places.businessStatus", "nextPageToken",
 ].join(",");
 const DETAIL_FIELDS = [
     "id", "displayName", "formattedAddress", "primaryType", "nationalPhoneNumber",
-    "internationalPhoneNumber", "websiteUri", "googleMapsUri", "location", "rating",
-    "userRatingCount", "regularOpeningHours", "photos",
+      "internationalPhoneNumber", "websiteUri", "googleMapsUri", "location", "rating",
+      "userRatingCount", "regularOpeningHours", "photos", "businessStatus",
 ].join(",");
 const ORDU_RECTANGLE = {
     rectangle: {
@@ -387,6 +388,7 @@ export function buildGooglePhotoProfileFields(place) {
 }
 
 export function hasRequiredContactAndLocation(place) {
+    if (place?.businessStatus && place.businessStatus !== "OPERATIONAL") return false;
     const phone = place?.internationalPhoneNumber ?? place?.nationalPhoneNumber ?? "";
     const phoneDigits = String(phone).replace(/\D/g, "");
     const latitude = place?.location?.latitude;
