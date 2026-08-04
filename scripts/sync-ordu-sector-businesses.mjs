@@ -53,11 +53,134 @@ export const SECTOR_DEFINITIONS = Object.freeze({
         namePattern: /(?:kafe|cafe|kahve|coffee|roastery|çay\s*(?:evi|bahçesi)|cay\s*(?:evi|bahcesi)|kahvehane)/i,
         excludedNamePattern: /(?:internet\s*(?:cafe|kafe)|pastane|pastanesi|fırın|firin|unlu\s*mamuller(?:i)?|bakery|restoran|restaurant|lokanta|burger|hamburger|pizza|döner|doner|fast\s*food|(?:^|\s)(?:bar|pub|meyhane)(?:\s|$))/i,
     }),
+    beauty: Object.freeze({
+        label: "Güzellik & Kuaför",
+        queryTerms: Object.freeze([
+            "güzellik salonu", "güzellik merkezi", "kadın kuaförü", "erkek kuaförü",
+            "berber", "saç tasarım", "nail studio", "kalıcı makyaj",
+        ]),
+        primaryTypes: new Set([
+            "barber_shop", "beautician", "beauty_salon", "hair_care", "hair_salon",
+            "makeup_artist", "nail_salon", "tanning_studio",
+        ]),
+        genericTypes: new Set(["establishment", "point_of_interest", "service", "spa", "massage"]),
+        excludedTypes: new Set([
+            "doctor", "medical_center", "medical_clinic", "skin_care_clinic", "hospital",
+            "dental_clinic", "dentist", "physiotherapist", "veterinary_care", "pet_care",
+        ]),
+        namePattern: /(?:guzellik|kuafor|berber|sac\s*tasarim|hair|beauty|nail|tirnak|makyaj|bakim\s*salonu)/i,
+        excludedNamePattern: /(?:veteriner|pet\s*kuafor|hayvan|tip\s*merkezi|saglik\s*merkezi|hastane|eczane|dis\s*klinigi)/i,
+    }),
+    real_estate: Object.freeze({
+        label: "Emlak & Gayrimenkul",
+        queryTerms: Object.freeze(["emlak", "gayrimenkul", "emlak ofisi", "gayrimenkul danışmanlığı", "real estate"]),
+        primaryTypes: new Set(["real_estate_agency"]),
+        genericTypes: new Set(["establishment", "point_of_interest", "corporate_office", "consultant"]),
+        excludedTypes: new Set([
+            "general_contractor", "roofing_contractor", "architect", "lodging", "hotel",
+            "apartment_building", "apartment_complex", "housing_complex",
+        ]),
+        namePattern: /(?:emlak|gayrimenkul|real\s*estate|property|konut\s*danisman)/i,
+        excludedNamePattern: /(?:insaat|mimarlik|yapi\s*malzeme|mobilya|otel|pansiyon|apart\s*otel)/i,
+    }),
+    lodging: Object.freeze({
+        label: "Otel & Konaklama",
+        queryTerms: Object.freeze(["otel", "pansiyon", "apart otel", "konaklama", "bungalov", "kamp alanı"]),
+        primaryTypes: new Set([
+            "bed_and_breakfast", "campground", "camping_cabin", "cottage", "extended_stay_hotel",
+            "farmstay", "guest_house", "hostel", "hotel", "inn", "lodging", "motel",
+            "private_guest_room", "resort_hotel", "rv_park",
+        ]),
+        genericTypes: new Set(["establishment", "point_of_interest"]),
+        excludedTypes: new Set([
+            "real_estate_agency", "apartment_building", "apartment_complex", "housing_complex",
+            "restaurant", "cafe", "travel_agency",
+        ]),
+        namePattern: /(?:otel|hotel|pansiyon|konaklama|bungalov|bungalow|apart\s*otel|hostel|motel|kamp(?:ing)?|guest\s*house)/i,
+        excludedNamePattern: /(?:emlak|gayrimenkul|apartman|konut\s*sitesi|ogrenci\s*yurdu|restoran|restaurant|kafe|cafe)/i,
+    }),
+    car_rental: Object.freeze({
+        label: "Araç Kiralama",
+        queryTerms: Object.freeze(["araç kiralama", "oto kiralama", "rent a car", "car rental", "filo kiralama"]),
+        primaryTypes: new Set(["car_rental"]),
+        genericTypes: new Set(["establishment", "point_of_interest", "service", "transportation_service"]),
+        excludedTypes: new Set(["car_dealer", "truck_dealer", "car_repair", "tire_shop", "car_wash", "taxi_service"]),
+        namePattern: /(?:arac\s*kiralama|oto\s*kiralama|rent\s*a\s*car|car\s*rental|filo\s*kiralama)/i,
+        excludedNamePattern: /(?:oto\s*galeri|otomotiv|servis|tamir|lastik|kaporta|taksi|sigorta)/i,
+    }),
+    healthcare: Object.freeze({
+        label: "Klinik & Sağlık",
+        queryTerms: Object.freeze([
+            "sağlık merkezi", "tıp merkezi", "özel klinik", "poliklinik", "diş kliniği",
+            "fizyoterapi merkezi", "doktor muayenehanesi", "tıbbi laboratuvar",
+        ]),
+        primaryTypes: new Set([
+            "chiropractor", "dental_clinic", "dentist", "doctor", "general_hospital", "hospital",
+            "medical_center", "medical_clinic", "medical_lab", "physiotherapist", "skin_care_clinic",
+        ]),
+        genericTypes: new Set(["health", "establishment", "point_of_interest", "wellness_center"]),
+        excludedTypes: new Set([
+            "veterinary_care", "pet_care", "pharmacy", "drugstore", "beauty_salon",
+            "hair_salon", "barber_shop", "spa", "massage_spa",
+        ]),
+        namePattern: /(?:saglik|tip\s*merkezi|klinik|poliklinik|hastane|doktor|hekim|dis\s*(?:klinigi|hekimi)|fizyo|laboratuvar)/i,
+        excludedNamePattern: /(?:veteriner|hayvan|pet|eczane|guzellik|kuafor|berber|spa)/i,
+    }),
+    grocery: Object.freeze({
+        label: "Market & Bakkal",
+        queryTerms: Object.freeze(["market", "süpermarket", "bakkal", "gıda market", "mahalle marketi", "hipermarket"]),
+        primaryTypes: new Set([
+            "asian_grocery_store", "convenience_store", "discount_supermarket", "food_store",
+            "general_store", "grocery_store", "hypermarket", "market", "supermarket",
+        ]),
+        genericTypes: new Set(["store", "establishment", "point_of_interest", "wholesaler"]),
+        excludedTypes: new Set([
+            "shopping_mall", "farmers_market", "flea_market", "butcher_shop", "bakery",
+            "liquor_store", "pet_store", "hardware_store", "home_improvement_store",
+        ]),
+        namePattern: /(?:market|supermarket|hipermarket|bakkal|gida|grocery)/i,
+        excludedNamePattern: /(?:pet\s*market|yapi\s*market|oto\s*market|mobilya|teknoloji|elektronik|kasap|firin|pastane|tekel)/i,
+    }),
+    bakery: Object.freeze({
+        label: "Fırın, Pastane & Tatlı",
+        queryTerms: Object.freeze(["fırın", "pastane", "unlu mamuller", "tatlıcı", "baklava", "şekerleme", "pasta evi"]),
+        primaryTypes: new Set([
+            "bakery", "cake_shop", "candy_store", "chocolate_shop", "confectionery",
+            "dessert_shop", "donut_shop", "ice_cream_shop", "pastry_shop",
+        ]),
+        genericTypes: new Set(["food", "establishment", "point_of_interest", "cafe", "store"]),
+        excludedTypes: new Set([
+            "restaurant", "fast_food_restaurant", "hamburger_restaurant", "pizza_restaurant",
+            "supermarket", "grocery_store", "convenience_store",
+        ]),
+        namePattern: /(?:firin|pastane|unlu\s*mamuller|tatli|baklava|sekerleme|pasta\s*(?:evi|salonu)|dessert|bakery)/i,
+        excludedNamePattern: /(?:restoran|restaurant|burger|pizza|doner|market|bakkal|kasap|kafe|cafe(?!.*(?:pastane|firin)))/i,
+    }),
+    auto_service: Object.freeze({
+        label: "Oto Servis, Bakım & Lastik",
+        queryTerms: Object.freeze([
+            "oto servis", "özel oto servis", "oto tamir", "araç bakım", "lastikçi",
+            "oto elektrik", "kaporta boya", "rot balans", "egzoz servisi",
+        ]),
+        primaryTypes: new Set(["car_repair", "tire_shop"]),
+        genericTypes: new Set(["auto_parts_store", "store", "establishment", "point_of_interest", "service"]),
+        excludedTypes: new Set(["car_dealer", "truck_dealer", "car_rental", "car_wash", "gas_station"]),
+        namePattern: /(?:oto\s*servis|ozel\s*servis|oto\s*tamir|arac\s*bakim|lastik|oto\s*elektrik|kaporta|rot\s*balans|egzoz|mekanik)/i,
+        excludedNamePattern: /(?:oto\s*galeri|rent\s*a\s*car|arac\s*kiralama|oto\s*yikama|akaryakit|benzin|sigorta)/i,
+    }),
 });
 
-const SECTOR_ALIASES = Object.freeze({
+export const SECTOR_ALIASES = Object.freeze({
     restaurant: Object.freeze(["restaurant", "restoran"]),
     cafe: Object.freeze(["cafe", "kafe", "coffee", "kahve", "coffee_shop"]),
+    beauty: Object.freeze(["beauty", "guzellik", "guzellik_kuafor", "guzellik_&_kuafor", "kuafor", "beauty_salon", "hair_salon"]),
+    real_estate: Object.freeze(["real_estate", "emlak", "emlak_ofisi", "emlak_gayrimenkul", "emlak_&_gayrimenkul", "real_estate_agency"]),
+    lodging: Object.freeze(["lodging", "otel", "otel_konaklama", "otel_&_konaklama", "hotel", "konaklama"]),
+    car_rental: Object.freeze(["car_rental", "arac_kiralama", "oto_kiralama", "rent_a_car"]),
+    healthcare: Object.freeze(["healthcare", "saglik", "klinik", "klinik_saglik", "klinik_&_saglik", "health"]),
+    grocery: Object.freeze(["grocery", "market", "market_bakkal", "market_&_bakkal", "supermarket", "bakkal"]),
+    bakery: Object.freeze(["bakery", "firin", "pastane", "firin_pastane_tatli", "firin,_pastane_&_tatli"]),
+    auto_service: Object.freeze(["auto_service", "oto_servis", "oto_servis_bakim_lastik", "oto_servis,_bakim_&_lastik", "car_repair", "tire_shop"]),
 });
 
 const SEARCH_FIELDS = "places.id,places.displayName,places.formattedAddress,places.primaryType,places.location,nextPageToken";

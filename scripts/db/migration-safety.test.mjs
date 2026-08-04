@@ -43,6 +43,20 @@ test("allows the cafe sector check replacement when all prior sectors remain", (
     `, "0019_business_import_cafe_sector.sql"));
 });
 
+test("allows the remaining sector check expansion when all prior sectors remain", () => {
+    assert.doesNotThrow(() => assertNonDestructive(`
+        ALTER TABLE business_import_candidates
+            DROP CONSTRAINT IF EXISTS business_import_candidates_sector_key_check;
+        ALTER TABLE business_import_candidates
+            ADD CONSTRAINT business_import_candidates_sector_key_check
+            CHECK (sector_key IN (
+                'petshop', 'veteriner', 'fastfood', 'oto_galeri', 'restaurant', 'cafe',
+                'beauty', 'real_estate', 'lodging', 'car_rental', 'healthcare', 'grocery',
+                'bakery', 'auto_service'
+            ));
+    `, "0020_business_import_remaining_sectors.sql"));
+});
+
 test("still rejects unrelated destructive schema changes", () => {
     assert.throws(
         () => assertNonDestructive("ALTER TABLE businesses DROP COLUMN phone", "unsafe.sql"),

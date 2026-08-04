@@ -96,6 +96,62 @@ test("cafe classification accepts coffee businesses and rejects adjacent sectors
     }), false);
 });
 
+const EXPANSION_SECTOR_CASES = [
+    {
+        key: "beauty", label: "Güzellik & Kuaför", acceptedType: "beauty_salon",
+        acceptedName: "Lale Güzellik Salonu", rejectedType: "medical_clinic", rejectedName: "Lale Kliniği",
+    },
+    {
+        key: "real_estate", label: "Emlak & Gayrimenkul", acceptedType: "real_estate_agency",
+        acceptedName: "Ordu Emlak", rejectedType: "general_contractor", rejectedName: "Ordu İnşaat",
+    },
+    {
+        key: "lodging", label: "Otel & Konaklama", acceptedType: "hotel",
+        acceptedName: "Ordu Sahil Otel", rejectedType: "real_estate_agency", rejectedName: "Sahil Emlak",
+    },
+    {
+        key: "car_rental", label: "Araç Kiralama", acceptedType: "car_rental",
+        acceptedName: "Ordu Rent A Car", rejectedType: "car_dealer", rejectedName: "Ordu Otomotiv",
+    },
+    {
+        key: "healthcare", label: "Klinik & Sağlık", acceptedType: "medical_clinic",
+        acceptedName: "Ordu Sağlık Kliniği", rejectedType: "veterinary_care", rejectedName: "Ordu Veteriner Kliniği",
+    },
+    {
+        key: "grocery", label: "Market & Bakkal", acceptedType: "supermarket",
+        acceptedName: "Ordu Süpermarket", rejectedType: "shopping_mall", rejectedName: "Ordu AVM",
+    },
+    {
+        key: "bakery", label: "Fırın, Pastane & Tatlı", acceptedType: "bakery",
+        acceptedName: "Çınar Fırını", rejectedType: "cafe", rejectedName: "Çınar Cafe",
+    },
+    {
+        key: "auto_service", label: "Oto Servis, Bakım & Lastik", acceptedType: "car_repair",
+        acceptedName: "Ordu Oto Servis", rejectedType: "car_dealer", rejectedName: "Ordu Oto Galeri",
+    },
+];
+
+test("remaining sector definitions cover every Ordu district with focused queries", () => {
+    assert.equal(ORDU_DISTRICTS.length, 19);
+    for (const sector of EXPANSION_SECTOR_CASES) {
+        const definition = SECTOR_DEFINITIONS[sector.key];
+        assert.equal(definition.label, sector.label);
+        assert.ok(definition.queryTerms.length >= 4, `${sector.key} needs broad local queries`);
+        assert.ok(definition.primaryTypes.has(sector.acceptedType));
+    }
+});
+
+test("remaining sector classifiers accept their domain and reject adjacent businesses", () => {
+    for (const sector of EXPANSION_SECTOR_CASES) {
+        assert.equal(isSectorSearchResult(sector.key, {
+            displayName: { text: sector.acceptedName }, primaryType: sector.acceptedType,
+        }), true, `${sector.key} should accept ${sector.acceptedType}`);
+        assert.equal(isSectorSearchResult(sector.key, {
+            displayName: { text: sector.rejectedName }, primaryType: sector.rejectedType,
+        }), false, `${sector.key} should reject ${sector.rejectedType}`);
+    }
+});
+
 test("sector eligibility requires both a usable phone and coordinates", () => {
     const complete = {
         internationalPhoneNumber: "+90 452 123 45 67",
@@ -227,6 +283,28 @@ test("cafe upsert publishes a profile without enabling paid modules", async () =
     assert.equal(calls[1].params.includes("cafe"), true);
 });
 
+test("remaining sectors publish discovery profiles without enabling paid modules", async () => {
+    for (const sector of EXPANSION_SECTOR_CASES) {
+        const calls = [];
+        const client = { query: async (text, params) => { calls.push({ text, params }); return { rows: [], rowCount: 1 }; } };
+        await upsertPlace(client, sector.key, {
+            id: `ChIJ${sector.key}`,
+            displayName: sector.acceptedName,
+            formattedAddress: "Düz Mah., Altınordu/Ordu, Türkiye",
+            internationalPhoneNumber: "+90 452 123 45 67",
+            googleMapsUri: "https://maps.google.com/place",
+            location: { latitude: 40.98, longitude: 37.88 },
+            district: "Altınordu",
+            photos: [{ name: `places/ChIJ${sector.key}/photos/photo-resource` }],
+        }, null, new Set());
+
+        assert.equal(calls[0].params.includes(sector.key), true);
+        assert.equal(calls[0].params.includes(sector.label), true);
+        assert.equal(calls.some(({ text }) => /INSERT INTO business_modules/i.test(text)), false);
+        assert.equal(calls[1].params.includes(sector.key), true);
+    }
+});
+
 test("sector sync is dry-run by default and requires an explicit known sector", () => {
     assert.deepEqual(parseArgs(["--sector=restaurant"]), {
         sectorKey: "restaurant", apply: false, replaceUnclaimed: false,
@@ -236,6 +314,9 @@ test("sector sync is dry-run by default and requires an explicit known sector", 
     });
     assert.deepEqual(parseArgs(["--sector=cafe"]), {
         sectorKey: "cafe", apply: false, replaceUnclaimed: false,
+    });
+    assert.deepEqual(parseArgs(["--sector=beauty"]), {
+        sectorKey: "beauty", apply: false, replaceUnclaimed: false,
     });
     assert.throws(() => parseArgs([]), /sector_required/);
     assert.throws(() => parseArgs(["--sector=unknown"]), /unknown_sector/);

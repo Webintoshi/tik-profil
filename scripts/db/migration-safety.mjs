@@ -10,6 +10,7 @@ function removeAllowedConstraintReplacement(sql, filename) {
         ["0017_business_import_auto_dealer_sector.sql", "'petshop'\\s*,\\s*'veteriner'\\s*,\\s*'fastfood'\\s*,\\s*'oto_galeri'"],
         ["0018_business_import_restaurant_sector.sql", "'petshop'\\s*,\\s*'veteriner'\\s*,\\s*'fastfood'\\s*,\\s*'oto_galeri'\\s*,\\s*'restaurant'"],
         ["0019_business_import_cafe_sector.sql", "'petshop'\\s*,\\s*'veteriner'\\s*,\\s*'fastfood'\\s*,\\s*'oto_galeri'\\s*,\\s*'restaurant'\\s*,\\s*'cafe'"],
+        ["0020_business_import_remaining_sectors.sql", "'petshop'\\s*,\\s*'veteriner'\\s*,\\s*'fastfood'\\s*,\\s*'oto_galeri'\\s*,\\s*'restaurant'\\s*,\\s*'cafe'\\s*,\\s*'beauty'\\s*,\\s*'real_estate'\\s*,\\s*'lodging'\\s*,\\s*'car_rental'\\s*,\\s*'healthcare'\\s*,\\s*'grocery'\\s*,\\s*'bakery'\\s*,\\s*'auto_service'"],
     ]).get(filename);
     if (!allowedValues) return sql;
     const restored = new RegExp(
