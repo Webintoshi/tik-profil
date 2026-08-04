@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import { resolveCategoryMetadata } from "./category-metadata";
-import { loadKesfetBusinesses, logKesfetPublicApiError } from "../shared";
+import { loadKesfetBusinesses, logKesfetPublicApiError, matchesCity } from "../shared";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
-        const activeBusinesses = await loadKesfetBusinesses("/api/kesfet/categories");
+        const { searchParams } = new URL(request.url);
+        const city = searchParams.get("city")?.trim() || "";
+        const allBusinesses = await loadKesfetBusinesses(
+            city ? `/api/kesfet/categories?city=${encodeURIComponent(city)}` : "/api/kesfet/categories",
+        );
+        const activeBusinesses = city
+            ? allBusinesses.filter((business) => matchesCity(business, city))
+            : allBusinesses;
         const categoryCounts: Record<string, { label: string; emoji: string; count: number }> = {};
 
         activeBusinesses.forEach((business) => {
