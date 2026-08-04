@@ -161,6 +161,9 @@ test("remaining sector classifiers accept their domain and reject adjacent busin
             displayName: { text: sector.rejectedName }, primaryType: sector.rejectedType,
         }), false, `${sector.key} should reject ${sector.rejectedType}`);
     }
+    assert.equal(isSectorSearchResult("car_rental", {
+        displayName: { text: "Hazır Rent a Car Sitesi Web Tasarımı" }, primaryType: "service",
+    }), false);
 });
 
 test("sector eligibility requires both a usable phone and coordinates", () => {

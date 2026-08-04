@@ -106,7 +106,7 @@ export const SECTOR_DEFINITIONS = Object.freeze({
         genericTypes: new Set(["establishment", "point_of_interest", "service", "transportation_service"]),
         excludedTypes: new Set(["car_dealer", "truck_dealer", "car_repair", "tire_shop", "car_wash", "taxi_service"]),
         namePattern: /(?:arac\s*kiralama|oto\s*kiralama|rent\s*a\s*car|car\s*rental|filo\s*kiralama)/i,
-        excludedNamePattern: /(?:oto\s*galeri|otomotiv|servis|tamir|lastik|kaporta|taksi|sigorta)/i,
+        excludedNamePattern: /(?:oto\s*galeri|otomotiv|servis|tamir|lastik|kaporta|taksi|sigorta|web\s*tasarim|internet\s*sitesi|yazilim|reklam\s*ajansi)/i,
     }),
     healthcare: Object.freeze({
         label: "Klinik & Sağlık",
