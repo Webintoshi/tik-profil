@@ -24,6 +24,8 @@
     "business:sync:ordu-sector": "node scripts/sync-ordu-sector-businesses.mjs",
     "business:sync:ordu-restaurants": "node scripts/sync-ordu-sector-businesses.mjs --sector=restaurant",
     "business:audit:ordu-restaurants": "node scripts/audit-ordu-restaurants.mjs",
+    "business:sync:ordu-cafes": "node scripts/sync-ordu-sector-businesses.mjs --sector=cafe",
+    "business:audit:ordu-cafes": "node scripts/audit-ordu-cafes.mjs",
     "business:audit:ordu-auto-dealers": "node scripts/audit-ordu-auto-dealers.mjs",
     "business:sync:ordu-food": "node scripts/sync-ordu-food-businesses.mjs",
     "business:audit:ordu-food": "node scripts/audit-ordu-food-businesses.mjs",

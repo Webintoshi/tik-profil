@@ -47,6 +47,40 @@ test("restaurant classification accepts restaurant subtypes and rejects adjacent
     }), false);
 });
 
+test("cafe discovery covers all 19 Ordu districts with coffee-specific queries", () => {
+    assert.equal(ORDU_DISTRICTS.length, 19);
+    assert.deepEqual(SECTOR_DEFINITIONS.cafe.queryTerms, [
+        "kafe", "cafe", "kahve", "kahve dükkanı", "coffee shop",
+    ]);
+});
+
+test("cafe classification accepts coffee businesses and rejects adjacent sectors", () => {
+    assert.equal(isSectorSearchResult("cafe", {
+        displayName: { text: "Kahve Durağı" }, primaryType: "cafe",
+    }), true);
+    assert.equal(isSectorSearchResult("cafe", {
+        displayName: { text: "Fatsa Coffee Lab" }, primaryType: "coffee_shop",
+    }), true);
+    assert.equal(isSectorSearchResult("cafe", {
+        displayName: { text: "Ordu Roastery" }, primaryType: "coffee_roastery",
+    }), true);
+    assert.equal(isSectorSearchResult("cafe", {
+        displayName: { text: "Sahil Kahve" }, primaryType: "restaurant",
+    }), true);
+    assert.equal(isSectorSearchResult("cafe", {
+        displayName: { text: "Sahil Restoran" }, primaryType: "restaurant",
+    }), false);
+    assert.equal(isSectorSearchResult("cafe", {
+        displayName: { text: "Ordu İnternet Cafe" }, primaryType: "internet_cafe",
+    }), false);
+    assert.equal(isSectorSearchResult("cafe", {
+        displayName: { text: "Çınar Pastanesi" }, primaryType: "bakery",
+    }), false);
+    assert.equal(isSectorSearchResult("cafe", {
+        displayName: { text: "Gece Bar" }, primaryType: "bar",
+    }), false);
+});
+
 test("sector eligibility requires both a usable phone and coordinates", () => {
     const complete = {
         internationalPhoneNumber: "+90 452 123 45 67",
@@ -82,6 +116,23 @@ test("legacy restoran identities are treated as the canonical restaurant sector"
     assert.deepEqual(
         filterAlreadyPublishedPlaces(places, identities, "restaurant").map(({ id }) => id),
         ["legacy-restaurant"],
+    );
+});
+
+test("legacy cafe identities are treated as the canonical cafe sector", () => {
+    const places = [
+        { id: "legacy-kafe" },
+        { id: "legacy-kahve" },
+        { id: "existing-restaurant" },
+    ];
+    const identities = new Map([
+        ["legacy-kafe", "kafe"],
+        ["legacy-kahve", "kahve"],
+        ["existing-restaurant", "restaurant"],
+    ]);
+    assert.deepEqual(
+        filterAlreadyPublishedPlaces(places, identities, "cafe").map(({ id }) => id),
+        ["legacy-kafe", "legacy-kahve"],
     );
 });
 
@@ -140,12 +191,36 @@ test("restaurant upsert publishes a profile without enabling paid modules", asyn
     assert.equal(calls[1].params.includes("restaurant"), true);
 });
 
+test("cafe upsert publishes a profile without enabling paid modules", async () => {
+    const calls = [];
+    const client = { query: async (text, params) => { calls.push({ text, params }); return { rows: [], rowCount: 1 }; } };
+    await upsertPlace(client, "cafe", {
+        id: "ChIJcafe123",
+        displayName: "ORDU KAHVE EVİ",
+        formattedAddress: "Düz Mah., Altınordu/Ordu, Türkiye",
+        internationalPhoneNumber: "+90 452 123 45 67",
+        googleMapsUri: "https://maps.google.com/place",
+        location: { latitude: 40.98, longitude: 37.88 },
+        district: "Altınordu",
+        photos: [{ name: "places/ChIJcafe123/photos/photo-resource" }],
+    }, null, new Set());
+
+    assert.equal(calls[0].params.includes("cafe"), true);
+    assert.equal(calls[0].params.includes("Kafe & Kahve"), true);
+    assert.equal(calls[0].params.includes("/api/google-places/photo/ChIJcafe123"), true);
+    assert.equal(calls.some(({ text }) => /INSERT INTO business_modules/i.test(text)), false);
+    assert.equal(calls[1].params.includes("cafe"), true);
+});
+
 test("sector sync is dry-run by default and requires an explicit known sector", () => {
     assert.deepEqual(parseArgs(["--sector=restaurant"]), {
         sectorKey: "restaurant", apply: false, replaceUnclaimed: false,
     });
     assert.deepEqual(parseArgs(["--sector=restaurant", "--apply"]), {
         sectorKey: "restaurant", apply: true, replaceUnclaimed: false,
+    });
+    assert.deepEqual(parseArgs(["--sector=cafe"]), {
+        sectorKey: "cafe", apply: false, replaceUnclaimed: false,
     });
     assert.throws(() => parseArgs([]), /sector_required/);
     assert.throws(() => parseArgs(["--sector=unknown"]), /unknown_sector/);

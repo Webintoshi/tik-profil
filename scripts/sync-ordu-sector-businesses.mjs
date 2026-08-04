@@ -31,10 +31,33 @@ export const SECTOR_DEFINITIONS = Object.freeze({
         namePattern: /(?:restoran|lokanta|sofra|ocakbaşı|ocakbasi|pide\s*salonu|balık\s*evi|balik\s*evi|et\s*evi)/i,
         excludedNamePattern: /(?:burger|hamburger|pizza|pizzacı|pizzaci|döner|doner|dürüm|durum|tantuni|kokoreç|kokorec|çiğ\s*köfte|cig\s*kofte|fast\s*food|büfe|bufe|tost|sandviç|sandvic|kafe|cafe|coffee|kahve)/i,
     }),
+    cafe: Object.freeze({
+        label: "Kafe & Kahve",
+        queryTerms: Object.freeze([
+            "kafe", "cafe", "kahve", "kahve dükkanı", "coffee shop",
+        ]),
+        primaryTypes: new Set([
+            "cafe", "coffee_shop", "coffee_roastery", "coffee_stand", "cat_cafe", "dog_cafe",
+        ]),
+        genericTypes: new Set([
+            "food", "establishment", "point_of_interest", "meal_takeaway", "restaurant",
+        ]),
+        excludedTypes: new Set([
+            "internet_cafe", "bakery", "cake_shop", "confectionery", "dessert_shop",
+            "turkish_restaurant", "seafood_restaurant", "steak_house",
+            "barbecue_restaurant", "family_restaurant", "fine_dining_restaurant", "kebab_shop",
+            "hamburger_restaurant", "pizza_restaurant", "pizza_delivery", "fast_food_restaurant",
+            "gyro_restaurant", "shawarma_restaurant", "sandwich_shop", "snack_bar", "hot_dog_restaurant",
+            "bar", "pub", "night_club", "hookah_bar", "lounge_bar", "cocktail_bar",
+        ]),
+        namePattern: /(?:kafe|cafe|kahve|coffee|roastery)/i,
+        excludedNamePattern: /(?:internet\s*(?:cafe|kafe)|pastane|pastanesi|fırın|firin|bakery|restoran|restaurant|lokanta|burger|hamburger|pizza|döner|doner|fast\s*food|bar|pub|meyhane)/i,
+    }),
 });
 
 const SECTOR_ALIASES = Object.freeze({
     restaurant: Object.freeze(["restaurant", "restoran"]),
+    cafe: Object.freeze(["cafe", "kafe", "coffee", "kahve", "coffee_shop"]),
 });
 
 const SEARCH_FIELDS = "places.id,places.displayName,places.formattedAddress,places.primaryType,places.location,nextPageToken";
