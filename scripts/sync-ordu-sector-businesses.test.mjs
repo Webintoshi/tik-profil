@@ -50,7 +50,7 @@ test("restaurant classification accepts restaurant subtypes and rejects adjacent
 test("cafe discovery covers all 19 Ordu districts with coffee-specific queries", () => {
     assert.equal(ORDU_DISTRICTS.length, 19);
     assert.deepEqual(SECTOR_DEFINITIONS.cafe.queryTerms, [
-        "kafe", "cafe", "kahve", "kahve dükkanı", "coffee shop",
+        "kafe", "cafe", "kahve", "kahve dükkanı", "coffee shop", "çay evi", "çay bahçesi", "kahvehane",
     ]);
 });
 
@@ -63,6 +63,12 @@ test("cafe classification accepts coffee businesses and rejects adjacent sectors
     }), true);
     assert.equal(isSectorSearchResult("cafe", {
         displayName: { text: "Ordu Roastery" }, primaryType: "coffee_roastery",
+    }), true);
+    assert.equal(isSectorSearchResult("cafe", {
+        displayName: { text: "Gürgentepe Çay Evi" }, primaryType: "tea_house",
+    }), true);
+    assert.equal(isSectorSearchResult("cafe", {
+        displayName: { text: "Barbaros Cafe" }, primaryType: "cafe",
     }), true);
     assert.equal(isSectorSearchResult("cafe", {
         displayName: { text: "Sahil Kahve" }, primaryType: "restaurant",

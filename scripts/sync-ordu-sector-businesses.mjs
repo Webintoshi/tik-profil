@@ -34,10 +34,10 @@ export const SECTOR_DEFINITIONS = Object.freeze({
     cafe: Object.freeze({
         label: "Kafe & Kahve",
         queryTerms: Object.freeze([
-            "kafe", "cafe", "kahve", "kahve dükkanı", "coffee shop",
+            "kafe", "cafe", "kahve", "kahve dükkanı", "coffee shop", "çay evi", "çay bahçesi", "kahvehane",
         ]),
         primaryTypes: new Set([
-            "cafe", "coffee_shop", "coffee_roastery", "coffee_stand", "cat_cafe", "dog_cafe",
+            "cafe", "coffee_shop", "coffee_roastery", "coffee_stand", "cat_cafe", "dog_cafe", "tea_house",
         ]),
         genericTypes: new Set([
             "food", "establishment", "point_of_interest", "meal_takeaway", "restaurant",
@@ -50,8 +50,8 @@ export const SECTOR_DEFINITIONS = Object.freeze({
             "gyro_restaurant", "shawarma_restaurant", "sandwich_shop", "snack_bar", "hot_dog_restaurant",
             "bar", "pub", "night_club", "hookah_bar", "lounge_bar", "cocktail_bar",
         ]),
-        namePattern: /(?:kafe|cafe|kahve|coffee|roastery)/i,
-        excludedNamePattern: /(?:internet\s*(?:cafe|kafe)|pastane|pastanesi|fırın|firin|bakery|restoran|restaurant|lokanta|burger|hamburger|pizza|döner|doner|fast\s*food|bar|pub|meyhane)/i,
+        namePattern: /(?:kafe|cafe|kahve|coffee|roastery|çay\s*(?:evi|bahçesi)|cay\s*(?:evi|bahcesi)|kahvehane)/i,
+        excludedNamePattern: /(?:internet\s*(?:cafe|kafe)|pastane|pastanesi|fırın|firin|bakery|restoran|restaurant|lokanta|burger|hamburger|pizza|döner|doner|fast\s*food|(?:^|\s)(?:bar|pub|meyhane)(?:\s|$))/i,
     }),
 });
 
