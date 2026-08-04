@@ -51,7 +51,7 @@ export const SECTOR_DEFINITIONS = Object.freeze({
             "bar", "pub", "night_club", "hookah_bar", "lounge_bar", "cocktail_bar",
         ]),
         namePattern: /(?:kafe|cafe|kahve|coffee|roastery|çay\s*(?:evi|bahçesi)|cay\s*(?:evi|bahcesi)|kahvehane)/i,
-        excludedNamePattern: /(?:internet\s*(?:cafe|kafe)|pastane|pastanesi|fırın|firin|bakery|restoran|restaurant|lokanta|burger|hamburger|pizza|döner|doner|fast\s*food|(?:^|\s)(?:bar|pub|meyhane)(?:\s|$))/i,
+        excludedNamePattern: /(?:internet\s*(?:cafe|kafe)|pastane|pastanesi|fırın|firin|unlu\s*mamulleri|bakery|restoran|restaurant|lokanta|burger|hamburger|pizza|döner|doner|fast\s*food|(?:^|\s)(?:bar|pub|meyhane)(?:\s|$))/i,
     }),
 });
 
@@ -141,8 +141,12 @@ function canonicalSectorKey(value) {
 export function isSectorSearchResult(sectorKey, place) {
     const definition = sectorDefinition(sectorKey);
     const name = place?.displayName?.text ?? place?.displayName ?? "";
+    const normalizedName = normalizeText(name);
     const primaryType = place?.primaryType ?? "";
-    if (!name || definition.excludedTypes.has(primaryType) || definition.excludedNamePattern.test(name)) return false;
+    if (!name
+        || definition.excludedTypes.has(primaryType)
+        || definition.excludedNamePattern.test(name)
+        || definition.excludedNamePattern.test(normalizedName)) return false;
     if (definition.primaryTypes.has(primaryType)) return true;
     if (primaryType && !definition.genericTypes.has(primaryType)) return false;
     return definition.namePattern.test(name);
