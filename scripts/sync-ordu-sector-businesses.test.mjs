@@ -5,6 +5,7 @@ import {
     ORDU_DISTRICTS,
     SECTOR_DEFINITIONS,
     assignPlacesToExisting,
+    buildSectorQualityPreview,
     buildGooglePhotoProfileFields,
     filterAlreadyPublishedPlaces,
     hasRequiredContactAndLocation,
@@ -13,6 +14,16 @@ import {
     removeReplaceableImportedSectorBusinesses,
     upsertPlace,
 } from "./sync-ordu-sector-businesses.mjs";
+
+test("sector quality preview exposes primary-type counts and bounded review-ranked samples", () => {
+    const preview = buildSectorQualityPreview([
+        { id: "low", displayName: "Low", primaryType: "beauty_salon", district: "Fatsa", userRatingCount: 2 },
+        { id: "high", displayName: "High", primaryType: "hair_salon", district: "Ünye", userRatingCount: 20 },
+        { id: "mid", displayName: "Mid", primaryType: "beauty_salon", district: "Altınordu", userRatingCount: 10 },
+    ], 2);
+    assert.deepEqual(preview.primaryTypeCounts, { beauty_salon: 2, hair_salon: 1 });
+    assert.deepEqual(preview.sampleBusinesses.map(({ name }) => name), ["High", "Mid"]);
+});
 
 test("restaurant discovery covers all 19 Ordu districts with broad local queries", () => {
     assert.equal(ORDU_DISTRICTS.length, 19);

@@ -722,6 +722,28 @@ export async function upsertPlace(client, sectorKey, place, business, usedSlugs)
     return { businessId, slug, name, district: place.district, placeId: place.id, existed: Boolean(business) };
 }
 
+export function buildSectorQualityPreview(places, sampleLimit = 20) {
+    const primaryTypeCounts = Object.fromEntries(
+        [...places.reduce((counts, place) => {
+            const primaryType = place.primaryType || "unknown";
+            counts.set(primaryType, (counts.get(primaryType) ?? 0) + 1);
+            return counts;
+        }, new Map()).entries()].sort(([left], [right]) => left.localeCompare(right)),
+    );
+    const sampleBusinesses = [...places]
+        .sort((left, right) => (right.userRatingCount ?? 0) - (left.userRatingCount ?? 0)
+            || normalizeText(left.displayName).localeCompare(normalizeText(right.displayName)))
+        .slice(0, sampleLimit)
+        .map((place) => ({
+            id: place.id,
+            name: place.displayName,
+            primaryType: place.primaryType ?? null,
+            district: place.district,
+            reviewCount: place.userRatingCount ?? 0,
+        }));
+    return { primaryTypeCounts, sampleBusinesses };
+}
+
 export async function runSectorSync(options = {}) {
     const sectorKey = options.sectorKey?.trim();
     const definition = sectorDefinition(sectorKey);
@@ -752,6 +774,7 @@ export async function runSectorSync(options = {}) {
         const existing = await loadExisting(db, sectorKey);
         const { assignments, unmatchedExisting } = assignPlacesToExisting(places, existing);
         const photoAvailable = places.filter((place) => buildGooglePhotoProfileFields(place).googlePlacePhotoAvailable).length;
+        const qualityPreview = buildSectorQualityPreview(places);
         const summary = {
             sectorKey,
             sectorLabel: definition.label,
@@ -764,6 +787,7 @@ export async function runSectorSync(options = {}) {
             eligibleBusinesses: places.length,
             photoAvailable,
             photoCoveragePercent: places.length ? Math.round((photoAvailable / places.length) * 10_000) / 100 : 0,
+            ...qualityPreview,
             eligibleByDistrict: Object.fromEntries(ORDU_DISTRICTS.map((district) => [
                 district,
                 places.filter((place) => place.district === district).length,
