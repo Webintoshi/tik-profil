@@ -11,6 +11,7 @@ function removeAllowedConstraintReplacement(sql, filename) {
         ["0018_business_import_restaurant_sector.sql", "'petshop'\\s*,\\s*'veteriner'\\s*,\\s*'fastfood'\\s*,\\s*'oto_galeri'\\s*,\\s*'restaurant'"],
         ["0019_business_import_cafe_sector.sql", "'petshop'\\s*,\\s*'veteriner'\\s*,\\s*'fastfood'\\s*,\\s*'oto_galeri'\\s*,\\s*'restaurant'\\s*,\\s*'cafe'"],
         ["0020_business_import_remaining_sectors.sql", "'petshop'\\s*,\\s*'veteriner'\\s*,\\s*'fastfood'\\s*,\\s*'oto_galeri'\\s*,\\s*'restaurant'\\s*,\\s*'cafe'\\s*,\\s*'beauty'\\s*,\\s*'real_estate'\\s*,\\s*'lodging'\\s*,\\s*'car_rental'\\s*,\\s*'healthcare'\\s*,\\s*'grocery'\\s*,\\s*'bakery'\\s*,\\s*'auto_service'"],
+        ["0021_business_import_local_sector_expansion.sql", "'petshop'\\s*,\\s*'veteriner'\\s*,\\s*'fastfood'\\s*,\\s*'oto_galeri'\\s*,\\s*'restaurant'\\s*,\\s*'cafe'\\s*,\\s*'beauty'\\s*,\\s*'real_estate'\\s*,\\s*'lodging'\\s*,\\s*'car_rental'\\s*,\\s*'healthcare'\\s*,\\s*'grocery'\\s*,\\s*'bakery'\\s*,\\s*'auto_service'\\s*,\\s*'pharmacy'\\s*,\\s*'fitness'\\s*,\\s*'education'\\s*,\\s*'fashion'\\s*,\\s*'furniture'\\s*,\\s*'electronics'\\s*,\\s*'construction_supply'\\s*,\\s*'florist_stationery'\\s*,\\s*'cleaning_laundry'\\s*,\\s*'event_wedding'\\s*,\\s*'professional_services'\\s*,\\s*'photography'\\s*,\\s*'gas_station'\\s*,\\s*'logistics'\\s*,\\s*'car_wash'"],
     ]).get(filename);
     if (!allowedValues) return sql;
     const restored = new RegExp(

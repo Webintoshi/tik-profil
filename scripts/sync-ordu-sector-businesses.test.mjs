@@ -4,6 +4,7 @@ import test from "node:test";
 import {
     ORDU_DISTRICTS,
     SEARCH_FIELDS,
+    SECTOR_ALIASES,
     SECTOR_DEFINITIONS,
     assignPlacesToExisting,
     buildSectorQualityPreview,
@@ -172,6 +173,24 @@ const EXPANSION_SECTOR_CASES = [
     },
 ];
 
+const LOCAL_SECTOR_CASES = [
+    { key: "pharmacy", label: "Eczane", acceptedType: "pharmacy", acceptedName: "Alt\u0131nordu Eczanesi", rejectedType: "medical_clinic", rejectedName: "Alt\u0131nordu Klini\u011fi" },
+    { key: "fitness", label: "Spor Salonu & Fitness", acceptedType: "gym", acceptedName: "Ordu Fitness Salonu", rejectedType: "beauty_salon", rejectedName: "Ordu G\u00fczellik Salonu" },
+    { key: "education", label: "E\u011fitim, Kurs & S\u00fcr\u00fcc\u00fc Kursu", acceptedType: "driving_school", acceptedName: "Fatsa S\u00fcr\u00fcc\u00fc Kursu", rejectedType: "book_store", rejectedName: "Fatsa Kitabevi" },
+    { key: "fashion", label: "Giyim, Ayakkab\u0131 & Butik", acceptedType: "clothing_store", acceptedName: "\u00dcnye Moda Butik", rejectedType: "furniture_store", rejectedName: "\u00dcnye Mobilya" },
+    { key: "furniture", label: "Mobilya & Ev Dekorasyonu", acceptedType: "furniture_store", acceptedName: "Ordu Ev Mobilya", rejectedType: "electronics_store", rejectedName: "Ordu Elektronik" },
+    { key: "electronics", label: "Elektronik, Telefon & Bilgisayar", acceptedType: "electronics_store", acceptedName: "Fatsa Telefon Bilgisayar", rejectedType: "furniture_store", rejectedName: "Fatsa Mobilya" },
+    { key: "construction_supply", label: "Yap\u0131 Market & \u0130n\u015faat Malzemeleri", acceptedType: "hardware_store", acceptedName: "Ordu Yap\u0131 Market", rejectedType: "general_contractor", rejectedName: "Ordu \u0130n\u015faat Taahh\u00fct" },
+    { key: "florist_stationery", label: "\u00c7i\u00e7ek\u00e7i, Hediyelik & K\u0131rtasiye", acceptedType: "florist", acceptedName: "Papatya \u00c7i\u00e7ek\u00e7ilik", rejectedType: "funeral_home", rejectedName: "Ordu Cenaze Hizmetleri" },
+    { key: "cleaning_laundry", label: "Temizlik, \u00c7ama\u015f\u0131rhane & Kuru Temizleme", acceptedType: "laundry", acceptedName: "Ordu Kuru Temizleme", rejectedType: "car_wash", rejectedName: "Ordu Oto Y\u0131kama" },
+    { key: "event_wedding", label: "D\u00fc\u011f\u00fcn Salonu & Organizasyon", acceptedType: "wedding_venue", acceptedName: "Ordu D\u00fc\u011f\u00fcn Salonu", rejectedType: "restaurant", rejectedName: "Ordu Restoran" },
+    { key: "professional_services", label: "Avukat, Muhasebe & Dan\u0131\u015fmanl\u0131k", acceptedType: "lawyer", acceptedName: "Ordu Hukuk B\u00fcrosu", rejectedType: "real_estate_agency", rejectedName: "Ordu Emlak Dan\u0131\u015fmanl\u0131k" },
+    { key: "photography", label: "Foto\u011fraf\u00e7\u0131 & Prod\u00fcksiyon", acceptedType: "photographer", acceptedName: "Ordu Foto\u011fraf St\u00fcdyosu", rejectedType: "electronics_store", rejectedName: "Ordu Kamera Ma\u011fazas\u0131" },
+    { key: "gas_station", label: "Akaryak\u0131t \u0130stasyonu", acceptedType: "gas_station", acceptedName: "Ordu Akaryak\u0131t", rejectedType: "car_repair", rejectedName: "Ordu Oto Servis" },
+    { key: "logistics", label: "Kargo, Kurye & Lojistik", acceptedType: "courier_service", acceptedName: "Ordu H\u0131zl\u0131 Kurye", rejectedType: "taxi_service", rejectedName: "Ordu Taksi" },
+    { key: "car_wash", label: "Oto Y\u0131kama & Detayl\u0131 Temizlik", acceptedType: "car_wash", acceptedName: "Ordu Oto Y\u0131kama", rejectedType: "car_repair", rejectedName: "Ordu Oto Tamir" },
+];
+
 test("remaining sector definitions cover every Ordu district with focused queries", () => {
     assert.equal(ORDU_DISTRICTS.length, 19);
     for (const sector of EXPANSION_SECTOR_CASES) {
@@ -194,6 +213,29 @@ test("remaining sector classifiers accept their domain and reject adjacent busin
     assert.equal(isSectorSearchResult("car_rental", {
         displayName: { text: "Hazır Rent a Car Sitesi Web Tasarımı" }, primaryType: "service",
     }), false);
+});
+
+test("next local sector definitions cover all districts with focused queries and aliases", () => {
+    assert.equal(LOCAL_SECTOR_CASES.length, 15);
+    assert.equal(ORDU_DISTRICTS.length, 19);
+    for (const sector of LOCAL_SECTOR_CASES) {
+        const definition = SECTOR_DEFINITIONS[sector.key];
+        assert.equal(definition.label, sector.label);
+        assert.ok(definition.queryTerms.length >= 4, `${sector.key} needs broad local queries`);
+        assert.ok(definition.primaryTypes.has(sector.acceptedType));
+        assert.ok(SECTOR_ALIASES[sector.key].includes(sector.key));
+    }
+});
+
+test("next local sector classifiers reject adjacent business types", () => {
+    for (const sector of LOCAL_SECTOR_CASES) {
+        assert.equal(isSectorSearchResult(sector.key, {
+            displayName: { text: sector.acceptedName }, primaryType: sector.acceptedType,
+        }), true, `${sector.key} should accept ${sector.acceptedType}`);
+        assert.equal(isSectorSearchResult(sector.key, {
+            displayName: { text: sector.rejectedName }, primaryType: sector.rejectedType,
+        }), false, `${sector.key} should reject ${sector.rejectedType}`);
+    }
 });
 
 test("sector eligibility requires both a usable phone and coordinates", () => {
@@ -339,6 +381,28 @@ test("remaining sectors publish discovery profiles without enabling paid modules
             googleMapsUri: "https://maps.google.com/place",
             location: { latitude: 40.98, longitude: 37.88 },
             district: "Altınordu",
+            photos: [{ name: `places/ChIJ${sector.key}/photos/photo-resource` }],
+        }, null, new Set());
+
+        assert.equal(calls[0].params.includes(sector.key), true);
+        assert.equal(calls[0].params.includes(sector.label), true);
+        assert.equal(calls.some(({ text }) => /INSERT INTO business_modules/i.test(text)), false);
+        assert.equal(calls[1].params.includes(sector.key), true);
+    }
+});
+
+test("next local sectors publish discovery profiles without enabling paid modules", async () => {
+    for (const sector of LOCAL_SECTOR_CASES) {
+        const calls = [];
+        const client = { query: async (text, params) => { calls.push({ text, params }); return { rows: [], rowCount: 1 }; } };
+        await upsertPlace(client, sector.key, {
+            id: `ChIJ${sector.key}`,
+            displayName: sector.acceptedName,
+            formattedAddress: "D\u00fcz Mah., Alt\u0131nordu/Ordu, T\u00fcrkiye",
+            internationalPhoneNumber: "+90 452 123 45 67",
+            googleMapsUri: "https://maps.google.com/place",
+            location: { latitude: 40.98, longitude: 37.88 },
+            district: "Alt\u0131nordu",
             photos: [{ name: `places/ChIJ${sector.key}/photos/photo-resource` }],
         }, null, new Set());
 
