@@ -9,6 +9,21 @@ export const PUBLIC_SECTORS = Object.freeze([
     { id: "market_&_bakkal", label: "Market & Bakkal" },
     { id: "firin,_pastane_&_tatli", label: "F\u0131r\u0131n, Pastane & Tatl\u0131" },
     { id: "oto_servis,_bakim_&_lastik", label: "Oto Servis, Bak\u0131m & Lastik" },
+    { id: "eczane", label: "Eczane" },
+    { id: "spor_salonu_&_fitness", label: "Spor Salonu & Fitness" },
+    { id: "egitim,_kurs_&_surucu_kursu", label: "E\u011fitim, Kurs & S\u00fcr\u00fcc\u00fc Kursu" },
+    { id: "giyim,_ayakkabi_&_butik", label: "Giyim, Ayakkab\u0131 & Butik" },
+    { id: "mobilya_&_ev_dekorasyonu", label: "Mobilya & Ev Dekorasyonu" },
+    { id: "elektronik,_telefon_&_bilgisayar", label: "Elektronik, Telefon & Bilgisayar" },
+    { id: "yapi_market_&_insaat_malzemeleri", label: "Yap\u0131 Market & \u0130n\u015faat Malzemeleri" },
+    { id: "cicekci,_hediyelik_&_kirtasiye", label: "\u00c7i\u00e7ek\u00e7i, Hediyelik & K\u0131rtasiye" },
+    { id: "temizlik,_camasirhane_&_kuru_temizleme", label: "Temizlik, \u00c7ama\u015f\u0131rhane & Kuru Temizleme" },
+    { id: "dugun_salonu_&_organizasyon", label: "D\u00fc\u011f\u00fcn Salonu & Organizasyon" },
+    { id: "avukat,_muhasebe_&_danismanlik", label: "Avukat, Muhasebe & Dan\u0131\u015fmanl\u0131k" },
+    { id: "fotografci_&_produksiyon", label: "Foto\u011fraf\u00e7\u0131 & Prod\u00fcksiyon" },
+    { id: "akaryakit_istasyonu", label: "Akaryak\u0131t \u0130stasyonu" },
+    { id: "kargo,_kurye_&_lojistik", label: "Kargo, Kurye & Lojistik" },
+    { id: "oto_yikama_&_detayli_temizlik", label: "Oto Y\u0131kama & Detayl\u0131 Temizlik" },
 ]);
 
 async function fetchJson(fetchImpl, url) {

@@ -190,9 +190,10 @@ export const SECTOR_DEFINITIONS = Object.freeze({
         label: "E\u011fitim, Kurs & S\u00fcr\u00fcc\u00fc Kursu",
         queryTerms: Object.freeze(["e\u011fitim kursu", "s\u00fcr\u00fcc\u00fc kursu", "yabanc\u0131 dil kursu", "\u00f6zel okul", "dershane", "mesleki e\u011fitim"]),
         primaryTypes: new Set(["driving_school", "educational_institution", "language_school", "school", "training_center", "tutoring_service", "university", "vocational_school"]),
+        nameRequiredTypes: new Set(["educational_institution", "school", "university", "vocational_school"]),
         genericTypes: new Set(["establishment", "point_of_interest", "service"]),
         excludedTypes: new Set(["book_store", "library", "child_care_agency", "sports_school"]),
-        namePattern: /(?:egitim|kurs|surucu|dershane|akademi|kolej|okul|etut|dil\s*merkezi)/i,
+        namePattern: /(?:ozel|kurs|surucu|dershane|akademi|kolej|etut|dil\s*(?:kursu|okulu|merkezi)|anaokulu|kres|psikoteknik|guvenlik\s*egitim)/i,
         excludedNamePattern: /(?:kitabevi|kutuphane|kirtasiye|oyuncak|spor\s*kulubu)/i,
     }),
     fashion: Object.freeze({
@@ -208,10 +209,11 @@ export const SECTOR_DEFINITIONS = Object.freeze({
         label: "Mobilya & Ev Dekorasyonu",
         queryTerms: Object.freeze(["mobilya ma\u011fazas\u0131", "ev dekorasyon", "yatak ma\u011fazas\u0131", "ofis mobilyas\u0131", "mutfak mobilyas\u0131"]),
         primaryTypes: new Set(["furniture_store", "home_goods_store", "interior_designer", "mattress_store"]),
+        nameRequiredTypes: new Set(["home_goods_store"]),
         genericTypes: new Set(["store", "establishment", "point_of_interest", "service"]),
         excludedTypes: new Set(["electronics_store", "hardware_store", "home_improvement_store", "general_contractor"]),
         namePattern: /(?:mobilya|dekorasyon|yatak|koltuk|mutfak\s*dolabi|ev\s*tekstili)/i,
-        excludedNamePattern: /(?:elektronik|yapi\s*market|hirdavat|insaat|beyaz\s*esya\s*servis)/i,
+        excludedNamePattern: /(?:elektronik|yapi\s*market|hirdavat|insaat|beyaz\s*esya\s*servis|temizlik)/i,
     }),
     electronics: Object.freeze({
         label: "Elektronik, Telefon & Bilgisayar",
@@ -256,15 +258,16 @@ export const SECTOR_DEFINITIONS = Object.freeze({
         genericTypes: new Set(["service", "establishment", "point_of_interest"]),
         excludedTypes: new Set(["restaurant", "hotel", "night_club", "community_center"]),
         namePattern: /(?:dugun\s*salonu|organizasyon|davet\s*salonu|nikah|etkinlik\s*mekani)/i,
-        excludedNamePattern: /(?:restoran|otel|gece\s*kulubu|belediye\s*kultur|dernek)/i,
+        excludedNamePattern: /(?:restoran|otel|gece\s*kulubu|belediye(?:si)?\s*kultur|dernek)/i,
     }),
     professional_services: Object.freeze({
         label: "Avukat, Muhasebe & Dan\u0131\u015fmanl\u0131k",
         queryTerms: Object.freeze(["avukat", "hukuk b\u00fcrosu", "mali m\u00fc\u015favir", "muhasebe b\u00fcrosu", "i\u015f dan\u0131\u015fmanl\u0131\u011f\u0131"]),
         primaryTypes: new Set(["accounting", "consultant", "lawyer", "legal_services", "tax_consultant"]),
+        nameRequiredTypes: new Set(["consultant"]),
         genericTypes: new Set(["corporate_office", "establishment", "point_of_interest", "service"]),
         excludedTypes: new Set(["real_estate_agency", "insurance_agency", "bank", "local_government_office"]),
-        namePattern: /(?:avukat|hukuk|muhasebe|mali\s*musavir|danismanlik|consulting)/i,
+        namePattern: /(?:avukat|hukuk|muhasebe|mali\s*musavir|smmm|serbest\s*muhasebeci|danismanlik|consulting)/i,
         excludedNamePattern: /(?:emlak|gayrimenkul|sigorta|banka|belediye|kamu)/i,
     }),
     photography: Object.freeze({
@@ -426,7 +429,10 @@ export function isSectorSearchResult(sectorKey, place) {
         || definition.excludedTypes.has(primaryType)
         || definition.excludedNamePattern.test(name)
         || definition.excludedNamePattern.test(normalizedName)) return false;
-    if (definition.primaryTypes.has(primaryType)) return true;
+    if (definition.primaryTypes.has(primaryType)) {
+        if (!definition.nameRequiredTypes?.has(primaryType)) return true;
+        return definition.namePattern.test(name) || definition.namePattern.test(normalizedName);
+    }
     if (primaryType && !definition.genericTypes.has(primaryType)) return false;
     return definition.namePattern.test(name);
 }

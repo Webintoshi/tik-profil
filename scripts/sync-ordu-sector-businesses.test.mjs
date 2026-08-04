@@ -238,6 +238,59 @@ test("next local sector classifiers reject adjacent business types", () => {
     }
 });
 
+test("education excludes public institutions while keeping private courses", () => {
+    assert.equal(isSectorSearchResult("education", {
+        displayName: { text: "Adnan Menderes Ticaret Meslek Lisesi" },
+        primaryType: "school",
+    }), false);
+    assert.equal(isSectorSearchResult("education", {
+        displayName: { text: "Ordu Halk Eğitim Merkezi" },
+        primaryType: "educational_institution",
+    }), false);
+    assert.equal(isSectorSearchResult("education", {
+        displayName: { text: "Korgan Öğretmenevi ve Akşam Sanat Okulu" },
+        primaryType: "service",
+    }), false);
+    assert.equal(isSectorSearchResult("education", {
+        displayName: { text: "Özel Ordu Akademi Yabancı Dil Kursu" },
+        primaryType: "educational_institution",
+    }), true);
+});
+
+test("furniture excludes ambiguous home goods and cleaning businesses", () => {
+    assert.equal(isSectorSearchResult("furniture", {
+        displayName: { text: "Vestel Akkuş" },
+        primaryType: "home_goods_store",
+    }), false);
+    assert.equal(isSectorSearchResult("furniture", {
+        displayName: { text: "Ayazma Siemens" },
+        primaryType: "home_goods_store",
+    }), false);
+    assert.equal(isSectorSearchResult("furniture", {
+        displayName: { text: "Dekotem Temizlik ve Dekorasyon" },
+        primaryType: "service",
+    }), false);
+    assert.equal(isSectorSearchResult("furniture", {
+        displayName: { text: "Ordu Ev Tekstili ve Dekorasyon" },
+        primaryType: "home_goods_store",
+    }), true);
+});
+
+test("event and professional service classifiers exclude public venues and unrelated consultants", () => {
+    assert.equal(isSectorSearchResult("event_wedding", {
+        displayName: { text: "Fatsa Belediyesi Kültür ve Sanat Merkezi" },
+        primaryType: "event_venue",
+    }), false);
+    assert.equal(isSectorSearchResult("professional_services", {
+        displayName: { text: "Diyetisyen Esmanur Alemdar" },
+        primaryType: "consultant",
+    }), false);
+    assert.equal(isSectorSearchResult("professional_services", {
+        displayName: { text: "Uzun Hukuk ve Arabuluculuk Bürosu" },
+        primaryType: "consultant",
+    }), true);
+});
+
 test("sector eligibility requires both a usable phone and coordinates", () => {
     const complete = {
         internationalPhoneNumber: "+90 452 123 45 67",

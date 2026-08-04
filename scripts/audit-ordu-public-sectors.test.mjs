@@ -1,7 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { auditPublicSectors } from "./audit-ordu-public-sectors.mjs";
+import { auditPublicSectors, PUBLIC_SECTORS } from "./audit-ordu-public-sectors.mjs";
+
+test("public sector audit includes every planned local category", () => {
+    const ids = new Set(PUBLIC_SECTORS.map((sector) => sector.id));
+    assert.equal(PUBLIC_SECTORS.length, 23);
+    for (const id of [
+        "eczane", "spor_salonu_&_fitness", "egitim,_kurs_&_surucu_kursu",
+        "giyim,_ayakkabi_&_butik", "mobilya_&_ev_dekorasyonu",
+        "elektronik,_telefon_&_bilgisayar", "yapi_market_&_insaat_malzemeleri",
+        "cicekci,_hediyelik_&_kirtasiye", "temizlik,_camasirhane_&_kuru_temizleme",
+        "dugun_salonu_&_organizasyon", "avukat,_muhasebe_&_danismanlik",
+        "fotografci_&_produksiyon", "akaryakit_istasyonu",
+        "kargo,_kurye_&_lojistik", "oto_yikama_&_detayli_temizlik",
+    ]) {
+        assert.equal(ids.has(id), true, `${id} should be audited`);
+    }
+});
 
 test("auditPublicSectors checks category totals and every public profile", async () => {
     const profileRequests = [];
