@@ -183,7 +183,11 @@ export const SECTOR_ALIASES = Object.freeze({
     auto_service: Object.freeze(["auto_service", "oto_servis", "oto_servis_bakim_lastik", "oto_servis,_bakim_&_lastik", "car_repair", "tire_shop"]),
 });
 
-const SEARCH_FIELDS = "places.id,places.displayName,places.formattedAddress,places.primaryType,places.location,nextPageToken";
+export const SEARCH_FIELDS = [
+    "places.id", "places.displayName", "places.formattedAddress", "places.primaryType", "places.location",
+    "places.nationalPhoneNumber", "places.internationalPhoneNumber", "places.websiteUri", "places.googleMapsUri",
+    "places.rating", "places.userRatingCount", "places.regularOpeningHours", "places.photos", "nextPageToken",
+].join(",");
 const DETAIL_FIELDS = [
     "id", "displayName", "formattedAddress", "primaryType", "nationalPhoneNumber",
     "internationalPhoneNumber", "websiteUri", "googleMapsUri", "location", "rating",
@@ -450,13 +454,7 @@ export async function discoverPlaces(apiKey, sectorKey) {
     return [...discovered.values()];
 }
 
-export async function getPlaceDetails(apiKey, sectorKey, ref) {
-    const place = await googleRequest(
-        apiKey,
-        `/places/${encodeURIComponent(ref.id)}?languageCode=tr&regionCode=tr`,
-        DETAIL_FIELDS,
-        { method: "GET" },
-    );
+function normalizeEligiblePlace(sectorKey, ref, place) {
     const displayName = place.displayName?.text ?? ref.search.displayName?.text ?? "";
     const formattedAddress = place.formattedAddress ?? ref.search.formattedAddress ?? "";
     if (!isSectorSearchResult(sectorKey, {
@@ -467,6 +465,18 @@ export async function getPlaceDetails(apiKey, sectorKey, ref) {
     if (!district) return null;
     const normalizedPlace = { ...place, district, displayName, formattedAddress };
     return hasRequiredContactAndLocation(normalizedPlace) ? normalizedPlace : null;
+}
+
+export async function getPlaceDetails(apiKey, sectorKey, ref) {
+    const hydratedSearchPlace = normalizeEligiblePlace(sectorKey, ref, ref.search);
+    if (hydratedSearchPlace) return hydratedSearchPlace;
+    const place = await googleRequest(
+        apiKey,
+        `/places/${encodeURIComponent(ref.id)}?languageCode=tr&regionCode=tr`,
+        DETAIL_FIELDS,
+        { method: "GET" },
+    );
+    return normalizeEligiblePlace(sectorKey, ref, place);
 }
 
 function socialField(url) {

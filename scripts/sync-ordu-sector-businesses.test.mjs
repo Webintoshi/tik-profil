@@ -3,17 +3,47 @@ import test from "node:test";
 
 import {
     ORDU_DISTRICTS,
+    SEARCH_FIELDS,
     SECTOR_DEFINITIONS,
     assignPlacesToExisting,
     buildSectorQualityPreview,
     buildGooglePhotoProfileFields,
     filterAlreadyPublishedPlaces,
+    getPlaceDetails,
     hasRequiredContactAndLocation,
     isSectorSearchResult,
     parseArgs,
     removeReplaceableImportedSectorBusinesses,
     upsertPlace,
 } from "./sync-ordu-sector-businesses.mjs";
+
+test("text search requests all fields needed to avoid per-place detail calls", () => {
+    for (const field of [
+        "places.nationalPhoneNumber", "places.internationalPhoneNumber", "places.websiteUri",
+        "places.googleMapsUri", "places.rating", "places.userRatingCount",
+        "places.regularOpeningHours", "places.photos",
+    ]) assert.match(SEARCH_FIELDS, new RegExp(field.replaceAll(".", "\\.")));
+});
+
+test("hydrated text search places bypass the detail endpoint", async () => {
+    const place = await getPlaceDetails("not-a-real-key", "grocery", {
+        district: "Altınordu",
+        search: {
+            id: "ChIJhydrated",
+            displayName: { text: "Düz Mahalle Marketi" },
+            formattedAddress: "Düz Mah., Altınordu/Ordu, Türkiye",
+            primaryType: "grocery_store",
+            internationalPhoneNumber: "+90 452 123 45 67",
+            websiteUri: "https://example.com",
+            googleMapsUri: "https://maps.google.com/place",
+            location: { latitude: 40.98, longitude: 37.88 },
+            photos: [{ name: "places/ChIJhydrated/photos/photo-resource" }],
+        },
+    });
+    assert.equal(place.id, "ChIJhydrated");
+    assert.equal(place.displayName, "Düz Mahalle Marketi");
+    assert.equal(place.district, "Altınordu");
+});
 
 test("sector quality preview exposes primary-type counts and bounded review-ranked samples", () => {
     const preview = buildSectorQualityPreview([
