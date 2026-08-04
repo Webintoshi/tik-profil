@@ -89,6 +89,9 @@ test("cafe classification accepts coffee businesses and rejects adjacent sectors
         displayName: { text: "Saray Unlu Mamülleri" }, primaryType: "cafe",
     }), false);
     assert.equal(isSectorSearchResult("cafe", {
+        displayName: { text: "Mimoza Cafe Unlu Mamüller" }, primaryType: "cafe",
+    }), false);
+    assert.equal(isSectorSearchResult("cafe", {
         displayName: { text: "Gece Bar" }, primaryType: "bar",
     }), false);
 });
