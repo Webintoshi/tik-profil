@@ -5,6 +5,7 @@ import {
     normalizeSearchText,
     type KesfetPublicBusiness,
 } from "@/server/repositories/businesses.types";
+import { resolveCategoryMetadata } from "./categories/category-metadata";
 
 export async function loadKesfetBusinesses(route = "/api/kesfet*"): Promise<KesfetPublicBusiness[]> {
     return loadKesfetBusinessesForDiscovery(route);
@@ -37,18 +38,13 @@ export function matchesCity(business: KesfetPublicBusiness, city: string): boole
 }
 
 export function matchesCategory(business: KesfetPublicBusiness, category: string): boolean {
-    const normalizedCategory = normalizeSearchText(category).replace(/\s+/g, "_");
+    const requestedId = resolveCategoryMetadata(category).id;
 
     return [
         business.category,
         business.categoryLabel,
         business.industryId,
-    ].some((value) =>
-        Boolean(
-            value &&
-            normalizeSearchText(value).replace(/\s+/g, "_").includes(normalizedCategory)
-        )
-    );
+    ].some((value) => Boolean(value && resolveCategoryMetadata(value).id === requestedId));
 }
 
 export function matchesSearchQuery(business: KesfetPublicBusiness, query: string): boolean {
