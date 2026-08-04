@@ -35,6 +35,7 @@
     "business:sync:ordu-bakery": "node scripts/sync-ordu-sector-businesses.mjs --sector=bakery",
     "business:sync:ordu-auto-service": "node scripts/sync-ordu-sector-businesses.mjs --sector=auto_service",
     "business:audit:ordu-sector": "node scripts/audit-ordu-sector.mjs",
+    "business:audit:ordu-public-sectors": "node scripts/audit-ordu-public-sectors.mjs",
     "business:audit:ordu-auto-dealers": "node scripts/audit-ordu-auto-dealers.mjs",
     "business:sync:ordu-food": "node scripts/sync-ordu-food-businesses.mjs",
     "business:audit:ordu-food": "node scripts/audit-ordu-food-businesses.mjs",

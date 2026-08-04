@@ -17,26 +17,49 @@ async function fetchJson(fetchImpl, url) {
     return response.json();
 }
 
-async function auditProfiles({ baseUrl, businesses, fetchImpl, concurrency }) {
+function shouldRetryProfileResponse(status) {
+    return status === 408 || status === 429 || status >= 500;
+}
+
+async function auditProfiles({
+    baseUrl,
+    businesses,
+    fetchImpl,
+    concurrency,
+    profileRetries,
+    retryDelayMs,
+}) {
     let nextIndex = 0;
     let ok = 0;
     const failures = [];
     const workers = Array.from({ length: Math.min(concurrency, businesses.length) }, async () => {
         while (nextIndex < businesses.length) {
             const business = businesses[nextIndex++];
-            try {
-                const response = await fetchImpl(`${baseUrl}/${encodeURIComponent(business.slug)}`, {
-                    method: "HEAD",
-                    redirect: "manual",
-                });
-                if (response.status === 200) ok++;
-                else failures.push({ slug: business.slug, status: response.status });
-            } catch (error) {
-                failures.push({
-                    slug: business.slug,
-                    error: error instanceof Error ? error.message : String(error),
-                });
+            let lastFailure;
+            for (let attempt = 0; attempt <= profileRetries; attempt++) {
+                try {
+                    const response = await fetchImpl(`${baseUrl}/${encodeURIComponent(business.slug)}`, {
+                        method: "HEAD",
+                        redirect: "manual",
+                    });
+                    if (response.status === 200) {
+                        ok++;
+                        lastFailure = null;
+                        break;
+                    }
+                    lastFailure = { slug: business.slug, status: response.status };
+                    if (!shouldRetryProfileResponse(response.status)) break;
+                } catch (error) {
+                    lastFailure = {
+                        slug: business.slug,
+                        error: error instanceof Error ? error.message : String(error),
+                    };
+                }
+                if (attempt < profileRetries && retryDelayMs > 0) {
+                    await new Promise((resolve) => setTimeout(resolve, retryDelayMs * (attempt + 1)));
+                }
             }
+            if (lastFailure) failures.push(lastFailure);
         }
     });
     await Promise.all(workers);
@@ -48,6 +71,8 @@ export async function auditPublicSectors({
     sectors = PUBLIC_SECTORS,
     fetchImpl = fetch,
     concurrency = 12,
+    profileRetries = 2,
+    retryDelayMs = 400,
 } = {}) {
     const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
     const categoryData = await fetchJson(
@@ -68,6 +93,8 @@ export async function auditPublicSectors({
             businesses,
             fetchImpl,
             concurrency,
+            profileRetries,
+            retryDelayMs,
         });
         const uniqueIds = new Set(businesses.map((business) => business.id));
         const uniqueSlugs = new Set(businesses.map((business) => business.slug));

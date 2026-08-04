@@ -41,3 +41,33 @@ test("auditPublicSectors checks category totals and every public profile", async
         { pathname: "/iki", method: "HEAD" },
     ]);
 });
+
+test("auditPublicSectors retries transient profile request failures", async () => {
+    let profileAttempts = 0;
+    const fetchImpl = async (url) => {
+        const parsed = new URL(url);
+        if (parsed.pathname === "/api/kesfet/categories") {
+            return Response.json({ categories: [{ id: "beauty", label: "Beauty", count: 1 }] });
+        }
+        if (parsed.pathname === "/api/kesfet") {
+            return Response.json({
+                total: 1,
+                businesses: [{ id: "1", slug: "bir", name: "Bir", lat: 1, lng: 2 }],
+            });
+        }
+        profileAttempts++;
+        if (profileAttempts < 3) throw new Error("transient");
+        return new Response(null, { status: 200 });
+    };
+
+    const report = await auditPublicSectors({
+        baseUrl: "https://example.test",
+        sectors: [{ id: "beauty", label: "Beauty" }],
+        fetchImpl,
+        profileRetries: 2,
+        retryDelayMs: 0,
+    });
+
+    assert.equal(report.ok, true);
+    assert.equal(profileAttempts, 3);
+});
