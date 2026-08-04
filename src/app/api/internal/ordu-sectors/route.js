@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { auditSectorBusinesses } from "../../../../../scripts/audit-ordu-sector.mjs";
 import { runSectorSync } from "../../../../../scripts/sync-ordu-sector-businesses.mjs";
 import { verifyOneTimeOperationToken } from "../../../../server/operations/one-time-token.mjs";
 
@@ -22,6 +23,10 @@ export async function POST(request) {
         const sectorKey = typeof body?.sectorKey === "string" ? body.sectorKey.trim() : "";
         if (!ALLOWED_SECTORS.has(sectorKey)) {
             return NextResponse.json({ error: "invalid_sector" }, { status: 400 });
+        }
+        if (body?.action === "audit") {
+            const report = await auditSectorBusinesses({ sectorKey });
+            return NextResponse.json({ ok: true, report });
         }
         const apply = body?.apply === true;
         const report = await runSectorSync({
