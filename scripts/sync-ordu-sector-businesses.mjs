@@ -184,7 +184,7 @@ export const SECTOR_DEFINITIONS = Object.freeze({
         genericTypes: new Set(["sports_activity_location", "establishment", "point_of_interest", "service"]),
         excludedTypes: new Set(["beauty_salon", "spa", "physiotherapist", "sports_school", "stadium"]),
         namePattern: /(?:spor\s*salonu|fitness|gym|pilates|yoga|crossfit|body\s*building)/i,
-        excludedNamePattern: /(?:guzellik|kuafor|fizyoterapi|hali\s*saha|stadyum|spor\s*malzeme)/i,
+        excludedNamePattern: /(?:guzellik|kuafor|fizyoterapi|hali\s*saha|stadyum|spor\s*malzeme|belediye(?:si)?|sosyal\s*tesis|(?:anadolu\s*)?lisesi|(?:okul|kolej).*(?:spor|boks)\s*salonu)/i,
     }),
     education: Object.freeze({
         label: "E\u011fitim, Kurs & S\u00fcr\u00fcc\u00fc Kursu",
@@ -193,8 +193,8 @@ export const SECTOR_DEFINITIONS = Object.freeze({
         nameRequiredTypes: new Set(["educational_institution", "school", "university", "vocational_school"]),
         genericTypes: new Set(["establishment", "point_of_interest", "service"]),
         excludedTypes: new Set(["book_store", "library", "child_care_agency", "sports_school"]),
-        namePattern: /(?:ozel|kurs|surucu|dershane|akademi|kolej|etut|dil\s*(?:kursu|okulu|merkezi)|anaokulu|kres|psikoteknik|guvenlik\s*egitim)/i,
-        excludedNamePattern: /(?:kitabevi|kutuphane|kirtasiye|oyuncak|spor\s*kulubu)/i,
+        namePattern: /(?:ozel|kurs|surucu|dershane|akademi|kolej|etut|dil\s*(?:kursu|okulu|merkezi)|anaokulu|kres|guvenlik\s*egitim)/i,
+        excludedNamePattern: /(?:kitabevi|kutuphane|kirtasiye|oyuncak|spor\s*kulubu|psikoteknik)/i,
     }),
     fashion: Object.freeze({
         label: "Giyim, Ayakkab\u0131 & Butik",
@@ -213,7 +213,7 @@ export const SECTOR_DEFINITIONS = Object.freeze({
         genericTypes: new Set(["store", "establishment", "point_of_interest", "service"]),
         excludedTypes: new Set(["electronics_store", "hardware_store", "home_improvement_store", "general_contractor"]),
         namePattern: /(?:mobilya|dekorasyon|yatak|koltuk|mutfak\s*dolabi|ev\s*tekstili)/i,
-        excludedNamePattern: /(?:elektronik|yapi\s*market|hirdavat|insaat|beyaz\s*esya\s*servis|temizlik)/i,
+        excludedNamePattern: /(?:elektronik|yapi\s*market|hirdavat|insaat|beyaz\s*esya\s*servis|temizlik|koltuk\s*yikama|hali\s*yikama)/i,
     }),
     electronics: Object.freeze({
         label: "Elektronik, Telefon & Bilgisayar",

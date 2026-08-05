@@ -276,6 +276,39 @@ test("furniture excludes ambiguous home goods and cleaning businesses", () => {
     }), true);
 });
 
+test("local sector classifiers reject public fitness facilities, psychotechnic centers, and upholstery washing", () => {
+    assert.equal(isSectorSearchResult("fitness", {
+        displayName: { text: "Fatsa Belediyesi Sosyal Tesisler" },
+        primaryType: "sports_club",
+    }), false);
+    assert.equal(isSectorSearchResult("fitness", {
+        displayName: { text: "Ahmet Sirimsi Anadolu Lisesi Boks Salonu" },
+        primaryType: "gym",
+    }), false);
+    assert.equal(isSectorSearchResult("fitness", {
+        displayName: { text: "On Gym Fitness Center" },
+        primaryType: "gym",
+    }), true);
+
+    assert.equal(isSectorSearchResult("education", {
+        displayName: { text: "Ozel Ordu Psikoteknik Degerlendirme Merkezi" },
+        primaryType: "service",
+    }), false);
+    assert.equal(isSectorSearchResult("education", {
+        displayName: { text: "Ordu Feza Surucu Kursu" },
+        primaryType: "driving_school",
+    }), true);
+
+    assert.equal(isSectorSearchResult("furniture", {
+        displayName: { text: "Tutku Koltuk Yikama Usta ve Tamir" },
+        primaryType: "service",
+    }), false);
+    assert.equal(isSectorSearchResult("furniture", {
+        displayName: { text: "Tutku Koltuk Mobilya" },
+        primaryType: "furniture_store",
+    }), true);
+});
+
 test("event and professional service classifiers exclude public venues and unrelated consultants", () => {
     assert.equal(isSectorSearchResult("event_wedding", {
         displayName: { text: "Fatsa Belediyesi Kültür ve Sanat Merkezi" },
