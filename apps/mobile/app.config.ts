@@ -32,7 +32,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: "com.tikprofil.mobile",
+    versionCode: 1,
     predictiveBackGestureEnabled: false,
+    blockedPermissions: [
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+      "android.permission.SYSTEM_ALERT_WINDOW",
+    ],
     adaptiveIcon: {
       backgroundColor: "#DCEBFA",
       foregroundImage: "./assets/android-icon-foreground.png",
@@ -45,7 +51,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     favicon: "./assets/favicon.png",
   },
   extra: {
-    apiMode: process.env.EXPO_PUBLIC_API_MODE ?? "mock",
+    apiMode: process.env.EXPO_PUBLIC_API_MODE ?? "real",
     apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://tikprofil.com",
     googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "",
     publicBusinessProfilePathTemplate:

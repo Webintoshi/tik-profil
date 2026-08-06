@@ -1,4 +1,12 @@
 import { buildApiUrl } from "../src/api/url";
+import { defaultApiConfig } from "../src/api/config";
+
+describe("defaultApiConfig", () => {
+  it("uses the live discovery API unless a build explicitly overrides it", () => {
+    expect(defaultApiConfig.mode).toBe("real");
+    expect(defaultApiConfig.baseUrl).toBe("https://tikprofil.com");
+  });
+});
 
 describe("buildApiUrl", () => {
   it("joins the base URL and path without duplicate slashes", () => {

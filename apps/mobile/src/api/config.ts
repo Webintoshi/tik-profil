@@ -1,7 +1,7 @@
 import type { ApiRuntimeConfig } from "@/api/types";
 
 export const defaultApiConfig: ApiRuntimeConfig = {
-  mode: "mock",
+  mode: "real",
   baseUrl: "https://tikprofil.com",
   requestTimeoutMs: 8000,
   mockDelayMs: 550,
