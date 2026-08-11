@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { PUBLIC_PROFILE_CACHE_CONTROL, publicCacheHeaders } from "@/server/http/public-cache-policy";
+import { optimizePublicProfileMedia } from "@/server/media/public-business-media";
 import { loadPublicProfileBySlug } from "@/server/repositories/public-profile-provider";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +30,8 @@ export async function GET(
             success: true,
             profile: null,
             redirectTarget: result.redirectTarget,
+        }, {
+            headers: publicCacheHeaders(PUBLIC_PROFILE_CACHE_CONTROL),
         });
     }
 
@@ -40,7 +44,9 @@ export async function GET(
 
     return NextResponse.json({
         success: true,
-        profile: result.profile,
+        profile: optimizePublicProfileMedia(result.profile),
         redirectTarget: null,
+    }, {
+        headers: publicCacheHeaders(PUBLIC_PROFILE_CACHE_CONTROL),
     });
 }

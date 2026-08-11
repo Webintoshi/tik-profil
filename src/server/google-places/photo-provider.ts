@@ -84,12 +84,19 @@ export async function getCurrentGooglePlacePhotoMetadata(
 export async function resolveGooglePlacePhotoMedia(
   resourceName: string,
   apiKey: string,
-  fetchImpl: FetchLike = fetch,
+  requestedWidthOrFetch: number | FetchLike = 960,
+  fetchOverride: FetchLike = fetch,
 ): Promise<string | null> {
   if (!/^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/.test(resourceName))
     return null;
+  const requestedWidth = typeof requestedWidthOrFetch === "number"
+    ? Math.min(1600, Math.max(96, Math.round(requestedWidthOrFetch)))
+    : 960;
+  const fetchImpl = typeof requestedWidthOrFetch === "function"
+    ? requestedWidthOrFetch
+    : fetchOverride;
   const payload = await fetchJson(
-    `https://places.googleapis.com/v1/${resourceName}/media?maxWidthPx=960&skipHttpRedirect=true`,
+    `https://places.googleapis.com/v1/${resourceName}/media?maxWidthPx=${requestedWidth}&skipHttpRedirect=true`,
     apiKey,
     fetchImpl,
   );

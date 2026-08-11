@@ -3,6 +3,7 @@ import {
     isBusinessDualReadCompareEnabled,
     type BusinessDataProvider,
 } from "@/lib/env";
+import { redisJsonCache } from "@/server/cache/redis-json-cache";
 import { hasPostgresDatabaseUrl } from "@/server/db/postgres";
 import {
     createBusinessDualReadComparisonSummary,
@@ -63,7 +64,7 @@ async function loadPostgresBusinesses(): Promise<KesfetPublicBusiness[]> {
     return postgresBusinessesRepository.listActiveBusinessesForDiscovery();
 }
 
-export async function loadKesfetBusinessesForDiscovery(
+async function loadKesfetBusinessesUncached(
     route: string,
 ): Promise<KesfetPublicBusiness[]> {
     const provider = getEffectiveBusinessDataProvider();
@@ -129,4 +130,18 @@ export async function loadKesfetBusinessesForDiscovery(
     }
 
     return loadLegacyBusinesses();
+}
+
+export async function loadKesfetBusinessesForDiscovery(
+    route: string,
+): Promise<KesfetPublicBusiness[]> {
+    const provider = getEffectiveBusinessDataProvider();
+    const compare = isBusinessDualReadCompareEnabled() && hasPostgresDatabaseUrl();
+    const cacheKey = `tikprofil:kesfet:v2:${provider}:${compare ? "compare" : "single"}`;
+    const cached = await redisJsonCache.getJson<KesfetPublicBusiness[]>(cacheKey);
+    if (cached) return cached;
+
+    const businesses = await loadKesfetBusinessesUncached(route);
+    await redisJsonCache.setJson(cacheKey, businesses, 60);
+    return businesses;
 }

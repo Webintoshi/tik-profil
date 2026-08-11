@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DISCOVERY_CACHE_CONTROL, publicCacheHeaders } from "@/server/http/public-cache-policy";
 import { resolveCategoryMetadata } from "./category-metadata";
 import { loadKesfetBusinesses, logKesfetPublicApiError, matchesCity } from "../shared";
 
@@ -40,6 +41,8 @@ export async function GET(request: Request) {
             success: true,
             categories,
             total: activeBusinesses.length,
+        }, {
+            headers: publicCacheHeaders(DISCOVERY_CACHE_CONTROL),
         });
     } catch (error) {
         logKesfetPublicApiError("/api/kesfet/categories", error);

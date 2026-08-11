@@ -30,14 +30,18 @@ test("unpublished Place IDs return 404 before Google is called", async () => {
 });
 
 test("live media redirects are no-store and never expose the API key", async () => {
+  let requestedWidth = 0;
   const handler = createGooglePlacePhotoHandler({
     apiKey: "server-secret",
     isPublishedPlaceId: async () => true,
     getMetadata: async () => metadata,
-    resolveMedia: async () => "https://lh3.googleusercontent.com/photo",
+    resolveMedia: async (_resourceName, _apiKey, width) => {
+      requestedWidth = width;
+      return "https://lh3.googleusercontent.com/photo";
+    },
   });
 
-  const response = await handler.media("ChIJvalidPlace123");
+  const response = await handler.media("ChIJvalidPlace123", 320);
   assert.equal(response.status, 302);
   assert.equal(
     response.headers.get("location"),
@@ -48,6 +52,7 @@ test("live media redirects are no-store and never expose the API key", async () 
     [...response.headers.values()].join(" ").includes("server-secret"),
     false,
   );
+  assert.equal(requestedWidth, 320);
 });
 
 test("metadata responses include attribution and the individual source with no-store headers", async () => {

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { DISCOVERY_CACHE_CONTROL, publicCacheHeaders } from "@/server/http/public-cache-policy";
+import { optimizeDiscoveryBusinessMedia } from "@/server/media/public-business-media";
 import {
     buildKesfetRouteSignature,
     loadKesfetBusinesses,
@@ -56,7 +58,9 @@ export async function GET(request: Request) {
         }
 
         const startIndex = (page - 1) * limit;
-        const paginatedBusinesses = businesses.slice(startIndex, startIndex + limit);
+        const paginatedBusinesses = businesses
+            .slice(startIndex, startIndex + limit)
+            .map((business) => optimizeDiscoveryBusinessMedia(business));
 
         return NextResponse.json({
             success: true,
@@ -65,6 +69,8 @@ export async function GET(request: Request) {
             page,
             limit,
             hasMore: startIndex + limit < businesses.length,
+        }, {
+            headers: publicCacheHeaders(DISCOVERY_CACHE_CONTROL),
         });
     } catch (error) {
         logKesfetPublicApiError("/api/kesfet", error);

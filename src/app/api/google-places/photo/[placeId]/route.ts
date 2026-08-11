@@ -9,7 +9,7 @@ import { isPublishedGooglePlaceId } from "@/server/google-places/photo-repositor
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ placeId: string }> },
 ) {
   const { placeId } = await params;
@@ -18,5 +18,5 @@ export async function GET(
     isPublishedPlaceId: isPublishedGooglePlaceId,
     getMetadata: getCurrentGooglePlacePhotoMetadata,
     resolveMedia: resolveGooglePlacePhotoMedia,
-  }).media(placeId ?? "");
+  }).media(placeId ?? "", Number(new URL(request.url).searchParams.get("width")) || 960);
 }

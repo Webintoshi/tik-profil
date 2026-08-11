@@ -63,13 +63,41 @@ test("photo-less places return null instead of a generated fallback", async () =
 });
 
 test("photo media is resolved live and never returns the resource name as an image URL", async () => {
+  const requests: string[] = [];
   const result = await resolveGooglePlacePhotoMedia(
     "places/ChIJvalidPlace123/photos/photo-resource",
     "server-key",
-    async () =>
-      Response.json({
+    320,
+    async (input) => {
+      requests.push(String(input));
+      return Response.json({
         photoUri: "https://lh3.googleusercontent.com/current-photo",
-      }),
+      });
+    },
   );
   assert.equal(result, "https://lh3.googleusercontent.com/current-photo");
+  assert.equal(new URL(requests[0]).searchParams.get("maxWidthPx"), "320");
+});
+
+test("photo media width is bounded before calling Google", async () => {
+  const requestedWidths: string[] = [];
+  const fetchImpl = async (input: RequestInfo | URL) => {
+    requestedWidths.push(new URL(String(input)).searchParams.get("maxWidthPx") ?? "");
+    return Response.json({ photoUri: "https://lh3.googleusercontent.com/current-photo" });
+  };
+
+  await resolveGooglePlacePhotoMedia(
+    "places/ChIJvalidPlace123/photos/photo-resource",
+    "server-key",
+    10,
+    fetchImpl,
+  );
+  await resolveGooglePlacePhotoMedia(
+    "places/ChIJvalidPlace123/photos/photo-resource",
+    "server-key",
+    9000,
+    fetchImpl,
+  );
+
+  assert.deepEqual(requestedWidths, ["96", "1600"]);
 });

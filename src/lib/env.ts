@@ -148,6 +148,10 @@ export function getDatabaseUrl(): string | undefined {
     return getTrimmedEnvValue('DATABASE_URL');
 }
 
+export function getRedisUrl(): string | undefined {
+    return getTrimmedEnvValue('REDIS_URL');
+}
+
 export function getBusinessDataProvider(): BusinessDataProvider {
     return getTrimmedEnvValue('BUSINESS_DATA_PROVIDER') === 'postgres'
         ? 'postgres'

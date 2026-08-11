@@ -2,6 +2,7 @@ import {
     getPublicProfileDataProvider,
     isPublicProfileDualReadCompareEnabled,
 } from "../../lib/env.ts";
+import { redisJsonCache } from "../cache/redis-json-cache.ts";
 import { createPublicProfileDualReadComparisonSummary } from "./public-profile-dual-read.ts";
 import type {
     PublicProfileDataProvider,
@@ -106,6 +107,12 @@ export function createPublicProfileProvider(
                 (options.compare ?? true) &&
                 dependencies.isCompareEnabled() &&
                 dependencies.hasPostgresDatabaseUrl();
+            const normalizedSlug = slug.trim().toLocaleLowerCase("tr-TR");
+            const cacheKey = `tikprofil:public-profile:v2:${provider}:${shouldCompare ? "compare" : "single"}:${normalizedSlug}`;
+            const cached = await redisJsonCache.getJson<PublicProfileLookupResult>(cacheKey);
+            if (cached) return cached;
+
+            let result: PublicProfileLookupResult;
 
             if (shouldCompare) {
                 const [legacyResult, postgresResult] = await Promise.allSettled([
@@ -125,7 +132,9 @@ export function createPublicProfileProvider(
 
                 if (provider === "postgres") {
                     if (postgresResult.status === "fulfilled") {
-                        return postgresResult.value;
+                        result = postgresResult.value;
+                        await redisJsonCache.setJson(cacheKey, result, 120);
+                        return result;
                     }
 
                     if (legacyResult.status === "fulfilled") {
@@ -136,14 +145,18 @@ export function createPublicProfileProvider(
                                 error: serializeError(postgresResult.reason),
                             },
                         );
-                        return legacyResult.value;
+                        result = legacyResult.value;
+                        await redisJsonCache.setJson(cacheKey, result, 120);
+                        return result;
                     }
 
                     throw postgresResult.reason;
                 }
 
                 if (legacyResult.status === "fulfilled") {
-                    return legacyResult.value;
+                    result = legacyResult.value;
+                    await redisJsonCache.setJson(cacheKey, result, 120);
+                    return result;
                 }
 
                 if (postgresResult.status === "fulfilled") {
@@ -154,7 +167,9 @@ export function createPublicProfileProvider(
                             error: serializeError(legacyResult.reason),
                         },
                     );
-                    return postgresResult.value;
+                    result = postgresResult.value;
+                    await redisJsonCache.setJson(cacheKey, result, 120);
+                    return result;
                 }
 
                 throw legacyResult.reason;
@@ -162,7 +177,7 @@ export function createPublicProfileProvider(
 
             if (provider === "postgres") {
                 try {
-                    return await dependencies.loadPostgresProfile(slug);
+                    result = await dependencies.loadPostgresProfile(slug);
                 } catch (error) {
                     dependencies.logger.warn(
                         "[PublicProfileProvider] postgres read failed; returning legacy_supabase result",
@@ -171,11 +186,14 @@ export function createPublicProfileProvider(
                             error: serializeError(error),
                         },
                     );
-                    return dependencies.loadLegacyProfile(slug);
+                    result = await dependencies.loadLegacyProfile(slug);
                 }
+            } else {
+                result = await dependencies.loadLegacyProfile(slug);
             }
 
-            return dependencies.loadLegacyProfile(slug);
+            await redisJsonCache.setJson(cacheKey, result, 120);
+            return result;
         },
     };
 }

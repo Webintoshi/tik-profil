@@ -13,7 +13,11 @@ interface GooglePlacePhotoHandlerDependencies {
     placeId: string,
     apiKey: string,
   ): Promise<GooglePlacePhotoMetadata | null>;
-  resolveMedia(resourceName: string, apiKey: string): Promise<string | null>;
+  resolveMedia(
+    resourceName: string,
+    apiKey: string,
+    width: number,
+  ): Promise<string | null>;
 }
 
 function emptyResponse(status: number): Response {
@@ -36,7 +40,7 @@ export function createGooglePlacePhotoHandler(
   }
 
   return {
-    async media(placeId: string): Promise<Response> {
+    async media(placeId: string, requestedWidth = 960): Promise<Response> {
       if (!dependencies.apiKey) return emptyResponse(503);
       try {
         const authorizedPlaceId = await authorize(placeId);
@@ -49,6 +53,7 @@ export function createGooglePlacePhotoHandler(
         const mediaUrl = await dependencies.resolveMedia(
           metadata.resourceName,
           dependencies.apiKey,
+          requestedWidth,
         );
         if (!mediaUrl) return emptyResponse(404);
         return new Response(null, {

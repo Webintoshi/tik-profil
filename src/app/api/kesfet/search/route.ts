@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { DISCOVERY_CACHE_CONTROL, publicCacheHeaders } from "@/server/http/public-cache-policy";
+import { optimizeDiscoveryBusinessMedia } from "@/server/media/public-business-media";
 import {
     buildKesfetRouteSignature,
     loadKesfetBusinesses,
@@ -17,7 +19,10 @@ export async function GET(request: Request) {
         const lng = parseFloat(searchParams.get("lng") || "0");
 
         if (!query.trim()) {
-            return NextResponse.json({ success: true, businesses: [], total: 0 });
+            return NextResponse.json(
+                { success: true, businesses: [], total: 0 },
+                { headers: publicCacheHeaders(DISCOVERY_CACHE_CONTROL) },
+            );
         }
 
         const routeSignature = buildKesfetRouteSignature("/api/kesfet/search", {
@@ -38,10 +43,14 @@ export async function GET(request: Request) {
             }));
         }
 
+        businesses = businesses.map((business) => optimizeDiscoveryBusinessMedia(business));
+
         return NextResponse.json({
             success: true,
             businesses,
             total: businesses.length,
+        }, {
+            headers: publicCacheHeaders(DISCOVERY_CACHE_CONTROL),
         });
     } catch (error) {
         logKesfetPublicApiError("/api/kesfet/search", error);
