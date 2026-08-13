@@ -328,10 +328,10 @@ export async function verifyNativeEmailOtp(input: {
         await tx(`INSERT INTO customer_profiles (app_user_id) VALUES ($1) ON CONFLICT (app_user_id) DO NOTHING`, [user.id]);
         await tx(
             `INSERT INTO auth_provider_links (app_user_id, provider, provider_user_id, provider_email, provider_metadata)
-             VALUES ($1, 'native_email', $1::text, $2, '{"email_verified":true}'::jsonb)
+             VALUES ($1::uuid, 'native_email', $2, $3, '{"email_verified":true}'::jsonb)
              ON CONFLICT (provider, provider_user_id)
              DO UPDATE SET provider_email = EXCLUDED.provider_email, updated_at = now()`,
-            [user.id, email],
+            [user.id, user.id, email],
         );
 
         return {
