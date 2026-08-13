@@ -56,6 +56,7 @@
     "business:audit:ordu-food": "node scripts/audit-ordu-food-businesses.mjs",
     "logto:business-branding": "node --import tsx scripts/configure-business-logto-branding.ts",
     "db:migrate": "node scripts/db/run-migrations.mjs",
+    "media:backfill": "node --import tsx scripts/backfill-business-media-assets.mjs",
     "migration:export:p0": "node scripts/migration/export-p0-legacy.mjs",
     "migration:import:p0-staging": "node scripts/migration/import-p0-staging.mjs",
     "migration:validate:p0-staging": "node scripts/migration/validate-p0-staging.mjs",
