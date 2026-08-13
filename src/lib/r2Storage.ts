@@ -6,6 +6,8 @@ import {
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { createHash } from 'node:crypto';
+import { buildContentAddressedMediaKey } from '@/server/media/media-upload-policy';
 
 let r2Client: S3Client | undefined;
 
@@ -64,7 +66,13 @@ export async function uploadBytesToR2(params: {
   moduleName: string;
   businessId: string;
 }): Promise<{ url: string; key: string }> {
-  const key = buildObjectKey(params.moduleName, params.businessId, params.fileName);
+  const key = buildContentAddressedMediaKey({
+    businessId: params.businessId,
+    contentSha256: createHash('sha256').update(params.bytes).digest('hex'),
+    contentType: params.contentType,
+    fileName: params.fileName,
+    moduleName: params.moduleName,
+  });
   return await uploadBytesToR2WithKey({
     key,
     bytes: params.bytes,
@@ -76,12 +84,14 @@ export async function uploadBytesToR2WithKey(params: {
   key: string;
   bytes: Uint8Array;
   contentType: string;
+  cacheControl?: string;
 }): Promise<{ url: string; key: string }> {
   const command = new PutObjectCommand({
     Bucket: getBucketName(),
     Key: params.key,
     Body: params.bytes,
     ContentType: params.contentType,
+    CacheControl: params.cacheControl ?? 'public, max-age=31536000, immutable',
   });
 
   await getR2Client().send(command);
@@ -129,14 +139,45 @@ export async function getPresignedUploadUrl(params: {
   key: string;
   contentType: string;
   expiresIn?: number;
+  cacheControl?: string;
 }): Promise<string> {
   const command = new PutObjectCommand({
     Bucket: getBucketName(),
     Key: params.key,
     ContentType: params.contentType,
+    ...(params.cacheControl ? { CacheControl: params.cacheControl } : {}),
   });
 
   return await getSignedUrl(getR2Client(), command, { expiresIn: params.expiresIn ?? 900 });
+}
+
+export async function getObjectBytesFromR2(key: string): Promise<{
+  bytes: Uint8Array;
+  contentType: string | undefined;
+}> {
+  const result = await getR2Client().send(new GetObjectCommand({
+    Bucket: getBucketName(),
+    Key: key,
+  }));
+  if (!result.Body) throw new Error('r2_object_body_missing');
+  return {
+    bytes: await result.Body.transformToByteArray(),
+    contentType: result.ContentType,
+  };
+}
+
+export async function getObjectMetadataFromR2(key: string): Promise<{
+  contentType: string | undefined;
+  size: number;
+}> {
+  const result = await getR2Client().send(new HeadObjectCommand({
+    Bucket: getBucketName(),
+    Key: key,
+  }));
+  return {
+    contentType: result.ContentType,
+    size: result.ContentLength ?? -1,
+  };
 }
 
 export function getPublicUrlForKey(key: string): string {

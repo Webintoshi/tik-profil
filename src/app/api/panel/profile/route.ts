@@ -8,6 +8,7 @@ import {
     getPanelBusinessProfile,
     updatePanelBusinessProfile,
 } from '@/server/repositories/postgres/panel-profile.repository';
+import { isReadyOwnedProfileMedia } from '@/server/media/business-media-repository';
 
 const getJwtSecret = () => getSessionSecretBytes();
 
@@ -55,11 +56,33 @@ export async function PUT(request: Request) {
 
         const runtimeProfile = await getPanelBusinessProfile(businessId);
         if (runtimeProfile) {
+            const requestedLogo = typeof body.logo === 'string' ? body.logo.trim() : runtimeProfile.logo;
+            const requestedCover = typeof body.cover === 'string' ? body.cover.trim() : runtimeProfile.cover;
+            if (requestedLogo && requestedLogo !== runtimeProfile.logo && !await isReadyOwnedProfileMedia({
+                businessId,
+                publicUrl: requestedLogo,
+                purpose: 'logo',
+            })) {
+                return NextResponse.json(
+                    { success: false, error: 'Logo doğrulanmış bir R2 yüklemesi olmalıdır' },
+                    { status: 400 },
+                );
+            }
+            if (requestedCover && requestedCover !== runtimeProfile.cover && !await isReadyOwnedProfileMedia({
+                businessId,
+                publicUrl: requestedCover,
+                purpose: 'cover',
+            })) {
+                return NextResponse.json(
+                    { success: false, error: 'Kapak doğrulanmış bir R2 yüklemesi olmalıdır' },
+                    { status: 400 },
+                );
+            }
             const nextProfile = {
                 about: body.about || null,
                 address: body.address || null,
-                cover: typeof body.cover === 'string' ? body.cover || null : runtimeProfile.cover || null,
-                logo: typeof body.logo === 'string' ? body.logo || null : runtimeProfile.logo || null,
+                cover: requestedCover || null,
+                logo: requestedLogo || null,
                 mapsUrl: body.mapsUrl || null,
                 name: body.name.trim(),
                 phone: body.phone || null,

@@ -1,88 +1,116 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { jwtVerify } from 'jose';
-import { uploadToR2, deleteFromR2 } from '@/lib/r2Storage';
-import { getSessionSecretBytes } from '@/lib/env';
+import { createHash, randomUUID } from "node:crypto";
+import { NextResponse } from "next/server";
 
-const getJwtSecret = () => getSessionSecretBytes();
-
-async function getBusinessId(): Promise<string | null> {
-    try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get("tikprofil_owner_session")?.value;
-        if (!token) return null;
-
-        const { payload } = await jwtVerify(token, getJwtSecret());
-        return payload.businessId as string || null;
-    } catch {
-        return null;
-    }
-}
+import { AppError } from "@/lib/errors";
+import {
+    deleteFromR2,
+    getObjectBytesFromR2,
+    getObjectMetadataFromR2,
+    getPublicUrlForKey,
+    uploadBytesToR2WithKey,
+} from "@/lib/r2Storage";
+import { getUploadLimit, isAllowedMimeType } from "@/lib/uploadConfig";
+import { requireBusinessOwner } from "@/server/auth/guards";
+import {
+    createPendingOwnedMediaAsset,
+    deleteOwnedMediaAssetByKey,
+    finalizeOwnedMediaAsset,
+    findOwnedMediaAsset,
+    quarantineOwnedMediaAsset,
+} from "@/server/media/business-media-repository";
+import { finalizeOwnedMediaUpload } from "@/server/media/business-media-service";
+import {
+    buildContentAddressedMediaKey,
+    buildStagingMediaKey,
+} from "@/server/media/media-upload-policy";
 
 export async function POST(request: Request) {
     try {
-        const businessId = await getBusinessId();
-        if (!businessId) {
-            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-        }
-
+        const session = await requireBusinessOwner();
         const formData = await request.formData();
-        const file = formData.get('file') as File | null;
-        const kind = formData.get('kind') as string | null;
+        const file = formData.get("file");
+        const kind = formData.get("kind");
 
-        if (!file) {
-            return NextResponse.json({ success: false, error: 'No file provided' }, { status: 400 });
+        if (!(file instanceof File)) throw AppError.badRequest("No file provided");
+        if (kind !== "logo" && kind !== "cover") throw AppError.badRequest("Invalid kind");
+        if (!isAllowedMimeType(file.type)) throw AppError.badRequest("Invalid file type");
+
+        const moduleName = kind === "logo" ? "logos" : "covers";
+        const maxSize = getUploadLimit(moduleName);
+        if (file.size <= 0 || file.size > maxSize) throw AppError.badRequest("File too large");
+
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const contentSha256 = createHash("sha256").update(bytes).digest("hex");
+        const objectKey = buildContentAddressedMediaKey({
+            businessId: session.businessId,
+            contentType: file.type,
+            contentSha256,
+            fileName: file.name,
+            moduleName,
+        });
+        const publicUrl = getPublicUrlForKey(objectKey);
+        const uploadObjectKey = buildStagingMediaKey({
+            businessId: session.businessId,
+            fileName: file.name,
+            uploadId: randomUUID(),
+        });
+        const asset = await createPendingOwnedMediaAsset({
+            businessId: session.businessId,
+            contentSha256,
+            declaredByteSize: file.size,
+            mimeType: file.type,
+            objectKey,
+            publicUrl,
+            purpose: kind,
+            uploadObjectKey,
+        });
+
+        if (asset.status !== "ready") {
+            await uploadBytesToR2WithKey({
+                key: asset.uploadObjectKey,
+                bytes,
+                contentType: file.type,
+                cacheControl: "private, no-store",
+            });
         }
+        const ready = await finalizeOwnedMediaUpload(
+            { assetId: asset.id, businessId: session.businessId },
+            {
+                findAsset: findOwnedMediaAsset,
+                finalizeAsset: finalizeOwnedMediaAsset,
+                getObject: getObjectBytesFromR2,
+                headObject: getObjectMetadataFromR2,
+                promoteObject: async ({ bytes: objectBytes, contentType, objectKey: readyKey }) => {
+                    await uploadBytesToR2WithKey({ key: readyKey, bytes: objectBytes, contentType });
+                },
+                quarantineAsset: quarantineOwnedMediaAsset,
+                removeStagingObject: deleteFromR2,
+            },
+        );
 
-        if (kind !== 'logo' && kind !== 'cover') {
-            return NextResponse.json({ success: false, error: 'Invalid kind' }, { status: 400 });
-        }
-
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
-        if (!allowedTypes.includes(file.type)) {
-            return NextResponse.json({ success: false, error: 'Invalid file type' }, { status: 400 });
-        }
-
-        const maxSize = kind === 'logo' ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
-        if (file.size > maxSize) {
-            return NextResponse.json({ success: false, error: 'File too large' }, { status: 400 });
-        }
-
-        const moduleName = kind === 'logo' ? 'logos' : 'covers';
-        const imageUrl = await uploadToR2(file, file.name, moduleName, businessId);
-
-        return NextResponse.json({ success: true, imageUrl });
+        return NextResponse.json({ success: true, imageUrl: ready.publicUrl });
     } catch (error) {
-        console.error('[Profile Upload] POST error:', error);
-        return NextResponse.json({ success: false, error: 'Upload failed' }, { status: 500 });
+        return AppError.toResponse(error, "Profile Upload");
     }
 }
 
 export async function DELETE(request: Request) {
     try {
-        const businessId = await getBusinessId();
-        if (!businessId) {
-            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-        }
+        const session = await requireBusinessOwner();
+        const key = new URL(request.url).searchParams.get("key")?.trim();
+        if (!key) throw AppError.badRequest("Missing key");
 
-        const { searchParams } = new URL(request.url);
-        const key = searchParams.get('key');
+        const allowedPrefixes = [`logos/${session.businessId}/`, `covers/${session.businessId}/`];
+        if (!allowedPrefixes.some((prefix) => key.startsWith(prefix))) throw AppError.forbidden();
 
-        if (!key) {
-            return NextResponse.json({ success: false, error: 'Missing key' }, { status: 400 });
-        }
-
-        const allowedPrefixes = [`logos/${businessId}/`, `covers/${businessId}/`];
-        if (!allowedPrefixes.some(prefix => key.startsWith(prefix))) {
-            return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
-        }
-
+        const deletion = await deleteOwnedMediaAssetByKey({
+            businessId: session.businessId,
+            objectKey: key,
+        });
+        if (!deletion.canDeleteObject) throw AppError.notFound("Media asset");
         await deleteFromR2(key);
-
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('[Profile Upload] DELETE error:', error);
-        return NextResponse.json({ success: false, error: 'Delete failed' }, { status: 500 });
+        return AppError.toResponse(error, "Profile Upload Delete");
     }
 }
-

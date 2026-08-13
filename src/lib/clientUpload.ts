@@ -22,6 +22,10 @@ export function validateUploadFile(file: File, moduleName: UploadModule): string
 }
 
 async function uploadDirect(file: File, moduleName: UploadModule): Promise<DirectUploadResult> {
+  const hashBytes = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  const sha256 = Array.from(new Uint8Array(hashBytes))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
   const signRes = await fetch("/api/uploads/sign", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -30,28 +34,42 @@ async function uploadDirect(file: File, moduleName: UploadModule): Promise<Direc
       fileName: file.name,
       contentType: file.type,
       size: file.size,
+      sha256,
     }),
   });
 
   const signData = await signRes.json().catch(() => null);
-  if (!signRes.ok || !signData?.uploadUrl || !signData?.publicUrl || !signData?.key) {
+  if (!signRes.ok || !signData?.assetId || !signData?.key) {
     const errorMessage = signData?.error || "Upload sign failed";
     throw new Error(errorMessage);
   }
 
-  const putRes = await fetch(signData.uploadUrl as string, {
-    method: "PUT",
-    headers: {
-      "Content-Type": file.type,
-    },
-    body: file,
-  });
+  if (!signData.alreadyVerified) {
+    if (!signData.uploadUrl) throw new Error("Upload URL missing");
+    const putRes = await fetch(signData.uploadUrl as string, {
+      method: "PUT",
+      headers: {
+        "Content-Type": file.type,
+      },
+      body: file,
+    });
 
-  if (!putRes.ok) {
-    throw new Error("Direct upload failed");
+    if (!putRes.ok) {
+      throw new Error("Direct upload failed");
+    }
   }
 
-  return { url: signData.publicUrl as string, key: signData.key as string };
+  const completeRes = await fetch("/api/uploads/complete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ assetId: signData.assetId }),
+  });
+  const completeData = await completeRes.json().catch(() => null);
+  if (!completeRes.ok || !completeData?.publicUrl || !completeData?.key) {
+    throw new Error(completeData?.error || "Upload verification failed");
+  }
+
+  return { url: completeData.publicUrl as string, key: completeData.key as string };
 }
 
 async function uploadLegacy(
