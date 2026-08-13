@@ -7,6 +7,7 @@ const script = fs.readFileSync(path.join(process.cwd(), "scripts", "db", "apply-
 
 test("production startup applies only the native auth migration under a transaction lock", () => {
   assert.match(script, /0017_native_email_otp_auth\.sql/);
+  assert.match(script, /0018_native_customer_profile\.sql/);
   assert.match(script, /BEGIN/);
   assert.match(script, /pg_advisory_xact_lock/);
   assert.match(script, /COMMIT/);
