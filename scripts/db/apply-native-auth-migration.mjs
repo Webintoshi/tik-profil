@@ -5,22 +5,22 @@ import process from "node:process";
 
 import pg from "pg";
 
-const MIGRATION_FILENAME = "0017_native_email_otp_auth.sql";
-const MIGRATION_PATH = path.join(process.cwd(), "db", "migrations", MIGRATION_FILENAME);
+const MIGRATION_FILENAMES = [
+  "0017_native_email_otp_auth.sql",
+  "0018_native_customer_profile.sql",
+];
 const DATABASE_URL = process.env.DATABASE_URL?.trim();
 
 if (!DATABASE_URL) {
   throw new Error("DATABASE_URL is required to apply the native auth migration.");
 }
 
-const sql = await fs.readFile(MIGRATION_PATH, "utf8");
-const checksum = crypto.createHash("sha256").update(sql).digest("hex");
 const client = new pg.Client({ connectionString: DATABASE_URL });
 
 try {
   await client.connect();
   await client.query("BEGIN");
-  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [MIGRATION_FILENAME]);
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", ["tikprofil-native-auth-schema"]);
 
   const prerequisites = await client.query(`
     SELECT
@@ -32,7 +32,6 @@ try {
     throw new Error("Native auth migration prerequisites are missing.");
   }
 
-  await client.query(sql);
   await client.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       filename text PRIMARY KEY,
@@ -40,12 +39,17 @@ try {
       applied_at timestamptz NOT NULL DEFAULT now()
     )
   `);
-  await client.query(
-    `INSERT INTO schema_migrations (filename, checksum)
-     VALUES ($1, $2)
-     ON CONFLICT (filename) DO UPDATE SET checksum = EXCLUDED.checksum`,
-    [MIGRATION_FILENAME, checksum]
-  );
+  for (const filename of MIGRATION_FILENAMES) {
+    const sql = await fs.readFile(path.join(process.cwd(), "db", "migrations", filename), "utf8");
+    const checksum = crypto.createHash("sha256").update(sql).digest("hex");
+    await client.query(sql);
+    await client.query(
+      `INSERT INTO schema_migrations (filename, checksum)
+       VALUES ($1, $2)
+       ON CONFLICT (filename) DO UPDATE SET checksum = EXCLUDED.checksum`,
+      [filename, checksum]
+    );
+  }
   await client.query("COMMIT");
   console.log("Native auth database schema is ready.");
 } catch (error) {
