@@ -6,7 +6,7 @@
     "dev": "node --max-old-space-size=4096 node_modules/next/dist/bin/next dev",
     "build": "next build",
     "start": "node .next/standalone/server.js",
-    "start:legacy": "next start",
+    "start:legacy": "npm run db:migrate && next start",
     "lint": "next lint --max-warnings=10000",
     "typecheck": "tsc --noEmit --incremental false",
     "lint:strict": "next lint --max-warnings=0",
