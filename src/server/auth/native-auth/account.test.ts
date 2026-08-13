@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { mapNativeAccountRow } from "./account.ts";
+import { mapNativeAccountRow, normalizeNativeCustomerUpdate } from "./account.ts";
 
 test("maps an authenticated native customer to the mobile account contract", () => {
     const account = mapNativeAccountRow({
@@ -37,4 +37,53 @@ test("maps an authenticated native customer to the mobile account contract", () 
     assert.equal(account.addresses[0]?.label, "Ev");
     assert.deepEqual(account.orders, []);
     assert.deepEqual(account.reservations, []);
+});
+
+test("normalizes an editable native customer profile and one owned address", () => {
+    assert.deepEqual(normalizeNativeCustomerUpdate({
+        addresses: [{
+            city: " Ordu ",
+            district: " Altınordu ",
+            fullAddress: " Akyazı Mahallesi  ",
+            id: "550e8400-e29b-41d4-a716-446655440000",
+            isDefault: true,
+            label: " Ev ",
+            latitude: 40.983,
+            longitude: 37.876,
+        }],
+        birthDate: "1992-05-12",
+        displayName: " Tık Profil Kullanıcısı ",
+        hobbies: [" Kahve ", "", "Gezi"],
+        occupation: " Yazılım ",
+        phone: " +90 555 111 22 33 ",
+    }), {
+        addresses: [{
+            city: "Ordu",
+            district: "Altınordu",
+            fullAddress: "Akyazı Mahallesi",
+            id: "550e8400-e29b-41d4-a716-446655440000",
+            isDefault: true,
+            label: "Ev",
+            latitude: 40.983,
+            longitude: 37.876,
+        }],
+        birthDate: "1992-05-12",
+        displayName: "Tık Profil Kullanıcısı",
+        hobbies: ["Kahve", "Gezi"],
+        occupation: "Yazılım",
+        phone: "+90 555 111 22 33",
+    });
+});
+
+test("rejects malformed native profile dates and coordinates", () => {
+    assert.throws(() => normalizeNativeCustomerUpdate({ birthDate: "12/05/1992" }), /birthDate/);
+    assert.throws(() => normalizeNativeCustomerUpdate({
+        addresses: [{
+            city: "Ordu",
+            district: "Altınordu",
+            fullAddress: "Akyazı Mahallesi",
+            label: "Ev",
+            latitude: 120,
+        }],
+    }), /latitude/);
 });
