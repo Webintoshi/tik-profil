@@ -187,3 +187,31 @@ export function getAuthProvider(): 'legacy' | 'logto' {
 export function getLogtoTestProvisioningSecret(): string | undefined {
     return getTrimmedEnvValue('LOGTO_TEST_PROVISIONING_SECRET');
 }
+
+function getRequiredSecret(name: string): string {
+    const value = getTrimmedEnvValue(name);
+    if (!value || value.length < 32) {
+        throw new Error(`${name} must be configured with at least 32 characters.`);
+    }
+    return value;
+}
+
+export function getNativeAuthOtpSecret(): string {
+    return getRequiredSecret('NATIVE_AUTH_OTP_SECRET');
+}
+
+export function getNativeAuthJwtSecret(): string {
+    return getRequiredSecret('NATIVE_AUTH_JWT_SECRET');
+}
+
+export function getResendApiKey(): string {
+    const value = getTrimmedEnvValue('RESEND_API_KEY');
+    if (!value) {
+        throw new Error('RESEND_API_KEY must be configured.');
+    }
+    return value;
+}
+
+export function getResendFromEmail(): string {
+    return getTrimmedEnvValue('RESEND_FROM_EMAIL') ?? 'Tik Profil <noreply@noreply.celebix.net>';
+}
