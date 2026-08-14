@@ -486,12 +486,6 @@ export async function upsertPlace(client, place, business, usedSlugs) {
         place.rating ?? null, place.userRatingCount ?? 0, JSON.stringify(legacy), photoFields.logo,
     ]);
     await client.query(`
-        INSERT INTO business_modules (business_id, module_key, is_enabled, source)
-        VALUES ($1, 'petshops', true, 'google_places_verified_import')
-        ON CONFLICT (business_id, module_key) DO UPDATE SET
-            is_enabled = true, source = EXCLUDED.source, updated_at = now()
-    `, [businessId]);
-    await client.query(`
         INSERT INTO business_discovery_profiles (
             business_id, source_type, source_ref, source_confidence, city, district, address,
             latitude, longitude, claim_state, discover_status, metadata, created_at, updated_at
