@@ -175,6 +175,8 @@ const EXPANSION_SECTOR_CASES = [
 
 const LOCAL_SECTOR_CASES = [
     { key: "pharmacy", label: "Eczane", acceptedType: "pharmacy", acceptedName: "Alt\u0131nordu Eczanesi", rejectedType: "medical_clinic", rejectedName: "Alt\u0131nordu Klini\u011fi" },
+    { key: "hospital", label: "Hastane", acceptedType: "general_hospital", acceptedName: "Ordu Devlet Hastanesi", rejectedType: "medical_clinic", rejectedName: "Alt\u0131nordu T\u0131p Merkezi" },
+    { key: "taxi", label: "Taksi Duraklar\u0131", acceptedType: "taxi_stand", acceptedName: "Akyaz\u0131 Taksi Dura\u011f\u0131", rejectedType: "car_rental", rejectedName: "Ordu Ara\u00e7 Kiralama" },
     { key: "fitness", label: "Spor Salonu & Fitness", acceptedType: "gym", acceptedName: "Ordu Fitness Salonu", rejectedType: "beauty_salon", rejectedName: "Ordu G\u00fczellik Salonu" },
     { key: "education", label: "E\u011fitim, Kurs & S\u00fcr\u00fcc\u00fc Kursu", acceptedType: "driving_school", acceptedName: "Fatsa S\u00fcr\u00fcc\u00fc Kursu", rejectedType: "book_store", rejectedName: "Fatsa Kitabevi" },
     { key: "fashion", label: "Giyim, Ayakkab\u0131 & Butik", acceptedType: "clothing_store", acceptedName: "\u00dcnye Moda Butik", rejectedType: "furniture_store", rejectedName: "\u00dcnye Mobilya" },
@@ -216,7 +218,7 @@ test("remaining sector classifiers accept their domain and reject adjacent busin
 });
 
 test("next local sector definitions cover all districts with focused queries and aliases", () => {
-    assert.equal(LOCAL_SECTOR_CASES.length, 15);
+    assert.equal(LOCAL_SECTOR_CASES.length, 17);
     assert.equal(ORDU_DISTRICTS.length, 19);
     for (const sector of LOCAL_SECTOR_CASES) {
         const definition = SECTOR_DEFINITIONS[sector.key];
@@ -225,6 +227,30 @@ test("next local sector definitions cover all districts with focused queries and
         assert.ok(definition.primaryTypes.has(sector.acceptedType));
         assert.ok(SECTOR_ALIASES[sector.key].includes(sector.key));
     }
+});
+
+test("hospital discovery includes private hospitals and keeps clinics in healthcare", () => {
+    assert.equal(isSectorSearchResult("hospital", {
+        displayName: { text: "\u00d6zel Ordu Umut Hastanesi" }, primaryType: "hospital",
+    }), true);
+    assert.equal(isSectorSearchResult("hospital", {
+        displayName: { text: "\u00d6zel Fatsa T\u0131p Merkezi" }, primaryType: "medical_center",
+    }), false);
+    assert.equal(isSectorSearchResult("healthcare", {
+        displayName: { text: "Ordu Devlet Hastanesi" }, primaryType: "general_hospital",
+    }), false);
+});
+
+test("hospital sync can reclassify Google hospitals already published as healthcare", () => {
+    const places = [{ id: "hospital-in-healthcare" }, { id: "pharmacy-place" }];
+    const identities = new Map([
+        ["hospital-in-healthcare", "healthcare"],
+        ["pharmacy-place", "pharmacy"],
+    ]);
+    assert.deepEqual(
+        filterAlreadyPublishedPlaces(places, identities, "hospital").map(({ id }) => id),
+        ["hospital-in-healthcare"],
+    );
 });
 
 test("next local sector classifiers reject adjacent business types", () => {

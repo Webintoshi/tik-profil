@@ -35,6 +35,8 @@
     "business:sync:ordu-bakery": "node scripts/sync-ordu-sector-businesses.mjs --sector=bakery",
     "business:sync:ordu-auto-service": "node scripts/sync-ordu-sector-businesses.mjs --sector=auto_service",
     "business:sync:ordu-pharmacies": "node scripts/sync-ordu-sector-businesses.mjs --sector=pharmacy",
+    "business:sync:ordu-hospitals": "node scripts/sync-ordu-sector-businesses.mjs --sector=hospital",
+    "business:sync:ordu-taxi-stands": "node scripts/sync-ordu-sector-businesses.mjs --sector=taxi",
     "business:sync:ordu-fitness": "node scripts/sync-ordu-sector-businesses.mjs --sector=fitness",
     "business:sync:ordu-education": "node scripts/sync-ordu-sector-businesses.mjs --sector=education",
     "business:sync:ordu-fashion": "node scripts/sync-ordu-sector-businesses.mjs --sector=fashion",
