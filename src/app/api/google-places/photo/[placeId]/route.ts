@@ -1,4 +1,8 @@
 import { getGoogleMapsApiKey } from "@/server/business-imports/env";
+import {
+  getCachedGooglePlacePhoto,
+  storeCachedGooglePlacePhoto,
+} from "@/server/google-places/photo-cache";
 import { createGooglePlacePhotoHandler } from "@/server/google-places/photo-handler";
 import {
   getCurrentGooglePlacePhotoMetadata,
@@ -16,7 +20,9 @@ export async function GET(
   return createGooglePlacePhotoHandler({
     apiKey: getGoogleMapsApiKey(),
     isPublishedPlaceId: isPublishedGooglePlaceId,
+    getCachedMedia: getCachedGooglePlacePhoto,
     getMetadata: getCurrentGooglePlacePhotoMetadata,
     resolveMedia: resolveGooglePlacePhotoMedia,
+    storeCachedMedia: storeCachedGooglePlacePhoto,
   }).media(placeId ?? "", Number(new URL(request.url).searchParams.get("width")) || 960);
 }
