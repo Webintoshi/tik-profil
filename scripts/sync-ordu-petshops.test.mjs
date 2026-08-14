@@ -158,6 +158,7 @@ test("scraper writes the live Google photo endpoint into the business logo colum
     assert.match(calls[0].text, /\blogo\b/i);
     assert.match(calls[0].text, /businesses\.logo NOT LIKE '\/api\/google-places\/photo\/%'/i);
     assert.equal(calls[0].params.includes("/api/google-places/photo/ChIJvalidPlace123"), true);
+    assert.equal(calls.some(({ text }) => /INSERT INTO business_modules/i.test(text)), false);
 });
 
 test("titleCaseBusinessName normalizes inconsistent Google casing with Turkish letters", () => {

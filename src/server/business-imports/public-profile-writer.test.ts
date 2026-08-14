@@ -68,8 +68,8 @@ test("writes only verified source facts to pending legacy and PostgreSQL profile
     assert.deepEqual(runtime, legacy);
     for (const value of [legacy, runtime]) {
         assert.equal(value?.status, "pending");
-        assert.equal(value?.active_module, "petshop");
-        assert.deepEqual(value?.modules, ["petshops"]);
+        assert.equal(value?.active_module, null);
+        assert.deepEqual(value?.modules, []);
         assert.equal(value?.industry_label, "Petshop");
         assert.equal(value?.name, "Ordu Pati");
         assert.equal(value?.address, "Sirinevler Mahallesi");
@@ -140,7 +140,7 @@ test("attempts both profile stores when either compensation hide fails", async (
     }
 });
 
-test("PostgreSQL mirror keeps active_module singular and the public modules list plural", async () => {
+test("PostgreSQL mirror keeps imported category metadata out of paid modules", async () => {
     const calls: Array<{ text: string; values?: readonly unknown[] }> = [];
     const runtime = createRuntimePublicProfileStore(async (text, values) => {
         calls.push({ text, values });
@@ -160,10 +160,11 @@ test("PostgreSQL mirror keeps active_module singular and the public modules list
     });
     await runtime.ensurePetshopModule("business-1");
 
-    assert.match(calls[0]?.text ?? "", /active_module[^]*'petshop'/i);
+    assert.match(calls[0]?.text ?? "", /active_module[^]*NULL/i);
     assert.match(calls[0]?.text ?? "", /social_links/i);
     assert.equal(calls[0]?.values?.includes(JSON.stringify({ website: "https://ordu-pati.example" })), true);
-    assert.match(calls[1]?.text ?? "", /VALUES \(\$1, 'petshops', true/i);
+    assert.equal(calls.some(({ text }) => /INSERT INTO business_modules/i.test(text)), false);
+    assert.equal(calls.some(({ text }) => /DELETE FROM business_modules/i.test(text)), true);
 });
 
 test("PostgreSQL publication refuses missing or duplicate discovery profiles before activation", async () => {
@@ -193,8 +194,8 @@ test("normalized legacy and PostgreSQL profiles preserve parity for every import
             slug: "ordu-pati-business-1",
             name: "Ordu Pati",
             status: "active",
-            active_module: "petshop",
-            modules: ["petshops"],
+            active_module: null,
+            modules: [],
             industry_id: "petshop",
             industry_label: "Petshop",
             isVerified: true,
@@ -205,10 +206,10 @@ test("normalized legacy and PostgreSQL profiles preserve parity for every import
         },
     });
     const postgres = normalizePostgresPublicProfileRow({
-        moduleKeys: ["petshops"],
+        moduleKeys: [],
         row: {
             about: null,
-            active_module: "petshop",
+            active_module: null,
             address: "Sirinevler Mahallesi",
             cover: null,
             id: "business-1",

@@ -73,8 +73,8 @@ function buildPendingProfile(input: VerifiedBusinessProfile): Record<string, unk
         slug: input.slug,
         name,
         status: "pending",
-        active_module: "petshop",
-        modules: ["petshops"],
+        active_module: null,
+        modules: [],
         industry_id: "petshop",
         industry_label: "Petshop",
         isVerified: true,
@@ -140,8 +140,7 @@ export function createLegacyPublicProfileStore(): LegacyPublicProfileStore {
         async ensurePetshopModule(businessId) {
             const { updateDocumentREST } = await import("../../lib/documentStore.ts");
             await updateDocumentREST("businesses", businessId, {
-                active_module: "petshop",
-                modules: ["petshops"],
+                industry_id: "petshop",
                 industry_label: "Petshop",
             });
         },
@@ -179,7 +178,7 @@ export function createRuntimePublicProfileStore(
                 `INSERT INTO businesses (
                     id, slug, name, phone, whatsapp, status, industry_id, industry_label,
                     active_module, address, city, district, social_links, is_verified, source, created_at, updated_at
-                 ) VALUES ($1, $2, $3, $4, $5, 'pending', 'petshop', 'Petshop', 'petshop', $6, $7, $8, $9::jsonb, true, $10, now(), now())
+                 ) VALUES ($1, $2, $3, $4, $5, 'pending', 'petshop', 'Petshop', NULL, $6, $7, $8, $9::jsonb, true, $10, now(), now())
                  ON CONFLICT (id) DO UPDATE SET
                     slug = EXCLUDED.slug,
                     name = EXCLUDED.name,
@@ -188,7 +187,10 @@ export function createRuntimePublicProfileStore(
                     status = CASE WHEN businesses.status = 'active' THEN businesses.status ELSE 'pending' END,
                     industry_id = 'petshop',
                     industry_label = 'Petshop',
-                    active_module = 'petshop',
+                    active_module = CASE
+                        WHEN businesses.package_id IS NULL AND businesses.plan_id IS NULL THEN NULL
+                        ELSE businesses.active_module
+                    END,
                     address = EXCLUDED.address,
                     city = EXCLUDED.city,
                     district = EXCLUDED.district,
@@ -212,10 +214,21 @@ export function createRuntimePublicProfileStore(
         },
         async ensurePetshopModule(businessId) {
             await execute(
-                `INSERT INTO business_modules (business_id, module_key, is_enabled, source)
-                 VALUES ($1, 'petshops', true, 'google_places_verified_import')
-                 ON CONFLICT (business_id, module_key) DO UPDATE SET
-                    is_enabled = true, source = EXCLUDED.source, updated_at = now()`,
+                `UPDATE businesses
+                 SET industry_id = 'petshop',
+                     industry_label = 'Petshop',
+                     active_module = CASE
+                        WHEN package_id IS NULL AND plan_id IS NULL THEN NULL
+                        ELSE active_module
+                     END,
+                     updated_at = now()
+                 WHERE id = $1`,
+                [businessId],
+            );
+            await execute(
+                `DELETE FROM business_modules
+                 WHERE business_id = $1
+                   AND source = 'google_places_verified_import'`,
                 [businessId],
             );
         },
