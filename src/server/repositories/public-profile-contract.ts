@@ -313,11 +313,7 @@ export function normalizePostgresPublicProfileRow({
 }): PublicProfile {
     const legacyFields = mergeLegacyBusinessFields(row.legacy_source);
     const rowSocialLinks = isRecord(row.social_links) ? row.social_links : {};
-    const modules = getNormalizedModuleKeys(
-        asStringArray(legacyFields.modules).length > 0
-            ? asStringArray(legacyFields.modules)
-            : [...moduleKeys],
-    );
+    const modules = getNormalizedModuleKeys([...moduleKeys]);
     const rawLabel =
         asString(row.industry_label) ||
         asString(legacyFields.industry_label) ||
@@ -359,7 +355,7 @@ export function normalizePostgresPublicProfileRow({
         primaryModuleId: configuredPrimaryModule && modules.includes(configuredPrimaryModule)
             ? configuredPrimaryModule
             : modules[0] || undefined,
-        cartEnabled: asBoolean(legacyFields.cartEnabled) ?? modules.length > 0,
+        cartEnabled: modules.length > 0 && (asBoolean(legacyFields.cartEnabled) ?? true),
         social,
     });
 }

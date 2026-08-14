@@ -245,3 +245,37 @@ test("normalized legacy and PostgreSQL profiles preserve parity for every import
 
     assert.deepEqual(comparable(postgres), comparable(legacy));
 });
+
+test("PostgreSQL profiles do not treat imported category metadata as paid modules", () => {
+    const profile = normalizePostgresPublicProfileRow({
+        moduleKeys: [],
+        row: {
+            about: null,
+            active_module: null,
+            address: "Akyazi Mahallesi",
+            cover: null,
+            id: "business-free-import",
+            industry_id: "petshop",
+            industry_label: "Petshop",
+            is_verified: true,
+            legacy_source: {
+                modules: ["petshop"],
+            },
+            logo: null,
+            maps_url: null,
+            name: "Queen Pet Store",
+            phone: "+905419045787",
+            previous_slugs: [],
+            show_hours: false,
+            slug: "queen-pet-store",
+            social_links: {},
+            status: "active",
+            whatsapp: "+905419045787",
+            working_hours: {},
+        },
+    });
+
+    assert.deepEqual(profile.modules, []);
+    assert.equal(profile.cartEnabled, false);
+    assert.equal(profile.industry, "petshop");
+});
