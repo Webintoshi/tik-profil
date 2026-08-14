@@ -183,6 +183,7 @@ export const SECTOR_DEFINITIONS = Object.freeze({
             "hastane", "\u00f6zel hastane", "devlet hastanesi", "e\u011fitim ve ara\u015ft\u0131rma hastanesi", "kad\u0131n do\u011fum hastanesi",
         ]),
         primaryTypes: new Set(["general_hospital", "hospital"]),
+        nameRequiredTypes: new Set(["general_hospital", "hospital"]),
         genericTypes: new Set(["health", "medical_center", "medical_clinic", "establishment", "point_of_interest"]),
         excludedTypes: new Set(["dental_clinic", "dentist", "doctor", "medical_lab", "pharmacy", "drugstore", "veterinary_care"]),
         namePattern: /(?:hastane|hospital)/i,
