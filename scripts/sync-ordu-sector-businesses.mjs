@@ -115,16 +115,16 @@ export const SECTOR_DEFINITIONS = Object.freeze({
             "fizyoterapi merkezi", "doktor muayenehanesi", "tıbbi laboratuvar",
         ]),
         primaryTypes: new Set([
-            "chiropractor", "dental_clinic", "dentist", "doctor", "general_hospital", "hospital",
+            "chiropractor", "dental_clinic", "dentist", "doctor",
             "medical_center", "medical_clinic", "medical_lab", "physiotherapist", "skin_care_clinic",
         ]),
         genericTypes: new Set(["health", "establishment", "point_of_interest", "wellness_center"]),
         excludedTypes: new Set([
-            "veterinary_care", "pet_care", "pharmacy", "drugstore", "beauty_salon",
+            "veterinary_care", "pet_care", "pharmacy", "drugstore", "general_hospital", "hospital", "beauty_salon",
             "hair_salon", "barber_shop", "spa", "massage_spa",
         ]),
-        namePattern: /(?:saglik|tip\s*merkezi|klinik|poliklinik|hastane|doktor|hekim|dis\s*(?:klinigi|hekimi)|fizyo|laboratuvar)/i,
-        excludedNamePattern: /(?:veteriner|hayvan|pet|eczane|guzellik|kuafor|berber|spa)/i,
+        namePattern: /(?:saglik|tip\s*merkezi|klinik|poliklinik|doktor|hekim|dis\s*(?:klinigi|hekimi)|fizyo|laboratuvar)/i,
+        excludedNamePattern: /(?:veteriner|hayvan|pet|eczane|hastane|hospital|guzellik|kuafor|berber|spa)/i,
     }),
     grocery: Object.freeze({
         label: "Market & Bakkal",
@@ -176,6 +176,27 @@ export const SECTOR_DEFINITIONS = Object.freeze({
         excludedTypes: new Set(["medical_clinic", "hospital", "doctor", "veterinary_care", "pet_store"]),
         namePattern: /(?:eczane|pharmacy)/i,
         excludedNamePattern: /(?:veteriner|hayvan|pet\s*shop|klinik|hastane|medikal)/i,
+    }),
+    hospital: Object.freeze({
+        label: "Hastane",
+        queryTerms: Object.freeze([
+            "hastane", "\u00f6zel hastane", "devlet hastanesi", "e\u011fitim ve ara\u015ft\u0131rma hastanesi", "kad\u0131n do\u011fum hastanesi",
+        ]),
+        primaryTypes: new Set(["general_hospital", "hospital"]),
+        genericTypes: new Set(["health", "medical_center", "medical_clinic", "establishment", "point_of_interest"]),
+        excludedTypes: new Set(["dental_clinic", "dentist", "doctor", "medical_lab", "pharmacy", "drugstore", "veterinary_care"]),
+        namePattern: /(?:hastane|hospital)/i,
+        excludedNamePattern: /(?:veteriner|hayvan|pet|eczane|medikal|di\u015f\s*(?:klini\u011fi|hastanesi))/i,
+        reassignFromSectors: new Set(["healthcare"]),
+    }),
+    taxi: Object.freeze({
+        label: "Taksi Duraklar\u0131",
+        queryTerms: Object.freeze(["taksi dura\u011f\u0131", "taksi", "7/24 taksi", "terminal taksi", "havaliman\u0131 taksi"]),
+        primaryTypes: new Set(["taxi_service", "taxi_stand"]),
+        genericTypes: new Set(["transportation_service", "service", "establishment", "point_of_interest"]),
+        excludedTypes: new Set(["bus_station", "bus_stop", "car_dealer", "car_rental", "car_repair", "travel_agency"]),
+        namePattern: /(?:taksi|taxi)/i,
+        excludedNamePattern: /(?:taksi\s*plakas\u0131|taksimetre|rent\s*a\s*car|ara\u00e7\s*kiralama|oto\s*kiralama|turizm)/i,
     }),
     fitness: Object.freeze({
         label: "Spor Salonu & Fitness",
@@ -320,6 +341,8 @@ export const SECTOR_ALIASES = Object.freeze({
     bakery: Object.freeze(["bakery", "firin", "pastane", "firin_pastane_tatli", "firin,_pastane_&_tatli"]),
     auto_service: Object.freeze(["auto_service", "oto_servis", "oto_servis_bakim_lastik", "oto_servis,_bakim_&_lastik", "car_repair", "tire_shop"]),
     pharmacy: Object.freeze(["pharmacy", "eczane", "drugstore"]),
+    hospital: Object.freeze(["hospital", "hastane", "general_hospital"]),
+    taxi: Object.freeze(["taxi", "taksi", "taxi_service", "taxi_stand", "taksi_duragi", "taksi_duraklari"]),
     fitness: Object.freeze(["fitness", "spor_salonu", "spor_salonu_&_fitness", "gym"]),
     education: Object.freeze(["education", "egitim", "egitim_kurs_surucu_kursu", "egitim,_kurs_&_surucu_kursu", "driving_school"]),
     fashion: Object.freeze(["fashion", "giyim", "giyim_ayakkabi_butik", "giyim,_ayakkabi_&_butik", "clothing_store"]),
@@ -495,9 +518,14 @@ export function assignPlacesToExisting(places, existingBusinesses) {
 }
 
 export function filterAlreadyPublishedPlaces(places, identitySectors, sectorKey) {
+    const definition = sectorDefinition(sectorKey);
+    const targetSector = canonicalSectorKey(sectorKey);
+    const reassignableSectors = new Set(
+        [...(definition.reassignFromSectors ?? [])].map(canonicalSectorKey),
+    );
     return places.filter((place) => {
         const publishedSector = canonicalSectorKey(identitySectors.get(place.id));
-        return !publishedSector || publishedSector === canonicalSectorKey(sectorKey);
+        return !publishedSector || publishedSector === targetSector || reassignableSectors.has(publishedSector);
     });
 }
 
