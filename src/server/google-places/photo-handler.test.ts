@@ -55,6 +55,72 @@ test("live media redirects are no-store and never expose the API key", async () 
   assert.equal(requestedWidth, 320);
 });
 
+test("fresh R2 media is served without requiring a Google API key", async () => {
+  let googleCalls = 0;
+  const handler = createGooglePlacePhotoHandler({
+    apiKey: undefined,
+    isPublishedPlaceId: async () => true,
+    getCachedMedia: async () => ({
+      url: "https://media.tikprofil.com/temporary/google-places/photo.webp",
+      maxAgeSeconds: 3600,
+    }),
+    getMetadata: async () => {
+      googleCalls += 1;
+      return metadata;
+    },
+    resolveMedia: async () => {
+      googleCalls += 1;
+      return "https://lh3.googleusercontent.com/photo";
+    },
+  });
+
+  const response = await handler.media("ChIJvalidPlace123", 320);
+
+  assert.equal(response.status, 302);
+  assert.equal(
+    response.headers.get("location"),
+    "https://media.tikprofil.com/temporary/google-places/photo.webp",
+  );
+  assert.equal(response.headers.get("cache-control"), "public, max-age=3600");
+  assert.equal(googleCalls, 0);
+});
+
+test("a cache miss stores the resolved Google photo and redirects to R2", async () => {
+  const stored: Array<{ mediaUrl: string; placeId: string; requestedWidth: number }> = [];
+  const handler = createGooglePlacePhotoHandler({
+    apiKey: "server-secret",
+    isPublishedPlaceId: async () => true,
+    getCachedMedia: async () => null,
+    getMetadata: async () => metadata,
+    resolveMedia: async () => "https://lh3.googleusercontent.com/photo",
+    storeCachedMedia: async (input) => {
+      stored.push({
+        mediaUrl: input.mediaUrl,
+        placeId: input.placeId,
+        requestedWidth: input.requestedWidth,
+      });
+      return {
+        url: "https://media.tikprofil.com/temporary/google-places/photo.webp",
+        maxAgeSeconds: 3600,
+      };
+    },
+  });
+
+  const response = await handler.media("ChIJvalidPlace123", 320);
+
+  assert.equal(response.status, 302);
+  assert.equal(
+    response.headers.get("location"),
+    "https://media.tikprofil.com/temporary/google-places/photo.webp",
+  );
+  assert.equal(response.headers.get("cache-control"), "public, max-age=3600");
+  assert.deepEqual(stored, [{
+    mediaUrl: "https://lh3.googleusercontent.com/photo",
+    placeId: "ChIJvalidPlace123",
+    requestedWidth: 320,
+  }]);
+});
+
 test("metadata responses include attribution and the individual source with no-store headers", async () => {
   const handler = createGooglePlacePhotoHandler({
     apiKey: "server-secret",

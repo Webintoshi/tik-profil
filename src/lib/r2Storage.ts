@@ -85,6 +85,8 @@ export async function uploadBytesToR2WithKey(params: {
   bytes: Uint8Array;
   contentType: string;
   cacheControl?: string;
+  expires?: Date;
+  metadata?: Record<string, string>;
 }): Promise<{ url: string; key: string }> {
   const command = new PutObjectCommand({
     Bucket: getBucketName(),
@@ -92,6 +94,8 @@ export async function uploadBytesToR2WithKey(params: {
     Body: params.bytes,
     ContentType: params.contentType,
     CacheControl: params.cacheControl ?? 'public, max-age=31536000, immutable',
+    ...(params.expires ? { Expires: params.expires } : {}),
+    ...(params.metadata ? { Metadata: params.metadata } : {}),
   });
 
   await getR2Client().send(command);
@@ -168,6 +172,8 @@ export async function getObjectBytesFromR2(key: string): Promise<{
 
 export async function getObjectMetadataFromR2(key: string): Promise<{
   contentType: string | undefined;
+  lastModified: Date | undefined;
+  metadata: Record<string, string> | undefined;
   size: number;
 }> {
   const result = await getR2Client().send(new HeadObjectCommand({
@@ -176,6 +182,8 @@ export async function getObjectMetadataFromR2(key: string): Promise<{
   }));
   return {
     contentType: result.ContentType,
+    lastModified: result.LastModified,
+    metadata: result.Metadata,
     size: result.ContentLength ?? -1,
   };
 }
