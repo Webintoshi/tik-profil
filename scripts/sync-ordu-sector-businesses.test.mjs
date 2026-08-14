@@ -236,6 +236,9 @@ test("hospital discovery includes private hospitals and keeps clinics in healthc
     assert.equal(isSectorSearchResult("hospital", {
         displayName: { text: "\u00d6zel Fatsa T\u0131p Merkezi" }, primaryType: "medical_center",
     }), false);
+    assert.equal(isSectorSearchResult("hospital", {
+        displayName: { text: "Wellness Clinic Ordu" }, primaryType: "hospital",
+    }), false);
     assert.equal(isSectorSearchResult("healthcare", {
         displayName: { text: "Ordu Devlet Hastanesi" }, primaryType: "general_hospital",
     }), false);
