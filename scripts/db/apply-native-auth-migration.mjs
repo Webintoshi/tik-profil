@@ -8,6 +8,7 @@ import pg from "pg";
 const MIGRATION_FILENAMES = [
   "0017_native_email_otp_auth.sql",
   "0018_native_customer_profile.sql",
+  "0023_reward_engine_phase_one.sql",
 ];
 const DATABASE_URL = process.env.DATABASE_URL?.trim();
 
