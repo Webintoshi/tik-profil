@@ -7,6 +7,8 @@ import { runCityEventsMigration } from "./city-events-migration.mjs";
 
 const filename = "0024_city_event_snapshots.sql";
 const sql = "CREATE TABLE city_event_snapshots (id text);";
+// Independently calculated from the UTF-8 fixture above, not obtained from production code.
+const fixtureSha256 = "0fb8884b94590a34c6ac6e3d3a520de9535ffd413471a601c968064eea7931cb";
 
 function fakeClient(handler = () => ({ rows: [], rowCount: 0 })) {
   const calls = [];
@@ -30,21 +32,21 @@ test("apply executes only the exact city events migration despite unrelated file
   assert.equal(requestedFilename, filename);
   assert.equal(result.status, "applied");
   assert.equal(client.calls.filter(call => call.text === sql).length, 1);
+  const ledgerInsert = client.calls.find(call => /INSERT INTO schema_migrations/.test(call.text));
+  assert.deepEqual(ledgerInsert?.values, [filename, fixtureSha256]);
   assert.deepEqual(client.calls.at(-1), { text: "COMMIT", values: undefined });
 });
 
 test("matching ledger checksum skips migration SQL", async () => {
-  let expectedChecksum;
   const client = fakeClient((text, values) => {
     if (/to_regclass/.test(text)) return { rows: [{ ledger: "schema_migrations" }], rowCount: 1 };
-    if (/SELECT checksum FROM schema_migrations/.test(text)) return { rows: [{ checksum: expectedChecksum }], rowCount: 1 };
+    if (/SELECT checksum FROM schema_migrations/.test(text)) return { rows: [{ checksum: fixtureSha256 }], rowCount: 1 };
     return { rows: [], rowCount: 0 };
   });
   const result = await runCityEventsMigration({
     apply: true,
     client,
     readMigration: async () => sql,
-    onChecksum: checksum => { expectedChecksum = checksum; },
   });
   assert.equal(result.status, "current");
   assert.equal(client.calls.some(call => call.text === sql), false);

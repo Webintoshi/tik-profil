@@ -7,10 +7,9 @@ function checksum(sql) {
   return createHash("sha256").update(sql).digest("hex");
 }
 
-export async function runCityEventsMigration({ apply, client, readMigration, onChecksum }) {
+export async function runCityEventsMigration({ apply, client, readMigration }) {
   const sql = await readMigration(CITY_EVENTS_MIGRATION);
   const expectedChecksum = checksum(sql);
-  onChecksum?.(expectedChecksum);
 
   if (!apply) {
     const ledger = await client.query("SELECT to_regclass('public.schema_migrations') AS ledger");
