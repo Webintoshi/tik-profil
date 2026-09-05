@@ -4,12 +4,12 @@ The user approved publishing only the events module over the current production 
 
 ## Global Constraints
 
-- Base release on verified live commit `006767866e20dba43e28f3a217f28286024a6eca`; preserve newer auth/rewards/media and every unrelated worktree.
+- Initial base was `006767866e20dba43e28f3a217f28286024a6eca`. Before promotion, concurrent live/master `c055250df8a97da11335c2c612f0dc39bbc5fa12` was merged into this unpublished branch; its six rewards files are preserved byte-for-byte. Promotion must include that live commit and preserve every unrelated worktree.
 - Ship only backend event route, event catalog/importer, its migration, tests, build packaging and release documentation. Mobile feature remains in its implementation worktree; no APK or unrelated mobile changes in this backend release.
 - Source biletinial only, city Ordu, categories sinema/tiyatro/konser/cocuk. No fabricated data, poster or synopsis import; ticket checkout stays external.
 - Publication remains explicitly gated by `CITY_EVENTS_PUBLISHED_SOURCES=biletinial` in API/job environments. The scheduled command is `node /app/dist/jobs/sync-ordu-events.cjs --source=biletinial --apply`; never omit the explicit source. No secrets in artifacts/logs.
 - Never run the generic all-pending migration command. Use only `0024_city_event_snapshots.sql`, transaction/checksum ledger and a lock. Do not alter any existing migrations.
-- Do not force-push or replace concurrent production changes. Verify remote master/live revision before promotion and stop on a changed base.
+- Do not force-push or replace concurrent production changes. Verify remote master/live revision before promotion; halt promotion on a changed base until the newer changes are reconciled and verified intact.
 - Schedule only after successful migration, initial real import and API verification. Keep the existing schedules unchanged.
 
 ### Task 1: Production job packaging and exact migration runner
