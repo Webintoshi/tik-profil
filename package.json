@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "node --max-old-space-size=4096 node_modules/next/dist/bin/next dev",
-    "build": "next build",
+    "build": "node scripts/build-city-events-job.mjs && next build",
+    "build:city-events-job": "node scripts/build-city-events-job.mjs",
     "start": "node .next/standalone/server.js",
     "start:legacy": "node scripts/db/apply-native-auth-migration.mjs && next start",
     "lint": "next lint --max-warnings=10000",
@@ -110,6 +111,7 @@
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.16",
     "tsx": "^4.23.1",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "esbuild": "0.28.1"
   }
 }
