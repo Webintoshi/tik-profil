@@ -43,14 +43,38 @@ test("reward APIs reject unauthenticated requests and invalid payloads", async (
     assert.equal(invalid.status, 400);
 });
 
-test("summary and leaderboard accept only bounded city input", async () => {
+test("summary and leaderboard preserve the default weekly response contract", async () => {
     const { calls, handlers } = setup();
     assert.equal((await handlers.getSummary(new Request("https://tikprofil.test/api/kesfet/rewards/me?city=Ordu"))).status, 200);
-    assert.equal((await handlers.getLeaderboard(new Request("https://tikprofil.test/api/kesfet/rewards/leaderboard?city=Ordu&period=week"))).status, 200);
+    const response = await handlers.getLeaderboard(new Request("https://tikprofil.test/api/kesfet/rewards/leaderboard?city=Ordu&period=week"));
+    assert.equal(response.status, 200);
+    assert.deepEqual(Object.keys((await response.json()).data).sort(), ["city", "leaders", "me", "period", "periodEnd", "periodStart"]);
     assert.deepEqual(calls, [
         { appUserId: "session-user", city: "Ordu" },
-        { appUserId: "session-user", city: "Ordu", period: "week" },
+        { appUserId: "session-user", city: "Ordu", limit: 3, period: "week" },
     ]);
+});
+
+test("leaderboard passes valid explicit limits through to the engine", async () => {
+    const { calls, handlers } = setup();
+    for (const limit of [1, 50]) {
+        const response = await handlers.getLeaderboard(new Request(`https://tikprofil.test/api/kesfet/rewards/leaderboard?limit=${limit}`));
+        assert.equal(response.status, 200);
+    }
+    assert.deepEqual(calls, [
+        { appUserId: "session-user", city: "Ordu", limit: 1, period: "week" },
+        { appUserId: "session-user", city: "Ordu", limit: 50, period: "week" },
+    ]);
+});
+
+test("leaderboard rejects non-integer and out-of-range limits before querying the engine", async () => {
+    for (const limit of ["", "0", "1.5", "51", "many"]) {
+        const { calls, handlers } = setup();
+        const response = await handlers.getLeaderboard(new Request(`https://tikprofil.test/api/kesfet/rewards/leaderboard?limit=${limit}`));
+        assert.equal(response.status, 400, `limit=${JSON.stringify(limit)}`);
+        assert.equal((await response.json()).error.code, "INVALID_REQUEST");
+        assert.equal(calls.length, 0);
+    }
 });
 
 test("generic reward events cannot forge the server-owned favorite channel", async () => {

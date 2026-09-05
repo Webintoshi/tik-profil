@@ -23,6 +23,7 @@ const eventSchema = z.object({
     }
 });
 const citySchema = z.string().trim().min(1).max(80);
+const leaderboardLimitSchema = z.coerce.number().int().min(1).max(50);
 
 type RequireCustomer = (request: Request) => Promise<{ appUserId: string }>;
 
@@ -57,11 +58,13 @@ export function createRewardHandlers({
             try {
                 const customer = await requireCustomer(request);
                 const city = cityFrom(request);
-                const period = new URL(request.url).searchParams.get("period") ?? "week";
-                if (!city.success || period !== "week") {
+                const searchParams = new URL(request.url).searchParams;
+                const period = searchParams.get("period") ?? "week";
+                const limit = leaderboardLimitSchema.safeParse(searchParams.get("limit") ?? 3);
+                if (!city.success || !limit.success || period !== "week") {
                     return json({ success: false, error: { code: "INVALID_REQUEST", message: "Geçersiz sıralama isteği." } }, 400);
                 }
-                const data = await engine.getLeaderboard({ appUserId: customer.appUserId, city: city.data, period: "week" });
+                const data = await engine.getLeaderboard({ appUserId: customer.appUserId, city: city.data, limit: limit.data, period: "week" });
                 return json({ success: true, data });
             } catch (error) {
                 return errorResponse(error);

@@ -210,63 +210,58 @@ export const rewardRepository: RewardRepository = {
         const result = await query<{
             app_user_id: string;
             avatar: string | null;
-            display_name: string;
+            display_name: string | null;
+            entry_type: "leader" | "me";
             rank: number | string;
             score: number | string;
         }>(
             `WITH scores AS (
-                SELECT app_user_id,
-                       SUM(discovery_score_delta)::bigint AS score,
-                       MIN(created_at) AS first_score_at
-                FROM reward_events
-                WHERE status = 'APPROVED'
-                  AND lower(city) = lower($1)
-                  AND created_at >= $2
-                  AND created_at < $3
-                GROUP BY app_user_id
+                SELECT reward.app_user_id,
+                       SUM(reward.discovery_score_delta)::bigint AS score,
+                       MIN(reward.created_at) AS first_score_at
+                FROM reward_events reward
+                INNER JOIN app_users account
+                    ON account.id = reward.app_user_id
+                   AND account.status = 'active'
+                WHERE reward.status = 'APPROVED'
+                  AND lower(reward.city) = lower($1)
+                  AND reward.created_at >= $2
+                  AND reward.created_at < $3
+                GROUP BY reward.app_user_id
              ), ranked AS (
                 SELECT scores.*,
                        DENSE_RANK() OVER (ORDER BY score DESC, first_score_at ASC, app_user_id ASC) AS rank
                 FROM scores
              )
-             SELECT ranked.app_user_id, ranked.score, ranked.rank,
+             SELECT 'leader'::text AS entry_type,
+                    ranked.app_user_id, ranked.score, ranked.rank,
                     COALESCE(NULLIF(customer.display_name, ''), NULLIF(account.display_name, ''), 'Tık Profil Kullanıcısı') AS display_name,
                     COALESCE(customer.avatar_url, account.avatar_url) AS avatar
              FROM ranked
              INNER JOIN app_users account ON account.id = ranked.app_user_id
              LEFT JOIN customer_profiles customer ON customer.app_user_id = ranked.app_user_id
-             ORDER BY ranked.rank ASC
-             LIMIT $4`,
-            [input.city, input.start, input.end, input.limit],
+             WHERE ranked.rank <= $4
+             UNION ALL
+             SELECT 'me'::text AS entry_type,
+                    ranked.app_user_id, ranked.score, ranked.rank,
+                    NULL::text AS display_name, NULL::text AS avatar
+             FROM ranked
+             WHERE ranked.app_user_id = $5
+             ORDER BY rank ASC, entry_type ASC`,
+            [input.city, input.start, input.end, input.limit, input.appUserId],
         );
-        const leaders: RewardLeaderboardEntry[] = result.rows.map((row) => ({
-            appUserId: row.app_user_id,
-            avatar: row.avatar,
-            displayName: row.display_name,
-            rank: numeric(row.rank),
-            score: numeric(row.score),
-        }));
-
-        const meResult = await query<{ rank: number | string; score: number | string }>(
-            `WITH scores AS (
-                SELECT app_user_id, SUM(discovery_score_delta)::bigint AS score,
-                       MIN(created_at) AS first_score_at
-                FROM reward_events
-                WHERE status = 'APPROVED'
-                  AND lower(city) = lower($1)
-                  AND created_at >= $2
-                  AND created_at < $3
-                GROUP BY app_user_id
-             ), ranked AS (
-                SELECT app_user_id, score,
-                       DENSE_RANK() OVER (ORDER BY score DESC, first_score_at ASC, app_user_id ASC) AS rank
-                FROM scores
-             )
-             SELECT score, rank FROM ranked WHERE app_user_id = $4`,
-            [input.city, input.start, input.end, input.appUserId],
-        );
-        const me = meResult.rows[0]
-            ? { rank: numeric(meResult.rows[0].rank), score: numeric(meResult.rows[0].score) }
+        const leaders: RewardLeaderboardEntry[] = result.rows
+            .filter((row) => row.entry_type === "leader")
+            .map((row) => ({
+                appUserId: row.app_user_id,
+                avatar: row.avatar,
+                displayName: row.display_name ?? "Tık Profil Kullanıcısı",
+                rank: numeric(row.rank),
+                score: numeric(row.score),
+            }));
+        const meRow = result.rows.find((row) => row.entry_type === "me");
+        const me = meRow
+            ? { rank: numeric(meRow.rank), score: numeric(meRow.score) }
             : null;
         return { leaders, me };
     },
@@ -289,12 +284,15 @@ export const rewardRepository: RewardRepository = {
             ),
             query<{ rank: number | string; score: number | string }>(
                 `WITH scores AS (
-                    SELECT app_user_id, SUM(discovery_score_delta)::bigint AS score,
-                           MIN(created_at) AS first_score_at
-                    FROM reward_events
-                    WHERE status = 'APPROVED' AND lower(city) = lower($1)
-                      AND created_at >= $2 AND created_at < $3
-                    GROUP BY app_user_id
+                    SELECT reward.app_user_id, SUM(reward.discovery_score_delta)::bigint AS score,
+                           MIN(reward.created_at) AS first_score_at
+                    FROM reward_events reward
+                    INNER JOIN app_users account
+                        ON account.id = reward.app_user_id
+                       AND account.status = 'active'
+                    WHERE reward.status = 'APPROVED' AND lower(reward.city) = lower($1)
+                      AND reward.created_at >= $2 AND reward.created_at < $3
+                    GROUP BY reward.app_user_id
                  ), ranked AS (
                     SELECT app_user_id, score,
                            DENSE_RANK() OVER (ORDER BY score DESC, first_score_at ASC, app_user_id ASC) AS rank
