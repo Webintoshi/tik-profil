@@ -20,6 +20,7 @@ export interface PublicProfile {
     isVerified: boolean;
     phone?: string;
     whatsapp?: string;
+    whatsappEnabled?: boolean;
     about?: string;
     address?: string;
     mapsUrl?: string;

@@ -194,6 +194,7 @@ function buildPublicProfile({
     isVerified,
     phone,
     whatsapp,
+    whatsappEnabled,
     about,
     address,
     mapsUrl,
@@ -214,6 +215,7 @@ function buildPublicProfile({
     isVerified: boolean;
     phone?: string;
     whatsapp?: string;
+    whatsappEnabled?: boolean;
     about?: string;
     address?: string;
     mapsUrl?: string;
@@ -234,7 +236,8 @@ function buildPublicProfile({
         industryLabel,
         isVerified,
         phone,
-        whatsapp,
+        whatsapp: whatsappEnabled === false ? undefined : whatsapp,
+        ...(whatsappEnabled === undefined ? {} : { whatsappEnabled }),
         about,
         address,
         mapsUrl,
@@ -340,6 +343,7 @@ export function normalizePostgresPublicProfileRow({
             asBoolean(legacyFields.is_verified) ??
             true,
         phone: asString(row.phone) || asString(legacyFields.phone),
+        whatsappEnabled: asBoolean(legacyFields.whatsappEnabled),
         whatsapp:
             asString(row.whatsapp) ||
             asString(legacySocialLinks.whatsapp) ||
