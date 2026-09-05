@@ -1,13 +1,13 @@
 # Ordu Events Narrow Production Release
 
-The user approved publishing only the events module over the current production revision and enabling daily sync at 06:15 Europe/Istanbul. The source owner confirmed permission for Biletinial and Biletiva. This plan supersedes the earlier implementation-only deployment gate, not its functional scope.
+The user approved publishing only the events module over the current production revision and enabling daily sync at 06:15 Europe/Istanbul. On 2026-09-05 the user explicitly cancelled Biletiva and selected Biletinial alone after the production Biletiva connection failed. This revised source scope supersedes the initial two-provider release. Existing adapters remain dormant unless explicitly selected; the production API and scheduled job must use only Biletinial.
 
 ## Global Constraints
 
 - Base release on verified live commit `006767866e20dba43e28f3a217f28286024a6eca`; preserve newer auth/rewards/media and every unrelated worktree.
 - Ship only backend event route, event catalog/importer, its migration, tests, build packaging and release documentation. Mobile feature remains in its implementation worktree; no APK or unrelated mobile changes in this backend release.
-- Sources biletinial/biletiva, city Ordu, categories sinema/tiyatro/konser/cocuk. No fabricated data, poster or synopsis import; ticket checkout stays external.
-- Publication remains explicitly gated by `CITY_EVENTS_PUBLISHED_SOURCES=biletinial,biletiva` in API/job environments. No secrets in artifacts/logs.
+- Source biletinial only, city Ordu, categories sinema/tiyatro/konser/cocuk. No fabricated data, poster or synopsis import; ticket checkout stays external.
+- Publication remains explicitly gated by `CITY_EVENTS_PUBLISHED_SOURCES=biletinial` in API/job environments. The scheduled command is `node /app/dist/jobs/sync-ordu-events.cjs --source=biletinial --apply`; never omit the explicit source. No secrets in artifacts/logs.
 - Never run the generic all-pending migration command. Use only `0024_city_event_snapshots.sql`, transaction/checksum ledger and a lock. Do not alter any existing migrations.
 - Do not force-push or replace concurrent production changes. Verify remote master/live revision before promotion and stop on a changed base.
 - Schedule only after successful migration, initial real import and API verification. Keep the existing schedules unchanged.
