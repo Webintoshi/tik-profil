@@ -1,11 +1,13 @@
 import { parseCityEventSnapshot, type CityEventSnapshot, type EventSource } from "./contracts.ts";
 import { fetchBiletinialSnapshot, fetchBiletivaSnapshot } from "./providers.ts";
+import { cacheEventPosters, normalizeBiletinialPosterUrl, type ProviderSnapshot } from "./posters.ts";
 
 const SOURCES: EventSource[] = ["biletinial", "biletiva"];
 interface SyncOptions { apply: boolean; sources: EventSource[]; publishedSources: EventSource[] }
 interface SyncDependencies {
-  fetchSnapshot: (source: EventSource) => Promise<CityEventSnapshot>;
+  fetchSnapshot: (source: EventSource) => Promise<ProviderSnapshot>;
   saveSnapshot: (snapshot: CityEventSnapshot) => Promise<unknown>;
+  cachePosters?: (snapshot: ProviderSnapshot) => Promise<CityEventSnapshot>;
 }
 interface SourceResult {
   source: EventSource;
@@ -13,6 +15,7 @@ interface SourceResult {
   events?: number;
   sessions?: number;
   fetchedAt?: string;
+  posters?: number;
 }
 
 export function parseSyncArguments(args: string[]): { apply: boolean; sources: EventSource[] } {
@@ -36,7 +39,7 @@ export async function syncCityEvents(options: SyncOptions, dependencies?: SyncDe
   if (options.apply && options.sources.some(source => !options.publishedSources.includes(source))) {
     throw new Error("Publication permission required: source must be in CITY_EVENTS_PUBLISHED_SOURCES before --apply");
   }
-  const deps = dependencies ?? {
+  const deps: SyncDependencies = dependencies ?? {
     fetchSnapshot: (source: EventSource) => source === "biletinial" ? fetchBiletinialSnapshot() : fetchBiletivaSnapshot(),
     saveSnapshot: async (snapshot: CityEventSnapshot) => {
       const { createCityEventsRepository } = await import("./repository.ts");
@@ -47,11 +50,20 @@ export async function syncCityEvents(options: SyncOptions, dependencies?: SyncDe
   // Sequential bounded sources avoid bursts against provider sites.
   for (const source of [...new Set(options.sources)]) {
     try {
-      const snapshot = parseCityEventSnapshot(await deps.fetchSnapshot(source));
+      const raw = await deps.fetchSnapshot(source);
+      let snapshot = parseCityEventSnapshot(raw);
       if (snapshot.source !== source || snapshot.city !== "ordu") throw new Error("Adapter scope mismatch");
-      if (options.apply) await deps.saveSnapshot(snapshot);
+      const validated: ProviderSnapshot = { ...snapshot, events: snapshot.events.map((event, index) => ({
+        ...event, posterSourceUrl: normalizeBiletinialPosterUrl(raw.events[index].posterSourceUrl),
+      })) };
+      if (options.apply) {
+        snapshot = parseCityEventSnapshot(await (deps.cachePosters ?? cacheEventPosters)(validated));
+        if (snapshot.source !== source || snapshot.city !== "ordu") throw new Error("Cached snapshot scope mismatch");
+        await deps.saveSnapshot(snapshot);
+      }
       sources.push({ source, status: options.apply ? "saved" : "dry-run", events: snapshot.events.length,
-        sessions: snapshot.events.reduce((count, event) => count + event.sessions.length, 0), fetchedAt: snapshot.fetchedAt });
+        sessions: snapshot.events.reduce((count, event) => count + event.sessions.length, 0), fetchedAt: snapshot.fetchedAt,
+        posters: snapshot.events.filter(event => event.imageUrl !== null).length });
     } catch {
       // Do not log SQL, connection strings, provider bodies or environment values.
       sources.push({ source, status: "failed" });

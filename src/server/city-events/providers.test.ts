@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fetchBiletinialSnapshot, fetchBiletivaSnapshot, parseBiletivaHtml } from "./providers.ts";
+import { fetchBiletinialStageSnapshot as fetchBiletinialSnapshot, fetchBiletivaSnapshot, parseBiletivaHtml } from "./providers.ts";
 
 const now = new Date("2026-09-05T09:00:00.000Z");
 const row = {
   etkinlikId: 123, etkinlik: "Test Sahnesi", seanceId: 456, mekanId: 38062,
   mekan: "Ordu Atatürk Kültür Merkezi", tip: "Tiyatro", tipForUrl: "tiyatro",
   url: "test-sahnesi", SeanceDate: "2026-09-05T20:30:00", SaleStatus: 0,
-  pic: "/copyrighted-poster.jpg", KoltukKontrol: 12,
+  pic: "/Uploads/Films/test.jpg", KoltukKontrol: 12,
 };
 const theaterId = "https://www.biletiva.com/place/ORDU_CINEVIZYON_SINEMASI/#business";
 const movieId = "https://www.biletiva.com/event/TEST123#movie";
@@ -41,6 +41,7 @@ test("Biletinial exhausts pagination and groups stable event IDs without inventi
   assert.equal(result.events[0].sessions[0].ticketUrlKind, "event");
   assert.equal(result.events[0].sourceUrl, "https://biletinial.com/tr-tr/tiyatro/test-sahnesi");
   assert.equal(result.events[0].imageUrl, null);
+  assert.equal(result.events[0].posterSourceUrl, "https://b6s54eznn8xq.merlincdn.net/Uploads/Films/test.jpg");
 });
 
 test("pagination failure never returns a partial Biletinial snapshot", async () => {

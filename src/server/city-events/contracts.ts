@@ -94,8 +94,7 @@ export function parseCityEventSnapshot(input: unknown): CityEventSnapshot {
         if (!isEventCategory(event.category)) fail(`event ${id} category is not supported`);
         const title = boundedText(event.title, `event ${id} title`, 300);
         const sourceUrl = providerUrl(event.sourceUrl, source, `event ${id} sourceUrl`);
-        if (event.imageUrl !== null) fail(`event ${id} imageUrl publication is not enabled`);
-        const imageUrl = null;
+        const imageUrl = event.imageUrl === null ? null : eventPosterUrl(event.imageUrl, source, id);
         if (!Array.isArray(event.sessions) || event.sessions.length > MAX_SESSIONS_PER_EVENT) {
             fail(`event ${id} sessions are invalid or exceed the limit`);
         }
@@ -153,6 +152,23 @@ function providerUrl(value: unknown, source: EventSource, label: string): string
     const url = parseHttpsUrl(value, label);
     const baseHost = source === "biletinial" ? "biletinial.com" : "biletiva.com";
     if (url.hostname !== baseHost && !url.hostname.endsWith(`.${baseHost}`)) fail(`${label} host is not allowlisted`);
+    return url.toString();
+}
+
+function eventPosterUrl(value: unknown, source: EventSource, eventId: string): string {
+    const url = parseHttpsUrl(value, "event poster URL");
+    const configuredBase = process.env.CLOUDFLARE_R2_PUBLIC_URL;
+    if (!configuredBase || source !== "biletinial" || !/^biletinial:\d+$/.test(eventId)) {
+        fail("event poster storage is not configured for this event");
+    }
+    const base = parseHttpsUrl(configuredBase, "event poster storage base");
+    const prefix = `${base.pathname.replace(/\/$/, "")}/events/ordu/biletinial/${eventId.slice("biletinial:".length)}/`;
+    const filename = url.pathname.slice(prefix.length);
+    if (base.search || base.hash || base.port || url.port || url.search || url.hash
+        || url.origin !== base.origin || !url.pathname.startsWith(prefix)
+        || !/^[a-f0-9]{64}\.(?:png|jpg|webp|avif)$/.test(filename)) {
+        fail("event poster URL is not an approved R2 event object");
+    }
     return url.toString();
 }
 

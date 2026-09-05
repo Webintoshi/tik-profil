@@ -1,5 +1,7 @@
 import { parse } from "node-html-parser";
 import type { CityEvent, CityEventSession, CityEventSnapshot, EventCategory } from "./contracts.ts";
+import { normalizeBiletinialPosterUrl, type ProviderEvent, type ProviderSnapshot } from "./posters.ts";
+import { fetchBiletinialCinemaEvents } from "./biletinial-cinema.ts";
 
 const BILETINIAL = "https://biletinial.com";
 const BILETIVA = "https://www.biletiva.com";
@@ -77,9 +79,26 @@ function categoryFromType(value: unknown): EventCategory | null {
   return null;
 }
 
-export async function fetchBiletinialSnapshot(options: Options = {}): Promise<CityEventSnapshot> {
+export async function fetchBiletinialSnapshot(options: Options = {}): Promise<ProviderSnapshot> {
+  // One snapshot boundary: neither feed may publish alone when the other fails.
+  const scopedOptions = { ...options, now: options.now ?? new Date() };
+  const stage = await fetchBiletinialStageSnapshot(scopedOptions);
+  const cinema = await fetchBiletinialCinemaEvents(scopedOptions);
+  const events = new Map(stage.events.map(event => [event.id, event]));
+  for (const movie of cinema) {
+    const prior = events.get(movie.id);
+    if (prior && prior.category !== "sinema") throw new Error("Conflicting Biletinial event category across feeds");
+    // The dedicated cinema endpoint supplies the authoritative poster and room.
+    const sessions = new Map((prior?.sessions ?? []).map(session => [session.id, session]));
+    for (const session of movie.sessions) sessions.set(session.id, session);
+    events.set(movie.id, { ...movie, sessions: [...sessions.values()] });
+  }
+  return { ...stage, events: [...events.values()] };
+}
+
+export async function fetchBiletinialStageSnapshot(options: Options = {}): Promise<ProviderSnapshot> {
   const fetchedAt = (options.now ?? new Date()).toISOString();
-  const events = new Map<string, CityEvent>();
+  const events = new Map<string, ProviderEvent>();
   const seenSessions = new Set<string>();
   const fetcher = options.fetch ?? fetch;
   for (let page = 1; page <= MAX_PAGES; page++) {
@@ -108,7 +127,8 @@ export async function fetchBiletinialSnapshot(options: Options = {}): Promise<Ci
       };
       const existing = events.get(id);
       if (existing) existing.sessions.push(session);
-      else events.set(id, { id, source: "biletinial", category, title: text(row.etkinlik, "event title"), sourceUrl, imageUrl: null, sessions: [session] });
+      else events.set(id, { id, source: "biletinial", category, title: text(row.etkinlik, "event title"), sourceUrl,
+        imageUrl: null, posterSourceUrl: normalizeBiletinialPosterUrl(row.pic), sessions: [session] });
     }
     if (body.HasMore && newSessions === 0) throw new Error("Biletinial pagination repeated without progress");
     if (!body.HasMore) return { city: "ordu", source: "biletinial", fetchedAt, events: [...events.values()] };
