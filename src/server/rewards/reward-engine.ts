@@ -144,7 +144,7 @@ export interface RewardRepository {
 }
 
 export interface RewardEngine {
-    getLeaderboard(input: { appUserId: string; city: string; period: "week" }): Promise<RewardLeaderboard>;
+    getLeaderboard(input: { appUserId: string; city: string; limit: number; period: "week" }): Promise<RewardLeaderboard>;
     getSummary(input: { appUserId: string; city: string }): Promise<RewardSummary>;
     record(input: RewardEventInput): Promise<RewardEventResult>;
 }
@@ -221,7 +221,7 @@ export function createRewardEngine({
                 appUserId: input.appUserId,
                 city: input.city,
                 end: window.end,
-                limit: 3,
+                limit: input.limit,
                 start: window.start,
             });
             return {
@@ -403,7 +403,7 @@ export function createInMemoryRewardRepository(initialBusinesses: RewardBusiness
     const businesses = new Map(initialBusinesses.map((business) => [business.id, business]));
     const balances = new Map<string, number>();
     const events: RewardLedgerEvent[] = [];
-    const users = new Map<string, { avatar: string | null; displayName: string }>();
+    const users = new Map<string, { avatar: string | null; displayName: string; status: "active" | "disabled" | "pending" }>();
     const locks = new Map<string, Promise<void>>();
 
     async function withLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
@@ -432,18 +432,25 @@ export function createInMemoryRewardRepository(initialBusinesses: RewardBusiness
 
     const repository: RewardRepository & {
         seedApproved(input: { appUserId: string; awardedPoints: number; businessId: string; city: string; discoveryScoreDelta: number; now: Date }): void;
-        setUser(appUserId: string, displayName: string, avatar: string | null): void;
+        setUser(appUserId: string, displayName: string, avatar: string | null, status?: "active" | "disabled" | "pending"): void;
     } = {
         async getLeaderboardSnapshot(input) {
-            const scores = new Map<string, number>();
+            const scores = new Map<string, { firstScoreAt: Date; score: number }>();
             for (const item of events) {
                 if (item.status !== "APPROVED" || item.createdAt < input.start || item.createdAt >= input.end) continue;
                 if ((item.city ?? "").toLocaleLowerCase("tr-TR") !== input.city.toLocaleLowerCase("tr-TR")) continue;
-                scores.set(item.appUserId, (scores.get(item.appUserId) ?? 0) + item.discoveryScoreDelta);
+                if ((users.get(item.appUserId)?.status ?? "active") !== "active") continue;
+                const current = scores.get(item.appUserId);
+                scores.set(item.appUserId, {
+                    firstScoreAt: current && current.firstScoreAt < item.createdAt ? current.firstScoreAt : item.createdAt,
+                    score: (current?.score ?? 0) + item.discoveryScoreDelta,
+                });
             }
             const ranked = [...scores.entries()]
-                .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-                .map(([appUserId, score], index) => ({ appUserId, score, rank: index + 1 }));
+                .sort((left, right) => right[1].score - left[1].score
+                    || left[1].firstScoreAt.getTime() - right[1].firstScoreAt.getTime()
+                    || left[0].localeCompare(right[0]))
+                .map(([appUserId, score], index) => ({ appUserId, score: score.score, rank: index + 1 }));
             const leaders = ranked.slice(0, input.limit).map((entry) => ({
                 ...entry,
                 avatar: users.get(entry.appUserId)?.avatar ?? null,
@@ -521,8 +528,8 @@ export function createInMemoryRewardRepository(initialBusinesses: RewardBusiness
             balances.set(input.appUserId, (balances.get(input.appUserId) ?? 0) + input.awardedPoints);
         },
 
-        setUser(appUserId, displayName, avatar) {
-            users.set(appUserId, { avatar, displayName });
+        setUser(appUserId, displayName, avatar, status = "active") {
+            users.set(appUserId, { avatar, displayName, status });
         },
     };
     return repository;

@@ -17,6 +17,10 @@ import {
 
 const NOW = new Date("2026-08-15T09:00:00.000Z");
 
+function userId(index: number) {
+    return `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+}
+
 function event(overrides: Partial<RewardEventInput> = {}): RewardEventInput {
     return {
         actionType: "DISCOVERY",
@@ -141,8 +145,82 @@ test("weekly leaderboard is city-scoped, score-based, and returns current rank",
     repository.setUser("00000000-0000-4000-8000-000000000001", "Ada", null);
     repository.setUser("00000000-0000-4000-8000-000000000002", "Ece", null);
 
-    const board = await engine.getLeaderboard({ appUserId: event().appUserId, city: "Ordu", period: "week" });
+    const board = await engine.getLeaderboard({ appUserId: event().appUserId, city: "Ordu", limit: 3, period: "week" });
     assert.deepEqual(board.leaders.map(({ displayName, score }) => [displayName, score]), [["Ada", 30], ["Ece", 10]]);
     assert.deepEqual(board.me, { rank: 1, score: 30 });
     assert.equal(board.leaders.some((leader) => leader.score === 50), false);
+});
+
+test("weekly leaderboard returns zero, one, three, fifty, and at most fifty of fifty-one entries", async () => {
+    for (const count of [0, 1, 3, 50, 51]) {
+        const { engine, repository } = setup();
+        for (let index = 1; index <= count; index += 1) {
+            repository.seedApproved({
+                appUserId: userId(index),
+                awardedPoints: 0,
+                businessId: `seed-${index}`,
+                city: "Ordu",
+                discoveryScoreDelta: count - index + 1,
+                now: NOW,
+            });
+        }
+
+        const board = await engine.getLeaderboard({ appUserId: userId(1), city: "Ordu", limit: 50, period: "week" });
+        assert.equal(board.leaders.length, Math.min(count, 50), `count=${count}`);
+    }
+});
+
+test("weekly leaderboard returns the current user's overall rank outside the requested entries", async () => {
+    const { engine, repository } = setup();
+    for (let index = 1; index <= 51; index += 1) {
+        repository.seedApproved({
+            appUserId: userId(index),
+            awardedPoints: 0,
+            businessId: `seed-${index}`,
+            city: "Ordu",
+            discoveryScoreDelta: 52 - index,
+            now: NOW,
+        });
+    }
+
+    const board = await engine.getLeaderboard({ appUserId: userId(51), city: "Ordu", limit: 50, period: "week" });
+    assert.equal(board.leaders.some((leader) => leader.appUserId === userId(51)), false);
+    assert.deepEqual(board.me, { rank: 51, score: 1 });
+});
+
+test("weekly score ties use earliest approved event and then UUID order", async () => {
+    const { engine, repository } = setup();
+    repository.seedApproved({ appUserId: userId(1), awardedPoints: 0, businessId: "late", city: "Ordu", discoveryScoreDelta: 10, now: new Date("2026-08-12T09:00:00.000Z") });
+    repository.seedApproved({ appUserId: userId(3), awardedPoints: 0, businessId: "early-3", city: "Ordu", discoveryScoreDelta: 10, now: new Date("2026-08-11T09:00:00.000Z") });
+    repository.seedApproved({ appUserId: userId(2), awardedPoints: 0, businessId: "early-2", city: "Ordu", discoveryScoreDelta: 10, now: new Date("2026-08-11T09:00:00.000Z") });
+
+    const board = await engine.getLeaderboard({ appUserId: userId(1), city: "Ordu", limit: 50, period: "week" });
+    assert.deepEqual(board.leaders.map(({ appUserId, rank }) => [appUserId, rank]), [
+        [userId(2), 1],
+        [userId(3), 2],
+        [userId(1), 3],
+    ]);
+});
+
+test("weekly leaderboard excludes disabled accounts from both leaders and current rank", async () => {
+    const { engine, repository } = setup();
+    repository.seedApproved({ appUserId: userId(1), awardedPoints: 0, businessId: "active", city: "Ordu", discoveryScoreDelta: 10, now: NOW });
+    repository.seedApproved({ appUserId: userId(2), awardedPoints: 0, businessId: "disabled", city: "Ordu", discoveryScoreDelta: 20, now: NOW });
+    repository.setUser(userId(1), "Active", null, "active");
+    repository.setUser(userId(2), "Disabled", null, "disabled");
+
+    const board = await engine.getLeaderboard({ appUserId: userId(2), city: "Ordu", limit: 50, period: "week" });
+    assert.deepEqual(board.leaders.map((leader) => leader.appUserId), [userId(1)]);
+    assert.equal(board.me, null);
+});
+
+test("weekly leaderboard includes the Istanbul Monday start and excludes the next Monday boundary", async () => {
+    const { engine, repository } = setup();
+    repository.seedApproved({ appUserId: userId(1), awardedPoints: 0, businessId: "before", city: "Ordu", discoveryScoreDelta: 100, now: new Date("2026-08-09T20:59:59.999Z") });
+    repository.seedApproved({ appUserId: userId(2), awardedPoints: 0, businessId: "start", city: "Ordu", discoveryScoreDelta: 20, now: new Date("2026-08-09T21:00:00.000Z") });
+    repository.seedApproved({ appUserId: userId(3), awardedPoints: 0, businessId: "inside", city: "Ordu", discoveryScoreDelta: 10, now: new Date("2026-08-16T20:59:59.999Z") });
+    repository.seedApproved({ appUserId: userId(4), awardedPoints: 0, businessId: "end", city: "Ordu", discoveryScoreDelta: 200, now: new Date("2026-08-16T21:00:00.000Z") });
+
+    const board = await engine.getLeaderboard({ appUserId: userId(2), city: "Ordu", limit: 50, period: "week" });
+    assert.deepEqual(board.leaders.map((leader) => leader.appUserId), [userId(2), userId(3)]);
 });
