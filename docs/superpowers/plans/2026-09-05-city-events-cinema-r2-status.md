@@ -22,4 +22,17 @@ The local Metro startup command for localhost:8082 was rejected by the tool secu
 
 ## Production
 
-Deployment, actual R2 object readback and API cover/cinema checks will be recorded after they run. No completion claim until evidence is available; visual gate remains explicit even after backend publication.
+- Live revision: `23d6f2ef931475292b90e141698a09ccbacf35a3`; normal fast-forward promotion preserves prior live `add43fb`, with unrelated rewards code unchanged.
+- Coolify deployment `pk7pnaftx1pqf08cqcqfn6yj` finished at `2026-09-05T04:23:34Z`. Application `running:healthy`; no duplicate deployment was queued.
+- Deployed importer `--source=biletinial --apply`: success. Snapshot timestamp `2026-09-05T04:25:37.483Z`, 43 events, 336 sessions, **43 R2 posters saved**.
+- Public API verification: ready, non-stale, 11 cinema / 30 theater / 2 concert / 0 children events. Real cinema coverage is 287 sessions at Fatsa Cinemas and Ünye Knk Cinemas. Zero children is the source result, not fabricated coverage.
+- All **43 public R2 images** returned HTTP200 and the expected image MIME/cache headers. SHA256 of every returned body matches its content-addressed filename: **16,023,982 original bytes, all exact**.
+- Category/date filters and invalid-city400 checks passed. Mobile's actual response parser accepted the live 11-film / 287-session / 11-R2-cover result.
+- Existing task `gcmdpmnw1kjr0g8dr5ud6az6` remains enabled, unchanged command, daily06:15 Istanbul, timeout900. This turn verified direct deployed importer execution; the next scheduler-triggered execution is not yet observed.
+- Startup log has no observed event error. Existing npm production-config and Next standalone/start warnings remain. Standalone local Node mobile-parser diagnostic reports a module-type warning; no runtime/browser-console clean claim is made.
+
+## Remaining release limitations
+
+- General mobile smoke fails on an unrelated, already user-modified auth evidence label: checker expects `refresh failure after 401...`, while the current test is `refresh rejection after 401...`. Those auth/smoke files were not changed by this task. Full mobile698 unit tests still passed.
+- New mobile poster card source is in the preserved mobile implementation worktree; it has **not** been delivered in a new native binary.
+- Browser320/360/390/430, localhost8082 console and Android visual/scroll checks remain pending under the startup restriction above. Backend/R2 success does not imply these passed. The overall UI task is not declared DONE.
