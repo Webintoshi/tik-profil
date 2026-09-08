@@ -11,6 +11,7 @@ Set secrets in the server environment only, never EXPO_PUBLIC variables or build
 - TOSHI_GROQ_ENABLED=true
 - TOSHI_360_DISCOVERY_ENABLED=true
 - TOSHI_360_TEST_ACCOUNT_IDS: verified appUserId values, comma separated
+- TOSHI_360_TEST_ACCOUNT_EMAILS: optional verified account emails, read from app_users only after native session validation
 - TOSHI_360_PUBLIC_DISCOVERY_ENABLED=false during pilot
 
 The runtime verifies existing native customer sessions. Guest access requires the explicit public discovery flag. Personal and transaction capabilities are always false in this release. Protocol 1 remains compatible with deterministic discovery.
@@ -25,7 +26,7 @@ Only allowlisted discovery tools are passed to the model; no credentials, accoun
 
 ## Validation
 
-- 30 adapter, source, command and security tests passed; two additional native-auth/disabled-pilot regression tests passed.
+- 30 adapter, source, command and security tests passed; five additional native-auth/pilot access regression tests passed.
 - Production npm ci and npm run build succeeded against the existing lockfile.
 - Whole-project tsc reports pre-existing errors outside Toshi. No Toshi/conversation-language errors remain after removing an unused personal repository type dependency. Existing Next type/lint skip settings were not changed.
 - Android 2.0.50 (52) emulator preview reached a loopback guest-discovery server. Real Groq greeting completed in 930 ms and coffee search in 2,747 ms, returning actual public business cards. This is a local preview, not proof of deployed production availability.

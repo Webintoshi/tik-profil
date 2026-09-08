@@ -1,3 +1,4 @@
+import {isPilotAccount} from './pilot-access';
 import {createHash,randomUUID} from 'node:crypto';
 import {requireNativeCustomerPrincipal} from '../auth/native-auth/account';
 import {NativeAuthError} from '../auth/native-auth/service';
@@ -15,7 +16,7 @@ export function createPilotRuntime(loadBusinesses:()=>Promise<readonly KesfetPub
  const token=authorization?(/^Bearer\s+(\S+)$/i.exec(authorization)?.[1]??null):null;
  if(authorization&&!token)throw new NativeAuthError('INVALID_ACCESS_TOKEN',401);
  const owner=token?(await requireNativeCustomerPrincipal(token)).appUserId:null;
- const test=!!owner&&(process.env.TOSHI_360_TEST_ACCOUNT_IDS??'').split(',').map(s=>s.trim()).includes(owner);
+ const test=await isPilotAccount(owner);
  const enabled=process.env.TOSHI_360_DISCOVERY_ENABLED==='true'&&(test||process.env.TOSHI_360_PUBLIC_DISCOVERY_ENABLED==='true');
  const capabilities={discovery:enabled,personal:false,transactions:false};
  if(!enabled)return {message:'Merhaba! Toshi şu anda hazırlanıyor. Keşfet sayfasından yerleri inceleyebilirsin.',source:'rules',recommendations:[],capabilities};
