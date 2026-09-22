@@ -7,7 +7,7 @@
     "build": "node scripts/build-city-events-job.mjs && next build",
     "build:city-events-job": "node scripts/build-city-events-job.mjs",
     "start": "node .next/standalone/server.js",
-    "start:legacy": "node scripts/db/apply-native-auth-migration.mjs && node scripts/db/apply-discovery-category-release.mjs && next start",
+    "start:legacy": "node scripts/db/apply-native-auth-migration.mjs && next start",
     "lint": "next lint --max-warnings=10000",
     "typecheck": "tsc --noEmit --incremental false",
     "lint:strict": "next lint --max-warnings=0",
